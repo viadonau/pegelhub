@@ -60,9 +60,9 @@ public class IecConnector implements AutoCloseable {
     }
 
     /**
-     * Initializes the task for sending data to the IEC server.
+     * Initializes the task for querying (reading) data from the IEC server.
      * This method sets up a timer task that sends an interrogation command
-     * at regular intervals defined by the connector options.
+     * to request data at regular intervals defined by the connector options.
      */
     private void initializeReadingTask() {
         task = new TimerTask() {
