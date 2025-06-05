@@ -1,16 +1,9 @@
 package com.stm.pegelhub.connector.iec;
 
-import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import com.stm.pegelhub.lib.PegelHubCommunicator;
 import com.stm.pegelhub.lib.PegelHubCommunicatorFactory;
-import com.stm.pegelhub.lib.internal.ApplicationProperties;
-import com.stm.pegelhub.lib.internal.ApplicationPropertiesFactory;
 import com.stm.pegelhub.lib.internal.ApplicationPropertiesImpl;
-import com.stm.pegelhub.lib.model.Connector;
-import com.stm.pegelhub.lib.model.Contact;
 import com.stm.pegelhub.lib.model.Measurement;
-import com.stm.pegelhub.lib.model.Telemetry;
-import jdk.jfr.Timespan;
 import org.openmuc.j60870.*;
 import org.openmuc.j60870.ie.*;
 import org.slf4j.Logger;
@@ -18,10 +11,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.io.InterruptedIOException;
-import java.net.Inet4Address;
-import java.net.InetAddress;
 import java.net.URL;
-import java.net.UnknownHostException;
 import java.util.*;
 
 /**
@@ -39,7 +29,6 @@ public class IecConnector implements AutoCloseable {
     private TimerTask task = null;
     private ApplicationPropertiesImpl properties;
     private final ConnectorOptions conOpt;
-    private Boolean isSupplier = false;
 
 
     public IecConnector(ConnectorOptions conOpt) throws IOException {
@@ -161,10 +150,10 @@ public class IecConnector implements AutoCloseable {
 
     /**
      * Processes the measurements for a specific IOA and sends them to the IEC server.
-     * @param ioa
-     * @param measurements
-     * @throws IOException
-     * @throws InterruptedException
+     * @param ioa Information Object Address for the measurements.
+     * @param measurements A list of Measurement objects to be processed and sent.
+     * @throws IOException If an I/O error occurs during communication with the IEC server.
+     * @throws InterruptedException If the thread is interrupted while sleeping.
      */
     private void processAndSendMeasurements(int ioa, List<Measurement> measurements) throws IOException, InterruptedException {
         List<InformationElement[]> elements = new ArrayList<>();
@@ -279,7 +268,7 @@ public class IecConnector implements AutoCloseable {
         if (communicator != null) {
             return communicator;
         }
-        System.out.println(String.format("http://%s:%s/", conOpt.coreAddress().getHostAddress(), conOpt.corePort()));
+        System.out.printf("http://%s:%s/%n", conOpt.coreAddress().getHostAddress(), conOpt.corePort());
         return PegelHubCommunicatorFactory.create(new URL(String.format("http://%s:%s/", conOpt.coreAddress().getHostAddress(), conOpt.corePort())), conOpt.propertyFileName());
     }
 
