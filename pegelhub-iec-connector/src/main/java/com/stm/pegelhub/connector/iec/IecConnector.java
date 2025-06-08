@@ -1,7 +1,6 @@
 package com.stm.pegelhub.connector.iec;
 
 import com.stm.pegelhub.lib.PegelHubCommunicator;
-import com.stm.pegelhub.lib.PegelHubCommunicatorFactory;
 import com.stm.pegelhub.lib.internal.ApplicationPropertiesImpl;
 import com.stm.pegelhub.lib.model.Measurement;
 import org.openmuc.j60870.*;
@@ -11,7 +10,6 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.io.InterruptedIOException;
-import java.net.URL;
 import java.util.*;
 
 /**
@@ -27,15 +25,14 @@ public class IecConnector implements AutoCloseable {
     private Connection connection;
     private final Timer sleepInterval;
     private TimerTask task = null;
-    private ApplicationPropertiesImpl properties;
+    private final ApplicationPropertiesImpl properties;
     private final ConnectorOptions conOpt;
 
-
-    public IecConnector(ConnectorOptions conOpt) throws IOException {
+    public IecConnector(PegelHubCommunicator communicator, Connection connection, ApplicationPropertiesImpl properties, ConnectorOptions conOpt) throws IOException {
         this.conOpt = conOpt;
-        this.communicator = getCommunicator(conOpt);
-        this.connection = getConnection(conOpt);
-        this.properties = new ApplicationPropertiesImpl(conOpt.propertyFileName());
+        this.communicator = communicator;
+        this.connection = connection;
+        this.properties = properties;
         this.sleepInterval = new Timer();
 
         registerCallback(conOpt);
@@ -58,9 +55,9 @@ public class IecConnector implements AutoCloseable {
             @Override
             public void run() {
                 try {
-                    LOG.info("**********************************************************************************************");
+                    LOG.info("***********************************************");
                     LOG.info("Sending interrogation command to IEC server.");
-                    LOG.info("**********************************************************************************************");
+                    LOG.info("***********************************************");
 
                     connection.synchronizeClocks(conOpt.common_address(), new IeTime56(System.currentTimeMillis()));
 
@@ -79,17 +76,25 @@ public class IecConnector implements AutoCloseable {
      * This method checks if the connection is still active and attempts to reconnect if necessary.
      */
     private void reconnectIfNecessary() {
-        try {
             if (connection == null || connection.isClosed()) {
-                LOG.info("Connection interrupted. Attempting to reconnect...");
-                connection = getConnection(conOpt);
-                registerCallback(conOpt);
-            }
-        } catch (IOException e) {
-            LOG.error("Error reconnecting to IEC server: {}", e.getMessage());
-        }
-    }
+                LOG.info("Attempting to rebuild IEC connection...");
+                try{
+                    Connection newConnection = new ClientConnectionBuilder(conOpt.iec_host())
+                            .setMessageFragmentTimeout(conOpt.message_fragment_timeout())
+                            .setConnectionTimeout(conOpt.connection_timeout())
+                            .setPort(conOpt.iec_port())
+                            .build();
 
+                    this.connection.close();
+                    this.connection = newConnection;
+                    registerCallback(conOpt);
+                    LOG.info("Successfully reconnected to IEC server.");
+                }
+                catch (IOException e) {
+                    LOG.error("Error reconnecting to IEC server: {}", e.getMessage());
+                }
+            }
+    }
 
     /**
      * Initializes the task for sending data to the IEC server.
@@ -99,19 +104,14 @@ public class IecConnector implements AutoCloseable {
         task = new TimerTask() {
             @Override
             public void run() {
-                LOG.info("***********************************************************************************************");
+                LOG.info("**************************************");
                 LOG.info("Sending measurements to IEC server.");
-                LOG.info("***********************************************************************************************");
+                LOG.info("**************************************");
 
                 for (String stationNumber : conOpt.stationNumbers()) {
                     try {
                         List<Measurement> measurements = communicator.getMeasurementsOfStation(stationNumber, conOpt.delayString()).stream().toList();
                         LOG.info("Found {} measurements for station {}", measurements.size(), stationNumber);
-
-                        if (measurements.isEmpty()) {
-                            LOG.info("No measurements found for station {}", stationNumber);
-                            continue;
-                        }
 
                         Map<Integer, List<Measurement>> measurementsByIoa = new HashMap<>();
 
@@ -127,7 +127,6 @@ public class IecConnector implements AutoCloseable {
                                     LOG.warn("Invalid IOA in infos: {}, using {}", infos.get("IOA"), ioa);
                                 }
                             }
-
                             measurementsByIoa.computeIfAbsent(ioa, k -> new ArrayList<>()).add(measurement);
                         }
 
@@ -149,11 +148,11 @@ public class IecConnector implements AutoCloseable {
     }
 
     /**
-     * Processes the measurements for a specific IOA and sends them to the IEC server.
-     * @param ioa Information Object Address for the measurements.
-     * @param measurements A list of Measurement objects to be processed and sent.
-     * @throws IOException If an I/O error occurs during communication with the IEC server.
-     * @throws InterruptedException If the thread is interrupted while sleeping.
+     * Processes a list of Measurement objects and then sends them to the configured IEC server.
+     * @param ioa Information Object Address (IOA) associated with these measurements
+     * @param measurements A list of Measurement objects
+     * @throws IOException If an I/O error occurs during the communication with the IEC server
+     * @throws InterruptedException If the current thread is interrupted
      */
     private void processAndSendMeasurements(int ioa, List<Measurement> measurements) throws IOException, InterruptedException {
         List<InformationElement[]> elements = new ArrayList<>();
@@ -204,7 +203,6 @@ public class IecConnector implements AutoCloseable {
         Thread.sleep(100);
     }
 
-
     /**
      * Registers a callback to handle incoming data transfer requests from the IEC server.
      * This method attempts to start data transfer and handles any exceptions that may occur.
@@ -239,39 +237,6 @@ public class IecConnector implements AutoCloseable {
         }
     }
 
-    /**
-     * Establishes a connection to the IEC server using the provided connector options.
-     * @param conOpt the connector options containing host and port information
-     * @return the established connection
-     * @throws IOException if the connection cannot be established
-     */
-    private Connection getConnection(ConnectorOptions conOpt) throws IOException {
-        try {
-            ClientConnectionBuilder clientConnectionBuilder = new ClientConnectionBuilder(conOpt.iec_host())
-                    .setMessageFragmentTimeout(conOpt.message_fragment_timeout())
-                    .setConnectionTimeout(conOpt.connection_timeout())
-                    .setPort(conOpt.iec_port());
-
-            return clientConnectionBuilder.build();
-        } catch (IOException e) {
-            throw new IOException(String.format("Unable to connect to remote host: %s:%d", conOpt.iec_host().toString(), conOpt.iec_port()));
-        }
-    }
-
-    /**
-     * Creates a PegelHubCommunicator instance to interact with the PegelHub core.
-     * @param conOpt the connector options containing the core address and port
-     * @return a PegelHubCommunicator instance
-     * @throws IOException if the communicator cannot be created
-     */
-    private PegelHubCommunicator getCommunicator(ConnectorOptions conOpt) throws IOException {
-        if (communicator != null) {
-            return communicator;
-        }
-        System.out.printf("http://%s:%s/%n", conOpt.coreAddress().getHostAddress(), conOpt.corePort());
-        return PegelHubCommunicatorFactory.create(new URL(String.format("http://%s:%s/", conOpt.coreAddress().getHostAddress(), conOpt.corePort())), conOpt.propertyFileName());
-    }
-
     @Override
     public void close() {
         if (connection != null) {
@@ -281,7 +246,6 @@ public class IecConnector implements AutoCloseable {
         if (sleepInterval != null) {
             sleepInterval.cancel();
         }
-
         LOG.info("Closing IEC connection");
     }
 }
