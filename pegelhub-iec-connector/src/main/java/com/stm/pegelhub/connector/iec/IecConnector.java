@@ -192,7 +192,7 @@ public class IecConnector implements AutoCloseable {
         InformationObject informationObject = new InformationObject(ioa, ieArray);
 
         ASdu asdu = new ASdu(
-                ASduType.M_ME_TF_1, true,
+                ASduType.M_ME_NB_1, true,
                 CauseOfTransmission.SPONTANEOUS, false,
                 false, 0, conOpt.common_address(), informationObject);
 
