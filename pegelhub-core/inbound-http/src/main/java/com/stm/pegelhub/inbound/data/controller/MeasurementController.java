@@ -47,6 +47,18 @@ public interface MeasurementController {
                                                         @RequestParam(name = "stationNumber", defaultValue = "") String stationNumber,
                                                         @PathVariable String range);
 
+
+    @Operation(summary = "Gets latest Measurement from Supplier")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Returns the latest measurement",
+                    content = {@Content(mediaType = "application/json", schema = @Schema(implementation = Measurement.class))})
+    })
+    @GetMapping("/supplier/latest")
+    Measurement findLatestMeasurementBySupplier(
+            @RequestParam(name = "apiKey", defaultValue = "") String apiKey,
+            @RequestParam(name = "stationNumber", defaultValue = "") String stationNumber
+    );
+
     @Operation(summary = "Gets last Measurement entry for ID")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Returns the measurement entry",

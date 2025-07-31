@@ -23,8 +23,11 @@ JNIEXPORT jint JNICALL Java_org_example_RevPiReader_readFromOffset
     //spiValue.i16uAddress = spiVariableOut.i16uAddress;
     //spiValue.i8uBit = 8;
     //spiValue.i8uValue = 0;
-         //offset; size of result (2 bytes); pointer where to store result
-    piC.Read(offsetUint, 2, &readData);
+     //offset; size of result (2 bytes); pointer where to store result
+    int readStatus = piC.Read(offsetUint, 2, &readData);
+
+    printf("[NATIVE LOG] piControl Read function returned status: %d\n", readStatus);
+    printf("[NATIVE LOG] Value read from device is: %u\n", readData);
 
     //piC.GetBitValue(&spiValue);
     return readData;

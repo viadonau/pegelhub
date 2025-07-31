@@ -72,6 +72,20 @@ public class AuthorizedMeasurementController implements MeasurementController {
     /**
      * authorizes the request and forwards it to for further handling
      * @param apiKey the key which is used for Authorization
+     * @param stationNumber the stationNumber/Supplier of the measurement to be searched for
+     * @return the latest measurement from the Supplier
+     */
+    @Override
+    public Measurement findLatestMeasurementBySupplier(String apiKey, String stationNumber) {
+        AuthTokenIdHolder.set(authorizationService.authorize(apiKey));
+        Measurement measurement = delegate.findLatestMeasurementBySupplier(apiKey, stationNumber);
+        AuthTokenIdHolder.clear();
+        return measurement;
+    }
+
+    /**
+     * authorizes the request and forwards it to for further handling
+     * @param apiKey the key which is used for Authorization
      * @param uuid the {@link UUID} of the measurement to be searched for
      * @return the corresponding {@link Measurement} to the specified {@link UUID}
      */

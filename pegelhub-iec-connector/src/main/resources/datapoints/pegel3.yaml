@@ -1,13 +1,13 @@
 ---
-apiToken: "OCNtvdvimdRdSYwrdFs89EAxo9NBNBbe9KZyO6cRxto5bTEVN3JHzAtoFV7bXAXs"
-lastTokenRefresh: "2024-01-30T10:09:37.0942968"
-iecIOA: 123
+apiToken: "ttfkXncrNgpEezCrXxbxEf6fskd5VVzNbBRbnLSMpHI3jPfU3M9lCwgqb5KBR2cC"
+lastTokenRefresh: "2025-10-05T11:59:37.0942968"
+iecIOA: 66050
 isSupplier: true
 supplier:
-  number: "8084865"
-  id: 8084865
-  name: "IecConnector26"
-  water: "something"
+  number: "8084865104"
+  id: 10423
+  name: "IecDatenpunkt2"
+  water: "Test"
   waterType: "A"
   utcIsUsed: true
   isSummertime: false
@@ -17,7 +17,7 @@ supplier:
     version: "1.0.1"
     remark: "none"
   connector:
-    number: "80845855"
+    number: "808"
     contact_manufacturer:
       organization: "edworx3484"
       contactPerson: ""
@@ -115,87 +115,3 @@ supplier:
   mq: 4.0
   rnq: 23.3
   channelUse: "testUse"
-taker:
-  number: "nine large"
-  id: 1
-  manufacturer:
-    name: "man"
-    systemName: "male"
-    firmwareVersion: "1.0.1"
-    remark: "none"
-  connector:
-    number: "9"
-    contact_manufacturer:
-      organization: ""
-      contactPerson: ""
-      contactStreet: ""
-      contactPlz: ""
-      location: ""
-      contactCountry: ""
-      emergencyNumber: ""
-      emergencyNumberTwo: ""
-      emergencyMail: ""
-      serviceNumber: ""
-      serviceNumberTwo: ""
-      serviceMail: ""
-      administrationPhoneNumber: ""
-      administrationPhoneNumberTwo: ""
-      administrationMail: ""
-      contactNodes: ""
-    typeDescription: "man-descr"
-    softwareVersion: "1.0.1"
-    worksFromDataVersion: "1.0.1"
-    dataDefinition: "CREATE TABLE"
-    contact_softwareManufacturer:
-      organization: ""
-      contactPerson: ""
-      contactStreet: ""
-      contactPlz: ""
-      location: ""
-      contactCountry: ""
-      emergencyNumber: ""
-      emergencyNumberTwo: ""
-      emergencyMail: ""
-      serviceNumber: ""
-      serviceNumberTwo: ""
-      serviceMail: ""
-      administrationPhoneNumber: ""
-      administrationPhoneNumberTwo: ""
-      administrationMail: ""
-      contactNodes: ""
-    contact_technicallyResponsible:
-      organization: ""
-      contactPerson: ""
-      contactStreet: ""
-      contactPlz: ""
-      location: ""
-      contactCountry: ""
-      emergencyNumber: ""
-      emergencyNumberTwo: ""
-      emergencyMail: ""
-      serviceNumber: ""
-      serviceNumberTwo: ""
-      serviceMail: ""
-      administrationPhoneNumber: ""
-      administrationPhoneNumberTwo: ""
-      administrationMail: ""
-      contactNodes: ""
-    contact_operationCompany:
-      organization: ""
-      contactPerson: ""
-      contactStreet: ""
-      contactPlz: ""
-      location: ""
-      contactCountry: ""
-      emergencyNumber: ""
-      emergencyNumberTwo: ""
-      emergencyMail: ""
-      serviceNumber: ""
-      serviceNumberTwo: ""
-      serviceMail: ""
-      administrationPhoneNumber: ""
-      administrationPhoneNumberTwo: ""
-      administrationMail: ""
-      contactNodes: ""
-    notes: ""
-  refreshRate: 10

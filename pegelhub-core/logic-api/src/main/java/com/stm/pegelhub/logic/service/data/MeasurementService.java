@@ -37,6 +37,14 @@ public interface MeasurementService {
     List<Measurement> getBySupplierAndRange(String stationNumber, String range);
 
     /**
+     * Queries the latest measurement for a given supplier.
+     *
+     * @param stationNumber of the supplier
+     * @return the latest measurements.
+     */
+    Measurement getLatestBySupplier(String stationNumber);
+
+    /**
      * Queries the last measurement.
      *
      * @param uuid of the measurement.

@@ -71,6 +71,15 @@ public final class MeasurementServiceImpl implements MeasurementService {
         throw new NotFoundException("No data found for given supplier");
     }
 
+    @Override
+    public Measurement getLatestBySupplier(String stationNumber) {
+        Optional<Supplier> supplier = supplierRepository.findByStationNumber(stationNumber);
+        if(supplier.isPresent()){
+            return measurementRepository.getLastData(supplier.get().getId());
+        }
+        throw new NotFoundException("No data found for given supplier");
+    }
+
     /**
      *
       * @param uuid of the measurement.

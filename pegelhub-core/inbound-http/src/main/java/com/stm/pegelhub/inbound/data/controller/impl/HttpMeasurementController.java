@@ -55,6 +55,16 @@ public class HttpMeasurementController implements MeasurementController {
 
     /**
      * @param apiKey needed because of interface, not used. The AuthorizedMeasurementController handles it
+     * @param stationNumber the station Number/Supplier from which the latest measurement should originate
+     * @return the latest measurements from the specified stationNumber/Supplier
+     */
+    @Override
+    public Measurement findLatestMeasurementBySupplier(String apiKey, String stationNumber) {
+        return measurementService.getLatestBySupplier(stationNumber);
+    }
+
+    /**
+     * @param apiKey needed because of interface, not used. The AuthorizedMeasurementController handles it
      * @param uuid the {@link UUID} of the measurement to be searched for
      * @return the corresponding {@link Measurement} to the specified {@link UUID}
      */

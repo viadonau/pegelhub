@@ -252,6 +252,12 @@ public class HttpPegelHubCommunicator implements PegelHubCommunicator {
     }
 
     @Override
+    public Optional<Measurement> getLatestMeasurementOfStation() {
+        ensureIsTaker();
+        return _getLatestMeasurementByStation(properties.getTaker().stationNumber());
+    }
+
+    @Override
     public Collection<Telemetry> getTelemetry(String timespan) {
         try {
             ensureIsTaker();
@@ -654,6 +660,31 @@ public class HttpPegelHubCommunicator implements PegelHubCommunicator {
             });
         } catch (NotFoundException nfe) {
             throw new NotFoundException(nfe.getMessage());
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+
+    private Optional<Measurement> _getLatestMeasurementByStation(String stationNumber) {
+        try {
+            ensureIsTaker();
+
+            final URI uri = baseUrl.toURI()
+                    .resolve(routeWithApiKey(measurementRoute + "supplier/latest?stationNumber=" + stationNumber));
+            final var http = new HttpGet(uri);
+
+            return Optional.ofNullable(client.execute(http, response -> {
+                if (response.getCode() != HttpStatus.SC_OK) {
+                    return null;
+                }
+
+                var json = EntityUtils.toString(response.getEntity());
+                var gson = new GsonBuilder()
+                        .registerTypeAdapter(LocalDateTime.class, new LocalDateTimeConverter())
+                        .create();
+                return gson.fromJson(json, Measurement.class);
+            }));
         } catch (Exception e) {
             throw new RuntimeException(e);
         }

@@ -1,6 +1,5 @@
 package TestPegel;
 
-import com.stm.pegelhub.connector.iec.Main;
 import org.openmuc.j60870.*;
 import org.openmuc.j60870.Server.Builder;
 import org.openmuc.j60870.ie.*;
@@ -11,10 +10,6 @@ import java.io.EOFException;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
-import java.text.SimpleDateFormat;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.List;
 import java.util.Random;
 
 /**

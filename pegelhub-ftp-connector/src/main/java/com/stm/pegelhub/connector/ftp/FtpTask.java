@@ -2,7 +2,6 @@ package com.stm.pegelhub.connector.ftp;
 
 import com.stm.pegelhub.connector.ftp.fileparsing.Entry;
 import com.stm.pegelhub.connector.ftp.fileparsing.Parser;
-import com.stm.pegelhub.lib.InfluxID;
 import com.stm.pegelhub.lib.PegelHubCommunicator;
 import com.stm.pegelhub.lib.internal.ApplicationProperties;
 import com.stm.pegelhub.lib.internal.ApplicationPropertiesImpl;

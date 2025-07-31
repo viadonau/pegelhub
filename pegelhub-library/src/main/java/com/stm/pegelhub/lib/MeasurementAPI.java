@@ -47,6 +47,11 @@ public interface MeasurementAPI {
      */
     Collection<Measurement> getMeasurementsOfStation(String stationNumber, String timespan);
 
+    /**
+     * Get the latest measurement for configured takers station number.
+     * @return the latest {@code Measurement} for the supplier
+     */
+    Optional<Measurement> getLatestMeasurementOfStation();
 
     HashSet<Long> getMeasurementsIDsOfStation(String stationNumber, String timespan);
 
