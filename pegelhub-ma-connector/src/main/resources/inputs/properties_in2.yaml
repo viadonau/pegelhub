@@ -1,0 +1,201 @@
+---
+apiToken: "GWg2ICEPyjSUeZjqhZlIB9z4dPOyJliLIDKAWZKKbLUpqBEzYdUiK0MePOLxut0p"
+lastTokenRefresh: "2024-01-29T05:11:04.4136763"
+revInput: "InputValue_2"
+isSupplier: true
+supplier:
+  number: "8760"
+  id: 31
+  name: "IecConnector31"
+  water: "mAConnectorTest"
+  waterType: "A"
+  utcIsUsed: true
+  isSummertime: false
+  manufacturer:
+    name: "FH Hagenberg"
+    type: "FH"
+    version: "1.0.1"
+    remark: "none"
+  connector:
+    number: "337"
+    contact_manufacturer:
+      organization: "ATS"
+      contactPerson: ""
+      contactStreet: ""
+      contactPlz: ""
+      location: ""
+      contactCountry: ""
+      emergencyNumber: ""
+      emergencyNumberTwo: ""
+      emergencyMail: ""
+      serviceNumber: ""
+      serviceNumberTwo: ""
+      serviceMail: ""
+      administrationPhoneNumber: ""
+      administrationPhoneNumberTwo: ""
+      administrationMail: ""
+      contactNodes: ""
+    typeDescription: "man-descr10"
+    softwareVersion: "1.0.20"
+    worksFromDataVersion: "1.0.20"
+    dataDefinition: "Test Data"
+    contact_softwareManufacturer:
+      organization: ""
+      contactPerson: ""
+      contactStreet: ""
+      contactPlz: ""
+      location: ""
+      contactCountry: ""
+      emergencyNumber: ""
+      emergencyNumberTwo: ""
+      emergencyMail: ""
+      serviceNumber: ""
+      serviceNumberTwo: ""
+      serviceMail: ""
+      administrationPhoneNumber: ""
+      administrationPhoneNumberTwo: ""
+      administrationMail: ""
+      contactNodes: ""
+    contact_technicallyResponsible:
+      organization: ""
+      contactPerson: ""
+      contactStreet: ""
+      contactPlz: ""
+      location: ""
+      contactCountry: ""
+      emergencyNumber: ""
+      emergencyNumberTwo: ""
+      emergencyMail: ""
+      serviceNumber: ""
+      serviceNumberTwo: ""
+      serviceMail: ""
+      administrationPhoneNumber: ""
+      administrationPhoneNumberTwo: ""
+      administrationMail: ""
+      contactNodes: ""
+    contact_operationCompany:
+      organization: ""
+      contactPerson: ""
+      contactStreet: ""
+      contactPlz: ""
+      location: ""
+      contactCountry: ""
+      emergencyNumber: ""
+      emergencyNumberTwo: ""
+      emergencyMail: ""
+      serviceNumber: ""
+      serviceNumberTwo: ""
+      serviceMail: ""
+      administrationPhoneNumber: ""
+      administrationPhoneNumberTwo: ""
+      administrationMail: ""
+      contactNodes: ""
+    notes: ""
+  refreshRate: 10
+  accuracy: 95.0
+  mainUsage: "measuring stuff"
+  dataCritically: "indeed"
+  baseReferenceLevel: 1.0
+  referencePlace: "brazil"
+  waterKilometer: 69.0
+  waterSide: "up"
+  waterLatitude: 1.0
+  waterLongitude: 18.0
+  waterLatitudem: 122.0
+  waterLongitudem: 543.0
+  hsw100: 9.0
+  hsw: 1.0
+  hswReference: 2
+  mw: 10.0
+  mwReference: 9
+  rnw: 8.0
+  rnwReference: 54
+  hsq100: 23.0
+  hsq: 12.0
+  mq: 4.0
+  rnq: 23.3
+  channelUse: "testUse"
+taker:
+  number: "nine large"
+  id: 1
+  manufacturer:
+    name: "man"
+    systemName: "male"
+    firmwareVersion: "1.0.1"
+    remark: "none"
+  connector:
+    number: "9"
+    contact_manufacturer:
+      organization: ""
+      contactPerson: ""
+      contactStreet: ""
+      contactPlz: ""
+      location: ""
+      contactCountry: ""
+      emergencyNumber: ""
+      emergencyNumberTwo: ""
+      emergencyMail: ""
+      serviceNumber: ""
+      serviceNumberTwo: ""
+      serviceMail: ""
+      administrationPhoneNumber: ""
+      administrationPhoneNumberTwo: ""
+      administrationMail: ""
+      contactNodes: ""
+    typeDescription: "man-descr"
+    softwareVersion: "1.0.1"
+    worksFromDataVersion: "1.0.1"
+    dataDefinition: "CREATE TABLE"
+    contact_softwareManufacturer:
+      organization: ""
+      contactPerson: ""
+      contactStreet: ""
+      contactPlz: ""
+      location: ""
+      contactCountry: ""
+      emergencyNumber: ""
+      emergencyNumberTwo: ""
+      emergencyMail: ""
+      serviceNumber: ""
+      serviceNumberTwo: ""
+      serviceMail: ""
+      administrationPhoneNumber: ""
+      administrationPhoneNumberTwo: ""
+      administrationMail: ""
+      contactNodes: ""
+    contact_technicallyResponsible:
+      organization: ""
+      contactPerson: ""
+      contactStreet: ""
+      contactPlz: ""
+      location: ""
+      contactCountry: ""
+      emergencyNumber: ""
+      emergencyNumberTwo: ""
+      emergencyMail: ""
+      serviceNumber: ""
+      serviceNumberTwo: ""
+      serviceMail: ""
+      administrationPhoneNumber: ""
+      administrationPhoneNumberTwo: ""
+      administrationMail: ""
+      contactNodes: ""
+    contact_operationCompany:
+      organization: ""
+      contactPerson: ""
+      contactStreet: ""
+      contactPlz: ""
+      location: ""
+      contactCountry: ""
+      emergencyNumber: ""
+      emergencyNumberTwo: ""
+      emergencyMail: ""
+      serviceNumber: ""
+      serviceNumberTwo: ""
+      serviceMail: ""
+      administrationPhoneNumber: ""
+      administrationPhoneNumberTwo: ""
+      administrationMail: ""
+      contactNodes: ""
+    notes: ""
+  refreshRate: 10

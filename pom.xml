@@ -18,7 +18,7 @@
     </properties>
 
     <modules>
-        <module>Connector4...20mA</module>
+        <module>pegelhub-ma-connector</module>
         <module>pegelhub-core</module>
         <module>pegelhub-ftp-connector</module>
         <module>pegelhub-icc-connector</module>
