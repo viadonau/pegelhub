@@ -52,7 +52,7 @@
         <!-- testing -->
         <dependency>
             <groupId>org.junit.jupiter</groupId>
-            <artifactId>junit-jupiter-engine</artifactId>
+            <artifactId>junit-jupiter</artifactId>
             <version>${junit5.version}</version>
             <scope>test</scope>
         </dependency>
@@ -63,10 +63,38 @@
             <scope>test</scope>
         </dependency>
         <dependency>
+            <groupId>org.mockito</groupId>
+            <artifactId>mockito-inline</artifactId>
+            <version>5.2.0</version>
+        </dependency>
+        <dependency>
             <groupId>org.jetbrains</groupId>
             <artifactId>annotations</artifactId>
             <version>17.0.0</version>
             <scope>compile</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.mockito</groupId>
+            <artifactId>mockito-junit-jupiter</artifactId>
+            <version>5.14.2</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.awaitility</groupId>
+            <artifactId>awaitility</artifactId>
+            <version>4.2.2</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.assertj</groupId>
+            <artifactId>assertj-core</artifactId>
+            <version>3.25.3</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <version>1.18.38</version>
         </dependency>
     </dependencies>
 
@@ -117,7 +145,7 @@
                         <manifest>
                             <addClasspath>true</addClasspath>
                             <classpathPrefix>lib</classpathPrefix>
-                            <mainClass>com.stm.pegelhub.connector.iec.Main</mainClass>
+                            <mainClass>com.stm.pegelhub.connector.iec.app.IecConnectorApplication</mainClass>
                         </manifest>
                     </archive>
                 </configuration>
@@ -142,7 +170,7 @@
                 <configuration>
                     <archive>
                         <manifest>
-                            <mainClass>com.stm.pegelhub.connector.iec.Main</mainClass>
+                            <mainClass>com.stm.pegelhub.connector.iec.app.IecConnectorApplication</mainClass>
                         </manifest>
                     </archive>
                     <descriptorRefs>
@@ -152,5 +180,4 @@
             </plugin>
         </plugins>
     </build>
-
 </project>

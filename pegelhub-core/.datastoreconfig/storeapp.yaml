@@ -1,10 +1,10 @@
 data:
   org: pegelhub-store
-  token: KrHZs-euzNcO6r-Ongyc7TX2X_ssLbaxbABYeNW3Sm8B1ti2s16_c-xrNm6fdUP57I3A8EErwmiQk8Glb_17ng==
+  token: oHHwZkJPbPZnd5Onetdyljm_c-z3J65VPVTPN_hnKkrw8xKQGyrzeL2xWg1Wo-FzDpVn3uONRuDfwJjULu-U3A==
   bucket: pegelhub-data
   url: none
 telemetry:
   org: pegelhub-store
-  token: KrHZs-euzNcO6r-Ongyc7TX2X_ssLbaxbABYeNW3Sm8B1ti2s16_c-xrNm6fdUP57I3A8EErwmiQk8Glb_17ng==
+  token: oHHwZkJPbPZnd5Onetdyljm_c-z3J65VPVTPN_hnKkrw8xKQGyrzeL2xWg1Wo-FzDpVn3uONRuDfwJjULu-U3A==
   bucket: pegelhub-telemetry
   url: none

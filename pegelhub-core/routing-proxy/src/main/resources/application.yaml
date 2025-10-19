@@ -9,6 +9,14 @@ spring:
     # routing properties
     # ------------------
     gateway:
+      globalcors:
+        cors-configurations:
+          '[/**]':
+            allowedOrigins:
+              - "http://localhost:4201"
+            allowedMethods:
+              - GET
+              - POST
       discovery:
         locator:
           enabled: true

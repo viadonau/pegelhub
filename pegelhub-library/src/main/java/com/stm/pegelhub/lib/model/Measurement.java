@@ -43,4 +43,14 @@ public class Measurement {
     public Map<String, String> getInfos() {
         return infos;
     }
+
+
+    @Override
+    public String toString() {
+        return "Measurement{" +
+                "\n  timestamp=" + timestamp +
+                ",\n  fields=" + fields +
+                ",\n  infos=" + infos +
+                "\n}";
+    }
 }

@@ -1,6 +1,5 @@
 package org.example;
 
-import com.stm.pegelhub.lib.InfluxID;
 import com.stm.pegelhub.lib.PegelHubCommunicator;
 import com.stm.pegelhub.lib.internal.ApplicationProperties;
 import com.stm.pegelhub.lib.internal.ApplicationPropertiesImpl;
@@ -17,7 +16,7 @@ public class ConnectorTask extends TimerTask {
     private PegelHubCommunicator communicator;
     private ConnectorOptions conOpts;
     private ApplicationProperties properties;
-    private InfluxID influxID;
+//    private InfluxID influxID;
     String revPiInput;
     static
     {
@@ -29,7 +28,7 @@ public class ConnectorTask extends TimerTask {
         this.communicator = communicator;
         this.conOpts = conOpts;
         this.properties = new ApplicationPropertiesImpl(conOpts.getPropertiesFile());
-        this.influxID = new InfluxID(communicator, properties);
+//        this.influxID = new InfluxID(communicator, properties);
         revPiInput = conOpts.getInputOnRevpi();
     }
     private RevPiReader revPiReader = new RevPiReader();
@@ -52,11 +51,13 @@ public class ConnectorTask extends TimerTask {
         }
 
         UUID supUUID = UUID.fromString(work.getId());
-        influxID.calculateID();
+//        influxID.calculateID();
 
         int revPiInputInt = Integer.parseInt(revPiInput);
 
         int valueFromOffset = revPiReader.readFromOffset(revPiInputInt);
+
+        System.out.println("Value from revpi: " + valueFromOffset);
 
         HashMap<String, Double> fields = new HashMap<>();
         Double writeValue = (double) valueFromOffset;
@@ -64,7 +65,7 @@ public class ConnectorTask extends TimerTask {
 
         OffsetDateTime now = OffsetDateTime.now();
         HashMap<String, String> infos = new HashMap<>();
-        infos.put("ID", String.valueOf(influxID.getIDValue()));
+//        infos.put("ID", String.valueOf(influxID.getIDValue()));
         infos.put("Connector Name", "4...20mA Connector");
         infos.put("TimestampWithOffset", now.toString());
         infos.put("Quality", "Placeholder");
@@ -75,8 +76,11 @@ public class ConnectorTask extends TimerTask {
         Measurement measurement = new Measurement(fields, infos);
 	    measurement.setTimestamp(LocalDateTime.now());
         List<Measurement> measurementList = new ArrayList<>();
+
+        System.out.println("Value in measurement: " + measurement.getFields().get("Value"));
+
         measurementList.add(measurement);
         communicator.sendMeasurements(measurementList);
-	    influxID.addID();
+//	    influxID.addID();
     }
 }
