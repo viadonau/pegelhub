@@ -63,6 +63,11 @@ public class HttpMeasurementController implements MeasurementController {
         return measurementService.getLatestBySupplier(stationNumber);
     }
 
+    @Override
+    public Measurement findAverageMeasurementForSupplierInRange(String apiKey, String stationNumber, String range) {
+        return measurementService.getAverageBySupplierAndRange(stationNumber, range);
+    }
+
     /**
      * @param apiKey needed because of interface, not used. The AuthorizedMeasurementController handles it
      * @param uuid the {@link UUID} of the measurement to be searched for

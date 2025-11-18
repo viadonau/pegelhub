@@ -45,6 +45,15 @@ public interface MeasurementService {
     Measurement getLatestBySupplier(String stationNumber);
 
     /**
+     * Calculates the average of all fields for a given supplier's measurements over a specified time range.
+     *
+     * @param stationNumber of the supplier.
+     * @param range the time range (e.g., "5m", "1h", "7d").
+     * @return a single Measurement object containing the averaged values.
+     */
+    Measurement getAverageBySupplierAndRange(String stationNumber, String range);
+
+    /**
      * Queries the last measurement.
      *
      * @param uuid of the measurement.

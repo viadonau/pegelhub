@@ -45,6 +45,15 @@ public interface MeasurementRepository {
      */
     Measurement getLastData(UUID uuid);
 
+    /**
+     * Calculates the average of all fields for a measurement over a given time range.
+     *
+     * @param id    of the measurement (supplier).
+     * @param range in which to calculate the average.
+     * @return a single measurement object with the averaged fields.
+     */
+    Measurement getAverageByIdAndRange(UUID id, String range);
+
     Timestamp getSystemTime();
 }
 
