@@ -83,6 +83,14 @@ public class AuthorizedMeasurementController implements MeasurementController {
         return measurement;
     }
 
+    @Override
+    public Measurement findAverageMeasurementForSupplierInRange(String apiKey, String stationNumber, String range) {
+        AuthTokenIdHolder.set(authorizationService.authorize(apiKey));
+        Measurement measurement = delegate.findAverageMeasurementForSupplierInRange(apiKey, stationNumber, range);
+        AuthTokenIdHolder.clear();
+        return measurement;
+    }
+
     /**
      * authorizes the request and forwards it to for further handling
      * @param apiKey the key which is used for Authorization

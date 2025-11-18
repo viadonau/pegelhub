@@ -18,14 +18,14 @@ services:
   registry:
     build:
       context: service-registry
-    restart: on-failure
+    restart: unless-stopped
     networks:
       - components
 
   # backend components
   meta-db:
     image: postgres:14-alpine
-    restart: on-failure
+    restart: unless-stopped
     environment:
       - POSTGRES_PASSWORD=$META_PASSWORD
       - POSTGRES_DB=$META_DB
@@ -39,7 +39,7 @@ services:
 
   data-db:
     image: influxdb:latest
-    restart: on-failure
+    restart: unless-stopped
     environment:
       - DOCKER_INFLUXDB_INIT_MODE=setup
       - DOCKER_INFLUXDB_INIT_USERNAME=$DATA_ADMIN_USER
@@ -62,7 +62,7 @@ services:
   starter:
     build:
       context: starter
-    restart: on-failure
+    restart: unless-stopped
     environment:
       - DB_URI=meta-db:5432/$META_DB
       - DB_USER=postgres
@@ -93,7 +93,7 @@ services:
   proxy:
     build:
       context: routing-proxy
-    restart: on-failure
+    restart: unless-stopped
     ports:
       - "8081:8080"
     depends_on:

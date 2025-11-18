@@ -8,10 +8,10 @@ import com.influxdb.exceptions.InfluxException;
 import com.influxdb.query.FluxRecord;
 import com.influxdb.query.FluxTable;
 import com.stm.pegelhub.common.model.data.Measurement;
+import com.stm.pegelhub.logic.exception.NotFoundException;
 import com.stm.pegelhub.outbound.db.DatabaseProperties;
 import com.stm.pegelhub.outbound.influx.ConnectionHelper;
 import com.stm.pegelhub.outbound.repository.data.MeasurementRepository;
-import org.apache.commons.logging.Log;
 
 import java.sql.Timestamp;
 import java.time.Instant;
@@ -20,6 +20,7 @@ import java.time.ZoneOffset;
 import java.util.*;
 import java.util.stream.Collectors;
 
+import static com.stm.pegelhub.outbound.influx.ConnectionHelper.AGGREGATE_RESULT_KEY;
 import static java.util.Objects.requireNonNull;
 
 /**
@@ -98,6 +99,29 @@ public class InfluxMeasurementRepository implements MeasurementRepository {
         return measurements.get(0);
     }
 
+    @Override
+    public Measurement getAverageByIdAndRange(UUID id, String range) {
+        String query = String.format(
+                "from(bucket: \"%s\") |> range(start: -%s) |> filter(fn: (r) => r._measurement == \"%s\") |> mean()",
+                properties.bucket(), range, id
+        );
+
+        HashMap<String, HashMap<String, HashMap<String, Object>>> data = ConnectionHelper.queryData(this.client, query);
+        List<Measurement> results = toMeasurement(data);
+
+        if (results.isEmpty()) {
+            throw new NotFoundException(String.format("No data found for ID %s in the last %s to calculate an average.", id, range));
+        }
+
+        Measurement averagedMeasurement = results.get(0);
+        return new Measurement(
+                averagedMeasurement.measurement(),
+                LocalDateTime.now(ZoneOffset.UTC),
+                averagedMeasurement.fields(),
+                averagedMeasurement.infos()
+        );
+    }
+
     /**
      * @param data the data to be converted to measurements
      * @return the converted measurements
@@ -113,12 +137,20 @@ public class InfluxMeasurementRepository implements MeasurementRepository {
                 HashMap<String, String> infos = new HashMap<>(measurementData.entrySet().stream()
                         .filter(a -> a.getValue() instanceof String)
                         .collect(Collectors.toMap(Map.Entry::getKey, e -> (String) e.getValue())));
-                measurements.add(
-                        new Measurement(
-                                UUID.fromString(measurement.getKey()),
-                                LocalDateTime.ofInstant(Instant.parse(measurementEntry.getKey()), ZoneOffset.UTC),
-                                fields,
-                                infos));
+
+                LocalDateTime timestamp;
+                if (measurementEntry.getKey().equals(AGGREGATE_RESULT_KEY)) {
+                    timestamp = LocalDateTime.now(ZoneOffset.UTC);
+                } else {
+                    timestamp = LocalDateTime.ofInstant(Instant.parse(measurementEntry.getKey()), ZoneOffset.UTC);
+                }
+
+                measurements.add(new Measurement(
+                        UUID.fromString(measurement.getKey()),
+                        timestamp,
+                        fields,
+                        infos)
+                );
             }
         }
         return measurements;
@@ -133,11 +165,9 @@ public class InfluxMeasurementRepository implements MeasurementRepository {
 
         Instant returnResult = null;
 
-        for(FluxTable table : tables)
-        {
+        for (FluxTable table : tables) {
             List<FluxRecord> records = table.getRecords();
-            for(FluxRecord record : records)
-            {
+            for (FluxRecord record : records) {
                 returnResult = (Instant) record.getValueByIndex(2);
             }
         }

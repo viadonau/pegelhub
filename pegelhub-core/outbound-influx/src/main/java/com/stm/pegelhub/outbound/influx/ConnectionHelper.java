@@ -6,16 +6,16 @@ import com.influxdb.client.write.Point;
 import com.influxdb.query.FluxRecord;
 import com.influxdb.query.FluxTable;
 
+import java.time.Instant;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 /**
  * Class, which handles the basic communication with the influxDB.
  * Needs to be rewritten if the time series database is to be exchanged
  */
 public final class ConnectionHelper {
-
+    public static final String AGGREGATE_RESULT_KEY = "aggregate_result";
 
     public static void writePoints(InfluxDBClient client, List<Point> dataPoints) {
         WriteApiBlocking writeApi = client.getWriteApiBlocking();
@@ -30,13 +30,12 @@ public final class ConnectionHelper {
 
     public static HashMap<String, HashMap<String, HashMap<String, Object>>> queryData(InfluxDBClient influxDBClient, String query) {
         List<FluxTable> tables = influxDBClient.getQueryApi().query(query);
-        int i = 1;
         HashMap<String, HashMap<String, HashMap<String, Object>>> points = new HashMap<>();
         //     measurement,    timestamp,        field,   value
         for (FluxTable table : tables) {
             for (FluxRecord record : table.getRecords()) {
-                i++;
-                var time = record.getTime().toString();
+                Instant timeInstant = record.getTime();
+                String timeKey = (timeInstant != null) ? timeInstant.toString() : AGGREGATE_RESULT_KEY;
                 var measurement = record.getMeasurement();
                 var field = record.getField();
                 var allValues = record.getValues();
@@ -53,14 +52,14 @@ public final class ConnectionHelper {
                     }
                 }
 
-                valuesTime.put(time, fieldValue);
+                valuesTime.put(timeKey, fieldValue);
 
                 if (!points.containsKey(measurement)) {
                     points.put(measurement, valuesTime);
-                } else if (points.containsKey(measurement) && !points.get(measurement).containsKey(time)) {
-                    points.get(measurement).put(time, fieldValue);
-                } else if (points.containsKey(measurement) && points.get(measurement).containsKey(time)) {
-                    points.get(measurement).get(time).put(field, value);
+                } else if (points.containsKey(measurement) && !points.get(measurement).containsKey(timeKey)) {
+                    points.get(measurement).put(timeKey, fieldValue);
+                } else if (points.containsKey(measurement) && points.get(measurement).containsKey(timeKey)) {
+                    points.get(measurement).get(timeKey).put(field, value);
                 }
 
             }

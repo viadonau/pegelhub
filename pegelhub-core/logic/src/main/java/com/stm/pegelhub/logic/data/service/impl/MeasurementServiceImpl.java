@@ -80,6 +80,15 @@ public final class MeasurementServiceImpl implements MeasurementService {
         throw new NotFoundException("No data found for given supplier");
     }
 
+    @Override
+    public Measurement getAverageBySupplierAndRange(String stationNumber, String range) {
+        Optional<Supplier> supplier = supplierRepository.findByStationNumber(stationNumber);
+        if(supplier.isPresent()){
+            return measurementRepository.getAverageByIdAndRange(supplier.get().getId(), range);
+        }
+        throw new NotFoundException("No data found for given supplier");
+    }
+
     /**
      *
       * @param uuid of the measurement.
