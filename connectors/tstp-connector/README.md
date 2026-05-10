@@ -4,7 +4,7 @@ This connector reads from or writes to a TSTP server and exchanges the data with
 
 ## Prerequisites
 
-- Java 17+
+- Java 21+
 - Maven 3.9+
 - Docker
 - Access to a Pegelhub Core and a TSTP server
@@ -19,7 +19,7 @@ mvn -pl connectors/tstp-connector -am -DskipTests package
 
 The build produces:
 
-- `target/tstp-connector-2023.12.jar`
+- `target/pegelhub-tstp-connector-1.0.0-SNAPSHOT.jar`
 - `target/lib/*.jar`
 
 ## Configuration
@@ -74,6 +74,6 @@ Make sure the mounted config directory contains both configuration files.
 - For local debugging outside Docker, you can run the thin jar with the packaged dependency directory:
 
 ```sh
-java -cp "target/tstp-connector-2023.12.jar:target/lib/*" \
+java -cp "target/pegelhub-tstp-connector-1.0.0-SNAPSHOT.jar:target/lib/*" \
   at.pegelhub.connector.tstp.Main /path/to/config-dir
 ```

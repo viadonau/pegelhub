@@ -37,3 +37,10 @@ build/
 
 ### VS Code ###
 .vscode/
+
+### Python ###
+__pycache__/
+*.pyc
+
+### Local Developer Workspace ###
+.developers/

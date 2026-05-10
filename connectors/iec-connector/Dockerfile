@@ -1,8 +1,8 @@
-FROM amazoncorretto:17-alpine-jdk
+FROM amazoncorretto:21-alpine-jdk
 
 WORKDIR /app
 
-COPY ./target/iec-connector-1.0-SNAPSHOT.jar /app/connector.jar
+COPY ./target/pegelhub-iec-connector-1.0.0-SNAPSHOT.jar /app/connector.jar
 COPY ./target/lib/ /app/lib/
 RUN mkdir -p /app/config /app/data
 

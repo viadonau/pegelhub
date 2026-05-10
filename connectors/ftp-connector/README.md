@@ -5,7 +5,7 @@ Supported input formats are `.asc` and `.zrxp`.
 
 ## Prerequisites
 
-- Java 17+
+- Java 21+
 - Maven 3.9+
 - Docker
 - Network access to the FTP server and Pegelhub Core
@@ -20,7 +20,7 @@ mvn -pl connectors/ftp-connector -am -DskipTests package
 
 The build produces:
 
-- `target/ftp-connector-2023.12.jar`
+- `target/pegelhub-ftp-connector-1.0.0-SNAPSHOT.jar`
 - `target/lib/*.jar`
 
 ## Configuration

@@ -1,8 +1,8 @@
-FROM amazoncorretto:17-alpine-jdk
+FROM amazoncorretto:21-alpine-jdk
 
 WORKDIR /app
 
-COPY ./target/ftp-connector-2023.12.jar /app/connector.jar
+COPY ./target/pegelhub-ftp-connector-1.0.0-SNAPSHOT.jar /app/connector.jar
 COPY ./target/lib/ /app/lib/
 RUN mkdir -p /app/config
 

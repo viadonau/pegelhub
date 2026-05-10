@@ -160,10 +160,10 @@ public class HttpPegelHubCommunicator implements PegelHubCommunicator {
 
     public HttpPegelHubCommunicator(CloseableHttpClient client, URL baseUrl, ApplicationProperties properties) {
         this(client, baseUrl, properties,
-                "api/v1/measurement/",
-                "api/v1/telemetry/",
-                "api/v1/contact/",
-                "api/v1/connector/",
+                "api/v1/measurement",
+                "api/v1/telemetry",
+                "api/v1/contact",
+                "api/v1/connector",
                 "api/v1/token",
                 "api/v1/taker",
                 "api/v1/supplier");
@@ -193,7 +193,7 @@ public class HttpPegelHubCommunicator implements PegelHubCommunicator {
         try {
             ensureIsTaker();
 
-            final URI uri = baseUrl.toURI().resolve(routeWithApiKey(measurementRoute + timespan));
+            final URI uri = baseUrl.toURI().resolve(routeWithApiKey(measurementRoute + "/" + timespan));
             final var http = new HttpGet(uri);
 
             return client.execute(http, response -> {
@@ -226,7 +226,7 @@ public class HttpPegelHubCommunicator implements PegelHubCommunicator {
         try {
             ensureIsTaker();
 
-            final URI uri = baseUrl.toURI().resolve(routeWithApiKey(measurementRoute + "last/" + uuid.toString()));
+            final URI uri = baseUrl.toURI().resolve(routeWithApiKey(measurementRoute + "/last/" + uuid.toString()));
             final var http = new HttpGet(uri);
 
             return Optional.ofNullable(client.execute(http, response -> {
@@ -261,7 +261,7 @@ public class HttpPegelHubCommunicator implements PegelHubCommunicator {
     public Collection<Telemetry> getTelemetry(String timespan) {
         try {
             ensureIsTaker();
-            final URI uri = baseUrl.toURI().resolve(routeWithApiKey(telemetryRoute + timespan));
+            final URI uri = baseUrl.toURI().resolve(routeWithApiKey(telemetryRoute + "/" + timespan));
             final var http = new HttpGet(uri);
             LOG.debug("Executing GET request to URI: {}", uri);
 
@@ -289,7 +289,7 @@ public class HttpPegelHubCommunicator implements PegelHubCommunicator {
     public Optional<Telemetry> getTelemetryByUUID(UUID uuid) {
         try {
             ensureIsTaker();
-            final URI uri = baseUrl.toURI().resolve(routeWithApiKey(telemetryRoute + "last/" + uuid.toString()));
+            final URI uri = baseUrl.toURI().resolve(routeWithApiKey(telemetryRoute + "/last/" + uuid.toString()));
             final var http = new HttpGet(uri);
 
             return client.execute(http, response -> {
@@ -405,7 +405,7 @@ public class HttpPegelHubCommunicator implements PegelHubCommunicator {
     public Optional<Connector> getConnectorByUUID(UUID uuid) {
         try {
 
-            final URI uri = baseUrl.toURI().resolve(routeWithApiKey(connectorRoute + uuid.toString()));
+            final URI uri = baseUrl.toURI().resolve(routeWithApiKey(connectorRoute + "/" + uuid.toString()));
             final var http = new HttpGet(uri);
 
             return client.execute(http, response -> {
@@ -474,7 +474,7 @@ public class HttpPegelHubCommunicator implements PegelHubCommunicator {
     @Override
     public Optional<Contact> getContactByUUID(UUID uuid) {
         try {
-            final URI uri = baseUrl.toURI().resolve(routeWithApiKey(contactRoute + uuid.toString()));
+            final URI uri = baseUrl.toURI().resolve(routeWithApiKey(contactRoute + "/" + uuid.toString()));
             final var http = new HttpGet(uri);
 
             return client.execute(http, response -> {
@@ -565,7 +565,7 @@ public class HttpPegelHubCommunicator implements PegelHubCommunicator {
 
     public Timestamp getSystemTime() {
         try {
-            final URI uri = baseUrl.toURI().resolve(measurementRoute + "//systemTime");
+            final URI uri = baseUrl.toURI().resolve(measurementRoute + "/systemTime");
             final var http = new HttpGet(uri);
             return client.execute(http, response -> {
                 var json = EntityUtils.toString(response.getEntity());
@@ -584,7 +584,7 @@ public class HttpPegelHubCommunicator implements PegelHubCommunicator {
     @Override
     public UUID getConnectorID(UUID uuid) {
         try {
-            final URI uri = baseUrl.toURI().resolve(supplierRoute + "//connectorID//" + uuid.toString());
+            final URI uri = baseUrl.toURI().resolve(supplierRoute + "/connectorID/" + uuid.toString());
             LOG.debug(uri + "");
             final var http = new HttpGet(uri);
             return client.execute(http, response -> {
@@ -605,7 +605,7 @@ public class HttpPegelHubCommunicator implements PegelHubCommunicator {
     public Optional<Measurement> getTimestampOfLastMeasurementByUUID(UUID uuid) {
         try {
 
-            final URI uri = baseUrl.toURI().resolve(routeWithApiKey(measurementRoute + "last/" + uuid.toString()));
+            final URI uri = baseUrl.toURI().resolve(routeWithApiKey(measurementRoute + "/last/" + uuid.toString()));
             final var http = new HttpGet(uri);
 
             return Optional.ofNullable(client.execute(http, response -> {
@@ -643,7 +643,7 @@ public class HttpPegelHubCommunicator implements PegelHubCommunicator {
 
     private Collection<Measurement> _getMeasurementsByStationAndTime(String stationNumber, String timespan) {
         try {
-            final URI uri = baseUrl.toURI().resolve(routeWithApiKey(measurementRoute + "supplier/" + timespan + "?stationNumber=" + stationNumber));
+            final URI uri = baseUrl.toURI().resolve(routeWithApiKey(measurementRoute + "/supplier/" + timespan + "?stationNumber=" + stationNumber));
             final var http = new HttpGet(uri);
 
             return client.execute(http, response -> {
@@ -671,7 +671,7 @@ public class HttpPegelHubCommunicator implements PegelHubCommunicator {
             ensureIsTaker();
 
             final URI uri = baseUrl.toURI()
-                    .resolve(routeWithApiKey(measurementRoute + "supplier/latest?stationNumber=" + stationNumber));
+                    .resolve(routeWithApiKey(measurementRoute + "/supplier/latest?stationNumber=" + stationNumber));
             final var http = new HttpGet(uri);
 
             return Optional.ofNullable(client.execute(http, response -> {
@@ -730,4 +730,3 @@ public class HttpPegelHubCommunicator implements PegelHubCommunicator {
         }
     }
 }
-

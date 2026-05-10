@@ -11,6 +11,12 @@ services:
     environment:
       POSTGRES_PASSWORD: ${META_PASSWORD}
       POSTGRES_DB: ${META_DB}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d ${META_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 5s
     volumes:
       - metastore-data:/var/lib/postgresql/data
     ports:
@@ -31,12 +37,18 @@ services:
     volumes:
       - datastore-data:/var/lib/influxdb2
       - ./docker/influxdb/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD", "influx", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
     ports:
       - "8111:8086"
 
   core-app:
     build:
-      context: core-app
+      context: .
     restart: unless-stopped
     environment:
       DB_URI: meta-db:5432/${META_DB}
@@ -51,5 +63,7 @@ services:
       - "8080:8080"
       - "8081:8081"
     depends_on:
-      - meta-db
-      - data-db
+      meta-db:
+        condition: service_healthy
+      data-db:
+        condition: service_healthy

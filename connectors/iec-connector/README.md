@@ -4,7 +4,7 @@ The IEC connector exchanges telemetry and measurement data via IEC 60870-5-104.
 
 ## Prerequisites
 
-- Java 17+
+- Java 21+
 - Maven 3.9+
 - Docker
 - A reachable Pegelhub Core
@@ -20,7 +20,7 @@ mvn -pl connectors/iec-connector -am -DskipTests package
 
 The build produces:
 
-- `target/iec-connector-1.0-SNAPSHOT.jar`
+- `target/pegelhub-iec-connector-1.0.0-SNAPSHOT.jar`
 - `target/lib/*.jar`
 
 ## Configuration

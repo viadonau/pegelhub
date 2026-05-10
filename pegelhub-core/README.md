@@ -1,10 +1,6 @@
 # Pegelhub Core
 
-`pegelhub-core` is a Spring Boot monolith built around one deployable module, `core-app`.
-
-## Modules
-
-- `core-app`: the application, including HTTP endpoints, business logic, JDBC persistence, Influx persistence, actuator, runtime configuration, and integration test support.
+`pegelhub-core` is the Spring Boot monolith for Pegelhub.
 
 The application is exposed directly on:
 
@@ -15,7 +11,7 @@ Legacy proxy compatibility routes are intentionally removed.
 
 ## Requirements
 
-- Java 17
+- Java 21
 - Maven 3.8+
 - Docker
 
@@ -54,6 +50,10 @@ docker compose up --build -d
 
 The app is then reachable on `localhost:8080` and actuator on `localhost:8081`.
 
+The token in `.env` is the source of truth for local first-start setup. If your local InfluxDB volume was already initialized with a different token, update `.env` to match it or recreate the local InfluxDB volume intentionally.
+
+InfluxDB setup, environment variables, and migration notes from the old generated-token flow are documented in `docs/influxdb.md`.
+
 ## API Client Docs
 
 The Postman collection for the core HTTP API lives in `docs/api/postman/`.
@@ -86,11 +86,11 @@ The `dev` profile defaults to the token shown above. Override `INFLUX_TOKEN`, `I
 
 ## Packaging
 
-Build the application jar and Docker image from `core-app`:
+Build the application jar and Docker image from `pegelhub-core/`:
 
 ```bash
 mvn -DskipTests package
-docker build ./core-app -t pegelhub-core-app:latest
+docker build . -t pegelhub-core:latest
 ```
 
 `docker-compose.yaml`, `.env.example`, and `docker/influxdb/init/` are intended as a local or self-hosted developer setup. Runtime secrets should be injected through environment variables or a deployment secret manager, not committed to the repository.

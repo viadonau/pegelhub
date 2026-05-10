@@ -6,14 +6,12 @@
 
     <parent>
         <groupId>at.pegelhub</groupId>
-        <artifactId>connectors-parent</artifactId>
-        <version>1.0.0-SNAPSHOT</version>
-        <relativePath>../pom.xml</relativePath>
+        <artifactId>pegelhub-connectors-parent</artifactId>
+        <version>2.0.0-SNAPSHOT</version>
     </parent>
 
-    <artifactId>library</artifactId>
-    <version>1.0.0</version>
-    <name>${project.groupId}:${project.artifactId}</name>
+    <artifactId>pegelhub-connector-library</artifactId>
+    <name>Pegelhub Connector Library</name>
     <description>A jar library for connecting and interacting with a PegelHubCore instance as a connector.</description>
     <packaging>jar</packaging>
 

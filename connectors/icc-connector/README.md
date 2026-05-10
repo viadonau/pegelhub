@@ -4,7 +4,7 @@ This connector synchronizes selected supplier data between two Pegelhub clusters
 
 ## Prerequisites
 
-- Java 17+
+- Java 21+
 - Maven 3.9+
 - Docker
 - Network access to both Pegelhub clusters
@@ -19,7 +19,7 @@ mvn -pl connectors/icc-connector -am -DskipTests package
 
 The build produces:
 
-- `target/icc-connector-2022.01.jar`
+- `target/pegelhub-icc-connector-1.0.0-SNAPSHOT.jar`
 - `target/lib/*.jar`
 
 You do not need to build `library` separately anymore; the reactor handles it.
