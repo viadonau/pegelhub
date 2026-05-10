@@ -32,7 +32,10 @@ mvn -DskipTests package
 
 ### IntelliJ
 
-Use the `LocalDevelopment` run configuration for the app and the `docker-compose.yaml: Compose Deployment` configuration for the databases plus app container.
+Shared IntelliJ run configurations live in the repository-level `.run/` directory.
+
+- `Pegelhub Core: Local Development`: starts the app with the `dev` Spring profile.
+- `Pegelhub Core: Docker Compose`: starts the databases plus app container through `docker-compose.yaml`.
 
 ### Docker Compose
 
@@ -50,6 +53,10 @@ docker compose up --build -d
 ```
 
 The app is then reachable on `localhost:8080` and actuator on `localhost:8081`.
+
+## API Client Docs
+
+The Postman collection for the core HTTP API lives in `docs/api/postman/`.
 
 ## Manual Dev Profile
 
