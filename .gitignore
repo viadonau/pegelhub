@@ -4,6 +4,9 @@ target/
 !.mvn/wrapper/maven-wrapper.jar
 !**/src/main/**/target/
 !**/src/test/**/target/
+pegelhub-core/.env
+pegelhub-core/.env.local
+pegelhub-core/.datastoreconfig/
 pegelhub-ma-connector/src/main/native/generated
 pegelhub-ma-connector/src/main/native/cmake-*
 

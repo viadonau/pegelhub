@@ -2,12 +2,12 @@
   <configuration default="false" name="docker-compose.yaml: Compose Deployment" type="docker-deploy" factoryName="docker-compose.yml" server-name="Docker">
     <deployment type="docker-compose.yml">
       <settings>
-        <option name="envFilePath" value="$PROJECT_DIR$/testenvironment.vars" />
+        <option name="envFilePath" value="$PROJECT_DIR$/.env" />
         <option name="removeOrphansOnComposeDown" value="false" />
         <option name="commandLineOptions" value="--build" />
         <option name="sourceFilePath" value="docker-compose.yaml" />
         <upScaledServices>
-          <entry key="starter" value="1" />
+          <entry key="core-app" value="1" />
         </upScaledServices>
       </settings>
     </deployment>

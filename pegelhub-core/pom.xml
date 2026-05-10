@@ -8,39 +8,6 @@
     <artifactId>pegelhub-core</artifactId>
     <version>2022.01</version>
 
-    <repositories>
-        <repository>
-            <id>spring-milestones</id>
-            <name>Spring Milestones</name>
-            <url>https://repo.spring.io/milestone</url>
-            <snapshots>
-                <enabled>false</enabled>
-            </snapshots>
-        </repository>
-    </repositories>
-    <pluginRepositories>
-        <pluginRepository>
-            <id>spring-milestones</id>
-            <name>Spring Milestones</name>
-            <url>https://repo.spring.io/milestone</url>
-            <snapshots>
-                <enabled>false</enabled>
-            </snapshots>
-        </pluginRepository>
-    </pluginRepositories>
-
-    <dependencyManagement>
-        <dependencies>
-            <dependency>
-                <groupId>org.springframework.cloud</groupId>
-                <artifactId>spring-cloud-dependencies</artifactId>
-                <version>2021.0.3</version>
-                <type>pom</type>
-                <scope>import</scope>
-            </dependency>
-        </dependencies>
-    </dependencyManagement>
-
     <dependencies>
         <dependency>
             <groupId>org.junit.jupiter</groupId>
@@ -85,18 +52,7 @@
     </contributors>
 
     <modules>
-        <module>routing-proxy</module>
-        <module>service-registry</module>
-
-        <module>starter</module>
-        <module>inbound-http</module>
-        <module>logic</module>
-        <module>logic-api</module>
-        <module>outbound-influx</module>
-        <module>outbound-jdbc</module>
-        <module>outbound-api</module>
-        <module>shared</module>
-        <module>shared-test-utils</module>
+        <module>core-app</module>
     </modules>
 
     <properties>

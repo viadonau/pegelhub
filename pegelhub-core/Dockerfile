@@ -1,21 +1,11 @@
 FROM amazoncorretto:17-alpine-jdk
-#Installing prerequisites
+
 RUN apk --no-cache add curl
 
-# Create user and group to downgrade privileges
 RUN addgroup -S coreapp && adduser -S coreapp -G coreapp
 USER coreapp:coreapp
 
-# RabbitMQ connection
-ENV MQ_URL=mq_broker \
-    MQ_USER="" \
-    MQ_PASSWORD=""
-
-# Registry configuration
-ENV EUREKA_HOSTNAME=0.0.0.0
-
-# Expose configured port
-EXPOSE 8080
+EXPOSE 8080 8081
 
 STOPSIGNAL SIGKILL
 

@@ -4,8 +4,8 @@
     <envs>
       <env name="SPRING_PROFILES_ACTIVE" value="dev" />
     </envs>
-    <option name="MAIN_CLASS_NAME" value="com.stm.pegelhub.ManagementService" />
-    <module name="starter" />
+    <option name="MAIN_CLASS_NAME" value="com.stm.pegelhub.CoreAppApplication" />
+    <module name="core-app" />
     <method v="2">
       <option name="Make" enabled="true" />
     </method>
