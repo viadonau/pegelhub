@@ -1,0 +1,16 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="Pegelhub Core: Docker Compose" type="docker-deploy" factoryName="docker-compose.yml" server-name="Docker">
+    <deployment type="docker-compose.yml">
+      <settings>
+        <option name="envFilePath" value="$PROJECT_DIR$/pegelhub-core/testenvironment.vars" />
+        <option name="removeOrphansOnComposeDown" value="false" />
+        <option name="commandLineOptions" value="--build" />
+        <option name="sourceFilePath" value="$PROJECT_DIR$/pegelhub-core/docker-compose.yaml" />
+        <upScaledServices>
+          <entry key="core-app" value="1" />
+        </upScaledServices>
+      </settings>
+    </deployment>
+    <method v="2" />
+  </configuration>
+</component>

@@ -1,0 +1,197 @@
+---
+apiToken: "1blNBx7uRaSJQR6ROmNn5h9MECLVaL5N6OjKdoXxGPDK0XVXpzLWLtJpi5wBvATn"
+lastTokenRefresh: "2024-02-18T07:23:20.559907686"
+isSupplier: true
+supplier:
+  number: "nr1"
+  id: 10001033
+  name: "some"
+  water: "thing"
+  waterType: "A"
+  manufacturer:
+    name: "man"
+    type: "male"
+    version: "1.0.1"
+    remark: "none"
+  connector:
+    number: "985"
+    contact_manufacturer:
+      organization: ""
+      contactPerson: ""
+      contactStreet: ""
+      contactPlz: ""
+      location: ""
+      contactCountry: ""
+      emergencyNumber: ""
+      emergencyNumberTwo: ""
+      emergencyMail: ""
+      serviceNumber: ""
+      serviceNumberTwo: ""
+      serviceMail: ""
+      administrationPhoneNumber: ""
+      administrationPhoneNumberTwo: ""
+      administrationMail: ""
+      contactNodes: ""
+    typeDescription: "man-descr"
+    softwareVersion: "1.0.1"
+    worksFromDataVersion: "1.0.1"
+    dataDefinition: "CREATE TABLE"
+    contact_softwareManufacturer:
+      organization: ""
+      contactPerson: ""
+      contactStreet: ""
+      contactPlz: ""
+      location: ""
+      contactCountry: ""
+      emergencyNumber: ""
+      emergencyNumberTwo: ""
+      emergencyMail: ""
+      serviceNumber: ""
+      serviceNumberTwo: ""
+      serviceMail: ""
+      administrationPhoneNumber: ""
+      administrationPhoneNumberTwo: ""
+      administrationMail: ""
+      contactNodes: ""
+    contact_technicallyResponsible:
+      organization: ""
+      contactPerson: ""
+      contactStreet: ""
+      contactPlz: ""
+      location: ""
+      contactCountry: ""
+      emergencyNumber: ""
+      emergencyNumberTwo: ""
+      emergencyMail: ""
+      serviceNumber: ""
+      serviceNumberTwo: ""
+      serviceMail: ""
+      administrationPhoneNumber: ""
+      administrationPhoneNumberTwo: ""
+      administrationMail: ""
+      contactNodes: ""
+    contact_operationCompany:
+      organization: ""
+      contactPerson: ""
+      contactStreet: ""
+      contactPlz: ""
+      location: ""
+      contactCountry: ""
+      emergencyNumber: ""
+      emergencyNumberTwo: ""
+      emergencyMail: ""
+      serviceNumber: ""
+      serviceNumberTwo: ""
+      serviceMail: ""
+      administrationPhoneNumber: ""
+      administrationPhoneNumberTwo: ""
+      administrationMail: ""
+      contactNodes: ""
+    notes: ""
+  refreshRate: 10
+  accuracy: 95.0
+  mainUsage: "measuring stuff"
+  dataCritically: "indeed"
+  baseReferenceLevel: 1.0
+  referencePlace: "brazil"
+  waterKilometer: 69.0
+  waterSide: "up"
+  waterLatitude: 1.0
+  waterLongitude: 18.0
+  waterLatitudem: 122.0
+  waterLongitudem: 543.0
+  hsw100: 9.0
+  hsw: 1.0
+  hswReference: 2
+  mw: 10.0
+  mwReference: 9
+  rnw: 8.0
+  rnwReference: 54
+  hsq100: 23.0
+  hsq: 12.0
+  mq: 4.0
+  rnq: 23.3
+taker:
+  number: "nine large"
+  id: 1
+  manufacturer:
+    name: "man"
+    systemName: "male"
+    firmwareVersion: "1.0.1"
+    remark: "none"
+  connector:
+    number: "9"
+    contact_manufacturer:
+      organization: ""
+      contactPerson: ""
+      contactStreet: ""
+      contactPlz: ""
+      location: ""
+      contactCountry: ""
+      emergencyNumber: ""
+      emergencyNumberTwo: ""
+      emergencyMail: ""
+      serviceNumber: ""
+      serviceNumberTwo: ""
+      serviceMail: ""
+      administrationPhoneNumber: ""
+      administrationPhoneNumberTwo: ""
+      administrationMail: ""
+      contactNodes: ""
+    typeDescription: "man-descr"
+    softwareVersion: "1.0.1"
+    worksFromDataVersion: "1.0.1"
+    dataDefinition: "CREATE TABLE"
+    contact_softwareManufacturer:
+      organization: ""
+      contactPerson: ""
+      contactStreet: ""
+      contactPlz: ""
+      location: ""
+      contactCountry: ""
+      emergencyNumber: ""
+      emergencyNumberTwo: ""
+      emergencyMail: ""
+      serviceNumber: ""
+      serviceNumberTwo: ""
+      serviceMail: ""
+      administrationPhoneNumber: ""
+      administrationPhoneNumberTwo: ""
+      administrationMail: ""
+      contactNodes: ""
+    contact_technicallyResponsible:
+      organization: ""
+      contactPerson: ""
+      contactStreet: ""
+      contactPlz: ""
+      location: ""
+      contactCountry: ""
+      emergencyNumber: ""
+      emergencyNumberTwo: ""
+      emergencyMail: ""
+      serviceNumber: ""
+      serviceNumberTwo: ""
+      serviceMail: ""
+      administrationPhoneNumber: ""
+      administrationPhoneNumberTwo: ""
+      administrationMail: ""
+      contactNodes: ""
+    contact_operationCompany:
+      organization: ""
+      contactPerson: ""
+      contactStreet: ""
+      contactPlz: ""
+      location: ""
+      contactCountry: ""
+      emergencyNumber: ""
+      emergencyNumberTwo: ""
+      emergencyMail: ""
+      serviceNumber: ""
+      serviceNumberTwo: ""
+      serviceMail: ""
+      administrationPhoneNumber: ""
+      administrationPhoneNumberTwo: ""
+      administrationMail: ""
+      contactNodes: ""
+    notes: ""
+  refreshRate: 10

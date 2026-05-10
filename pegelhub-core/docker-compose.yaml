@@ -1,103 +1,69 @@
-version: "3.5"
+version: "3.8"
 
 volumes:
   metastore-data:
   datastore-data:
 
-networks:
-  components:
-    name: pegelhub-components
-
-  meta-net:
-    name: pegelhub-metastore
-
-  data-net:
-    name: pegelhub-datastore
-
 services:
-  registry:
-    build:
-      context: service-registry
-    restart: unless-stopped
-    networks:
-      - components
-
-  # backend components
   meta-db:
     image: postgres:14-alpine
     restart: unless-stopped
     environment:
-      - POSTGRES_PASSWORD=$META_PASSWORD
-      - POSTGRES_DB=$META_DB
+      POSTGRES_PASSWORD: ${META_PASSWORD}
+      POSTGRES_DB: ${META_DB}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d ${META_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 5s
     volumes:
-      - "metastore-data:/var/lib/postgresql"
+      - metastore-data:/var/lib/postgresql/data
     ports:
       - "5444:5432"
-    networks:
-      - meta-net
-
 
   data-db:
-    image: influxdb:latest
+    image: influxdb:2.2-alpine
     restart: unless-stopped
     environment:
-      - DOCKER_INFLUXDB_INIT_MODE=setup
-      - DOCKER_INFLUXDB_INIT_USERNAME=$DATA_ADMIN_USER
-      - DOCKER_INFLUXDB_INIT_PASSWORD=$DATA_ADMIN_PASSWORD
-      - DOCKER_INFLUXDB_INIT_ORG=$DATA_ORG
-      - DOCKER_INFLUXDB_INIT_BUCKET=$INTERNAL_DB
-      - BUCKET_TELEMETRY=$TELEMETRY_DB
-      - BUCKET_DATA=$DATA_DB
-      - STORE_USER=$DATA_USER
+      DOCKER_INFLUXDB_INIT_MODE: setup
+      DOCKER_INFLUXDB_INIT_USERNAME: ${INFLUX_ADMIN_USER}
+      DOCKER_INFLUXDB_INIT_PASSWORD: ${INFLUX_ADMIN_PASSWORD}
+      DOCKER_INFLUXDB_INIT_ORG: ${INFLUX_ORG}
+      DOCKER_INFLUXDB_INIT_BUCKET: ${INFLUX_INTERNAL_BUCKET}
+      DOCKER_INFLUXDB_INIT_ADMIN_TOKEN: ${INFLUX_TOKEN}
+      INFLUX_DATA_BUCKET: ${INFLUX_DATA_BUCKET}
+      INFLUX_TELEMETRY_BUCKET: ${INFLUX_TELEMETRY_BUCKET}
     volumes:
-      - "datastore-data:/var/lib/influxdb"
-      - "./init-influxdb.sh:/docker-entrypoint-initdb.d/00-setup.sh"
-      - "./.datastoreconfig:/etc/influxdb2/store/"
+      - datastore-data:/var/lib/influxdb2
+      - ./docker/influxdb/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD", "influx", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
     ports:
       - "8111:8086"
-    networks:
-      - data-net
 
-  # edge components
-  starter:
+  core-app:
     build:
-      context: starter
+      context: .
     restart: unless-stopped
     environment:
-      - DB_URI=meta-db:5432/$META_DB
-      - DB_USER=postgres
-      - DB_PASSWORD=$META_PASSWORD
-      - TELEMETRY_STORE_URL=http://data-db:8086/
-      - TELEMETRY_STORE_ORG=$DATA_USER
-      - TELEMETRY_STORE_BUCKET=$DATA_DB
-      - TELEMETRY_STORE_TOKEN=$DATA_PASSWORD
-      - DATA_ADMIN_USER=$DATA_ADMIN_USER
-      - DATA_ADMIN_PASSWORD=$DATA_ADMIN_PASSWORD
-      - DATA_STORE_URL=http://data-db:8086/
-      - DATA_STORE_ORG=$DATA_USER
-      - DATA_STORE_BUCKET=$DATA_DB
-      - DATA_STORE_TOKEN=$DATA_PASSWORD
-      - INFLUX_FILE=/etc/influxdb2/store/storeapp.yaml
-    volumes:
-      - "./.datastoreconfig:/etc/influxdb2/store/"
-    depends_on:
-      - registry
-      - meta-db
-      - data-db
-    networks:
-      - components
-      - meta-net
-      - data-net
-
-  # exposed proxy service
-  proxy:
-    build:
-      context: routing-proxy
-    restart: unless-stopped
+      DB_URI: meta-db:5432/${META_DB}
+      DB_USER: postgres
+      DB_PASSWORD: ${META_PASSWORD}
+      INFLUX_URL: http://data-db:8086/
+      INFLUX_ORG: ${INFLUX_ORG}
+      INFLUX_TOKEN: ${INFLUX_TOKEN}
+      INFLUX_DATA_BUCKET: ${INFLUX_DATA_BUCKET}
+      INFLUX_TELEMETRY_BUCKET: ${INFLUX_TELEMETRY_BUCKET}
     ports:
-      - "8081:8080"
+      - "8080:8080"
+      - "8081:8081"
     depends_on:
-      - registry
-      - starter
-    networks:
-      - components
+      meta-db:
+        condition: service_healthy
+      data-db:
+        condition: service_healthy

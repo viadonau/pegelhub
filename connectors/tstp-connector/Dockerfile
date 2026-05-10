@@ -1,0 +1,9 @@
+FROM amazoncorretto:21-alpine-jdk
+
+WORKDIR /app
+
+COPY ./target/pegelhub-tstp-connector-1.0.0-SNAPSHOT.jar /app/connector.jar
+COPY ./target/lib/ /app/lib/
+RUN mkdir -p /app/config
+
+ENTRYPOINT ["java","-cp","/app/connector.jar:/app/lib/*","at.pegelhub.connector.tstp.Main"]

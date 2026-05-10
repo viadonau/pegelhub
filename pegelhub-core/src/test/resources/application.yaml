@@ -1,0 +1,24 @@
+spring:
+  main:
+    allow-bean-definition-overriding: true
+  jpa:
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+
+    hibernate:
+      ddl-auto: create
+
+pegelhub:
+  influx:
+    url: http://localhost:8086/
+    org: test
+    token: test-token
+    data-bucket: data
+    telemetry-bucket: telemetry
+
+logging:
+  level:
+    com.github.dockerjava: WARN
+    org.testcontainers: INFO

@@ -1,8 +1,12 @@
 HELP.md
 target/
+**/dependency-reduced-pom.xml
 !.mvn/wrapper/maven-wrapper.jar
 !**/src/main/**/target/
 !**/src/test/**/target/
+pegelhub-core/.env
+pegelhub-core/.env.local
+pegelhub-core/.datastoreconfig/
 pegelhub-ma-connector/src/main/native/generated
 pegelhub-ma-connector/src/main/native/cmake-*
 
@@ -33,3 +37,10 @@ build/
 
 ### VS Code ###
 .vscode/
+
+### Python ###
+__pycache__/
+*.pyc
+
+### Local Developer Workspace ###
+.developers/
