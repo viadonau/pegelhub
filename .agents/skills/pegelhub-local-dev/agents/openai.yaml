@@ -1,0 +1,7 @@
+interface:
+  display_name: "PegelHub Local Dev"
+  short_description: "Core stack diagnostics, build, and smoke checks"
+  default_prompt: "Use $pegelhub-local-dev to check the local PegelHub Core stack status."
+
+policy:
+  allow_implicit_invocation: true
