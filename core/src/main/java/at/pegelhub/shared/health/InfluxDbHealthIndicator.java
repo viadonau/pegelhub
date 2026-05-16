@@ -1,6 +1,7 @@
 package at.pegelhub.shared.health;
 
 import com.influxdb.client.InfluxDBClient;
+import org.jspecify.annotations.NonNull;
 import org.springframework.boot.health.contributor.AbstractHealthIndicator;
 import org.springframework.boot.health.contributor.Health;
 import org.springframework.util.Assert;
@@ -20,7 +21,7 @@ public class InfluxDbHealthIndicator extends AbstractHealthIndicator {
     }
 
     @Override
-    protected void doHealthCheck(Health.Builder builder) {
+    protected void doHealthCheck(Health.@NonNull Builder builder) {
         if (influxDbClient.ping()) {
             builder.up();
         } else {

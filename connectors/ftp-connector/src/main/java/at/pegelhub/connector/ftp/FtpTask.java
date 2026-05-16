@@ -28,7 +28,7 @@ public class FtpTask extends TimerTask {
 
     //TODO rework influxId or remove completely
 //    private InfluxID influxID;
-    private ApplicationProperties properties;
+    private final ApplicationProperties properties;
 
     public FtpTask(FTPClient ftp, ConnectorOptions conOpts, PegelHubCommunicator communicator, Parser parser) {
         this.ftp = ftp;

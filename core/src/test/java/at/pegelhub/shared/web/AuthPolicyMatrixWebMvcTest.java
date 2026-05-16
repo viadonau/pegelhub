@@ -20,6 +20,7 @@ import at.pegelhub.taker.application.TakerService;
 import at.pegelhub.taker.application.TakerServiceManufacturerService;
 import at.pegelhub.telemetry.api.HttpTelemetryController;
 import at.pegelhub.telemetry.application.TelemetryService;
+import org.jspecify.annotations.NonNull;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -464,7 +465,7 @@ class AuthPolicyMatrixWebMvcTest {
 
     private record EndpointCase(String name, Supplier<MockHttpServletRequestBuilder> request) {
         @Override
-        public String toString() {
+        public @NonNull String toString() {
             return name;
         }
     }

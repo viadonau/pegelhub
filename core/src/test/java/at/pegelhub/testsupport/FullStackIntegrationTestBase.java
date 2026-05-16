@@ -25,6 +25,7 @@ public abstract class FullStackIntegrationTestBase {
     }
 
     @Autowired
+    @SuppressWarnings("SpringJavaInjectionPointsAutowiringInspection")
     protected TestRestTemplate rest;
 
     @Autowired

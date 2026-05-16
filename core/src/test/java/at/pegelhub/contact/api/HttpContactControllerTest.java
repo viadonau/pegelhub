@@ -13,6 +13,7 @@ import java.util.List;
 import java.util.UUID;
 
 import static at.pegelhub.testsupport.ExampleData.CONTACT;
+import static java.util.Objects.requireNonNull;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
@@ -60,7 +61,7 @@ class HttpContactControllerTest {
                                 }
                                 """))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.id").value(CONTACT.getId().toString()))
+                .andExpect(jsonPath("$.id").value(requireNonNull(CONTACT.getId()).toString()))
                 .andExpect(jsonPath("$.organization").value(CONTACT.getOrganization()));
     }
 
@@ -70,7 +71,7 @@ class HttpContactControllerTest {
 
         mockMvc.perform(get("/api/v1/contact/{uuid}", CONTACT.getId()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.id").value(CONTACT.getId().toString()))
+                .andExpect(jsonPath("$.id").value(requireNonNull(CONTACT.getId()).toString()))
                 .andExpect(jsonPath("$.organization").value(CONTACT.getOrganization()));
     }
 
@@ -80,7 +81,7 @@ class HttpContactControllerTest {
 
         mockMvc.perform(get("/api/v1/contact"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].id").value(CONTACT.getId().toString()));
+                .andExpect(jsonPath("$[0].id").value(requireNonNull(CONTACT.getId()).toString()));
     }
 
     @Test

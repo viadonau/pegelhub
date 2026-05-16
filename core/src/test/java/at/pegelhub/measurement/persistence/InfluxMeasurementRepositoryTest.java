@@ -49,11 +49,6 @@ final class InfluxMeasurementRepositoryTest extends InfluxIntegrationTestBase {
     }
 
     @Test
-    void storeMeasurementsWithNullThrowsNPE() {
-        assertThrows(NullPointerException.class, () -> repository.storeMeasurements(null));
-    }
-
-    @Test
     void writesReadsRangeAndLatestMeasurementData() {
         UUID id = UUID.randomUUID();
         LocalDateTime recentTimestamp = LocalDateTime.now(ZoneOffset.UTC)

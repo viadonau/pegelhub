@@ -17,6 +17,7 @@ import java.util.List;
 import java.util.UUID;
 
 import static at.pegelhub.testsupport.ExampleData.TAKER;
+import static java.util.Objects.requireNonNull;
 import static at.pegelhub.testsupport.ExampleDtos.CREATE_TAKER_DTO;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -67,7 +68,7 @@ class HttpTakerControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsBytes(CREATE_TAKER_DTO)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.id").value(TAKER.getId().toString()));
+                .andExpect(jsonPath("$.id").value(requireNonNull(TAKER.getId()).toString()));
 
         assertNull(AuthTokenIdHolder.get());
     }
@@ -97,7 +98,7 @@ class HttpTakerControllerTest {
 
         mockMvc.perform(get("/api/v1/taker/{uuid}", TAKER.getId()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.id").value(TAKER.getId().toString()))
+                .andExpect(jsonPath("$.id").value(requireNonNull(TAKER.getId()).toString()))
                 .andExpect(jsonPath("$.stationNumber").value(TAKER.getStationNumber()));
     }
 
@@ -107,7 +108,7 @@ class HttpTakerControllerTest {
 
         mockMvc.perform(get("/api/v1/taker"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].id").value(TAKER.getId().toString()));
+                .andExpect(jsonPath("$[0].id").value(requireNonNull(TAKER.getId()).toString()));
     }
 
     @Test
