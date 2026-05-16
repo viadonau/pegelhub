@@ -42,7 +42,7 @@ public class FtpTask extends TimerTask {
 
     /**
      * The connection to the FTP Server. Reads the file and tries to parse it. If successful, the parsed Measurements get
-     * transferred to pegelhub-core
+     * transferred to Pegelhub Core
       */
     @Override
     public void run(){

@@ -5,7 +5,7 @@
       <env name="SPRING_PROFILES_ACTIVE" value="dev" />
     </envs>
     <option name="MAIN_CLASS_NAME" value="at.pegelhub.CoreAppApplication" />
-    <module name="pegelhub-core" />
+    <module name="core" />
     <method v="2">
       <option name="Make" enabled="true" />
     </method>

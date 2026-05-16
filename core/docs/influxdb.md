@@ -9,7 +9,7 @@ The application does not read a generated token file anymore. Runtime configurat
 
 ## Local Docker Compose
 
-From `pegelhub-core/`:
+From `core/`:
 
 ```bash
 cp .env.example .env

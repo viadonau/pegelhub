@@ -1,6 +1,6 @@
 # Pegelhub Core
 
-`pegelhub-core` is the Spring Boot monolith for Pegelhub.
+Pegelhub Core is the Spring Boot monolith for Pegelhub.
 
 The application is exposed directly on:
 
@@ -17,7 +17,7 @@ Legacy proxy compatibility routes are intentionally removed.
 
 ## Build
 
-From `pegelhub-core/`:
+From `core/`:
 
 ```bash
 mvn test
@@ -86,7 +86,7 @@ The `dev` profile defaults to the token shown above. Override `INFLUX_TOKEN`, `I
 
 ## Packaging
 
-Build the application jar and Docker image from `pegelhub-core/`:
+Build the application jar and Docker image from `core/`:
 
 ```bash
 mvn -DskipTests package
