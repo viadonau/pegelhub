@@ -19,6 +19,7 @@ import java.util.UUID;
 import static at.pegelhub.testsupport.ExampleData.CONNECTOR;
 import static at.pegelhub.testsupport.ExampleData.SUPPLIER;
 import static at.pegelhub.testsupport.ExampleDtos.CREATE_SUPPLIER_DTO;
+import static java.util.Objects.requireNonNull;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.ArgumentMatchers.any;
@@ -69,7 +70,7 @@ class HttpSupplierControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsBytes(CREATE_SUPPLIER_DTO)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.id").value(SUPPLIER.getId().toString()));
+                .andExpect(jsonPath("$.id").value(requireNonNull(SUPPLIER.getId()).toString()));
 
         assertNull(AuthTokenIdHolder.get());
     }
@@ -99,7 +100,7 @@ class HttpSupplierControllerTest {
 
         mockMvc.perform(get("/api/v1/supplier/{uuid}", SUPPLIER.getId()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.id").value(SUPPLIER.getId().toString()))
+                .andExpect(jsonPath("$.id").value(requireNonNull(SUPPLIER.getId()).toString()))
                 .andExpect(jsonPath("$.stationNumber").value(SUPPLIER.getStationNumber()));
     }
 
@@ -109,7 +110,7 @@ class HttpSupplierControllerTest {
 
         mockMvc.perform(get("/api/v1/supplier"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].id").value(SUPPLIER.getId().toString()));
+                .andExpect(jsonPath("$[0].id").value(requireNonNull(SUPPLIER.getId()).toString()));
     }
 
     @Test
@@ -140,7 +141,7 @@ class HttpSupplierControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsBytes(CREATE_SUPPLIER_DTO)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.id").value(SUPPLIER.getId().toString()));
+                .andExpect(jsonPath("$.id").value(requireNonNull(SUPPLIER.getId()).toString()));
     }
 
     @Test

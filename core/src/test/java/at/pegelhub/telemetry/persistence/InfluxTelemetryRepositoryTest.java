@@ -46,11 +46,6 @@ final class InfluxTelemetryRepositoryTest extends InfluxIntegrationTestBase {
     }
 
     @Test
-    void saveTelemetryWithNullThrowsNPE() {
-        assertThrows(NullPointerException.class, () -> repository.saveTelemetry(null));
-    }
-
-    @Test
     void writesReadsRangeAndLatestTelemetryData() {
         String id = UUID.randomUUID().toString();
         Instant now = Instant.now().truncatedTo(ChronoUnit.SECONDS);

@@ -13,6 +13,7 @@ import java.util.List;
 import java.util.UUID;
 
 import static at.pegelhub.testsupport.ExampleData.TAKER_SERVICE_MANUFACTURER;
+import static java.util.Objects.requireNonNull;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
@@ -48,7 +49,7 @@ class HttpTakerServiceManufacturerControllerTest {
                                 }
                                 """))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.id").value(TAKER_SERVICE_MANUFACTURER.getId().toString()))
+                .andExpect(jsonPath("$.id").value(requireNonNull(TAKER_SERVICE_MANUFACTURER.getId()).toString()))
                 .andExpect(jsonPath("$.takerManufacturerName").value(TAKER_SERVICE_MANUFACTURER.getTakerManufacturerName()));
     }
 
@@ -59,7 +60,7 @@ class HttpTakerServiceManufacturerControllerTest {
 
         mockMvc.perform(get("/api/v1/takerServiceManufacturer/{uuid}", TAKER_SERVICE_MANUFACTURER.getId()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.id").value(TAKER_SERVICE_MANUFACTURER.getId().toString()));
+                .andExpect(jsonPath("$.id").value(requireNonNull(TAKER_SERVICE_MANUFACTURER.getId()).toString()));
     }
 
     @Test
@@ -69,7 +70,7 @@ class HttpTakerServiceManufacturerControllerTest {
 
         mockMvc.perform(get("/api/v1/takerServiceManufacturer"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].id").value(TAKER_SERVICE_MANUFACTURER.getId().toString()));
+                .andExpect(jsonPath("$[0].id").value(requireNonNull(TAKER_SERVICE_MANUFACTURER.getId()).toString()));
     }
 
     @Test

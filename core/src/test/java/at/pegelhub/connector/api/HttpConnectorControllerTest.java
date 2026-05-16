@@ -13,6 +13,7 @@ import java.util.List;
 import java.util.UUID;
 
 import static at.pegelhub.testsupport.ExampleData.CONNECTOR;
+import static java.util.Objects.requireNonNull;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
@@ -63,7 +64,7 @@ class HttpConnectorControllerTest {
                                 }
                                 """))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.id").value(CONNECTOR.getId().toString()))
+                .andExpect(jsonPath("$.id").value(requireNonNull(CONNECTOR.getId()).toString()))
                 .andExpect(jsonPath("$.connectorNumber").value(CONNECTOR.getConnectorNumber()))
                 .andExpect(jsonPath("$.typeDescription").value(CONNECTOR.getTypeDescription()));
     }
@@ -74,7 +75,7 @@ class HttpConnectorControllerTest {
 
         mockMvc.perform(get("/api/v1/connector/{uuid}", CONNECTOR.getId()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.id").value(CONNECTOR.getId().toString()))
+                .andExpect(jsonPath("$.id").value(requireNonNull(CONNECTOR.getId()).toString()))
                 .andExpect(jsonPath("$.connectorNumber").value(CONNECTOR.getConnectorNumber()));
     }
 
@@ -84,7 +85,7 @@ class HttpConnectorControllerTest {
 
         mockMvc.perform(get("/api/v1/connector"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].id").value(CONNECTOR.getId().toString()));
+                .andExpect(jsonPath("$[0].id").value(requireNonNull(CONNECTOR.getId()).toString()));
     }
 
     @Test

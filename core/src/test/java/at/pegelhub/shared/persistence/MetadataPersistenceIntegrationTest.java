@@ -27,6 +27,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
+@SuppressWarnings("SpringJavaInjectionPointsAutowiringInspection")
 final class MetadataPersistenceIntegrationTest extends JpaIntegrationTestBase {
 
     @Autowired
@@ -88,7 +89,6 @@ final class MetadataPersistenceIntegrationTest extends JpaIntegrationTestBase {
                 "request remark"));
         JpaTaker taker = takers.saveAndFlush(taker(
                 UUID.fromString("70000000-0000-0000-0000-000000000001"),
-                "taker-station",
                 takerConnector,
                 takerServiceManufacturer));
 
@@ -262,12 +262,11 @@ final class MetadataPersistenceIntegrationTest extends JpaIntegrationTestBase {
 
     private static JpaTaker taker(
             UUID id,
-            String stationNumber,
             JpaConnector connector,
             JpaTakerServiceManufacturer takerServiceManufacturer) {
         return new JpaTaker(
                 id,
-                stationNumber,
+                "taker-station",
                 201,
                 takerServiceManufacturer,
                 connector,

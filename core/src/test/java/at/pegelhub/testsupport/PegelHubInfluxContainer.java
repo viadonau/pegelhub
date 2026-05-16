@@ -39,7 +39,8 @@ public class PegelHubInfluxContainer extends InfluxDBContainer<PegelHubInfluxCon
         MUTEX.lock();
         try {
             if (containerInstance == null) {
-                containerInstance = new PegelHubInfluxContainer()
+                @SuppressWarnings("resource")
+                PegelHubInfluxContainer container = new PegelHubInfluxContainer()
                         .withUsername("test")
                         .withPassword("test1234")
                         .withAdmin("testAdmin")
@@ -49,6 +50,7 @@ public class PegelHubInfluxContainer extends InfluxDBContainer<PegelHubInfluxCon
                         .withBucket(DATA_BUCKET)
                         .withReuse(false)
                         .withLabel("reuse.UUID", "d4531930-4a99-4f18-a5dc-c5c80085bc46");
+                containerInstance = container;
             }
             return containerInstance;
         } finally {

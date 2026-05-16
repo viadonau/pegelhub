@@ -13,6 +13,7 @@ import java.util.List;
 import java.util.UUID;
 
 import static at.pegelhub.testsupport.ExampleData.STATION_MANUFACTURER;
+import static java.util.Objects.requireNonNull;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
@@ -48,7 +49,7 @@ class HttpStationManufacturerControllerTest {
                                 }
                                 """))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.id").value(STATION_MANUFACTURER.getId().toString()))
+                .andExpect(jsonPath("$.id").value(requireNonNull(STATION_MANUFACTURER.getId()).toString()))
                 .andExpect(jsonPath("$.stationManufacturerName").value(STATION_MANUFACTURER.getStationManufacturerName()));
     }
 
@@ -59,7 +60,7 @@ class HttpStationManufacturerControllerTest {
 
         mockMvc.perform(get("/api/v1/stationManufacturer/{uuid}", STATION_MANUFACTURER.getId()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.id").value(STATION_MANUFACTURER.getId().toString()));
+                .andExpect(jsonPath("$.id").value(requireNonNull(STATION_MANUFACTURER.getId()).toString()));
     }
 
     @Test
@@ -68,7 +69,7 @@ class HttpStationManufacturerControllerTest {
 
         mockMvc.perform(get("/api/v1/stationManufacturer"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].id").value(STATION_MANUFACTURER.getId().toString()));
+                .andExpect(jsonPath("$[0].id").value(requireNonNull(STATION_MANUFACTURER.getId()).toString()));
     }
 
     @Test
