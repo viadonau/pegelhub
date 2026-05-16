@@ -94,7 +94,7 @@ Option B - build from source and load on the RevPi:
 mvn -pl connectors/ma-connector -am -DskipTests package
 
 # The Java build produces:
-# - connectors/ma-connector/target/pegelhub-ma-connector-1.0.0-SNAPSHOT.jar
+# - connectors/ma-connector/target/ma-connector-1.0.0-SNAPSHOT.jar
 # - connectors/ma-connector/target/lib/*.jar
 
 # Build the container image from the connector directory

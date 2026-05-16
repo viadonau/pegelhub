@@ -20,7 +20,7 @@ mvn -pl connectors/ftp-connector -am -DskipTests package
 
 The build produces:
 
-- `target/pegelhub-ftp-connector-1.0.0-SNAPSHOT.jar`
+- `target/ftp-connector-1.0.0-SNAPSHOT.jar`
 - `target/lib/*.jar`
 
 ## Configuration

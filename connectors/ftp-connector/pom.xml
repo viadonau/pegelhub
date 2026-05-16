@@ -6,11 +6,11 @@
 
     <parent>
         <groupId>at.pegelhub</groupId>
-        <artifactId>pegelhub-connectors-parent</artifactId>
+        <artifactId>connectors</artifactId>
         <version>2.0.0-SNAPSHOT</version>
     </parent>
 
-    <artifactId>pegelhub-ftp-connector</artifactId>
+    <artifactId>ftp-connector</artifactId>
     <version>1.0.0-SNAPSHOT</version>
     <name>Pegelhub FTP Connector</name>
     <description>FTP connector for Pegelhub.</description>
@@ -23,7 +23,7 @@
     <dependencies>
         <dependency>
             <groupId>at.pegelhub</groupId>
-            <artifactId>pegelhub-connector-library</artifactId>
+            <artifactId>library</artifactId>
         </dependency>
         <dependency>
             <groupId>commons-net</groupId>

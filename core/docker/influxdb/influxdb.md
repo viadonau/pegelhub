@@ -32,7 +32,7 @@ This keeps provisioning and runtime config separate. InfluxDB creates credential
 
 ## Local Docker Compose
 
-From `pegelhub-core/`:
+From `core/`:
 
 ```bash
 cp .env.example .env
@@ -88,7 +88,7 @@ Override those environment variables if your manually started InfluxDB uses diff
 
 Influx repository integration tests use Testcontainers through `PegelHubInfluxContainer`. They do not depend on local Docker Compose, `.env`, `.datastoreconfig`, or manual InfluxDB setup.
 
-Run the regular test suite from `pegelhub-core/`:
+Run the regular test suite from `core/`:
 
 ```bash
 mvn test
@@ -97,7 +97,7 @@ mvn test
 Run the Influx integration slice:
 
 ```bash
-mvn -f pegelhub-core/pom.xml -Pintegration -Dtest=NoUnitTests -DfailIfNoTests=false -Dit.test=Influx* verify
+mvn -f core/pom.xml -Pintegration -Dtest=NoUnitTests -DfailIfNoTests=false -Dit.test=Influx* verify
 ```
 
 ## Previous Setup
