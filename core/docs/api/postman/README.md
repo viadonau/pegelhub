@@ -11,16 +11,11 @@ This Postman collection contains API requests for the Pegelhub core.
    - `baseAddress`: The IP address of your Pegelhub core instance.
    - `port`: The port of the Pegelhub core application.
    - `apiPath`: The API path of your core application. This only needs to be modified if you changed the API path in the Pegelhub core application.
+   - `accessToken`: A Keycloak access token for the request you want to execute.
 
 ## Collection Structure
 
 ### Metadata
-
-- **Token**
-  - **Refresh Token**: Sends a PUT request to refresh the token.
-  - **Create Token**: Sends a POST request to create a new token, depending on a given type.
-  - **Delete Token**: Sends a DELETE request to invalidate the token.
-  - **Get TokenIds**: Sends a GET request to retrieve all token IDs.
 
 - **Supplier**
   - **Get All**: Sends a GET request to retrieve all suppliers.
@@ -39,9 +34,7 @@ This Postman collection contains API requests for the Pegelhub core.
 
 You can execute the requests individually or run them as part of a sequence.
 
-The requests in this collection might require specific authentication or authorization credentials. The system uses API keys with three authorization levels: create, read, and write.
-
-Upon the initial launch of Pegelhub, a default API key with create privileges is generated. This default key has already been assigned to the `createApiKey` variable within the collection. You can request read and write keys with the create key by executing a **Create Token** request and setting the `type` variable to `read` or `write`.
+The requests in this collection use `Authorization: Bearer {{accessToken}}`. Request a token from Keycloak with client credentials, then paste the access token into the `accessToken` collection or environment variable. Use an operator token for metadata writes and a connector token for connector-owned data writes.
 
 Some requests require values for database objects that already exist in your local database:
 

@@ -110,7 +110,7 @@ class InputRegistryTest {
 
     @Test
     void shouldSkipFilesMissingRevInput() throws Exception {
-        writeYaml("bad.yaml", "apiToken: 123\n"); // no revInput
+        writeYaml("bad.yaml", "keycloak: {}\n"); // no revInput
 
         InputRegistry registry = new InputRegistry(revPiReader, tmp.toString(), coreUrl);
         registry.loadInputs();

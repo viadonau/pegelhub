@@ -72,21 +72,17 @@ public class JdbcSupplierRepository implements SupplierRepository {
     }
 
     /**
-     * @param uuid of the {@link Supplier} for authentication
-     * @return the corresponding {@link Supplier} to the given {@link UUID}
-     */
-    @Override
-    public UUID getSupplierIdForAuthId(UUID uuid) {
-       return jpaSupplierRepository.getSupplier(uuid);
-    }
-
-    /**
      * @param stationNumber of the desired {@link Supplier}
      * @return the corresponding {@link Supplier} to the given station.
      */
     @Override
     public Optional<Supplier> findByStationNumber(String stationNumber) {
         return jpaSupplierRepository.findFirstByStationNumber(stationNumber).map(JpaToDomainConverter::convert);
+    }
+
+    @Override
+    public Optional<Supplier> findByConnectorKeycloakClientId(String keycloakClientId) {
+        return jpaSupplierRepository.findByConnectorKeycloakClientId(keycloakClientId).map(JpaToDomainConverter::convert);
     }
 
     @Override

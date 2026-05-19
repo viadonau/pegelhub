@@ -43,7 +43,7 @@ Important `connector.properties` keys include:
 - `Iec.StartDtRetries`
 - `StationNumbers`
 
-`pegelhub.yaml` contains the Pegelhub supplier/taker registration data and API token.
+`pegelhub.yaml` contains the Pegelhub supplier/taker registration data and Keycloak client credentials.
 Set `DataPointsDir=/app/data/datapoints` for the container layout.
 
 Checked-in examples live under:

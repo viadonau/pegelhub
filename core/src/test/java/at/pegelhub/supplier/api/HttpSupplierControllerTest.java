@@ -1,11 +1,7 @@
 package at.pegelhub.supplier.api;
 
-import at.pegelhub.auth.application.AuthTokenIdHolder;
-import at.pegelhub.auth.application.AuthorizationService;
 import at.pegelhub.shared.error.NotFoundException;
-import at.pegelhub.shared.error.UnauthorizedException;
 import at.pegelhub.supplier.application.SupplierService;
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -20,10 +16,7 @@ import static at.pegelhub.testsupport.ExampleData.CONNECTOR;
 import static at.pegelhub.testsupport.ExampleData.SUPPLIER;
 import static at.pegelhub.testsupport.ExampleDtos.CREATE_SUPPLIER_DTO;
 import static java.util.Objects.requireNonNull;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -46,52 +39,28 @@ class HttpSupplierControllerTest {
     private final ObjectMapper objectMapper = JsonMapper.builder().findAndAddModules().build();
 
     @MockitoBean
-    private AuthorizationService authorizationService;
-
-    @MockitoBean
     private SupplierService supplierService;
 
-    @AfterEach
-    void clearAuthHolder() {
-        AuthTokenIdHolder.clear();
-    }
-
     @Test
-    void saveSupplierUsesAuthContextAndClearsHolderAfterSuccess() throws Exception {
-        UUID tokenId = UUID.randomUUID();
-        when(authorizationService.authorize("valid")).thenReturn(tokenId);
-        doAnswer(invocation -> {
-            assertEquals(tokenId, AuthTokenIdHolder.get());
-            return SUPPLIER;
-        }).when(supplierService).saveSupplier(any());
+    void saveSupplierReturnsSupplierJson() throws Exception {
+        when(supplierService.saveSupplier(any())).thenReturn(SUPPLIER);
 
         mockMvc.perform(post("/api/v1/supplier")
-                        .param("apiKey", "valid")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsBytes(CREATE_SUPPLIER_DTO)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(requireNonNull(SUPPLIER.getId()).toString()));
-
-        assertNull(AuthTokenIdHolder.get());
     }
 
     @Test
-    void updateSupplierClearsHolderAfterException() throws Exception {
-        UUID tokenId = UUID.randomUUID();
-        when(authorizationService.authorize("valid")).thenReturn(tokenId);
-        doAnswer(invocation -> {
-            assertEquals(tokenId, AuthTokenIdHolder.get());
-            throw new RuntimeException("update failed");
-        }).when(supplierService).updateSupplier(any());
+    void updateSupplierMapsServiceExceptionTo500() throws Exception {
+        doThrow(new RuntimeException("update failed")).when(supplierService).updateSupplier(any());
 
         mockMvc.perform(put("/api/v1/supplier")
-                        .param("apiKey", "valid")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsBytes(CREATE_SUPPLIER_DTO)))
                 .andExpect(status().isInternalServerError())
                 .andExpect(content().string("update failed"));
-
-        assertNull(AuthTokenIdHolder.get());
     }
 
     @Test
@@ -133,34 +102,13 @@ class HttpSupplierControllerTest {
 
     @Test
     void updateSupplierReturnsSupplierJson() throws Exception {
-        when(authorizationService.authorize("valid")).thenReturn(UUID.randomUUID());
         when(supplierService.updateSupplier(any())).thenReturn(SUPPLIER);
 
         mockMvc.perform(put("/api/v1/supplier")
-                        .param("apiKey", "valid")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsBytes(CREATE_SUPPLIER_DTO)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(requireNonNull(SUPPLIER.getId()).toString()));
-    }
-
-    @Test
-    void protectedSupplierEndpointsRejectUnauthorizedRequests() throws Exception {
-        doThrow(new UnauthorizedException("unauthorized")).when(authorizationService).authorize(any());
-
-        mockMvc.perform(post("/api/v1/supplier")
-                        .param("apiKey", "invalid")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsBytes(CREATE_SUPPLIER_DTO)))
-                .andExpect(status().isUnauthorized())
-                .andExpect(content().string("Unauthorized"));
-
-        mockMvc.perform(put("/api/v1/supplier")
-                        .param("apiKey", "invalid")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsBytes(CREATE_SUPPLIER_DTO)))
-                .andExpect(status().isUnauthorized())
-                .andExpect(content().string("Unauthorized"));
     }
 
     @Test

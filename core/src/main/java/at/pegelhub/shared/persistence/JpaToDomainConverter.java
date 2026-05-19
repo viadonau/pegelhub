@@ -1,7 +1,5 @@
 package at.pegelhub.shared.persistence;
 
-import at.pegelhub.auth.domain.ApiToken;
-import at.pegelhub.auth.persistence.JpaApiToken;
 import at.pegelhub.connector.domain.Connector;
 import at.pegelhub.connector.persistence.JpaConnector;
 import at.pegelhub.contact.domain.Contact;
@@ -18,7 +16,7 @@ import at.pegelhub.taker.persistence.JpaTakerServiceManufacturer;
 import java.util.List;
 
 /**
- * JDBC Implementation of the Interface {@code ApiTokenRepository}.
+ * Maps JPA classes to their respective domain classes.
  */
 
 public class JpaToDomainConverter {
@@ -57,7 +55,8 @@ public class JpaToDomainConverter {
                 convert(jpaConnector.getTechnicallyResponsible()),
                 convert(jpaConnector.getOperatingCompany()),
                 jpaConnector.getNodes(),
-                jpaConnector.getApiToken()
+                jpaConnector.getKeycloakClientId(),
+                jpaConnector.getStatus()
         );
     }
 
@@ -131,20 +130,8 @@ public class JpaToDomainConverter {
         );
     }
 
-    public static ApiToken convert(JpaApiToken token) {
-        return new ApiToken(
-                token.getId(),
-                token.getHashedToken(),
-                token.getSalt(),
-                token.isActivated(),
-                token.getExpiresAt()
-        );
-    }
-
     public static Object convert(Object object) {
-        if (object instanceof JpaApiToken token) {
-            return convert(token);
-        } else if (object instanceof JpaContact contact) {
+        if (object instanceof JpaContact contact) {
             return convert(contact);
         } else if (object instanceof JpaConnector connector) {
             return convert(connector);

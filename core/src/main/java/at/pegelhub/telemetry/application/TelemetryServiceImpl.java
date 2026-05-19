@@ -1,7 +1,13 @@
 package at.pegelhub.telemetry.application;
 
+import at.pegelhub.connector.domain.ConnectorStatus;
+import at.pegelhub.security.CurrentActor;
+import at.pegelhub.shared.error.NotFoundException;
+import at.pegelhub.taker.domain.Taker;
+import at.pegelhub.taker.persistence.TakerRepository;
 import at.pegelhub.telemetry.domain.Telemetry;
 import at.pegelhub.telemetry.persistence.TelemetryRepository;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -19,9 +25,16 @@ import static java.util.Objects.requireNonNull;
 public final class TelemetryServiceImpl implements TelemetryService {
 
     private final TelemetryRepository telemetryRepository;
+    private final TakerRepository takerRepository;
+    private final CurrentActor currentActor;
 
-    public TelemetryServiceImpl(TelemetryRepository telemetryRepository) {
+    public TelemetryServiceImpl(
+            TelemetryRepository telemetryRepository,
+            TakerRepository takerRepository,
+            CurrentActor currentActor) {
         this.telemetryRepository = requireNonNull(telemetryRepository);
+        this.takerRepository = requireNonNull(takerRepository);
+        this.currentActor = requireNonNull(currentActor);
     }
 
     /**
@@ -31,7 +44,25 @@ public final class TelemetryServiceImpl implements TelemetryService {
      */
     @Override
     public Telemetry saveTelemetry(Telemetry telemetry) {
-        return telemetryRepository.saveTelemetry(telemetry);
+        Taker taker = takerRepository.findByConnectorKeycloakClientId(currentActor.get().clientId())
+                .orElseThrow(() -> new NotFoundException("Connector not registered"));
+        if (taker.getConnector() == null || taker.getConnector().getStatus() != ConnectorStatus.ACTIVE) {
+            throw new AccessDeniedException("Connector is not active");
+        }
+        Telemetry telemetryForTaker = new Telemetry(
+                taker.getId().toString(),
+                telemetry.stationIPAddressIntern(),
+                telemetry.stationIPAddressExtern(),
+                telemetry.timestamp(),
+                telemetry.cycleTime(),
+                telemetry.temperatureWater(),
+                telemetry.temperatureAir(),
+                telemetry.performanceVoltageBattery(),
+                telemetry.performanceVoltageSupply(),
+                telemetry.performanceElectricityBattery(),
+                telemetry.performanceElectricitySupply(),
+                telemetry.fieldStrengthTransmission());
+        return telemetryRepository.saveTelemetry(telemetryForTaker);
     }
 
     /**

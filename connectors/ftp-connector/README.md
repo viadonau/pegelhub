@@ -33,7 +33,7 @@ The config directory must contain:
 - `connector.properties`
 - `pegelhub.yaml`
 
-`pegelhub.yaml` contains the Pegelhub registration data and API token.
+`pegelhub.yaml` contains the Pegelhub registration data and Keycloak client credentials.
 `connector.properties` contains the connector runtime settings.
 
 Important `connector.properties` keys:
@@ -88,6 +88,6 @@ Use any host directory you want, as long as it contains `connector.properties` a
 
 ## Notes
 
-- Each connector instance needs its own API token.
+- Each connector instance needs its own pre-provisioned Keycloak client.
 - If you need both `.asc` and `.zrxp`, run separate connector instances.
 - `read.delay` uses `number[s/m/h]`, for example `30s`, `15m`, `1h`.

@@ -4,8 +4,6 @@ import at.pegelhub.shared.web.DomainToDtoConverter;
 import at.pegelhub.shared.web.DtoToDomainConverter;
 import at.pegelhub.shared.web.*;
 
-import at.pegelhub.auth.application.AuthTokenIdHolder;
-import at.pegelhub.auth.application.AuthorizationService;
 import at.pegelhub.taker.application.TakerService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -24,13 +22,9 @@ import static java.util.Objects.requireNonNull;
 @RequestMapping("/api/v1/taker")
 public class HttpTakerController {
 
-    private final AuthorizationService authorizationService;
     private final TakerService takerService;
 
-    public HttpTakerController(
-            AuthorizationService authorizationService,
-            TakerService takerService) {
-        this.authorizationService = requireNonNull(authorizationService);
+    public HttpTakerController(TakerService takerService) {
         this.takerService = requireNonNull(takerService);
     }
 
@@ -39,11 +33,8 @@ public class HttpTakerController {
             @ApiResponse(responseCode = "200", description = "Returns the saved Taker")
     })
     @PostMapping
-    public TakerDto saveTaker(
-            @RequestParam(name = "apiKey", defaultValue = "") String apiKey,
-            @RequestBody CreateTakerDto taker) {
-        return runAsAuthorized(apiKey, () ->
-                DomainToDtoConverter.convert(takerService.saveTaker(DtoToDomainConverter.convert(taker))));
+    public TakerDto saveTaker(@RequestBody CreateTakerDto taker) {
+        return DomainToDtoConverter.convert(takerService.saveTaker(DtoToDomainConverter.convert(taker)));
     }
 
     @Operation(summary = "Gets a Taker by ID")
@@ -71,19 +62,5 @@ public class HttpTakerController {
     @DeleteMapping("/{uuid}")
     public void deleteTaker(@PathVariable UUID uuid) {
         takerService.deleteTaker(uuid);
-    }
-
-    private <T> T runAsAuthorized(String apiKey, AuthorizedSupplier<T> action) {
-        AuthTokenIdHolder.set(authorizationService.authorize(apiKey));
-        try {
-            return action.run();
-        } finally {
-            AuthTokenIdHolder.clear();
-        }
-    }
-
-    @FunctionalInterface
-    private interface AuthorizedSupplier<T> {
-        T run();
     }
 }

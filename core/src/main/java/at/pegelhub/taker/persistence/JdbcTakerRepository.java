@@ -76,4 +76,9 @@ public class JdbcTakerRepository implements TakerRepository {
     public Optional<Taker> findByStationNumber(String stationNumber) {
         return jpaTakerRepository.findFirstByStationNumber(stationNumber).map(JpaToDomainConverter::convert);
     }
+
+    @Override
+    public Optional<Taker> findByConnectorKeycloakClientId(String keycloakClientId) {
+        return jpaTakerRepository.findByConnectorKeycloakClientId(keycloakClientId).map(JpaToDomainConverter::convert);
+    }
 }

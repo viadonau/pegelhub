@@ -1,11 +1,7 @@
 package at.pegelhub.taker.api;
 
-import at.pegelhub.auth.application.AuthTokenIdHolder;
-import at.pegelhub.auth.application.AuthorizationService;
 import at.pegelhub.shared.error.NotFoundException;
-import at.pegelhub.shared.error.UnauthorizedException;
 import at.pegelhub.taker.application.TakerService;
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -19,10 +15,7 @@ import java.util.UUID;
 import static at.pegelhub.testsupport.ExampleData.TAKER;
 import static java.util.Objects.requireNonNull;
 import static at.pegelhub.testsupport.ExampleDtos.CREATE_TAKER_DTO;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -44,52 +37,28 @@ class HttpTakerControllerTest {
     private final ObjectMapper objectMapper = JsonMapper.builder().findAndAddModules().build();
 
     @MockitoBean
-    private AuthorizationService authorizationService;
-
-    @MockitoBean
     private TakerService takerService;
 
-    @AfterEach
-    void clearAuthHolder() {
-        AuthTokenIdHolder.clear();
-    }
-
     @Test
-    void saveTakerUsesAuthContextAndClearsHolderAfterSuccess() throws Exception {
-        UUID tokenId = UUID.randomUUID();
-        when(authorizationService.authorize("valid")).thenReturn(tokenId);
-        doAnswer(invocation -> {
-            assertEquals(tokenId, AuthTokenIdHolder.get());
-            return TAKER;
-        }).when(takerService).saveTaker(any());
+    void saveTakerReturnsTakerJson() throws Exception {
+        when(takerService.saveTaker(any())).thenReturn(TAKER);
 
         mockMvc.perform(post("/api/v1/taker")
-                        .param("apiKey", "valid")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsBytes(CREATE_TAKER_DTO)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(requireNonNull(TAKER.getId()).toString()));
-
-        assertNull(AuthTokenIdHolder.get());
     }
 
     @Test
-    void saveTakerClearsHolderAfterException() throws Exception {
-        UUID tokenId = UUID.randomUUID();
-        when(authorizationService.authorize("valid")).thenReturn(tokenId);
-        doAnswer(invocation -> {
-            assertEquals(tokenId, AuthTokenIdHolder.get());
-            throw new RuntimeException("save failed");
-        }).when(takerService).saveTaker(any());
+    void saveTakerMapsServiceExceptionTo500() throws Exception {
+        doThrow(new RuntimeException("save failed")).when(takerService).saveTaker(any());
 
         mockMvc.perform(post("/api/v1/taker")
-                        .param("apiKey", "valid")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsBytes(CREATE_TAKER_DTO)))
                 .andExpect(status().isInternalServerError())
                 .andExpect(content().string("save failed"));
-
-        assertNull(AuthTokenIdHolder.get());
     }
 
     @Test
@@ -118,18 +87,6 @@ class HttpTakerControllerTest {
                 .andExpect(content().string(""));
 
         verify(takerService).deleteTaker(TAKER.getId());
-    }
-
-    @Test
-    void createTakerRejectsUnauthorizedRequest() throws Exception {
-        doThrow(new UnauthorizedException("unauthorized")).when(authorizationService).authorize(any());
-
-        mockMvc.perform(post("/api/v1/taker")
-                        .param("apiKey", "invalid")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsBytes(CREATE_TAKER_DTO)))
-                .andExpect(status().isUnauthorized())
-                .andExpect(content().string("Unauthorized"));
     }
 
     @Test

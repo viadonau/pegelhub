@@ -1,5 +1,6 @@
 package at.pegelhub.connector.persistence;
 
+import at.pegelhub.connector.domain.ConnectorStatus;
 import at.pegelhub.contact.persistence.JpaContact;
 import at.pegelhub.shared.persistence.IdentifiableEntity;
 
@@ -16,7 +17,9 @@ import java.util.UUID;
 @Entity
 @Data
 @EqualsAndHashCode(callSuper = false)
-@Table(name = "Connector", uniqueConstraints = @UniqueConstraint(columnNames = "apiToken"))
+@Table(name = "Connector", uniqueConstraints = {
+        @UniqueConstraint(columnNames = "keycloakClientId")
+})
 public class JpaConnector extends IdentifiableEntity {
     @ManyToOne
     @JoinColumn(nullable = false)
@@ -49,13 +52,22 @@ public class JpaConnector extends IdentifiableEntity {
     @JoinColumn(nullable = false)
     private JpaContact operatingCompany;
 
-    @Column(nullable = false)
-    private UUID apiToken;
+    @Column()
+    private String keycloakClientId;
+
+    @Enumerated(EnumType.STRING)
+    @Column(length = 20)
+    private ConnectorStatus status = ConnectorStatus.ACTIVE;
 
     @Column
     private String nodes;
 
-    public JpaConnector(UUID id, String connectorNumber, JpaContact manufacturer, String typeDescription, String softwareVersion, String worksFromDataVersion, String dataDefinition, JpaContact softwareManufacturer, JpaContact technicallyResponsible, JpaContact operatingCompany, String nodes, UUID apiToken) {
+    public JpaConnector(UUID id, String connectorNumber, JpaContact manufacturer, String typeDescription, String softwareVersion, String worksFromDataVersion, String dataDefinition, JpaContact softwareManufacturer, JpaContact technicallyResponsible, JpaContact operatingCompany, String nodes) {
+        this(id, connectorNumber, manufacturer, typeDescription, softwareVersion, worksFromDataVersion, dataDefinition,
+                softwareManufacturer, technicallyResponsible, operatingCompany, nodes, null, ConnectorStatus.ACTIVE);
+    }
+
+    public JpaConnector(UUID id, String connectorNumber, JpaContact manufacturer, String typeDescription, String softwareVersion, String worksFromDataVersion, String dataDefinition, JpaContact softwareManufacturer, JpaContact technicallyResponsible, JpaContact operatingCompany, String nodes, String keycloakClientId, ConnectorStatus status) {
         this.id = id;
         this.connectorNumber = connectorNumber;
         this.manufacturer = manufacturer;
@@ -67,7 +79,8 @@ public class JpaConnector extends IdentifiableEntity {
         this.technicallyResponsible = technicallyResponsible;
         this.operatingCompany = operatingCompany;
         this.nodes = nodes;
-        this.apiToken = apiToken;
+        this.keycloakClientId = keycloakClientId;
+        this.status = status == null ? ConnectorStatus.ACTIVE : status;
     }
 
     public JpaConnector() {

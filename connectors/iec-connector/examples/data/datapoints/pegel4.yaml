@@ -1,6 +1,9 @@
 ---
-apiToken: "zfnCpQyF6udilhowHwMUiyT59jBlIjPX2NMj1Dsg16UQikBr9rpk6EV5S7EcdaD3"
-lastTokenRefresh: "2025-10-05T10:09:37.0942968"
+keycloak:
+  tokenUrl: "http://pegelhub-keycloak.test:8082/realms/pegelhub/protocol/openid-connect/token"
+  clientId: "local-connector-example"
+  clientSecret: "local-dev-connector-secret-change-me"
+sendMetaDataOnStartup: false
 iecIOA: 66058
 isSupplier: false
 taker:

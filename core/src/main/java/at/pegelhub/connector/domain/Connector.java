@@ -26,12 +26,21 @@ public final class Connector {
     private Contact technicallyResponsible;
     private Contact operationCompany;
     private String notes;
-    private UUID apiToken;
+    private String keycloakClientId;
+    private ConnectorStatus status;
 
     public Connector(UUID id, String connectorNumber, Contact manufacturer, String typeDescription,
                      String softwareVersion, String worksFromDataVersion, String dataDefinition,
                      Contact softwareManufacturer, Contact technicallyResponsible, Contact operationCompany,
-                     String notes, UUID apiToken) {
+                     String notes) {
+        this(id, connectorNumber, manufacturer, typeDescription, softwareVersion, worksFromDataVersion, dataDefinition,
+                softwareManufacturer, technicallyResponsible, operationCompany, notes, null, ConnectorStatus.ACTIVE);
+    }
+
+    public Connector(UUID id, String connectorNumber, Contact manufacturer, String typeDescription,
+                     String softwareVersion, String worksFromDataVersion, String dataDefinition,
+                     Contact softwareManufacturer, Contact technicallyResponsible, Contact operationCompany,
+                     String notes, String keycloakClientId, ConnectorStatus status) {
         this.id = id;
         this.connectorNumber = connectorNumber;
         this.manufacturer = manufacturer;
@@ -43,17 +52,25 @@ public final class Connector {
         this.technicallyResponsible = technicallyResponsible;
         this.operationCompany = operationCompany;
         this.notes = notes;
-        this.apiToken =  apiToken;
+        this.keycloakClientId = keycloakClientId;
+        this.status = status == null ? ConnectorStatus.ACTIVE : status;
     }
 
     public Connector() {
         this.id = null;
+        this.status = ConnectorStatus.ACTIVE;
     }
 
     public Connector withId(UUID uuid) {
         return new Connector(uuid, this.connectorNumber, this.manufacturer, this.typeDescription, this.softwareVersion,
                 this.worksFromDataVersion, this.dataDefinition, this.softwareManufacturer, this.technicallyResponsible,
-                this.operationCompany, this.notes, this.apiToken);
+                this.operationCompany, this.notes, this.keycloakClientId, this.status);
+    }
+
+    public Connector withExternalAuth(String keycloakClientId, ConnectorStatus status) {
+        return new Connector(this.id, this.connectorNumber, this.manufacturer, this.typeDescription, this.softwareVersion,
+                this.worksFromDataVersion, this.dataDefinition, this.softwareManufacturer, this.technicallyResponsible,
+                this.operationCompany, this.notes, keycloakClientId, status);
     }
 
     @Override
@@ -71,13 +88,16 @@ public final class Connector {
                 Objects.equals(this.softwareManufacturer, that.softwareManufacturer) &&
                 Objects.equals(this.technicallyResponsible, that.technicallyResponsible) &&
                 Objects.equals(this.operationCompany, that.operationCompany) &&
-                Objects.equals(this.notes, that.notes);
+                Objects.equals(this.notes, that.notes) &&
+                Objects.equals(this.keycloakClientId, that.keycloakClientId) &&
+                this.status == that.status;
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(id, connectorNumber, manufacturer, typeDescription, softwareVersion, worksFromDataVersion,
-                dataDefinition, softwareManufacturer, technicallyResponsible, operationCompany, notes);
+                dataDefinition, softwareManufacturer, technicallyResponsible, operationCompany, notes, keycloakClientId,
+                status);
     }
 
     @Override
@@ -93,6 +113,8 @@ public final class Connector {
                 "softwareManufacturer=" + softwareManufacturer + ", " +
                 "technicallyResponsible=" + technicallyResponsible + ", " +
                 "operationCompany=" + operationCompany + ", " +
-                "notes=" + notes + ']';
+                "notes=" + notes + ", " +
+                "keycloakClientId=" + keycloakClientId + ", " +
+                "status=" + status + ']';
     }
 }

@@ -14,17 +14,21 @@ The checked-in sample file lives at `examples/config/pegelhub.yaml`.
 
 The YAML contains the connector identity and authentication data:
 
-- `apiToken`
-- `lastTokenRefresh`
+- `keycloak.tokenUrl`
+- `keycloak.clientId`
+- `keycloak.clientSecret`
+- `sendMetaDataOnStartup`
 - `isSupplier`
 - `supplier`
 - `taker`
 
-`apiToken`s must be unique per connector instance. The `supplier.id` / `taker.id` and connector numbers must also be unique within the target Pegelhub cluster.
+Keycloak clients must be pre-provisioned per connector instance. The `supplier.id` / `taker.id` and connector numbers must also be unique within the target Pegelhub cluster.
+When omitted, `sendMetaDataOnStartup` defaults to `false`, so normal connector credentials only send measurement or telemetry data after an operator has registered the metadata through the Pegelhub admin API. Set it to `true` only for admin-capable credentials that are allowed to create supplier or taker metadata during startup.
 
-## Acquiring A Token
+## Authentication
 
-- Create a token under `/api/v1/token?apiKey=<adminToken>&type=<tokenType>`.
-- Ask the Pegelhub owner for a token with the required read or write permission.
+- Ask the Pegelhub owner for a Keycloak client id and client secret with the required roles.
+- Configure `keycloak.tokenUrl`, `keycloak.clientId`, and `keycloak.clientSecret` in `pegelhub.yaml`.
+- The library obtains a short-lived access token with `client_credentials`, caches it, and sends `Authorization: Bearer <token>`.
 
-The library currently refreshes tokens on startup, not continuously during runtime.
+The library does not write access tokens or secrets back to the YAML file.

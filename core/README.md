@@ -40,6 +40,8 @@ The local compose setup starts:
 - `core-app`
 - `meta-db` (Postgres)
 - `data-db` (InfluxDB)
+- `keycloak-db` (Postgres for local identity)
+- `keycloak`
 
 Run:
 
@@ -48,15 +50,20 @@ cp .env.example .env
 docker compose up --build -d
 ```
 
-The app is then reachable on `localhost:8080` and actuator on `localhost:8081`.
+The app is then reachable on `localhost:8080`, actuator on `localhost:8081`, and local Keycloak on `http://pegelhub-keycloak.test:8082`.
 
 The token in `.env` is the source of truth for local first-start setup. If your local InfluxDB volume was already initialized with a different token, update `.env` to match it or recreate the local InfluxDB volume intentionally.
 
 InfluxDB setup, environment variables, and migration notes from the old generated-token flow are documented in `docs/influxdb.md`.
 
+Keycloak setup and auth operations are documented in:
+
+- `docs/keycloak-local-dev.md`
+- `docs/keycloak-operations.md`
+
 ## API Client Docs
 
-The Postman collection for the core HTTP API lives in `docs/api/postman/`.
+The Postman collection for the core HTTP API lives in `docs/api/postman/` and uses Bearer tokens from Keycloak.
 
 ## Manual Dev Profile
 

@@ -2,7 +2,6 @@ package at.pegelhub.telemetry.api;
 
 import at.pegelhub.telemetry.domain.Telemetry;
 import at.pegelhub.telemetry.application.TelemetryService;
-import at.pegelhub.auth.application.AuthorizationService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -22,13 +21,9 @@ import static java.util.Objects.requireNonNull;
 @RequestMapping("/api/v1/telemetry")
 public class HttpTelemetryController {
 
-    private final AuthorizationService authorizationService;
     private final TelemetryService telemetryService;
 
-    public HttpTelemetryController(
-            AuthorizationService authorizationService,
-            TelemetryService telemetryService) {
-        this.authorizationService = requireNonNull(authorizationService);
+    public HttpTelemetryController(TelemetryService telemetryService) {
         this.telemetryService = requireNonNull(telemetryService);
     }
 
@@ -38,10 +33,7 @@ public class HttpTelemetryController {
                     content = {@Content(mediaType = "application/json", schema = @Schema(implementation = Telemetry.class))})
     })
     @PostMapping
-    public Telemetry writeTelemetryData(
-            @RequestParam(name = "apiKey", defaultValue = "") String apiKey,
-            @RequestBody Telemetry telemetry) {
-        authorizationService.authorize(apiKey);
+    public Telemetry writeTelemetryData(@RequestBody Telemetry telemetry) {
         return telemetryService.saveTelemetry(telemetry);
     }
 
@@ -51,10 +43,7 @@ public class HttpTelemetryController {
                     content = {@Content(mediaType = "application/json", schema = @Schema(implementation = Telemetry.class))})
     })
     @GetMapping("/{range}")
-    public List<Telemetry> findTelemetryInRange(
-            @RequestParam(name = "apiKey", defaultValue = "") String apiKey,
-            @PathVariable String range) {
-        authorizationService.authorize(apiKey);
+    public List<Telemetry> findTelemetryInRange(@PathVariable String range) {
         return telemetryService.getByRange(range);
     }
 
@@ -64,10 +53,7 @@ public class HttpTelemetryController {
                     content = {@Content(mediaType = "application/json", schema = @Schema(implementation = Telemetry.class))})
     })
     @GetMapping("/last/{uuid}")
-    public Telemetry findTelemetryById(
-            @RequestParam(name = "apiKey", defaultValue = "") String apiKey,
-            @PathVariable UUID uuid) {
-        authorizationService.authorize(apiKey);
+    public Telemetry findTelemetryById(@PathVariable UUID uuid) {
         return telemetryService.getLastData(uuid);
     }
 }

@@ -1,8 +1,9 @@
 package at.pegelhub.lib.internal;
 
-import com.fasterxml.jackson.core.type.TypeReference;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 import com.google.gson.reflect.TypeToken;
 import at.pegelhub.lib.PegelHubCommunicator;
 import at.pegelhub.lib.exception.NotFoundException;
@@ -11,9 +12,12 @@ import at.pegelhub.lib.internal.gsonconverters.LocalDateTimeConverter;
 import at.pegelhub.lib.model.*;
 import org.apache.hc.client5.http.classic.methods.HttpGet;
 import org.apache.hc.client5.http.classic.methods.HttpPost;
-import org.apache.hc.client5.http.classic.methods.HttpPut;
+import org.apache.hc.client5.http.classic.methods.HttpUriRequestBase;
+import org.apache.hc.client5.http.entity.UrlEncodedFormEntity;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
+import org.apache.hc.core5.http.NameValuePair;
 import org.apache.hc.core5.http.HttpStatus;
+import org.apache.hc.core5.http.message.BasicNameValuePair;
 import org.apache.hc.core5.http.io.entity.EntityUtils;
 import org.apache.hc.core5.http.io.entity.HttpEntities;
 import org.slf4j.Logger;
@@ -23,7 +27,7 @@ import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
-import java.sql.Time;
+import java.nio.charset.StandardCharsets;
 import java.sql.Timestamp;
 import java.time.*;
 import java.util.*;
@@ -36,15 +40,64 @@ public class HttpPegelHubCommunicator implements PegelHubCommunicator {
     private final String telemetryRoute;
     private final String contactRoute;
     private final String connectorRoute;
-    private final String tokenRoute;
     private final String takerRoute;
     private final String supplierRoute;
     private final URL baseUrl;
     private final CloseableHttpClient client;
     private final ApplicationProperties properties;
+    private String accessToken;
+    private Instant accessTokenExpiresAt;
 
-    private String routeWithApiKey(String route) {
-        return route + (route.contains("?") ? "&" : "?") + "apiKey=" + properties.getApiKey();
+    private void authorize(HttpUriRequestBase request) {
+        request.setHeader("Authorization", "Bearer " + bearerToken());
+    }
+
+    private String bearerToken() {
+        if (accessToken != null
+                && accessTokenExpiresAt != null
+                && accessTokenExpiresAt.minusSeconds(30).isAfter(Instant.now())) {
+            return accessToken;
+        }
+        return fetchAccessToken();
+    }
+
+    private boolean isOAuthConfigured() {
+        return hasText(properties.getTokenUrl()) && hasText(properties.getClientId()) && hasText(properties.getClientSecret());
+    }
+
+    private static boolean hasText(String value) {
+        return value != null && !value.isBlank();
+    }
+
+    private synchronized String fetchAccessToken() {
+        if (accessToken != null
+                && accessTokenExpiresAt != null
+                && accessTokenExpiresAt.minusSeconds(30).isAfter(Instant.now())) {
+            return accessToken;
+        }
+        try {
+            var http = new HttpPost(URI.create(properties.getTokenUrl()));
+            http.setHeader("Content-Type", "application/x-www-form-urlencoded");
+            List<NameValuePair> form = List.of(
+                    new BasicNameValuePair("grant_type", "client_credentials"),
+                    new BasicNameValuePair("client_id", properties.getClientId()),
+                    new BasicNameValuePair("client_secret", properties.getClientSecret()));
+            http.setEntity(new UrlEncodedFormEntity(form, StandardCharsets.UTF_8));
+
+            return client.execute(http, response -> {
+                if (response.getCode() != HttpStatus.SC_OK) {
+                    EntityUtils.consume(response.getEntity());
+                    throw new RuntimeException("Token request failed with status: " + response.getCode());
+                }
+                JsonObject json = JsonParser.parseString(EntityUtils.toString(response.getEntity())).getAsJsonObject();
+                accessToken = json.get("access_token").getAsString();
+                long expiresIn = json.has("expires_in") ? json.get("expires_in").getAsLong() : 60L;
+                accessTokenExpiresAt = Instant.now().plusSeconds(Math.max(1L, expiresIn));
+                return accessToken;
+            });
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     private void ensureIsTaker() {
@@ -65,8 +118,9 @@ public class HttpPegelHubCommunicator implements PegelHubCommunicator {
 
     private void sendSupplierData() {
         try {
-            final URI uri = baseUrl.toURI().resolve(routeWithApiKey(supplierRoute));
+            final URI uri = baseUrl.toURI().resolve(supplierRoute);
             final var http = new HttpPost(uri);
+            authorize(http);
             http.setHeader("Content-Type", "application/json");
 
             LOG.debug("Summertime: " + properties.getSupplier().isSummertime());
@@ -91,8 +145,9 @@ public class HttpPegelHubCommunicator implements PegelHubCommunicator {
 
     private void sendTakerData() {
         try {
-            final URI uri = baseUrl.toURI().resolve(routeWithApiKey(takerRoute));
+            final URI uri = baseUrl.toURI().resolve(takerRoute);
             final var http = new HttpPost(uri);
+            authorize(http);
             http.setHeader("Content-Type", "application/json");
 
             var gson = new Gson();
@@ -113,78 +168,37 @@ public class HttpPegelHubCommunicator implements PegelHubCommunicator {
         }
     }
 
-    private void refreshApiKey() {
-        try {
-            Collection<Supplier> suppliers = getSuppliers();
-            SupplierSendDto supProperties = properties.getSupplier();
-            String supplierNumber = supProperties.stationNumber();
-            UUID supplierID = null;
-
-            Set<Supplier> supplierSet = suppliers.stream().filter(s -> supplierNumber.equals(s.getStationNumber())).collect(Collectors.toSet());
-            Optional<Supplier> optSupplier = null;
-            Supplier supplier = null;
-            if(!supplierSet.isEmpty()) {
-                optSupplier = supplierSet.stream().findFirst();
-                supplier = optSupplier.get();
-                supplierID = UUID.fromString(supplier.getId());
-            }
-
-            assert supplierID != null;
-            UUID connectorUUID = getConnectorID(supplierID);
-            LOG.debug("connectorUUID: " + connectorUUID);
-            final URI uri = baseUrl.toURI().resolve(routeWithApiKey(tokenRoute) + "&uuid=" + connectorUUID.toString());
-            final var http = new HttpPut(uri);
-
-            LOG.debug(uri.toString());
-
-            Optional<ApiToken> dto = client.execute(http, response -> {
-                if (response.getCode() != HttpStatus.SC_OK) {
-                    throw new RuntimeException("Invalid status: " + response.getCode());
-                }
-                var json = EntityUtils.toString(response.getEntity());
-                var gson = new Gson();
-                var mapType = new TypeToken<ApiTokenReceiveDto>() {
-                };
-                var token = gson.fromJson(json, mapType);
-                if (token == null) {
-                    return Optional.empty();
-                }
-                return Optional.of(token.toApiToken());
-            });
-            dto.ifPresent(token -> properties.setApiKey(token.getApiKey()));
-
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-    }
-
     public HttpPegelHubCommunicator(CloseableHttpClient client, URL baseUrl, ApplicationProperties properties) {
         this(client, baseUrl, properties,
                 "api/v1/measurement",
                 "api/v1/telemetry",
                 "api/v1/contact",
                 "api/v1/connector",
-                "api/v1/token",
                 "api/v1/taker",
                 "api/v1/supplier");
     }
 
-    public HttpPegelHubCommunicator(CloseableHttpClient client, URL baseUrl, ApplicationProperties properties, String measurementRoute, String telemetryRoute, String contactRoute, String connectorRoute, String tokenRoute, String takerRoute, String supplierRoute) {
+    public HttpPegelHubCommunicator(CloseableHttpClient client, URL baseUrl, ApplicationProperties properties, String measurementRoute, String telemetryRoute, String contactRoute, String connectorRoute, String takerRoute, String supplierRoute) {
         this.client = client;
         this.baseUrl = baseUrl;
         this.measurementRoute = measurementRoute;
         this.telemetryRoute = telemetryRoute;
         this.contactRoute = contactRoute;
         this.connectorRoute = connectorRoute;
-        this.tokenRoute = tokenRoute;
         this.takerRoute = takerRoute;
         this.supplierRoute = supplierRoute;
         this.properties = properties;
-        if (properties.isRefreshNecessary()) {
-            refreshApiKey();
-        }
+        requireOAuthConfiguration();
         if (properties.isSupplierDataToSend()) {
             sendMetaData();
+        }
+    }
+
+    private void requireOAuthConfiguration() {
+        if (!isOAuthConfigured()) {
+            throw new IllegalStateException(
+                    "Missing Keycloak client credentials configuration. " +
+                            "Please configure keycloak.tokenUrl, keycloak.clientId, and keycloak.clientSecret.");
         }
     }
 
@@ -193,8 +207,9 @@ public class HttpPegelHubCommunicator implements PegelHubCommunicator {
         try {
             ensureIsTaker();
 
-            final URI uri = baseUrl.toURI().resolve(routeWithApiKey(measurementRoute + "/" + timespan));
+            final URI uri = baseUrl.toURI().resolve(measurementRoute + "/" + timespan);
             final var http = new HttpGet(uri);
+            authorize(http);
 
             return client.execute(http, response -> {
                 var json = EntityUtils.toString(response.getEntity());
@@ -205,9 +220,8 @@ public class HttpPegelHubCommunicator implements PegelHubCommunicator {
                 };
                 List<Measurement> meass = gson.fromJson(json, listType);
 
-                for(Measurement m : meass)
-                {
-                    if(m.getTimestamp() == null) {
+                for (Measurement m : meass) {
+                    if (m.getTimestamp() == null) {
                         String timeStampWithOffset = m.getInfos().get("TimestampWithOffset");
                         OffsetDateTime offsetDateTime = OffsetDateTime.parse(timeStampWithOffset);
                         m.setTimestamp(convertedTime(m.getTimestamp(), offsetDateTime.getOffset()));
@@ -226,8 +240,9 @@ public class HttpPegelHubCommunicator implements PegelHubCommunicator {
         try {
             ensureIsTaker();
 
-            final URI uri = baseUrl.toURI().resolve(routeWithApiKey(measurementRoute + "/last/" + uuid.toString()));
+            final URI uri = baseUrl.toURI().resolve(measurementRoute + "/last/" + uuid);
             final var http = new HttpGet(uri);
+            authorize(http);
 
             return Optional.ofNullable(client.execute(http, response -> {
                 if (response.getCode() != HttpStatus.SC_OK) {
@@ -261,8 +276,9 @@ public class HttpPegelHubCommunicator implements PegelHubCommunicator {
     public Collection<Telemetry> getTelemetry(String timespan) {
         try {
             ensureIsTaker();
-            final URI uri = baseUrl.toURI().resolve(routeWithApiKey(telemetryRoute + "/" + timespan));
+            final URI uri = baseUrl.toURI().resolve(telemetryRoute + "/" + timespan);
             final var http = new HttpGet(uri);
+            authorize(http);
             LOG.debug("Executing GET request to URI: {}", uri);
 
             return client.execute(http, response -> {
@@ -273,8 +289,7 @@ public class HttpPegelHubCommunicator implements PegelHubCommunicator {
 
                 Collection<Telemetry> telCol = new TelemetryCollectionReceiveDto(gson.fromJson(json, mapType)).toTelemetryCollection();
                 List<Telemetry> telList = telCol.stream().toList();
-                for(Telemetry t : telList)
-                {
+                for (Telemetry t : telList) {
                     t.setTimestamp(convertedTime(t.getTimestamp(), null));
                 }
                 return new TelemetryCollectionReceiveDto(gson.fromJson(json, mapType)).toTelemetryCollection();
@@ -289,8 +304,9 @@ public class HttpPegelHubCommunicator implements PegelHubCommunicator {
     public Optional<Telemetry> getTelemetryByUUID(UUID uuid) {
         try {
             ensureIsTaker();
-            final URI uri = baseUrl.toURI().resolve(routeWithApiKey(telemetryRoute + "/last/" + uuid.toString()));
+            final URI uri = baseUrl.toURI().resolve(telemetryRoute + "/last/" + uuid);
             final var http = new HttpGet(uri);
+            authorize(http);
 
             return client.execute(http, response -> {
                 if (response.getCode() != HttpStatus.SC_OK) {
@@ -302,7 +318,7 @@ public class HttpPegelHubCommunicator implements PegelHubCommunicator {
                 };
                 var telemetry = new TelemetryCollectionReceiveDto(gson.fromJson(json, mapType)).toTelemetryCollection();
                 Optional<Telemetry> returnValue = telemetry.stream().findFirst();
-                if(returnValue.isPresent()) {
+                if (returnValue.isPresent()) {
                     returnValue.get().setTimestamp(convertedTime(returnValue.get().getTimestamp(), null));
                 }
                 return returnValue;
@@ -317,18 +333,18 @@ public class HttpPegelHubCommunicator implements PegelHubCommunicator {
         try {
             ensureIsSupplier();
 
-            for(Measurement m : meass)
-            {
-                if(m.getTimestamp() == null) {
+            for (Measurement m : meass) {
+                if (m.getTimestamp() == null) {
                     String timeStampWithOffset = m.getInfos().get("TimestampWithOffset");
                     OffsetDateTime offsetDateTime = OffsetDateTime.parse(timeStampWithOffset);
-                    m.setTimestamp(convertedTime(m.getTimestamp(),offsetDateTime.getOffset()));
+                    m.setTimestamp(convertedTime(m.getTimestamp(), offsetDateTime.getOffset()));
                     Thread.sleep(500);
                 }
             }
 
-            final URI uri = baseUrl.toURI().resolve(routeWithApiKey(measurementRoute));
+            final URI uri = baseUrl.toURI().resolve(measurementRoute);
             final var http = new HttpPost(uri);
+            authorize(http);
             http.setHeader("Content-Type", "application/json");
             var dto = new MeasurementsSendDto(meass.stream().map(m -> new MeasurementSendDto(m.getTimestamp(), m.getFields(), m.getInfos())).toList());
             var gson = new GsonBuilder()
@@ -357,8 +373,9 @@ public class HttpPegelHubCommunicator implements PegelHubCommunicator {
 
             tel.setTimestamp(convertedTime(tel.getTimestamp(), null));
 
-            final URI uri = baseUrl.toURI().resolve(routeWithApiKey(telemetryRoute));
+            final URI uri = baseUrl.toURI().resolve(telemetryRoute);
             final var http = new HttpPost(uri);
+            authorize(http);
             http.setHeader("Content-Type", "application/json");
 
             var gson = new GsonBuilder()
@@ -385,8 +402,9 @@ public class HttpPegelHubCommunicator implements PegelHubCommunicator {
     public Collection<Connector> getConnectors() {
         try {
 
-            final URI uri = baseUrl.toURI().resolve(routeWithApiKey(connectorRoute));
+            final URI uri = baseUrl.toURI().resolve(connectorRoute);
             final var http = new HttpGet(uri);
+            authorize(http);
 
             return client.execute(http, response -> {
                 var json = EntityUtils.toString(response.getEntity());
@@ -405,8 +423,9 @@ public class HttpPegelHubCommunicator implements PegelHubCommunicator {
     public Optional<Connector> getConnectorByUUID(UUID uuid) {
         try {
 
-            final URI uri = baseUrl.toURI().resolve(routeWithApiKey(connectorRoute + "/" + uuid.toString()));
+            final URI uri = baseUrl.toURI().resolve(connectorRoute + "/" + uuid);
             final var http = new HttpGet(uri);
+            authorize(http);
 
             return client.execute(http, response -> {
                 if (response.getCode() != HttpStatus.SC_OK) {
@@ -431,8 +450,9 @@ public class HttpPegelHubCommunicator implements PegelHubCommunicator {
     public void sendConnector(Connector connector) {
         try {
 
-            final URI uri = baseUrl.toURI().resolve(routeWithApiKey(connectorRoute));
+            final URI uri = baseUrl.toURI().resolve(connectorRoute);
             final var http = new HttpPost(uri);
+            authorize(http);
             http.setHeader("Content-Type", "application/json");
 
             var dto = new ConnectorSendDto(null, connector.getManufacturerId(), connector.getTypeDescription(), Double.toString(connector.getSoftwareVersion()), Double.toString(connector.getWorksFromDataVersion()), connector.getDataDefinition(), connector.getSoftwareManufacturerId(), connector.getTechnicallyResponsibleId(), connector.getOperatingCompanyId(), connector.getNodes());
@@ -456,8 +476,9 @@ public class HttpPegelHubCommunicator implements PegelHubCommunicator {
     @Override
     public Collection<Contact> getContacts() {
         try {
-            final URI uri = baseUrl.toURI().resolve(routeWithApiKey(contactRoute));
+            final URI uri = baseUrl.toURI().resolve(contactRoute);
             final var http = new HttpGet(uri);
+            authorize(http);
 
             return client.execute(http, response -> {
                 var json = EntityUtils.toString(response.getEntity());
@@ -474,8 +495,9 @@ public class HttpPegelHubCommunicator implements PegelHubCommunicator {
     @Override
     public Optional<Contact> getContactByUUID(UUID uuid) {
         try {
-            final URI uri = baseUrl.toURI().resolve(routeWithApiKey(contactRoute + "/" + uuid.toString()));
+            final URI uri = baseUrl.toURI().resolve(contactRoute + "/" + uuid);
             final var http = new HttpGet(uri);
+            authorize(http);
 
             return client.execute(http, response -> {
                 if (response.getCode() != HttpStatus.SC_OK) {
@@ -499,8 +521,9 @@ public class HttpPegelHubCommunicator implements PegelHubCommunicator {
     @Override
     public void sendContact(Contact contact) {
         try {
-            final URI uri = baseUrl.toURI().resolve(routeWithApiKey(connectorRoute));
+            final URI uri = baseUrl.toURI().resolve(connectorRoute);
             final var http = new HttpPost(uri);
+            authorize(http);
             http.setHeader("Content-Type", "application/json");
 
             var gson = new Gson();
@@ -530,6 +553,7 @@ public class HttpPegelHubCommunicator implements PegelHubCommunicator {
         try {
             final URI uri = baseUrl.toURI().resolve(supplierRoute);
             final var http = new HttpGet(uri);
+            authorize(http);
             return client.execute(http, response -> {
                 var json = EntityUtils.toString(response.getEntity());
                 var gson = new Gson();
@@ -587,6 +611,7 @@ public class HttpPegelHubCommunicator implements PegelHubCommunicator {
             final URI uri = baseUrl.toURI().resolve(supplierRoute + "/connectorID/" + uuid.toString());
             LOG.debug(uri + "");
             final var http = new HttpGet(uri);
+            authorize(http);
             return client.execute(http, response -> {
                 var json = EntityUtils.toString(response.getEntity());
                 var gson = new Gson();
@@ -605,8 +630,9 @@ public class HttpPegelHubCommunicator implements PegelHubCommunicator {
     public Optional<Measurement> getTimestampOfLastMeasurementByUUID(UUID uuid) {
         try {
 
-            final URI uri = baseUrl.toURI().resolve(routeWithApiKey(measurementRoute + "/last/" + uuid.toString()));
+            final URI uri = baseUrl.toURI().resolve(measurementRoute + "/last/" + uuid);
             final var http = new HttpGet(uri);
+            authorize(http);
 
             return Optional.ofNullable(client.execute(http, response -> {
                 if (response.getCode() != HttpStatus.SC_OK) {
@@ -630,10 +656,9 @@ public class HttpPegelHubCommunicator implements PegelHubCommunicator {
         Collection<Measurement> measurements = _getMeasurementsByStationAndTime(stationNumber, timespan);
         HashSet<Long> IDs = new HashSet<>();
 
-        for(Measurement m : measurements)
-        {
+        for (Measurement m : measurements) {
             //TODO needs to be changed at some point - but first need to find out why ID is needed
-            if(m.getFields().containsKey("ID")){
+            if (m.getFields().containsKey("ID")) {
                 Long work = Math.round(m.getFields().get("ID"));
                 IDs.add(work);
             }
@@ -643,8 +668,9 @@ public class HttpPegelHubCommunicator implements PegelHubCommunicator {
 
     private Collection<Measurement> _getMeasurementsByStationAndTime(String stationNumber, String timespan) {
         try {
-            final URI uri = baseUrl.toURI().resolve(routeWithApiKey(measurementRoute + "/supplier/" + timespan + "?stationNumber=" + stationNumber));
+            final URI uri = baseUrl.toURI().resolve(measurementRoute + "/supplier/" + timespan + "?stationNumber=" + stationNumber);
             final var http = new HttpGet(uri);
+            authorize(http);
 
             return client.execute(http, response -> {
                 if (response.getCode() == 404) {
@@ -671,8 +697,9 @@ public class HttpPegelHubCommunicator implements PegelHubCommunicator {
             ensureIsTaker();
 
             final URI uri = baseUrl.toURI()
-                    .resolve(routeWithApiKey(measurementRoute + "/supplier/latest?stationNumber=" + stationNumber));
+                    .resolve(measurementRoute + "/supplier/latest?stationNumber=" + stationNumber);
             final var http = new HttpGet(uri);
+            authorize(http);
 
             return Optional.ofNullable(client.execute(http, response -> {
                 if (response.getCode() != HttpStatus.SC_OK) {

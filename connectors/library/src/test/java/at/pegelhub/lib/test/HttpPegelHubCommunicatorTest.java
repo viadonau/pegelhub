@@ -2,6 +2,12 @@ package at.pegelhub.lib.test;
 
 import at.pegelhub.lib.internal.ApplicationProperties;
 import at.pegelhub.lib.internal.HttpPegelHubCommunicator;
+import at.pegelhub.lib.internal.dto.CompleteConnectorSendDto;
+import at.pegelhub.lib.internal.dto.ContactSendDto;
+import at.pegelhub.lib.internal.dto.StationManufacturerSendDto;
+import at.pegelhub.lib.internal.dto.SupplierSendDto;
+import at.pegelhub.lib.internal.dto.TakerSendDto;
+import at.pegelhub.lib.internal.dto.TakerServiceManufacturerSendDto;
 import at.pegelhub.lib.model.Connector;
 import at.pegelhub.lib.model.Contact;
 import at.pegelhub.lib.model.Measurement;
@@ -16,6 +22,7 @@ import org.junit.jupiter.api.*;
 import java.io.*;
 import java.net.MalformedURLException;
 import java.net.URL;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -35,6 +42,9 @@ public class HttpPegelHubCommunicatorTest {
     public void setup() throws MalformedURLException {
         httpClient = mock(CloseableHttpClient.class);
         properties = mock(ApplicationProperties.class);
+        when(properties.getTokenUrl()).thenReturn("http://keycloak.local/token");
+        when(properties.getClientId()).thenReturn("local-connector-example");
+        when(properties.getClientSecret()).thenReturn("secret");
         phc = new HttpPegelHubCommunicator(httpClient, new URL("http://localhost:1111/"), properties);
         uuid = UUID.fromString("74bcffac-8fa6-41ac-aa9d-53d082447226");
     }
@@ -45,6 +55,122 @@ public class HttpPegelHubCommunicatorTest {
             phc.close();
             verify(httpClient, times(1)).close();
         });
+    }
+
+    @Test
+    public void requestsUseBearerTokenWhenOAuthConfigIsPresent() throws IOException {
+        when(properties.getTokenUrl()).thenReturn("http://keycloak.local/token");
+        when(properties.getClientId()).thenReturn("local-connector-example");
+        when(properties.getClientSecret()).thenReturn("secret");
+        when(properties.isSupplier()).thenReturn(false);
+
+        List<String> requestUris = new ArrayList<>();
+        List<String> authorizationHeaders = new ArrayList<>();
+        when(httpClient.execute(any(), any(HttpClientResponseHandler.class))).thenAnswer(a -> {
+            var request = (org.apache.hc.client5.http.classic.methods.HttpUriRequestBase) a.getRawArguments()[0];
+            requestUris.add(request.getUri().toString());
+            var authorization = request.getFirstHeader("Authorization");
+            authorizationHeaders.add(authorization == null ? null : authorization.getValue());
+
+            var responseCallback = (HttpClientResponseHandler<?>) a.getRawArguments()[1];
+            ClassicHttpResponse httpResp = mock(ClassicHttpResponse.class);
+            HttpEntity entity = mock(HttpEntity.class);
+            String body = request.getUri().toString().contains("keycloak.local")
+                    ? "{\"access_token\":\"local-access-token\",\"expires_in\":300}"
+                    : getResource("EmptyArray.json");
+            when(entity.getContent()).thenReturn(new ByteArrayInputStream(body.getBytes()));
+            when(httpResp.getEntity()).thenReturn(entity);
+            when(httpResp.getCode()).thenReturn(HttpStatus.SC_OK);
+            return responseCallback.handleResponse(httpResp);
+        });
+
+        phc.getMeasurements("72h");
+
+        assertEquals("http://keycloak.local/token", requestUris.get(0));
+        assertEquals("Bearer local-access-token", authorizationHeaders.get(1));
+        assertFalse(requestUris.get(1).contains("apiKey"));
+    }
+
+    @Test
+    public void generatedCoreUrlsDoNotContainApiKey() throws IOException {
+        when(properties.isSupplier()).thenReturn(false);
+        List<String> requestUris = new ArrayList<>();
+        when(httpClient.execute(any(), any(HttpClientResponseHandler.class))).thenAnswer(a -> {
+            var request = (org.apache.hc.client5.http.classic.methods.HttpUriRequestBase) a.getRawArguments()[0];
+            requestUris.add(request.getUri().toString());
+            var responseCallback = (HttpClientResponseHandler<?>) a.getRawArguments()[1];
+            ClassicHttpResponse httpResp = mock(ClassicHttpResponse.class);
+            HttpEntity entity = mock(HttpEntity.class);
+            String body = request.getUri().toString().contains("keycloak.local")
+                    ? "{\"access_token\":\"local-access-token\",\"expires_in\":300}"
+                    : getResource("EmptyArray.json");
+            when(entity.getContent()).thenReturn(new ByteArrayInputStream(body.getBytes()));
+            when(httpResp.getEntity()).thenReturn(entity);
+            when(httpResp.getCode()).thenReturn(HttpStatus.SC_OK);
+            return responseCallback.handleResponse(httpResp);
+        });
+
+        phc.getMeasurements("72h");
+
+        assertFalse(requestUris.getFirst().contains("apiKey"));
+    }
+
+    @Test
+    public void constructorSkipsStartupMetadataWhenDisabled() throws MalformedURLException {
+        var startupProperties = mock(ApplicationProperties.class);
+        when(startupProperties.getTokenUrl()).thenReturn("http://keycloak.local/token");
+        when(startupProperties.getClientId()).thenReturn("local-connector-example");
+        when(startupProperties.getClientSecret()).thenReturn("secret");
+
+        new HttpPegelHubCommunicator(httpClient, new URL("http://localhost:1111/"), startupProperties);
+
+        verify(startupProperties).isSupplierDataToSend();
+        verifyNoMoreInteractions(httpClient);
+    }
+
+    @Test
+    public void constructorSendsSupplierMetadataWhenEnabledForSupplier() throws IOException {
+        var startupProperties = mock(ApplicationProperties.class);
+        when(startupProperties.getTokenUrl()).thenReturn("http://keycloak.local/token");
+        when(startupProperties.getClientId()).thenReturn("local-connector-example");
+        when(startupProperties.getClientSecret()).thenReturn("secret");
+        when(startupProperties.isSupplierDataToSend()).thenReturn(true);
+        when(startupProperties.isSupplier()).thenReturn(true);
+        when(startupProperties.getSupplier()).thenReturn(supplier());
+        List<String> requestUris = new ArrayList<>();
+        mockSuccessfulMetadataResponse(requestUris);
+
+        new HttpPegelHubCommunicator(httpClient, new URL("http://localhost:1111/"), startupProperties);
+
+        assertEquals(List.of("http://keycloak.local/token", "http://localhost:1111/api/v1/supplier"), requestUris);
+    }
+
+    @Test
+    public void constructorSendsTakerMetadataWhenEnabledForTaker() throws IOException {
+        var startupProperties = mock(ApplicationProperties.class);
+        when(startupProperties.getTokenUrl()).thenReturn("http://keycloak.local/token");
+        when(startupProperties.getClientId()).thenReturn("local-connector-example");
+        when(startupProperties.getClientSecret()).thenReturn("secret");
+        when(startupProperties.isSupplierDataToSend()).thenReturn(true);
+        when(startupProperties.isSupplier()).thenReturn(false);
+        when(startupProperties.getTaker()).thenReturn(taker());
+        List<String> requestUris = new ArrayList<>();
+        mockSuccessfulMetadataResponse(requestUris);
+
+        new HttpPegelHubCommunicator(httpClient, new URL("http://localhost:1111/"), startupProperties);
+
+        assertEquals(List.of("http://keycloak.local/token", "http://localhost:1111/api/v1/taker"), requestUris);
+    }
+
+    @Test
+    public void constructorFailsFastWhenOAuthConfigurationIsMissing() throws MalformedURLException {
+        var startupProperties = mock(ApplicationProperties.class);
+        when(startupProperties.getTokenUrl()).thenReturn(null);
+        when(startupProperties.getClientId()).thenReturn("local-connector-example");
+        when(startupProperties.getClientSecret()).thenReturn("secret");
+
+        assertThrows(IllegalStateException.class, () ->
+                new HttpPegelHubCommunicator(httpClient, new URL("http://localhost:1111/"), startupProperties));
     }
 
     @Nested
@@ -386,10 +512,14 @@ public class HttpPegelHubCommunicatorTest {
 
     private void mockSuccessfulResponse(String response) throws IOException {
         when(httpClient.execute(any(), any(HttpClientResponseHandler.class))).thenAnswer(a -> {
+            var request = (org.apache.hc.client5.http.classic.methods.HttpUriRequestBase) a.getRawArguments()[0];
             var responseCallback = (HttpClientResponseHandler<?>) a.getRawArguments()[1];
             ClassicHttpResponse httpResp = mock(ClassicHttpResponse.class);
             HttpEntity entity = mock(HttpEntity.class);
-            when(entity.getContent()).thenReturn(new ByteArrayInputStream(response.getBytes()));
+            String body = request.getUri().toString().contains("keycloak.local")
+                    ? "{\"access_token\":\"local-access-token\",\"expires_in\":300}"
+                    : response;
+            when(entity.getContent()).thenReturn(new ByteArrayInputStream(body.getBytes()));
             when(httpResp.getEntity()).thenReturn(entity);
             when(httpResp.getCode()).thenReturn(HttpStatus.SC_OK);
             return responseCallback.handleResponse(httpResp);
@@ -400,9 +530,93 @@ public class HttpPegelHubCommunicatorTest {
         when(httpClient.execute(any(), any(HttpClientResponseHandler.class))).thenAnswer(a -> {
             var responseCallback = (HttpClientResponseHandler<?>) a.getRawArguments()[1];
             ClassicHttpResponse httpResp = mock(ClassicHttpResponse.class);
+            HttpEntity entity = mock(HttpEntity.class);
+            when(entity.getContent()).thenReturn(new ByteArrayInputStream(new byte[0]));
+            when(httpResp.getEntity()).thenReturn(entity);
             when(httpResp.getCode()).thenReturn(code);
             return responseCallback.handleResponse(httpResp);
         });
+    }
+
+    private void mockSuccessfulMetadataResponse(List<String> requestUris) throws IOException {
+        when(httpClient.execute(any(), any(HttpClientResponseHandler.class))).thenAnswer(a -> {
+            var request = (org.apache.hc.client5.http.classic.methods.HttpUriRequestBase) a.getRawArguments()[0];
+            requestUris.add(request.getUri().toString());
+            var responseCallback = (HttpClientResponseHandler<?>) a.getRawArguments()[1];
+            ClassicHttpResponse httpResp = mock(ClassicHttpResponse.class);
+            HttpEntity entity = mock(HttpEntity.class);
+            String body = request.getUri().toString().contains("keycloak.local")
+                    ? "{\"access_token\":\"local-access-token\",\"expires_in\":300}"
+                    : "";
+            when(entity.getContent()).thenReturn(new ByteArrayInputStream(body.getBytes()));
+            when(httpResp.getEntity()).thenReturn(entity);
+            when(httpResp.getCode()).thenReturn(HttpStatus.SC_OK);
+            return responseCallback.handleResponse(httpResp);
+        });
+    }
+
+    private SupplierSendDto supplier() {
+        return new SupplierSendDto(
+                "station-1",
+                1,
+                "Station 1",
+                "Danube",
+                'A',
+                new StationManufacturerSendDto("manufacturer", "type", "1.0", "remark"),
+                connector(),
+                10,
+                1.0,
+                "usage",
+                "normal",
+                1.0,
+                "place",
+                1.0,
+                "left",
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1,
+                1.0,
+                1,
+                1.0,
+                1,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                "0P",
+                false,
+                false);
+    }
+
+    private TakerSendDto taker() {
+        return new TakerSendDto(
+                "taker-1",
+                1,
+                new TakerServiceManufacturerSendDto("manufacturer", "system", "1.0", "remark"),
+                connector(),
+                10);
+    }
+
+    private CompleteConnectorSendDto connector() {
+        return new CompleteConnectorSendDto(
+                "connector-1",
+                contact(),
+                "type",
+                "1.0",
+                "1.0",
+                "definition",
+                contact(),
+                contact(),
+                contact(),
+                "");
+    }
+
+    private ContactSendDto contact() {
+        return new ContactSendDto("", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "");
     }
 
     private String getResource(String name) throws IOException {

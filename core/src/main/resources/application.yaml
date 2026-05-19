@@ -1,4 +1,9 @@
 spring:
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${KEYCLOAK_ISSUER_URI}
   jpa:
     show-sql: false
     properties:
@@ -19,6 +24,10 @@ server:
   port: 8080
 
 pegelhub:
+  security:
+    issuer-uri: ${KEYCLOAK_ISSUER_URI}
+    audience: ${PEGELHUB_API_AUDIENCE:pegelhub-core-api}
+    api-client-id: ${PEGELHUB_API_CLIENT_ID:${PEGELHUB_API_AUDIENCE:pegelhub-core-api}}
   influx:
     url: ${INFLUX_URL}
     org: ${INFLUX_ORG}
@@ -32,4 +41,4 @@ management:
   endpoints:
     web:
       exposure:
-        include: "*"
+        include: health,info

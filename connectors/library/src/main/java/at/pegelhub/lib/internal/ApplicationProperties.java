@@ -10,9 +10,11 @@ public interface ApplicationProperties {
     SupplierSendDto getSupplier();
     TakerSendDto getTaker();
 
-    String getApiKey();
+    String getTokenUrl();
 
-    void setApiKey(String apiKey);
+    String getClientId();
+
+    String getClientSecret();
 
     boolean isRefreshNecessary();
 

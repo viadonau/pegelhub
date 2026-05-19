@@ -43,4 +43,4 @@ __pycache__/
 *.pyc
 
 ### Local Developer Workspace ###
-.developers/
+_developers/

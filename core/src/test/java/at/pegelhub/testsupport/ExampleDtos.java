@@ -63,7 +63,6 @@ public class ExampleDtos {
     public static final Boolean UTC_IS_USED = false;
     public static final Boolean IS_SUMMERTIME = false;
     public static final String CHANNEL_USE = "TestUse";
-    public static final UUID API_TOKEN = UUID.fromString("11111111-1111-1111-1111-111111111111");
     //region create dto
     public static final CreateContactDto CREATE_CONTACT_DTO = new CreateContactDto(ORGANIZATION, CONTACT_PERSON,
             CONTACT_STREET, CONTACT_PLZ, LOCATION, CONTACT_COUNTRY, EMERGENCY_NUMBER, EMERGENCY_NUMBER_TWO,
@@ -71,7 +70,7 @@ public class ExampleDtos {
             ADMIN_MAIL, NOTES);
 
     public static final CreateConnectorDto CREATE_CONNECTOR_DTO = new CreateConnectorDto(CONNECTOR_NUMBER, CREATE_CONTACT_DTO, DESCRIPTION, VERSION,
-            VERSION, DATA_DEFINITION, CREATE_CONTACT_DTO, CREATE_CONTACT_DTO, CREATE_CONTACT_DTO, NOTES, API_TOKEN);
+            VERSION, DATA_DEFINITION, CREATE_CONTACT_DTO, CREATE_CONTACT_DTO, CREATE_CONTACT_DTO, NOTES);
 
     public static final CreateStationManufacturerDto CREATE_STATION_MANUFACTURER_DTO = new CreateStationManufacturerDto(
             MANUFACTURER_NAME, MANUFACTURER_TYPE, VERSION, REMARK);

@@ -2,8 +2,6 @@ package at.pegelhub.connector.api;
 
 import at.pegelhub.contact.api.CreateContactDto;
 
-import java.util.UUID;
-
 import static at.pegelhub.shared.validation.Validations.requireNotEmpty;
 import static at.pegelhub.shared.validation.Validations.requireSEThan;
 
@@ -13,7 +11,7 @@ import static at.pegelhub.shared.validation.Validations.requireSEThan;
 public record CreateConnectorDto(String connectorNumber, CreateContactDto manufacturer, String typeDescription,
                                  String softwareVersion, String worksFromDataVersion, String dataDefinition,
                                  CreateContactDto softwareManufacturer, CreateContactDto technicallyResponsible,
-                                 CreateContactDto operationCompany, String notes, UUID apiToken) {
+                                 CreateContactDto operationCompany, String notes) {
     public CreateConnectorDto {
         requireSEThan(requireNotEmpty(connectorNumber), 50);
         requireSEThan(typeDescription, 100);

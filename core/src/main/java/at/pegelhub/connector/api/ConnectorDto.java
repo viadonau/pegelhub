@@ -1,5 +1,6 @@
 package at.pegelhub.connector.api;
 
+import at.pegelhub.connector.domain.ConnectorStatus;
 import at.pegelhub.contact.api.ContactDto;
 
 import java.util.UUID;
@@ -14,9 +15,19 @@ import static java.util.Objects.requireNonNull;
 public record ConnectorDto(UUID id, String connectorNumber, ContactDto manufacturer, String typeDescription, String softwareVersion,
                            String worksFromDataVersion, String dataDefinition,
                            ContactDto softwareManufacturer, ContactDto technicallyResponsible,
-                           ContactDto operationCompany, String notes) {
+                           ContactDto operationCompany, String notes, String keycloakClientId,
+                           ConnectorStatus status) {
+    public ConnectorDto(UUID id, String connectorNumber, ContactDto manufacturer, String typeDescription,
+                        String softwareVersion, String worksFromDataVersion, String dataDefinition,
+                        ContactDto softwareManufacturer, ContactDto technicallyResponsible,
+                        ContactDto operationCompany, String notes) {
+        this(id, connectorNumber, manufacturer, typeDescription, softwareVersion, worksFromDataVersion, dataDefinition,
+                softwareManufacturer, technicallyResponsible, operationCompany, notes, null, ConnectorStatus.ACTIVE);
+    }
+
     public ConnectorDto {
         requireNonNull(id);
+        requireNonNull(status);
         requireSEThan(requireNotEmpty(connectorNumber), 50);
         requireSEThan(typeDescription, 100);
         requireSEThan(softwareVersion, 20);

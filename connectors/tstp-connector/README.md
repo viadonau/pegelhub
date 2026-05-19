@@ -40,7 +40,7 @@ Important `connector.properties` keys:
 - `tstp.port`
 - `connector.readDelay`
 
-`pegelhub.yaml` contains the Pegelhub registration data and API token.
+`pegelhub.yaml` contains the Pegelhub registration data and Keycloak client credentials.
 
 Behavior depends on `isSupplier` in `pegelhub.yaml`:
 

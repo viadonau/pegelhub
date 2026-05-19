@@ -1,15 +1,12 @@
 package at.pegelhub.shared.web;
 
-import at.pegelhub.auth.api.HttpApiTokenController;
-import at.pegelhub.auth.application.ApiTokenService;
-import at.pegelhub.auth.application.AuthorizationService;
+import at.pegelhub.connector.api.HttpAdminConnectorController;
 import at.pegelhub.connector.api.HttpConnectorController;
 import at.pegelhub.connector.application.ConnectorService;
 import at.pegelhub.contact.api.HttpContactController;
 import at.pegelhub.contact.application.ContactService;
 import at.pegelhub.measurement.api.HttpMeasurementController;
 import at.pegelhub.measurement.application.MeasurementService;
-import at.pegelhub.shared.error.UnauthorizedException;
 import at.pegelhub.supplier.api.HttpStationManufacturerController;
 import at.pegelhub.supplier.api.HttpSupplierController;
 import at.pegelhub.supplier.application.StationManufacturerService;
@@ -25,12 +22,16 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.http.MediaType;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
+import org.springframework.web.bind.annotation.RequestParam;
 
+import java.lang.reflect.Method;
+import java.lang.reflect.Parameter;
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -40,22 +41,22 @@ import java.util.stream.Stream;
 import static at.pegelhub.testsupport.ExampleData.CONTACT;
 import static at.pegelhub.testsupport.ExampleData.CONNECTOR;
 import static at.pegelhub.testsupport.ExampleData.ID;
+import static at.pegelhub.testsupport.ExampleData.MEASUREMENT;
+import static at.pegelhub.testsupport.ExampleData.MEASUREMENTS;
 import static at.pegelhub.testsupport.ExampleData.STATION_MANUFACTURER;
 import static at.pegelhub.testsupport.ExampleData.SUPPLIER;
 import static at.pegelhub.testsupport.ExampleData.TAKER;
 import static at.pegelhub.testsupport.ExampleData.TAKER_SERVICE_MANUFACTURER;
+import static at.pegelhub.testsupport.ExampleData.TELEMETRIES;
+import static at.pegelhub.testsupport.ExampleData.TELEMETRY;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.clearInvocations;
-import static org.mockito.Mockito.doThrow;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest({
@@ -63,21 +64,17 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         HttpTelemetryController.class,
         HttpSupplierController.class,
         HttpTakerController.class,
-        HttpApiTokenController.class,
+        HttpAdminConnectorController.class,
         HttpConnectorController.class,
         HttpContactController.class,
         HttpStationManufacturerController.class,
         HttpTakerServiceManufacturerController.class
 })
+@AutoConfigureMockMvc(addFilters = false)
 class AuthPolicyMatrixWebMvcTest {
-
-    private static final String TOKEN = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
 
     @Autowired
     private MockMvc mockMvc;
-
-    @MockitoBean
-    private AuthorizationService authorizationService;
 
     @MockitoBean
     private MeasurementService measurementService;
@@ -90,9 +87,6 @@ class AuthPolicyMatrixWebMvcTest {
 
     @MockitoBean
     private TakerService takerService;
-
-    @MockitoBean
-    private ApiTokenService apiTokenService;
 
     @MockitoBean
     private ConnectorService connectorService;
@@ -108,11 +102,26 @@ class AuthPolicyMatrixWebMvcTest {
 
     @BeforeEach
     void prepare() {
-        doThrow(new UnauthorizedException("unauthorized")).when(authorizationService).authorize(anyString());
+        when(measurementService.getByRange(anyString())).thenReturn(MEASUREMENTS);
+        when(measurementService.getBySupplierAndRange(anyString(), anyString())).thenReturn(MEASUREMENTS);
+        when(measurementService.getLatestBySupplier(anyString())).thenReturn(MEASUREMENT);
+        when(measurementService.getAverageBySupplierAndRange(anyString(), anyString())).thenReturn(MEASUREMENT);
+        when(measurementService.getLastData(any())).thenReturn(MEASUREMENT);
+        when(measurementService.getSystemTime()).thenReturn(Timestamp.valueOf(LocalDateTime.of(2026, 1, 2, 3, 4, 5)));
 
-        when(apiTokenService.createToken()).thenReturn(TOKEN);
-        when(apiTokenService.refreshToken(anyString(), any())).thenReturn(TOKEN);
-        when(apiTokenService.getTokens()).thenReturn(List.of(ID));
+        when(telemetryService.saveTelemetry(any())).thenReturn(TELEMETRY);
+        when(telemetryService.getByRange(anyString())).thenReturn(TELEMETRIES);
+        when(telemetryService.getLastData(any())).thenReturn(TELEMETRY);
+
+        when(supplierService.saveSupplier(any())).thenReturn(SUPPLIER);
+        when(supplierService.updateSupplier(any())).thenReturn(SUPPLIER);
+        when(supplierService.getSupplierById(any())).thenReturn(SUPPLIER);
+        when(supplierService.getAllSuppliers()).thenReturn(List.of(SUPPLIER));
+        when(supplierService.getConnectorID(any())).thenReturn(CONNECTOR.getId());
+
+        when(takerService.saveTaker(any())).thenReturn(TAKER);
+        when(takerService.getTakerById(any())).thenReturn(TAKER);
+        when(takerService.getAllTakers()).thenReturn(List.of(TAKER));
 
         when(connectorService.createConnector(any())).thenReturn(CONNECTOR);
         when(connectorService.getConnectorById(any())).thenReturn(CONNECTOR);
@@ -129,198 +138,80 @@ class AuthPolicyMatrixWebMvcTest {
         when(takerServiceManufacturerService.createTakerServiceManufacturer(any())).thenReturn(TAKER_SERVICE_MANUFACTURER);
         when(takerServiceManufacturerService.getTakerServiceManufacturerById(any())).thenReturn(TAKER_SERVICE_MANUFACTURER);
         when(takerServiceManufacturerService.getAllTakerServiceManufacturers()).thenReturn(List.of(TAKER_SERVICE_MANUFACTURER));
-
-        when(supplierService.getSupplierById(any())).thenReturn(SUPPLIER);
-        when(supplierService.getAllSuppliers()).thenReturn(List.of(SUPPLIER));
-        when(supplierService.getConnectorID(any())).thenReturn(CONNECTOR.getId());
-
-        when(takerService.getTakerById(any())).thenReturn(TAKER);
-        when(takerService.getAllTakers()).thenReturn(List.of(TAKER));
-
-        when(measurementService.getSystemTime()).thenReturn(Timestamp.valueOf(LocalDateTime.of(2026, 1, 2, 3, 4, 5)));
     }
 
     @ParameterizedTest(name = "{0}")
-    @MethodSource("protectedEndpoints")
-    void protectedEndpointsReturnUnauthorized(EndpointCase endpointCase) throws Exception {
-        clearInvocations(authorizationService);
-
-        mockMvc.perform(endpointCase.request().get())
-                .andExpect(status().isUnauthorized())
-                .andExpect(content().string("Unauthorized"));
-
-        verify(authorizationService).authorize(anyString());
-    }
-
-    @ParameterizedTest(name = "{0}")
-    @MethodSource("publicEndpoints")
-    void publicEndpointsDoNotRequireAuthorization(EndpointCase endpointCase) throws Exception {
-        clearInvocations(authorizationService);
-
+    @MethodSource("migratedEndpoints")
+    void migratedEndpointsReachControllerWithoutApiKey(EndpointCase endpointCase) throws Exception {
         mockMvc.perform(endpointCase.request().get())
                 .andExpect(status().isOk());
-
-        verify(authorizationService, never()).authorize(anyString());
     }
 
-    private static Stream<EndpointCase> protectedEndpoints() {
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("apiControllers")
+    void apiControllersDoNotDeclareApiKeyRequestParams(Class<?> controllerType) {
+        for (Method method : controllerType.getDeclaredMethods()) {
+            for (Parameter parameter : method.getParameters()) {
+                RequestParam requestParam = parameter.getAnnotation(RequestParam.class);
+                if (requestParam != null) {
+                    assertNotEquals("apiKey", requestParam.name(), method.toGenericString());
+                    assertNotEquals("apiKey", requestParam.value(), method.toGenericString());
+                    assertNotEquals("apiKey", parameter.getName(), method.toGenericString());
+                }
+            }
+        }
+    }
+
+    private static Stream<EndpointCase> migratedEndpoints() {
         return Stream.of(
                 new EndpointCase("measurement POST", () -> post("/api/v1/measurement")
-                        .param("apiKey", "invalid")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(measurementsJson())),
-                new EndpointCase("measurement GET range", () -> get("/api/v1/measurement/{range}", "72h")
-                        .param("apiKey", "invalid")),
+                new EndpointCase("measurement GET range", () -> get("/api/v1/measurement/{range}", "72h")),
                 new EndpointCase("measurement GET supplier range", () -> get("/api/v1/measurement/supplier/{range}", "72h")
-                        .param("apiKey", "invalid")
                         .param("stationNumber", "stationNR")),
                 new EndpointCase("measurement GET supplier latest", () -> get("/api/v1/measurement/supplier/latest")
-                        .param("apiKey", "invalid")
                         .param("stationNumber", "stationNR")),
                 new EndpointCase("measurement GET supplier average", () -> get("/api/v1/measurement/supplier/average/{range}", "72h")
-                        .param("apiKey", "invalid")
                         .param("stationNumber", "stationNR")),
-                new EndpointCase("measurement GET last", () -> get("/api/v1/measurement/last/{uuid}", ID)
-                        .param("apiKey", "invalid")),
+                new EndpointCase("measurement GET last", () -> get("/api/v1/measurement/last/{uuid}", ID)),
+                new EndpointCase("measurement system time", () -> get("/api/v1/measurement/systemTime")),
                 new EndpointCase("telemetry POST", () -> post("/api/v1/telemetry")
-                        .param("apiKey", "invalid")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(telemetryJson())),
-                new EndpointCase("telemetry GET range", () -> get("/api/v1/telemetry/{range}", "72h")
-                        .param("apiKey", "invalid")),
-                new EndpointCase("telemetry GET last", () -> get("/api/v1/telemetry/last/{uuid}", ID)
-                        .param("apiKey", "invalid")),
+                new EndpointCase("telemetry GET range", () -> get("/api/v1/telemetry/{range}", "72h")),
+                new EndpointCase("telemetry GET last", () -> get("/api/v1/telemetry/last/{uuid}", ID)),
                 new EndpointCase("supplier POST", () -> post("/api/v1/supplier")
-                        .param("apiKey", "invalid")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(supplierJson())),
                 new EndpointCase("supplier PUT", () -> put("/api/v1/supplier")
-                        .param("apiKey", "invalid")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(supplierJson())),
-                new EndpointCase("taker POST", () -> post("/api/v1/taker")
-                        .param("apiKey", "invalid")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(takerJson()))
-        );
-    }
-
-    private static Stream<EndpointCase> publicEndpoints() {
-        return Stream.of(
-                new EndpointCase("token create", () -> post("/api/v1/token")),
-                new EndpointCase("token refresh", () -> put("/api/v1/token")
-                        .param("apiKey", "any")
-                        .param("uuid", ID.toString())),
-                new EndpointCase("token invalidate", () -> delete("/api/v1/token")
-                        .param("apiKey", "any")
-                        .param("uuid", ID.toString())),
-                new EndpointCase("token admin get", () -> get("/api/v1/token/admin")),
-                new EndpointCase("token admin activate", () -> put("/api/v1/token/admin")
-                        .param("uuid", ID.toString())),
-                new EndpointCase("connector post", () -> post("/api/v1/connector")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(connectorJson())),
-                new EndpointCase("connector get one", () -> get("/api/v1/connector/{uuid}", ID)),
-                new EndpointCase("connector get all", () -> get("/api/v1/connector")),
-                new EndpointCase("connector delete", () -> delete("/api/v1/connector/{uuid}", ID)),
-                new EndpointCase("contact post", () -> post("/api/v1/contact")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(contactJson())),
-                new EndpointCase("contact get one", () -> get("/api/v1/contact/{uuid}", ID)),
-                new EndpointCase("contact get all", () -> get("/api/v1/contact")),
-                new EndpointCase("contact delete", () -> delete("/api/v1/contact/{uuid}", ID)),
-                new EndpointCase("station manufacturer post", () -> post("/api/v1/stationManufacturer")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(stationManufacturerJson())),
-                new EndpointCase("station manufacturer get one", () -> get("/api/v1/stationManufacturer/{uuid}", ID)),
-                new EndpointCase("station manufacturer get all", () -> get("/api/v1/stationManufacturer")),
-                new EndpointCase("station manufacturer delete", () -> delete("/api/v1/stationManufacturer/{uuid}", ID)),
-                new EndpointCase("taker service manufacturer post", () -> post("/api/v1/takerServiceManufacturer")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(takerServiceManufacturerJson())),
-                new EndpointCase("taker service manufacturer get one", () -> get("/api/v1/takerServiceManufacturer/{uuid}", ID)),
-                new EndpointCase("taker service manufacturer get all", () -> get("/api/v1/takerServiceManufacturer")),
-                new EndpointCase("taker service manufacturer delete", () -> delete("/api/v1/takerServiceManufacturer/{uuid}", ID)),
-                new EndpointCase("supplier get one", () -> get("/api/v1/supplier/{uuid}", ID)),
-                new EndpointCase("supplier get all", () -> get("/api/v1/supplier")),
-                new EndpointCase("supplier delete", () -> delete("/api/v1/supplier/{uuid}", ID)),
+                new EndpointCase("supplier GET one", () -> get("/api/v1/supplier/{uuid}", ID)),
+                new EndpointCase("supplier GET all", () -> get("/api/v1/supplier")),
+                new EndpointCase("supplier DELETE", () -> delete("/api/v1/supplier/{uuid}", ID)),
                 new EndpointCase("supplier connector id", () -> get("/api/v1/supplier/connectorID/{uuid}", ID)),
-                new EndpointCase("taker get one", () -> get("/api/v1/taker/{uuid}", ID)),
-                new EndpointCase("taker get all", () -> get("/api/v1/taker")),
-                new EndpointCase("taker delete", () -> delete("/api/v1/taker/{uuid}", ID)),
-                new EndpointCase("measurement system time", () -> get("/api/v1/measurement/systemTime"))
+                new EndpointCase("taker POST", () -> post("/api/v1/taker")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(takerJson())),
+                new EndpointCase("taker GET one", () -> get("/api/v1/taker/{uuid}", ID)),
+                new EndpointCase("taker GET all", () -> get("/api/v1/taker")),
+                new EndpointCase("taker DELETE", () -> delete("/api/v1/taker/{uuid}", ID))
         );
     }
 
-    private static String contactJson() {
-        return """
-                {
-                  "organization": "org1",
-                  "contactPerson": "Hans Maier",
-                  "contactStreet": "Blumenweg 22",
-                  "contactPlz": "1549",
-                  "location": "Wien",
-                  "contactCountry": "AT",
-                  "emergencyNumber": "123456789",
-                  "emergencyNumberTwo": "123456780",
-                  "emergencyMail": "emergency@mail.com",
-                  "serviceNumber": "123456789",
-                  "serviceNumberTwo": "123456780",
-                  "serviceMail": "service@mail.com",
-                  "administrationPhoneNumber": "123456789",
-                  "administrationPhoneNumberTwo": "123456780",
-                  "administrationMail": "service@mail.com",
-                  "contactNodes": "notes"
-                }
-                """;
-    }
-
-    private static String connectorJson() {
-        return """
-                {
-                  "connectorNumber": "connectorNR",
-                  "manufacturer": {
-                    "organization": "org1"
-                  },
-                  "typeDescription": "description",
-                  "softwareVersion": "1.0.0",
-                  "worksFromDataVersion": "1.0.0",
-                  "dataDefinition": "definition",
-                  "softwareManufacturer": {
-                    "organization": "org1"
-                  },
-                  "technicallyResponsible": {
-                    "organization": "org1"
-                  },
-                  "operationCompany": {
-                    "organization": "org1"
-                  },
-                  "notes": "notes",
-                  "apiToken": "11111111-1111-1111-1111-111111111111"
-                }
-                """;
-    }
-
-    private static String stationManufacturerJson() {
-        return """
-                {
-                  "stationManufacturerName": "name",
-                  "stationManufacturerType": "type",
-                  "stationManufacturerFirmwareVersion": "1.0.0",
-                  "stationRemark": "remarks"
-                }
-                """;
-    }
-
-    private static String takerServiceManufacturerJson() {
-        return """
-                {
-                  "takerManufacturerName": "name",
-                  "takerSystemName": "name",
-                  "stationManufacturerFirmwareVersion": "1.0.0",
-                  "requestRemark": "remarks"
-                }
-                """;
+    private static Stream<Class<?>> apiControllers() {
+        return Stream.of(
+                HttpMeasurementController.class,
+                HttpTelemetryController.class,
+                HttpSupplierController.class,
+                HttpTakerController.class,
+                HttpAdminConnectorController.class,
+                HttpConnectorController.class,
+                HttpContactController.class,
+                HttpStationManufacturerController.class,
+                HttpTakerServiceManufacturerController.class
+        );
     }
 
     private static String measurementsJson() {
@@ -393,8 +284,7 @@ class AuthPolicyMatrixWebMvcTest {
                     "operationCompany": {
                       "organization": "org1"
                     },
-                    "notes": "notes",
-                    "apiToken": "11111111-1111-1111-1111-111111111111"
+                    "notes": "notes"
                   },
                   "refreshRate": 100,
                   "accuracy": 1.0,
@@ -455,8 +345,7 @@ class AuthPolicyMatrixWebMvcTest {
                     "operationCompany": {
                       "organization": "org1"
                     },
-                    "notes": "notes",
-                    "apiToken": "11111111-1111-1111-1111-111111111111"
+                    "notes": "notes"
                   },
                   "refreshRate": 100
                 }

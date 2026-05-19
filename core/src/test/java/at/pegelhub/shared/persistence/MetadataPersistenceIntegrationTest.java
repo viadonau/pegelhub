@@ -1,7 +1,5 @@
 package at.pegelhub.shared.persistence;
 
-import at.pegelhub.auth.persistence.JpaApiToken;
-import at.pegelhub.auth.persistence.JpaApiTokenRepository;
 import at.pegelhub.connector.persistence.JpaConnector;
 import at.pegelhub.connector.persistence.JpaConnectorRepository;
 import at.pegelhub.contact.persistence.JpaContact;
@@ -20,7 +18,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 
 import java.time.Duration;
-import java.time.LocalDateTime;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -29,9 +26,6 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 @SuppressWarnings("SpringJavaInjectionPointsAutowiringInspection")
 final class MetadataPersistenceIntegrationTest extends JpaIntegrationTestBase {
-
-    @Autowired
-    private JpaApiTokenRepository apiTokens;
 
     @Autowired
     private JpaContactRepository contacts;
@@ -53,17 +47,13 @@ final class MetadataPersistenceIntegrationTest extends JpaIntegrationTestBase {
 
     @Test
     void persistsSupplierAndTakerMetadataGraph() {
-        UUID supplierTokenId = UUID.fromString("10000000-0000-0000-0000-000000000001");
-        UUID takerTokenId = UUID.fromString("10000000-0000-0000-0000-000000000002");
-        apiTokens.save(token(supplierTokenId));
-        apiTokens.save(token(takerTokenId));
-
         JpaContact contact = contacts.save(contact(UUID.fromString("20000000-0000-0000-0000-000000000001")));
-        JpaConnector supplierConnector = connectors.save(connector(
+        JpaConnector supplierConnector = connector(
                 UUID.fromString("30000000-0000-0000-0000-000000000001"),
                 "supplier-connector",
-                contact,
-                supplierTokenId));
+                contact);
+        supplierConnector.setKeycloakClientId("supplier-client");
+        supplierConnector = connectors.save(supplierConnector);
         JpaStationManufacturer stationManufacturer = stationManufacturers.save(new JpaStationManufacturer(
                 UUID.fromString("40000000-0000-0000-0000-000000000001"),
                 "station manufacturer",
@@ -79,8 +69,7 @@ final class MetadataPersistenceIntegrationTest extends JpaIntegrationTestBase {
         JpaConnector takerConnector = connectors.save(connector(
                 UUID.fromString("30000000-0000-0000-0000-000000000002"),
                 "taker-connector",
-                contact,
-                takerTokenId));
+                contact));
         JpaTakerServiceManufacturer takerServiceManufacturer = takerServiceManufacturers.save(new JpaTakerServiceManufacturer(
                 UUID.fromString("60000000-0000-0000-0000-000000000001"),
                 "taker manufacturer",
@@ -95,7 +84,7 @@ final class MetadataPersistenceIntegrationTest extends JpaIntegrationTestBase {
         JpaSupplier persistedSupplier = suppliers.findById(supplier.getId()).orElseThrow();
         JpaTaker persistedTaker = takers.findById(taker.getId()).orElseThrow();
 
-        assertEquals(supplier.getId(), suppliers.getSupplier(supplierTokenId));
+        assertEquals(supplier.getId(), suppliers.findByConnectorKeycloakClientId("supplier-client").orElseThrow().getId());
         assertEquals(supplierConnector.getId(), persistedSupplier.getConnector().getId());
         assertEquals(stationManufacturer.getId(), persistedSupplier.getStationManufacturer().getId());
         assertEquals(takerConnector.getId(), persistedTaker.getConnector().getId());
@@ -104,33 +93,31 @@ final class MetadataPersistenceIntegrationTest extends JpaIntegrationTestBase {
     }
 
     @Test
-    void connectorApiTokenIsUnique() {
-        UUID tokenId = UUID.fromString("10000000-0000-0000-0000-000000000003");
-        apiTokens.save(token(tokenId));
+    void connectorKeycloakClientIdIsUnique() {
         JpaContact contact = contacts.save(contact(UUID.fromString("20000000-0000-0000-0000-000000000003")));
-        connectors.saveAndFlush(connector(
+        JpaConnector first = connector(
                 UUID.fromString("30000000-0000-0000-0000-000000000003"),
                 "connector-a",
-                contact,
-                tokenId));
+                contact);
+        first.setKeycloakClientId("local-connector-example");
+        connectors.saveAndFlush(first);
 
-        assertThrows(DataIntegrityViolationException.class, () -> connectors.saveAndFlush(connector(
+        JpaConnector second = connector(
                 UUID.fromString("30000000-0000-0000-0000-000000000004"),
                 "connector-b",
-                contact,
-                tokenId)));
+                contact);
+        second.setKeycloakClientId("local-connector-example");
+
+        assertThrows(DataIntegrityViolationException.class, () -> connectors.saveAndFlush(second));
     }
 
     @Test
     void referencedConnectorCannotBeDeletedWhileSupplierExists() {
-        UUID tokenId = UUID.fromString("10000000-0000-0000-0000-000000000004");
-        apiTokens.save(token(tokenId));
         JpaContact contact = contacts.save(contact(UUID.fromString("20000000-0000-0000-0000-000000000004")));
         JpaConnector connector = connectors.save(connector(
                 UUID.fromString("30000000-0000-0000-0000-000000000005"),
                 "connector-c",
-                contact,
-                tokenId));
+                contact));
         JpaStationManufacturer stationManufacturer = stationManufacturers.save(new JpaStationManufacturer(
                 UUID.fromString("40000000-0000-0000-0000-000000000002"),
                 "station manufacturer",
@@ -151,14 +138,11 @@ final class MetadataPersistenceIntegrationTest extends JpaIntegrationTestBase {
 
     @Test
     void referencedStationManufacturerCannotBeDeletedWhileSupplierExists() {
-        UUID tokenId = UUID.fromString("10000000-0000-0000-0000-000000000005");
-        apiTokens.save(token(tokenId));
         JpaContact contact = contacts.save(contact(UUID.fromString("20000000-0000-0000-0000-000000000005")));
         JpaConnector connector = connectors.save(connector(
                 UUID.fromString("30000000-0000-0000-0000-000000000006"),
                 "connector-d",
-                contact,
-                tokenId));
+                contact));
         JpaStationManufacturer stationManufacturer = stationManufacturers.save(new JpaStationManufacturer(
                 UUID.fromString("40000000-0000-0000-0000-000000000003"),
                 "station manufacturer",
@@ -175,10 +159,6 @@ final class MetadataPersistenceIntegrationTest extends JpaIntegrationTestBase {
             stationManufacturers.deleteById(stationManufacturer.getId());
             stationManufacturers.flush();
         });
-    }
-
-    private static JpaApiToken token(UUID id) {
-        return new JpaApiToken(id, "hash-" + id, "salt-" + id, true, LocalDateTime.now().plusDays(1));
     }
 
     private static JpaContact contact(UUID id) {
@@ -202,7 +182,7 @@ final class MetadataPersistenceIntegrationTest extends JpaIntegrationTestBase {
                 "notes");
     }
 
-    private static JpaConnector connector(UUID id, String connectorNumber, JpaContact contact, UUID apiToken) {
+    private static JpaConnector connector(UUID id, String connectorNumber, JpaContact contact) {
         return new JpaConnector(
                 id,
                 connectorNumber,
@@ -214,8 +194,7 @@ final class MetadataPersistenceIntegrationTest extends JpaIntegrationTestBase {
                 contact,
                 contact,
                 contact,
-                "notes",
-                apiToken);
+                "notes");
     }
 
     private static JpaSupplier supplier(

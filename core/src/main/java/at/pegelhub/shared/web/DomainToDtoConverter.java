@@ -1,6 +1,5 @@
 package at.pegelhub.shared.web;
 
-import at.pegelhub.auth.domain.ApiToken;
 import at.pegelhub.connector.api.ConnectorDto;
 import at.pegelhub.connector.domain.Connector;
 import at.pegelhub.contact.api.ContactDto;
@@ -55,7 +54,9 @@ public final class DomainToDtoConverter {
                 convert(connector.getSoftwareManufacturer()),
                 convert(connector.getTechnicallyResponsible()),
                 convert(connector.getOperationCompany()),
-                connector.getNotes());
+                connector.getNotes(),
+                connector.getKeycloakClientId(),
+                connector.getStatus());
     }
 
     public static StationManufacturerDto convert(StationManufacturer stationManufacturer) {
@@ -127,9 +128,7 @@ public final class DomainToDtoConverter {
     }
 
     public static Object convert(Object object) {
-        if (object instanceof ApiToken token) {
-            return convert(token);
-        } else if (object instanceof Contact contact) {
+        if (object instanceof Contact contact) {
             return convert(contact);
         } else if (object instanceof Connector connector) {
             return convert(connector);

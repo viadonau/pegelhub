@@ -46,7 +46,7 @@ Important notes:
 
 - `source-pegelhub.yaml` is used for the source Pegelhub cluster.
 - `sink-pegelhub.yaml` is used for the target Pegelhub cluster.
-- Each side needs its own valid API token.
+- Each side needs its own pre-provisioned Keycloak client.
 - `Icc.RefreshInterval` supports `24h`, `20m`, `45s` style values.
 
 Checked-in examples live under `examples/config/`.

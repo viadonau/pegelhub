@@ -1,7 +1,5 @@
 package at.pegelhub.shared.persistence;
 
-import at.pegelhub.auth.domain.ApiToken;
-import at.pegelhub.auth.persistence.JpaApiToken;
 import at.pegelhub.connector.domain.Connector;
 import at.pegelhub.connector.persistence.JpaConnector;
 import at.pegelhub.contact.domain.Contact;
@@ -14,7 +12,6 @@ import at.pegelhub.taker.domain.Taker;
 import at.pegelhub.taker.domain.TakerServiceManufacturer;
 import at.pegelhub.taker.persistence.JpaTaker;
 import at.pegelhub.taker.persistence.JpaTakerServiceManufacturer;
-import at.pegelhub.auth.application.AuthTokenIdHolder;
 
 import java.util.HashSet;
 import java.util.Set;
@@ -59,7 +56,8 @@ public class DomainToJpaConverter {
                 convert(connector.getTechnicallyResponsible()),
                 convert(connector.getOperationCompany()),
                 connector.getNotes(),
-                AuthTokenIdHolder.get()
+                connector.getKeycloakClientId(),
+                connector.getStatus()
 
         );
     }
@@ -79,7 +77,8 @@ public class DomainToJpaConverter {
                     convert(c.getTechnicallyResponsible()),
                     convert(c.getOperationCompany()),
                     c.getNotes(),
-                    AuthTokenIdHolder.get());
+                    c.getKeycloakClientId(),
+                    c.getStatus());
             returnValue.add(work);
         }
         return returnValue;
@@ -141,16 +140,6 @@ public class DomainToJpaConverter {
                 convert(taker.getTakerServiceManufacturer()),
                 convert(taker.getConnector()),
                 taker.getRefreshRate()
-        );
-    }
-
-    public static JpaApiToken convert(ApiToken token) {
-        return new JpaApiToken(
-                token.getId(),
-                token.getHashedToken(),
-                token.getSalt(),
-                token.isActivated(),
-                token.getExpiresAt()
         );
     }
 

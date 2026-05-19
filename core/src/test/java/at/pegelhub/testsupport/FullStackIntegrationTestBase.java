@@ -1,14 +1,18 @@
 package at.pegelhub.testsupport;
 
-import at.pegelhub.auth.application.AuthTokenIdHolder;
 import org.junit.jupiter.api.BeforeEach;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.resttestclient.TestRestTemplate;
+import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.web.client.NoOpResponseErrorHandler;
+import org.springframework.web.client.RestTemplate;
+import org.springframework.web.util.DefaultUriBuilderFactory;
+import org.springframework.web.util.UriTemplateHandler;
 
+import java.net.URI;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -24,17 +28,22 @@ public abstract class FullStackIntegrationTestBase {
         influxContainer.start();
     }
 
-    @Autowired
-    @SuppressWarnings("SpringJavaInjectionPointsAutowiringInspection")
-    protected TestRestTemplate rest;
+    protected RestTemplate rest = new RestTemplate();
+
+    @LocalServerPort
+    private int serverPort;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
     @BeforeEach
-    protected void resetPostgres() {
-        AuthTokenIdHolder.clear();
+    protected void configureRestTemplate() {
+        rest.setUriTemplateHandler(new RootUriTemplateHandler("http://localhost:" + serverPort));
+        rest.setErrorHandler(new NoOpResponseErrorHandler());
+    }
 
+    @BeforeEach
+    protected void resetPostgres() {
         List<String> tableNames = jdbcTemplate.queryForList(
                 "select tablename from pg_tables where schemaname = 'public'",
                 String.class);
@@ -60,5 +69,29 @@ public abstract class FullStackIntegrationTestBase {
         registry.add("pegelhub.influx.token", () -> PegelHubInfluxContainer.ADMIN_TOKEN);
         registry.add("pegelhub.influx.data-bucket", () -> PegelHubInfluxContainer.DATA_BUCKET);
         registry.add("pegelhub.influx.telemetry-bucket", () -> PegelHubInfluxContainer.TELEMETRY_BUCKET);
+    }
+
+    private record RootUriTemplateHandler(String rootUri, UriTemplateHandler delegate) implements UriTemplateHandler {
+
+        private RootUriTemplateHandler(String rootUri) {
+            this(rootUri, new DefaultUriBuilderFactory());
+        }
+
+        @Override
+        public URI expand(String uriTemplate, Object... uriVariables) {
+            return delegate.expand(applyRootUri(uriTemplate), uriVariables);
+        }
+
+        @Override
+        public URI expand(String uriTemplate, java.util.Map<String, ?> uriVariables) {
+            return delegate.expand(applyRootUri(uriTemplate), uriVariables);
+        }
+
+        private String applyRootUri(String uriTemplate) {
+            if (uriTemplate.startsWith("/")) {
+                return rootUri + uriTemplate;
+            }
+            return uriTemplate;
+        }
     }
 }
