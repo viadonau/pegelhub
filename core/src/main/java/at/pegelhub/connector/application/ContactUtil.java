@@ -23,6 +23,9 @@ public class ContactUtil {
              * existingConnector supplies the UUID for connector
              */
             connector = connector.withId(existingConnector.getId());
+            connector = connector.withExternalAuth(
+                    existingConnector.getKeycloakClientId(),
+                    existingConnector.getStatus());
             /*
              * if oldConnector has a Manufacturer assigned to it, connector gets a new
              * Contact object (manufacturer) assigned to it. The new Manufacturer is

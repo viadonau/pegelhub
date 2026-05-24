@@ -1,7 +1,8 @@
 package at.pegelhub.workflow;
 
-import at.pegelhub.auth.api.ApiTokenDto;
 import at.pegelhub.connector.api.CreateConnectorDto;
+import at.pegelhub.connector.api.RegisterConnectorRequest;
+import at.pegelhub.connector.domain.ConnectorStatus;
 import at.pegelhub.contact.api.CreateContactDto;
 import at.pegelhub.measurement.api.WriteMeasurementDto;
 import at.pegelhub.measurement.api.WriteMeasurementsDto;
@@ -16,92 +17,43 @@ import at.pegelhub.telemetry.domain.Telemetry;
 import at.pegelhub.testsupport.FullStackIntegrationTestBase;
 import org.junit.jupiter.api.Test;
 import org.springframework.core.ParameterizedTypeReference;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
-import java.util.Arrays;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.when;
 
 final class FullStackWorkflowIntegrationTest extends FullStackIntegrationTestBase {
 
-    @Test
-    void tokenWorkflowRejectsInvalidApiKeysAndAcceptsActivatedToken() {
-        ActivatedToken token = createActivatedToken();
+    private static final String ISSUER = "http://localhost:8082/realms/pegelhub";
 
-        ResponseEntity<String> invalidResponse = rest.getForEntity(
-                "/api/v1/measurement/1h?apiKey={apiKey}",
-                String.class,
-                "invalid-key");
-        ResponseEntity<String> validResponse = rest.getForEntity(
-                "/api/v1/measurement/1h?apiKey={apiKey}",
-                String.class,
-                token.apiKey());
-
-        assertThat(invalidResponse.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
-        assertThat(validResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
-    }
-
-    @Test
-    void tokenRefreshAndInvalidateLifecycleWorksOverHttp() {
-        ActivatedToken token = createActivatedToken();
-        SupplierDto supplier = postSupplier(token, "supplier-token-" + compactId(token.id()));
-        UUID connectorId = supplier.connector().id();
-
-        ResponseEntity<ApiTokenDto> refreshResponse = rest.exchange(
-                "/api/v1/token?apiKey={apiKey}&uuid={uuid}",
-                HttpMethod.PUT,
-                null,
-                ApiTokenDto.class,
-                token.apiKey(),
-                connectorId);
-        assertThat(refreshResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(refreshResponse.getBody()).isNotNull();
-        String refreshedApiKey = refreshResponse.getBody().apiKey();
-
-        ResponseEntity<String> oldTokenAfterRefresh = rest.getForEntity(
-                "/api/v1/measurement/1h?apiKey={apiKey}",
-                String.class,
-                token.apiKey());
-        ResponseEntity<String> refreshedTokenAccess = rest.getForEntity(
-                "/api/v1/measurement/1h?apiKey={apiKey}",
-                String.class,
-                refreshedApiKey);
-
-        ResponseEntity<Void> invalidateResponse = rest.exchange(
-                "/api/v1/token?apiKey={apiKey}&uuid={uuid}",
-                HttpMethod.DELETE,
-                null,
-                Void.class,
-                refreshedApiKey,
-                connectorId);
-        ResponseEntity<String> refreshedTokenAfterInvalidate = rest.getForEntity(
-                "/api/v1/measurement/1h?apiKey={apiKey}",
-                String.class,
-                refreshedApiKey);
-
-        assertThat(refreshedApiKey).isNotEqualTo(token.apiKey());
-        assertThat(oldTokenAfterRefresh.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
-        assertThat(refreshedTokenAccess.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(invalidateResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(refreshedTokenAfterInvalidate.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
-    }
+    @MockitoBean
+    private JwtDecoder jwtDecoder;
 
     @Test
     void supplierMeasurementWorkflowWritesAndReadsInfluxDataThroughHttp() {
-        ActivatedToken token = createActivatedToken();
-        String stationNumber = "supplier-station-" + compactId(token.id());
-        SupplierDto supplier = postSupplier(token, stationNumber);
+        String suffix = compactId(UUID.randomUUID());
+        AuthToken operator = token("operator-" + suffix, "local-operator", List.of("metadata:write", "system:admin"));
+        AuthToken connectorToken = token(
+                "measurement-" + suffix,
+                "supplier-client-" + suffix,
+                List.of("measurement:write", "measurement:read"));
+        String stationNumber = "supplier-station-" + suffix;
+        SupplierDto supplier = postSupplier(operator, connectorToken, stationNumber);
         LocalDateTime latestTimestamp = LocalDateTime.now(ZoneOffset.UTC).minusMinutes(5).truncatedTo(ChronoUnit.SECONDS);
         WriteMeasurementsDto measurements = new WriteMeasurementsDto(List.of(
                 new WriteMeasurementDto(
@@ -113,41 +65,44 @@ final class FullStackWorkflowIntegrationTest extends FullStackIntegrationTestBas
                         Map.of("waterLevel", 11.5, "flow", 21.5),
                         Map.of("quality", "latest"))));
 
-        ResponseEntity<Void> writeResponse = rest.postForEntity(
-                "/api/v1/measurement?apiKey={apiKey}",
-                measurements,
-                Void.class,
-                token.apiKey());
-        ResponseEntity<Measurement> latestResponse = rest.getForEntity(
-                "/api/v1/measurement/supplier/latest?apiKey={apiKey}&stationNumber={stationNumber}",
+        ResponseEntity<Void> writeResponse = rest.exchange(
+                "/api/v1/measurement",
+                HttpMethod.POST,
+                bearerEntity(measurements, connectorToken),
+                Void.class);
+        ResponseEntity<Measurement> latestResponse = rest.exchange(
+                "/api/v1/measurement/supplier/latest?stationNumber={stationNumber}",
+                HttpMethod.GET,
+                bearerEntity(null, connectorToken),
                 Measurement.class,
-                token.apiKey(),
                 stationNumber);
         ResponseEntity<List<Measurement>> rangeResponse = rest.exchange(
-                "/api/v1/measurement/supplier/3h?apiKey={apiKey}&stationNumber={stationNumber}",
+                "/api/v1/measurement/supplier/3h?stationNumber={stationNumber}",
                 HttpMethod.GET,
-                null,
+                bearerEntity(null, connectorToken),
                 new ParameterizedTypeReference<>() {
                 },
-                token.apiKey(),
                 stationNumber);
-        ResponseEntity<Measurement> averageResponse = rest.getForEntity(
-                "/api/v1/measurement/supplier/average/6h?apiKey={apiKey}&stationNumber={stationNumber}",
+        ResponseEntity<Measurement> averageResponse = rest.exchange(
+                "/api/v1/measurement/supplier/average/6h?stationNumber={stationNumber}",
+                HttpMethod.GET,
+                bearerEntity(null, connectorToken),
                 Measurement.class,
-                token.apiKey(),
                 stationNumber);
         ResponseEntity<String> systemTimeResponse = rest.getForEntity(
                 "/api/v1/measurement/systemTime",
                 String.class);
-        ResponseEntity<String> missingSupplierResponse = rest.getForEntity(
-                "/api/v1/measurement/supplier/latest?apiKey={apiKey}&stationNumber={stationNumber}",
+        ResponseEntity<String> missingSupplierResponse = rest.exchange(
+                "/api/v1/measurement/supplier/latest?stationNumber={stationNumber}",
+                HttpMethod.GET,
+                bearerEntity(null, connectorToken),
                 String.class,
-                token.apiKey(),
                 "missing-supplier");
-        ResponseEntity<String> invalidRangeResponse = rest.getForEntity(
-                "/api/v1/measurement/supplier/not-a-range?apiKey={apiKey}&stationNumber={stationNumber}",
+        ResponseEntity<String> invalidRangeResponse = rest.exchange(
+                "/api/v1/measurement/supplier/not-a-range?stationNumber={stationNumber}",
+                HttpMethod.GET,
+                bearerEntity(null, connectorToken),
                 String.class,
-                token.apiKey(),
                 stationNumber);
 
         assertThat(writeResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
@@ -168,8 +123,13 @@ final class FullStackWorkflowIntegrationTest extends FullStackIntegrationTestBas
 
     @Test
     void takerTelemetryWorkflowWritesAndReadsInfluxDataThroughHttp() {
-        ActivatedToken token = createActivatedToken();
-        TakerDto taker = postTaker(token, "taker-station-" + compactId(token.id()));
+        String suffix = compactId(UUID.randomUUID());
+        AuthToken operator = token("operator-" + suffix, "local-operator", List.of("metadata:write", "system:admin"));
+        AuthToken connectorToken = token(
+                "telemetry-" + suffix,
+                "taker-client-" + suffix,
+                List.of("telemetry:write", "telemetry:read"));
+        TakerDto taker = postTaker(operator, connectorToken, "taker-station-" + suffix);
         String timestamp = Instant.now().minus(5, ChronoUnit.MINUTES).truncatedTo(ChronoUnit.SECONDS).toString();
         Telemetry telemetry = new Telemetry(
                 taker.id().toString(),
@@ -185,23 +145,23 @@ final class FullStackWorkflowIntegrationTest extends FullStackIntegrationTestBas
                 2.5,
                 90.5);
 
-        ResponseEntity<Telemetry> writeResponse = rest.postForEntity(
-                "/api/v1/telemetry?apiKey={apiKey}",
-                telemetry,
-                Telemetry.class,
-                token.apiKey());
-        ResponseEntity<Telemetry> latestResponse = rest.getForEntity(
-                "/api/v1/telemetry/last/{uuid}?apiKey={apiKey}",
-                Telemetry.class,
-                taker.id(),
-                token.apiKey());
-        ResponseEntity<List<Telemetry>> rangeResponse = rest.exchange(
-                "/api/v1/telemetry/1h?apiKey={apiKey}",
+        ResponseEntity<Telemetry> writeResponse = rest.exchange(
+                "/api/v1/telemetry",
+                HttpMethod.POST,
+                bearerEntity(telemetry, connectorToken),
+                Telemetry.class);
+        ResponseEntity<Telemetry> latestResponse = rest.exchange(
+                "/api/v1/telemetry/last/{uuid}",
                 HttpMethod.GET,
-                null,
+                bearerEntity(null, connectorToken),
+                Telemetry.class,
+                taker.id());
+        ResponseEntity<List<Telemetry>> rangeResponse = rest.exchange(
+                "/api/v1/telemetry/1h",
+                HttpMethod.GET,
+                bearerEntity(null, connectorToken),
                 new ParameterizedTypeReference<>() {
-                },
-                token.apiKey());
+                });
 
         assertThat(writeResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(writeResponse.getBody()).isEqualTo(telemetry);
@@ -214,54 +174,69 @@ final class FullStackWorkflowIntegrationTest extends FullStackIntegrationTestBas
                 .contains(telemetry);
     }
 
-    private ActivatedToken createActivatedToken() {
-        Set<UUID> before = getTokenIds();
+    private SupplierDto postSupplier(AuthToken operator, AuthToken connectorToken, String stationNumber) {
+        String connectorNumber = "sc-" + compactId(connectorToken.clientId());
+        registerConnector(operator, connectorToken.clientId(), connectorNumber);
 
-        ResponseEntity<ApiTokenDto> created = rest.postForEntity("/api/v1/token", null, ApiTokenDto.class);
-        assertThat(created.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(created.getBody()).isNotNull();
-
-        Set<UUID> after = getTokenIds();
-        after.removeAll(before);
-        assertThat(after).hasSize(1);
-        UUID id = after.iterator().next();
-
-        rest.put("/api/v1/token/admin?uuid={uuid}", null, id);
-        return new ActivatedToken(id, created.getBody().apiKey());
-    }
-
-    private Set<UUID> getTokenIds() {
-        ResponseEntity<UUID[]> response = rest.getForEntity("/api/v1/token/admin", UUID[].class);
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-        UUID[] body = response.getBody();
-        if (body == null) {
-            return new HashSet<>();
-        }
-        return new HashSet<>(Arrays.asList(body));
-    }
-
-    private SupplierDto postSupplier(ActivatedToken token, String stationNumber) {
-        ResponseEntity<SupplierDto> response = rest.postForEntity(
-                "/api/v1/supplier?apiKey={apiKey}",
-                supplierDto(stationNumber, "sc-" + compactId(token.id()), token.id()),
-                SupplierDto.class,
-                token.apiKey());
+        ResponseEntity<SupplierDto> response = rest.exchange(
+                "/api/v1/supplier",
+                HttpMethod.POST,
+                bearerEntity(supplierDto(stationNumber, connectorNumber), operator),
+                SupplierDto.class);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(response.getBody()).isNotNull();
         return response.getBody();
     }
 
-    private TakerDto postTaker(ActivatedToken token, String stationNumber) {
-        ResponseEntity<TakerDto> response = rest.postForEntity(
-                "/api/v1/taker?apiKey={apiKey}",
-                takerDto(stationNumber, "tc-" + compactId(token.id()), token.id()),
-                TakerDto.class,
-                token.apiKey());
+    private TakerDto postTaker(AuthToken operator, AuthToken connectorToken, String stationNumber) {
+        String connectorNumber = "tc-" + compactId(connectorToken.clientId());
+        registerConnector(operator, connectorToken.clientId(), connectorNumber);
+
+        ResponseEntity<TakerDto> response = rest.exchange(
+                "/api/v1/taker",
+                HttpMethod.POST,
+                bearerEntity(takerDto(stationNumber, connectorNumber), operator),
+                TakerDto.class);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(response.getBody()).isNotNull();
         return response.getBody();
+    }
+
+    private void registerConnector(AuthToken operator, String keycloakClientId, String connectorNumber) {
+        RegisterConnectorRequest request = new RegisterConnectorRequest(
+                keycloakClientId,
+                ConnectorStatus.ACTIVE,
+                connectorDto(connectorNumber));
+
+        ResponseEntity<Void> response = rest.exchange(
+                "/api/v1/admin/connectors",
+                HttpMethod.POST,
+                bearerEntity(request, operator),
+                Void.class);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+    }
+
+    private AuthToken token(String tokenValue, String clientId, List<String> roles) {
+        when(jwtDecoder.decode(tokenValue)).thenReturn(Jwt.withTokenValue(tokenValue)
+                .header("alg", "none")
+                .issuer(ISSUER)
+                .subject("subject")
+                .audience(List.of("pegelhub-core-api"))
+                .issuedAt(Instant.now())
+                .expiresAt(Instant.now().plusSeconds(600))
+                .claim("azp", clientId)
+                .claim("resource_access", Map.of("pegelhub-core-api", Map.of("roles", roles)))
+                .build());
+        return new AuthToken(tokenValue, clientId);
+    }
+
+    private static HttpEntity<?> bearerEntity(Object body, AuthToken token) {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setBearerAuth(token.value());
+        return new HttpEntity<>(body, headers);
     }
 
     private static void assertMeasurement(
@@ -279,7 +254,7 @@ final class FullStackWorkflowIntegrationTest extends FullStackIntegrationTestBas
         assertThat(measurement.fields()).containsEntry("flow", expectedFlow);
     }
 
-    private static CreateSupplierDto supplierDto(String stationNumber, String connectorNumber, UUID apiToken) {
+    private static CreateSupplierDto supplierDto(String stationNumber, String connectorNumber) {
         return new CreateSupplierDto(
                 stationNumber,
                 101,
@@ -287,7 +262,7 @@ final class FullStackWorkflowIntegrationTest extends FullStackIntegrationTestBas
                 "Danube",
                 'W',
                 new CreateStationManufacturerDto("station manufacturer", "station type", "1.0.0", "station remark"),
-                connectorDto(connectorNumber, apiToken),
+                connectorDto(connectorNumber),
                 300_000L,
                 0.5,
                 "main usage",
@@ -316,16 +291,16 @@ final class FullStackWorkflowIntegrationTest extends FullStackIntegrationTestBas
                 false);
     }
 
-    private static CreateTakerDto takerDto(String stationNumber, String connectorNumber, UUID apiToken) {
+    private static CreateTakerDto takerDto(String stationNumber, String connectorNumber) {
         return new CreateTakerDto(
                 stationNumber,
                 201,
                 new CreateTakerServiceManufacturerDto("taker manufacturer", "taker system", "1.0.0", "request remark"),
-                connectorDto(connectorNumber, apiToken),
+                connectorDto(connectorNumber),
                 600_000L);
     }
 
-    private static CreateConnectorDto connectorDto(String connectorNumber, UUID apiToken) {
+    private static CreateConnectorDto connectorDto(String connectorNumber) {
         CreateContactDto contact = contactDto();
         return new CreateConnectorDto(
                 connectorNumber,
@@ -337,12 +312,15 @@ final class FullStackWorkflowIntegrationTest extends FullStackIntegrationTestBas
                 contact,
                 contact,
                 contact,
-                "notes",
-                apiToken);
+                "notes");
     }
 
     private static String compactId(UUID id) {
         return id.toString().substring(0, 8);
+    }
+
+    private static String compactId(String value) {
+        return value.length() <= 8 ? value : value.substring(value.length() - 8);
     }
 
     private static CreateContactDto contactDto() {
@@ -365,6 +343,6 @@ final class FullStackWorkflowIntegrationTest extends FullStackIntegrationTestBas
                 "notes");
     }
 
-    private record ActivatedToken(UUID id, String apiKey) {
+    private record AuthToken(String value, String clientId) {
     }
 }

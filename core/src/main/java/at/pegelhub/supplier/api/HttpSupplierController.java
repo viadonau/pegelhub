@@ -4,8 +4,6 @@ import at.pegelhub.shared.web.DomainToDtoConverter;
 import at.pegelhub.shared.web.DtoToDomainConverter;
 import at.pegelhub.shared.web.*;
 
-import at.pegelhub.auth.application.AuthTokenIdHolder;
-import at.pegelhub.auth.application.AuthorizationService;
 import at.pegelhub.supplier.application.SupplierService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -24,13 +22,9 @@ import static java.util.Objects.requireNonNull;
 @RequestMapping("/api/v1/supplier")
 public class HttpSupplierController {
 
-    private final AuthorizationService authorizationService;
     private final SupplierService supplierService;
 
-    public HttpSupplierController(
-            AuthorizationService authorizationService,
-            SupplierService supplierService) {
-        this.authorizationService = requireNonNull(authorizationService);
+    public HttpSupplierController(SupplierService supplierService) {
         this.supplierService = requireNonNull(supplierService);
     }
 
@@ -39,11 +33,8 @@ public class HttpSupplierController {
             @ApiResponse(responseCode = "200", description = "Returns the saved Supplier")
     })
     @PostMapping
-    public SupplierDto saveSupplier(
-            @RequestParam(name = "apiKey", defaultValue = "") String apiKey,
-            @RequestBody CreateSupplierDto supplier) {
-        return runAsAuthorized(apiKey, () ->
-                DomainToDtoConverter.convert(supplierService.saveSupplier(DtoToDomainConverter.convert(supplier))));
+    public SupplierDto saveSupplier(@RequestBody CreateSupplierDto supplier) {
+        return DomainToDtoConverter.convert(supplierService.saveSupplier(DtoToDomainConverter.convert(supplier)));
     }
 
     @GetMapping("/{uuid}")
@@ -79,24 +70,7 @@ public class HttpSupplierController {
             @ApiResponse(responseCode = "200", description = "Returns the Supplier")
     })
     @PutMapping
-    public SupplierDto updateSupplier(
-            @RequestParam(name = "apiKey", defaultValue = "") String apiKey,
-            @RequestBody CreateSupplierDto supplier) {
-        return runAsAuthorized(apiKey, () ->
-                DomainToDtoConverter.convert(supplierService.updateSupplier(DtoToDomainConverter.convert(supplier))));
-    }
-
-    private <T> T runAsAuthorized(String apiKey, AuthorizedSupplier<T> action) {
-        AuthTokenIdHolder.set(authorizationService.authorize(apiKey));
-        try {
-            return action.run();
-        } finally {
-            AuthTokenIdHolder.clear();
-        }
-    }
-
-    @FunctionalInterface
-    private interface AuthorizedSupplier<T> {
-        T run();
+    public SupplierDto updateSupplier(@RequestBody CreateSupplierDto supplier) {
+        return DomainToDtoConverter.convert(supplierService.updateSupplier(DtoToDomainConverter.convert(supplier)));
     }
 }

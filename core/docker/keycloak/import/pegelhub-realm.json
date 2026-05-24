@@ -1,0 +1,281 @@
+{
+  "realm": "pegelhub",
+  "enabled": true,
+  "displayName": "PegelHub Local",
+  "accessTokenLifespan": 600,
+  "ssoSessionIdleTimeout": 1800,
+  "ssoSessionMaxLifespan": 3600,
+  "sslRequired": "external",
+  "roles": {
+    "realm": [
+      {
+        "name": "offline_access",
+        "description": "${role_offline-access}"
+      },
+      {
+        "name": "uma_authorization",
+        "description": "${role_uma_authorization}"
+      }
+    ],
+    "client": {
+      "pegelhub-core-api": [
+        {
+          "name": "measurement:write",
+          "description": "Write measurement data."
+        },
+        {
+          "name": "measurement:read",
+          "description": "Read measurement data."
+        },
+        {
+          "name": "telemetry:write",
+          "description": "Write telemetry data."
+        },
+        {
+          "name": "telemetry:read",
+          "description": "Read telemetry data."
+        },
+        {
+          "name": "metadata:write",
+          "description": "Create and update metadata."
+        },
+        {
+          "name": "metadata:read",
+          "description": "Read metadata."
+        },
+        {
+          "name": "system:admin",
+          "description": "Operate privileged system administration endpoints."
+        }
+      ]
+    }
+  },
+  "clients": [
+    {
+      "clientId": "pegelhub-core-api",
+      "name": "PegelHub Core API",
+      "description": "Resource client containing first-slice PegelHub API roles.",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "bearerOnly": true,
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "authorizationServicesEnabled": false,
+      "fullScopeAllowed": false,
+      "protocolMappers": [
+        {
+          "name": "client-id",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usersessionmodel-note-mapper",
+          "consentRequired": false,
+          "config": {
+            "user.session.note": "client_id",
+            "claim.name": "client_id",
+            "jsonType.label": "String",
+            "access.token.claim": "true",
+            "id.token.claim": "false"
+          }
+        }
+      ],
+      "clientAuthenticatorType": "client-secret",
+      "secret": "not-used-local-resource-client",
+      "defaultClientScopes": [
+        "web-origins",
+        "acr",
+        "profile",
+        "roles"
+      ],
+      "optionalClientScopes": [
+        "address",
+        "phone",
+        "offline_access",
+        "microprofile-jwt"
+      ]
+    },
+    {
+      "clientId": "pegelhub-frontend",
+      "name": "PegelHub Frontend",
+      "description": "Local browser client for the new Angular frontend.",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "authorizationServicesEnabled": false,
+      "fullScopeAllowed": true,
+      "redirectUris": [
+        "http://localhost:4200/*",
+        "http://127.0.0.1:4200/*",
+        "http://pegelhub-frontend.test/*"
+      ],
+      "webOrigins": [
+        "http://localhost:4200",
+        "http://127.0.0.1:4200",
+        "http://pegelhub-frontend.test"
+      ],
+      "attributes": {
+        "pkce.code.challenge.method": "S256"
+      },
+      "protocolMappers": [
+        {
+          "name": "audience-pegelhub-core-api",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.client.audience": "pegelhub-core-api",
+            "access.token.claim": "true",
+            "id.token.claim": "false"
+          }
+        }
+      ],
+      "defaultClientScopes": [
+        "web-origins",
+        "acr",
+        "profile",
+        "roles",
+        "email"
+      ],
+      "optionalClientScopes": [
+        "address",
+        "phone",
+        "offline_access",
+        "microprofile-jwt"
+      ]
+    },
+    {
+      "clientId": "local-connector-example",
+      "name": "Local Connector Example",
+      "description": "Local-only connector client for client-credentials smoke tests.",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "authorizationServicesEnabled": false,
+      "fullScopeAllowed": true,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "local-dev-connector-secret-change-me",
+      "protocolMappers": [
+        {
+          "name": "audience-pegelhub-core-api",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.client.audience": "pegelhub-core-api",
+            "access.token.claim": "true",
+            "id.token.claim": "false"
+          }
+        }
+      ],
+      "defaultClientScopes": [
+        "web-origins",
+        "acr",
+        "profile",
+        "roles"
+      ],
+      "optionalClientScopes": [
+        "address",
+        "phone",
+        "offline_access",
+        "microprofile-jwt"
+      ]
+    },
+    {
+      "clientId": "local-operator",
+      "name": "Local Operator",
+      "description": "Local-only operator client for metadata/admin smoke tests.",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "authorizationServicesEnabled": false,
+      "fullScopeAllowed": true,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "local-dev-operator-secret-change-me",
+      "protocolMappers": [
+        {
+          "name": "audience-pegelhub-core-api",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.client.audience": "pegelhub-core-api",
+            "access.token.claim": "true",
+            "id.token.claim": "false"
+          }
+        }
+      ],
+      "defaultClientScopes": [
+        "web-origins",
+        "acr",
+        "profile",
+        "roles"
+      ],
+      "optionalClientScopes": [
+        "address",
+        "phone",
+        "offline_access",
+        "microprofile-jwt"
+      ]
+    }
+  ],
+  "users": [
+    {
+      "username": "service-account-local-connector-example",
+      "enabled": true,
+      "serviceAccountClientId": "local-connector-example",
+      "clientRoles": {
+        "pegelhub-core-api": [
+          "measurement:write",
+          "telemetry:write"
+        ]
+      }
+    },
+    {
+      "username": "service-account-local-operator",
+      "enabled": true,
+      "serviceAccountClientId": "local-operator",
+      "clientRoles": {
+        "pegelhub-core-api": [
+          "measurement:read",
+          "telemetry:read",
+          "metadata:read",
+          "metadata:write",
+          "system:admin"
+        ]
+      }
+    },
+    {
+      "username": "pegel",
+      "enabled": true,
+      "firstName": "Local",
+      "lastName": "Web Operator",
+      "email": "local-web-operator@pegelhub.test",
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "pegel",
+          "temporary": false
+        }
+      ],
+      "clientRoles": {
+        "pegelhub-core-api": [
+          "metadata:read"
+        ]
+      }
+    }
+  ]
+}

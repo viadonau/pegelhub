@@ -59,8 +59,7 @@ class HttpConnectorControllerTest {
                                   "operationCompany": {
                                     "organization": "org1"
                                   },
-                                  "notes": "notes",
-                                  "apiToken": "11111111-1111-1111-1111-111111111111"
+                                  "notes": "notes"
                                 }
                                 """))
                 .andExpect(status().isOk())

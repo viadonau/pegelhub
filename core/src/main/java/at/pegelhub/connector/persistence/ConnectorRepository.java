@@ -55,4 +55,6 @@ public interface ConnectorRepository {
      * @return the connector for the given name.
      */
     Optional<Connector> findByConnectorNumber(String connectorNumber);
+
+    Optional<Connector> findByKeycloakClientId(String keycloakClientId);
 }

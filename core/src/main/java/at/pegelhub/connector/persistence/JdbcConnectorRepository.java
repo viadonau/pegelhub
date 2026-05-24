@@ -77,4 +77,9 @@ public class JdbcConnectorRepository implements ConnectorRepository {
     public Optional<Connector> findByConnectorNumber(String connectorNumber) {
         return jpaConnectorRepository.findFirstByConnectorNumber(connectorNumber).map(JpaToDomainConverter::convert);
     }
+
+    @Override
+    public Optional<Connector> findByKeycloakClientId(String keycloakClientId) {
+        return jpaConnectorRepository.findFirstByKeycloakClientId(keycloakClientId).map(JpaToDomainConverter::convert);
+    }
 }

@@ -13,4 +13,6 @@ import java.util.UUID;
 @Repository
 public interface JpaConnectorRepository extends JpaRepository<JpaConnector, UUID> {
     Optional<JpaConnector> findFirstByConnectorNumber(String connectorNumber);
+
+    Optional<JpaConnector> findFirstByKeycloakClientId(String keycloakClientId);
 }

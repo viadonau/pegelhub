@@ -1,7 +1,7 @@
 package at.pegelhub.shared.error;
 
 /**
- * Exception for unauthorized requests (e.g. invalid api key or lack of permissions).
+ * Exception for unauthorized requests, such as invalid credentials or lack of permissions.
  */
 public class UnauthorizedException extends RuntimeException {
 

@@ -1,13 +1,15 @@
 package at.pegelhub.measurement.application;
 
+import at.pegelhub.connector.domain.ConnectorStatus;
 import at.pegelhub.measurement.domain.Measurement;
 import at.pegelhub.supplier.domain.Supplier;
 import at.pegelhub.measurement.domain.WriteMeasurement;
 import at.pegelhub.measurement.domain.WriteMeasurements;
+import at.pegelhub.security.CurrentActor;
 import at.pegelhub.shared.error.NotFoundException;
-import at.pegelhub.auth.application.AuthTokenIdHolder;
 import at.pegelhub.measurement.persistence.MeasurementRepository;
 import at.pegelhub.supplier.persistence.SupplierRepository;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 
 import java.sql.Timestamp;
@@ -26,10 +28,15 @@ public final class MeasurementServiceImpl implements MeasurementService {
 
     private final SupplierRepository supplierRepository;
     private final MeasurementRepository measurementRepository;
+    private final CurrentActor currentActor;
 
-    public MeasurementServiceImpl(SupplierRepository supplierRepository, MeasurementRepository measurementRepository) {
+    public MeasurementServiceImpl(
+            SupplierRepository supplierRepository,
+            MeasurementRepository measurementRepository,
+            CurrentActor currentActor) {
         this.supplierRepository = requireNonNull(supplierRepository);
         this.measurementRepository = requireNonNull(measurementRepository);
+        this.currentActor = requireNonNull(currentActor);
     }
 
     /**
@@ -38,10 +45,12 @@ public final class MeasurementServiceImpl implements MeasurementService {
      */
     @Override
     public void writeMeasurements(WriteMeasurements writeMeasurements) {
-        UUID supplierId = supplierRepository.getSupplierIdForAuthId(AuthTokenIdHolder.get());
-        if (supplierId == null) {
-            throw new NotFoundException("Supplier not yet registered");
+        Supplier supplier = supplierRepository.findByConnectorKeycloakClientId(currentActor.get().clientId())
+                .orElseThrow(() -> new NotFoundException("Connector not registered"));
+        if (supplier.getConnector() == null || supplier.getConnector().getStatus() != ConnectorStatus.ACTIVE) {
+            throw new AccessDeniedException("Connector is not active");
         }
+        UUID supplierId = supplier.getId();
         List<Measurement> measurements = new ArrayList<>(writeMeasurements.measurements().size());
         for (WriteMeasurement measurement : writeMeasurements.measurements()) {
             measurements.add(new Measurement(supplierId, measurement.timestamp(), measurement.fields(), measurement.infos()));

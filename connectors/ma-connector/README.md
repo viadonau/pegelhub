@@ -63,7 +63,11 @@ Each metadata YAML file defines one RevPi input by its variable name from piCtor
 ```yaml
 # /app/data/inputs/mA_input_1.yaml
 revInput: "InputValue_1"
-apiToken: "..."
+keycloak:
+  tokenUrl: "http://pegelhub-keycloak.test:8082/realms/pegelhub/protocol/openid-connect/token"
+  clientId: "local-connector-example"
+  clientSecret: "local-dev-connector-secret-change-me"
+sendMetaDataOnStartup: false
 isSupplier: true
 supplier:
   id: 30

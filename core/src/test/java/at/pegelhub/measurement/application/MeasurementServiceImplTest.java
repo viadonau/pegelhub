@@ -1,22 +1,26 @@
 package at.pegelhub.measurement.application;
 
-import at.pegelhub.auth.application.AuthTokenIdHolder;
+import at.pegelhub.connector.domain.Connector;
+import at.pegelhub.connector.domain.ConnectorStatus;
 import at.pegelhub.measurement.domain.Measurement;
 import at.pegelhub.measurement.domain.WriteMeasurement;
 import at.pegelhub.measurement.domain.WriteMeasurements;
 import at.pegelhub.measurement.persistence.MeasurementRepository;
+import at.pegelhub.security.CurrentActor;
+import at.pegelhub.security.PegelHubActor;
 import at.pegelhub.shared.error.NotFoundException;
 import at.pegelhub.supplier.domain.Supplier;
 import at.pegelhub.supplier.persistence.SupplierRepository;
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.security.access.AccessDeniedException;
 
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 import static at.pegelhub.testsupport.ExampleData.MEASUREMENT;
@@ -34,29 +38,26 @@ final class MeasurementServiceImplTest {
 
     private static final SupplierRepository SUPPLIER_REPOSITORY = mock(SupplierRepository.class);
     private static final MeasurementRepository MEASUREMENT_REPOSITORY = mock(MeasurementRepository.class);
+    private static final CurrentActor CURRENT_ACTOR = mock(CurrentActor.class);
 
     @BeforeEach
     void prepare() {
-        measurementService = new MeasurementServiceImpl(SUPPLIER_REPOSITORY, MEASUREMENT_REPOSITORY);
-        reset(SUPPLIER_REPOSITORY, MEASUREMENT_REPOSITORY);
-        AuthTokenIdHolder.clear();
-    }
-
-    @AfterEach
-    void clearAuthTokenHolder() {
-        AuthTokenIdHolder.clear();
+        measurementService = new MeasurementServiceImpl(SUPPLIER_REPOSITORY, MEASUREMENT_REPOSITORY, CURRENT_ACTOR);
+        reset(SUPPLIER_REPOSITORY, MEASUREMENT_REPOSITORY, CURRENT_ACTOR);
+        when(CURRENT_ACTOR.get()).thenReturn(new PegelHubActor("subject", "local-connector-example", Set.of()));
     }
 
     @Test
     void constructorWithNullArgsThrowsNpe() {
-        assertThrows(NullPointerException.class, () -> new MeasurementServiceImpl(SUPPLIER_REPOSITORY, null));
-        assertThrows(NullPointerException.class, () -> new MeasurementServiceImpl(null, MEASUREMENT_REPOSITORY));
+        assertThrows(NullPointerException.class, () -> new MeasurementServiceImpl(SUPPLIER_REPOSITORY, null, CURRENT_ACTOR));
+        assertThrows(NullPointerException.class, () -> new MeasurementServiceImpl(null, MEASUREMENT_REPOSITORY, CURRENT_ACTOR));
+        assertThrows(NullPointerException.class, () -> new MeasurementServiceImpl(SUPPLIER_REPOSITORY, MEASUREMENT_REPOSITORY, null));
     }
 
     @Test
     void writeMeasurementsStoresMappedMeasurements() {
-        AuthTokenIdHolder.set(UUID.randomUUID());
-        when(SUPPLIER_REPOSITORY.getSupplierIdForAuthId(any())).thenReturn(UUID.randomUUID());
+        when(SUPPLIER_REPOSITORY.findByConnectorKeycloakClientId("local-connector-example"))
+                .thenReturn(Optional.of(supplierWithConnector(ConnectorStatus.ACTIVE)));
 
         measurementService.writeMeasurements(new WriteMeasurements(List.of(new WriteMeasurement(
                 LocalDateTime.now(),
@@ -67,11 +68,20 @@ final class MeasurementServiceImplTest {
     }
 
     @Test
-    void writeMeasurementsThrowsNotFoundWhenSupplierMissingForAuthToken() {
-        AuthTokenIdHolder.set(UUID.randomUUID());
-        when(SUPPLIER_REPOSITORY.getSupplierIdForAuthId(any())).thenReturn(null);
+    void writeMeasurementsThrowsNotFoundWhenConnectorIsUnknown() {
+        when(SUPPLIER_REPOSITORY.findByConnectorKeycloakClientId("local-connector-example")).thenReturn(Optional.empty());
 
         assertThrows(NotFoundException.class, () -> measurementService.writeMeasurements(new WriteMeasurements(List.of(
+                new WriteMeasurement(LocalDateTime.now(), Map.of("waterLevel", 1.0), Map.of())
+        ))));
+    }
+
+    @Test
+    void writeMeasurementsThrowsAccessDeniedWhenConnectorIsSuspended() {
+        when(SUPPLIER_REPOSITORY.findByConnectorKeycloakClientId("local-connector-example"))
+                .thenReturn(Optional.of(supplierWithConnector(ConnectorStatus.SUSPENDED)));
+
+        assertThrows(AccessDeniedException.class, () -> measurementService.writeMeasurements(new WriteMeasurements(List.of(
                 new WriteMeasurement(LocalDateTime.now(), Map.of("waterLevel", 1.0), Map.of())
         ))));
     }
@@ -147,5 +157,11 @@ final class MeasurementServiceImplTest {
         Timestamp result = measurementService.getSystemTime();
 
         assertEquals(ts, result);
+    }
+
+    private static Supplier supplierWithConnector(ConnectorStatus status) {
+        Supplier supplier = new Supplier().withId(UUID.randomUUID());
+        supplier.setConnector(new Connector().withExternalAuth("local-connector-example", status));
+        return supplier;
     }
 }

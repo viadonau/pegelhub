@@ -56,5 +56,12 @@ public interface TakerRepository {
      * @return the taker for the given name.
      */
     Optional<Taker> findByStationNumber(String stationNumber);
-}
 
+    /**
+     * Returns the taker bound to the given Keycloak client id.
+     *
+     * @param keycloakClientId the connector identity from the JWT.
+     * @return the taker for the given connector identity.
+     */
+    Optional<Taker> findByConnectorKeycloakClientId(String keycloakClientId);
+}

@@ -3,7 +3,6 @@ package at.pegelhub.lib.internal;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import at.pegelhub.lib.internal.dto.*;
 import org.slf4j.Logger;
@@ -11,9 +10,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.IOException;
-import java.time.LocalDateTime;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
 
 /**
@@ -29,7 +26,6 @@ public class ApplicationPropertiesImpl implements ApplicationProperties {
     private final ObjectMapper mapper;
     private final File file;
     private boolean supplierDataIsToSend;
-    private LocalDateTime lastTokenRefresh;
 
     private ObjectMapper objectMapper;
 
@@ -46,8 +42,7 @@ public class ApplicationPropertiesImpl implements ApplicationProperties {
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
-        this.lastTokenRefresh = getLastTokenRefresh();
-        this.supplierDataIsToSend = true;
+        this.supplierDataIsToSend = metadataShouldBeSentOnStartup();
     }
 
     @Override
@@ -83,24 +78,38 @@ public class ApplicationPropertiesImpl implements ApplicationProperties {
 
     @Override
     public boolean isRefreshNecessary() {
-        if (lastTokenRefresh != null) {
-            return lastTokenRefresh.plusDays(10).isBefore(LocalDateTime.now());
+        return false;
+    }
+
+    @Override
+    public String getTokenUrl() {
+        return keycloakValue("tokenUrl");
+    }
+
+    @Override
+    public String getClientId() {
+        return keycloakValue("clientId");
+    }
+
+    @Override
+    public String getClientSecret() {
+        return keycloakValue("clientSecret");
+    }
+
+    private boolean metadataShouldBeSentOnStartup() {
+        return metadataShouldBeSentOnStartup(data);
+    }
+
+    static boolean metadataShouldBeSentOnStartup(Map<String, Object> data) {
+        Object value = data.get("sendMetaDataOnStartup");
+        if (value == null) {
+            return false;
         }
-        return true;
+        if (value instanceof Boolean booleanValue) {
+            return booleanValue;
+        }
+        return Boolean.parseBoolean(value.toString());
     }
-
-    @Override
-    public String getApiKey() {
-        return get("apiToken");
-    }
-
-    @Override
-    public void setApiKey(String value) {
-        lastTokenRefresh = LocalDateTime.now();
-        put("apiToken", value);
-        put("lastTokenRefresh", lastTokenRefresh);
-    }
-
 
     private void readMetaData() {
         if (this.isSupplier()) {
@@ -342,9 +351,9 @@ public class ApplicationPropertiesImpl implements ApplicationProperties {
     }
 
 
-    private LocalDateTime getLastTokenRefresh() {
-        String date = get("lastTokenRefresh");
-        return date == null ? null : LocalDateTime.parse(date);
+    private String keycloakValue(String key) {
+        Map<String, Object> keycloak = (Map<String, Object>) data.get("keycloak");
+        return keycloak == null ? null : (String) keycloak.get(key);
     }
 
 

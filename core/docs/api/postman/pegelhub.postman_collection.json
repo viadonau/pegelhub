@@ -10,149 +10,6 @@
 			"name": "Metadata",
 			"item": [
 				{
-					"name": "Token",
-					"item": [
-						{
-							"name": "Refresh Token",
-							"request": {
-								"method": "PUT",
-								"header": [],
-								"url": {
-									"raw": "{{baseAddress}}:{{port}}/{{apiPath}}/token?apiKey=",
-									"host": [
-										"{{baseAddress}}"
-									],
-									"port": "{{port}}",
-									"path": [
-										"{{apiPath}}",
-										"token"
-									],
-									"query": [
-										{
-											"key": "apiKey",
-											"value": ""
-										}
-									]
-								}
-							},
-							"response": []
-						},
-						{
-							"name": "Create Token",
-							"request": {
-								"method": "POST",
-								"header": [
-									{
-										"key": "apiKey",
-										"value": "{{createApiKey}}",
-										"type": "text"
-									}
-								],
-								"url": {
-									"raw": "{{baseAddress}}:{{port}}/{{apiPath}}/token?apiKey={{createApiKey}}&type=write&description=Description for write token",
-									"host": [
-										"{{baseAddress}}"
-									],
-									"port": "{{port}}",
-									"path": [
-										"{{apiPath}}",
-										"token"
-									],
-									"query": [
-										{
-											"key": "apiKey",
-											"value": "{{createApiKey}}"
-										},
-										{
-											"key": "type",
-											"value": "write"
-										},
-										{
-											"key": "description",
-											"value": "Description for write token"
-										}
-									]
-								}
-							},
-							"response": []
-						},
-						{
-							"name": "Delete Token",
-							"request": {
-								"method": "DELETE",
-								"header": [],
-								"url": {
-									"raw": "{{baseAddress}}:{{port}}/{{apiPath}}/token?apiKey=",
-									"host": [
-										"{{baseAddress}}"
-									],
-									"port": "{{port}}",
-									"path": [
-										"{{apiPath}}",
-										"token"
-									],
-									"query": [
-										{
-											"key": "apiKey",
-											"value": ""
-										}
-									]
-								}
-							},
-							"response": []
-						},
-						{
-							"name": "Get TokenIds",
-							"request": {
-								"method": "GET",
-								"header": [],
-								"url": {
-									"raw": "{{baseAddress}}:{{port}}/{{apiPath}}/token/admin?apiKey={{createApiKey}}",
-									"host": [
-										"{{baseAddress}}"
-									],
-									"port": "{{port}}",
-									"path": [
-										"{{apiPath}}",
-										"token",
-										"admin"
-									],
-									"query": [
-										{
-											"key": "apiKey",
-											"value": "{{createApiKey}}"
-										}
-									]
-								}
-							},
-							"response": []
-						}
-					],
-					"auth": {
-						"type": "noauth"
-					},
-					"event": [
-						{
-							"listen": "prerequest",
-							"script": {
-								"type": "text/javascript",
-								"exec": [
-									""
-								]
-							}
-						},
-						{
-							"listen": "test",
-							"script": {
-								"type": "text/javascript",
-								"exec": [
-									""
-								]
-							}
-						}
-					]
-				},
-				{
 					"name": "Supplier",
 					"item": [
 						{
@@ -161,7 +18,7 @@
 								"method": "GET",
 								"header": [],
 								"url": {
-									"raw": "{{baseAddress}}:{{port}}/{{apiPath}}/supplier?apiKey={{readApiKey}}",
+									"raw": "{{baseAddress}}:{{port}}/{{apiPath}}/supplier",
 									"host": [
 										"{{baseAddress}}"
 									],
@@ -169,12 +26,6 @@
 									"path": [
 										"{{apiPath}}",
 										"supplier"
-									],
-									"query": [
-										{
-											"key": "apiKey",
-											"value": "{{readApiKey}}"
-										}
 									]
 								}
 							},
@@ -186,7 +37,7 @@
 								"method": "GET",
 								"header": [],
 								"url": {
-									"raw": "{{baseAddress}}:{{port}}/{{apiPath}}/supplier/measurement?apiKey={{readApiKey}}",
+									"raw": "{{baseAddress}}:{{port}}/{{apiPath}}/supplier/measurement",
 									"host": [
 										"{{baseAddress}}"
 									],
@@ -195,12 +46,6 @@
 										"{{apiPath}}",
 										"supplier",
 										"measurement"
-									],
-									"query": [
-										{
-											"key": "apiKey",
-											"value": "{{readApiKey}}"
-										}
 									]
 								}
 							},
@@ -212,7 +57,7 @@
 								"method": "GET",
 								"header": [],
 								"url": {
-									"raw": "{{baseAddress}}:{{port}}/{{apiPath}}/supplier/:uuid?apiKey={{readApiKey}}",
+									"raw": "{{baseAddress}}:{{port}}/{{apiPath}}/supplier/:uuid",
 									"host": [
 										"{{baseAddress}}"
 									],
@@ -221,12 +66,6 @@
 										"{{apiPath}}",
 										"supplier",
 										":uuid"
-									],
-									"query": [
-										{
-											"key": "apiKey",
-											"value": "{{readApiKey}}"
-										}
 									],
 									"variable": [
 										{
@@ -253,7 +92,7 @@
 									}
 								},
 								"url": {
-									"raw": "{{baseAddress}}:{{port}}/{{apiPath}}/supplier?apiKey={{writeApiKey}}",
+									"raw": "{{baseAddress}}:{{port}}/{{apiPath}}/supplier",
 									"host": [
 										"{{baseAddress}}"
 									],
@@ -261,12 +100,6 @@
 									"path": [
 										"{{apiPath}}",
 										"supplier"
-									],
-									"query": [
-										{
-											"key": "apiKey",
-											"value": "{{writeApiKey}}"
-										}
 									]
 								}
 							},
@@ -278,7 +111,7 @@
 								"method": "DELETE",
 								"header": [],
 								"url": {
-									"raw": "{{baseAddress}}:{{port}}/{{apiPath}}/supplier/:uuid?apiKey={{writeApiKey}}",
+									"raw": "{{baseAddress}}:{{port}}/{{apiPath}}/supplier/:uuid",
 									"host": [
 										"{{baseAddress}}"
 									],
@@ -287,12 +120,6 @@
 										"{{apiPath}}",
 										"supplier",
 										":uuid"
-									],
-									"query": [
-										{
-											"key": "apiKey",
-											"value": "{{writeApiKey}}"
-										}
 									],
 									"variable": [
 										{
@@ -305,9 +132,6 @@
 							"response": []
 						}
 					],
-					"auth": {
-						"type": "noauth"
-					},
 					"event": [
 						{
 							"listen": "prerequest",
@@ -366,7 +190,7 @@
 								"method": "GET",
 								"header": [],
 								"url": {
-									"raw": "{{baseAddress}}:{{port}}/api/v1/measurement/:range?apiKey={{readApiKey}}",
+									"raw": "{{baseAddress}}:{{port}}/api/v1/measurement/:range",
 									"host": [
 										"{{baseAddress}}"
 									],
@@ -376,12 +200,6 @@
 										"v1",
 										"measurement",
 										":range"
-									],
-									"query": [
-										{
-											"key": "apiKey",
-											"value": "{{readApiKey}}"
-										}
 									],
 									"variable": [
 										{
@@ -399,7 +217,7 @@
 								"method": "GET",
 								"header": [],
 								"url": {
-									"raw": "{{baseAddress}}:{{port}}/api/v1/measurement/supplier/:range?stationNumber=ninelarge&apiKey={{readApiKey}}",
+									"raw": "{{baseAddress}}:{{port}}/api/v1/measurement/supplier/:range?stationNumber=ninelarge",
 									"host": [
 										"{{baseAddress}}"
 									],
@@ -415,10 +233,6 @@
 										{
 											"key": "stationNumber",
 											"value": "ninelarge"
-										},
-										{
-											"key": "apiKey",
-											"value": "{{readApiKey}}"
 										}
 									],
 									"variable": [
@@ -470,16 +284,22 @@
 			"value": "api/v1"
 		},
 		{
-			"key": "createApiKey",
-			"value": "WOoiHq3tpuFFFEHHRo8ULF5nvzsAURW2cGHqzYS6S2XrsgznFlmfq2asTRuxPALd"
+			"key": "accessToken",
+			"value": "paste-local-keycloak-access-token-here"
 		},
 		{
-			"key": "readApiKey",
-			"value": "N1epdBwQzQRSzfKnTaxKqxLjeCc67q6owXQUCEzF5rJjdjl5Xdxg8aey6sKiG36A"
-		},
-		{
-			"key": "writeApiKey",
-			"value": "qbsyRm4I0Js0hT4YqBuXnlNUCyKXvhCHOCmwkAHciIPV2qHRA0qfClTfKWiaTFBK"
+			"key": "keycloakTokenUrl",
+			"value": "http://localhost:8082/realms/pegelhub/protocol/openid-connect/token"
 		}
-	]
+	],
+	"auth": {
+		"type": "bearer",
+		"bearer": [
+			{
+				"key": "token",
+				"value": "{{accessToken}}",
+				"type": "string"
+			}
+		]
+	}
 }

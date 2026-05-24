@@ -1,7 +1,5 @@
 package at.pegelhub.telemetry.api;
 
-import at.pegelhub.auth.application.AuthorizationService;
-import at.pegelhub.shared.error.UnauthorizedException;
 import at.pegelhub.telemetry.application.TelemetryService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -9,8 +7,6 @@ import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
-
-import java.util.UUID;
 
 import static at.pegelhub.testsupport.ExampleData.ID;
 import static at.pegelhub.testsupport.ExampleData.TELEMETRIES;
@@ -32,18 +28,13 @@ class HttpTelemetryControllerTest {
     private MockMvc mockMvc;
 
     @MockitoBean
-    private AuthorizationService authorizationService;
-
-    @MockitoBean
     private TelemetryService telemetryService;
 
     @Test
     void writeTelemetryDataReturnsTelemetryJson() throws Exception {
-        when(authorizationService.authorize("valid")).thenReturn(UUID.randomUUID());
         when(telemetryService.saveTelemetry(any())).thenReturn(TELEMETRY);
 
         mockMvc.perform(post("/api/v1/telemetry")
-                        .param("apiKey", "valid")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -68,63 +59,27 @@ class HttpTelemetryControllerTest {
 
     @Test
     void findTelemetryInRangeReturnsTelemetryArrayJson() throws Exception {
-        when(authorizationService.authorize("valid")).thenReturn(UUID.randomUUID());
         when(telemetryService.getByRange("72h")).thenReturn(TELEMETRIES);
 
-        mockMvc.perform(get("/api/v1/telemetry/{range}", "72h")
-                        .param("apiKey", "valid"))
+        mockMvc.perform(get("/api/v1/telemetry/{range}", "72h"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].measurement").value(TELEMETRY.measurement()));
     }
 
     @Test
     void findTelemetryByIdReturnsLatestTelemetryJson() throws Exception {
-        when(authorizationService.authorize("valid")).thenReturn(UUID.randomUUID());
         when(telemetryService.getLastData(ID)).thenReturn(TELEMETRY);
 
-        mockMvc.perform(get("/api/v1/telemetry/last/{uuid}", ID)
-                        .param("apiKey", "valid"))
+        mockMvc.perform(get("/api/v1/telemetry/last/{uuid}", ID))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.measurement").value(TELEMETRY.measurement()));
     }
 
     @Test
-    void allTelemetryEndpointsRejectUnauthorizedRequests() throws Exception {
-        doThrow(new UnauthorizedException("unauthorized")).when(authorizationService).authorize(any());
-
-        mockMvc.perform(post("/api/v1/telemetry")
-                        .param("apiKey", "invalid")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "measurement": "a93fdc3d-b71f-44ce-a826-fe1dc1f1f357",
-                                  "stationIPAddressIntern": "172.0.0.0",
-                                  "stationIPAddressExtern": "172.0.0.0",
-                                  "timestamp": "2010-10-12T08:50:00",
-                                  "cycleTime": 1
-                                }
-                                """))
-                .andExpect(status().isUnauthorized())
-                .andExpect(content().string("Unauthorized"));
-
-        mockMvc.perform(get("/api/v1/telemetry/{range}", "72h")
-                        .param("apiKey", "invalid"))
-                .andExpect(status().isUnauthorized())
-                .andExpect(content().string("Unauthorized"));
-
-        mockMvc.perform(get("/api/v1/telemetry/last/{uuid}", ID)
-                        .param("apiKey", "invalid"))
-                .andExpect(status().isUnauthorized())
-                .andExpect(content().string("Unauthorized"));
-    }
-
-    @Test
     void telemetryRuntimeExceptionIsMappedTo500() throws Exception {
-        when(authorizationService.authorize("valid")).thenReturn(UUID.randomUUID());
         doThrow(new RuntimeException("influx down")).when(telemetryService).getByRange("72h");
 
-        mockMvc.perform(get("/api/v1/telemetry/{range}", "72h")
-                        .param("apiKey", "valid"))
+        mockMvc.perform(get("/api/v1/telemetry/{range}", "72h"))
                 .andExpect(status().isInternalServerError())
                 .andExpect(content().string("influx down"));
 

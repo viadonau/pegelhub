@@ -38,11 +38,10 @@ public class PegelHubCommunicatorFactory {
      * @param telemetryRoute an override for the telemetry route
      * @param contactRoute an override for the contact route
      * @param connectorRoute an override for the connector route
-     * @param tokenRoute an override for the token route
      * @return a valid {@code PegelHubCommunicator} instance
      */
-    public static PegelHubCommunicator create(URL baseUrl, String propertiesFile, String measurementRoute, String telemetryRoute, String contactRoute, String connectorRoute,  String tokenRoute,  String takerRoute,  String supplierRoute) {
+    public static PegelHubCommunicator create(URL baseUrl, String propertiesFile, String measurementRoute, String telemetryRoute, String contactRoute, String connectorRoute, String takerRoute, String supplierRoute) {
         CloseableHttpClient client = HttpClients.createDefault();
-        return new HttpPegelHubCommunicator(client, baseUrl, ApplicationPropertiesFactory.create(propertiesFile), measurementRoute, telemetryRoute, contactRoute, connectorRoute, tokenRoute, takerRoute, supplierRoute);
+        return new HttpPegelHubCommunicator(client, baseUrl, ApplicationPropertiesFactory.create(propertiesFile), measurementRoute, telemetryRoute, contactRoute, connectorRoute, takerRoute, supplierRoute);
     }
 }

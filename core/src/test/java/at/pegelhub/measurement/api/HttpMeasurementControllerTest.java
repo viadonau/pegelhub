@@ -1,10 +1,6 @@
 package at.pegelhub.measurement.api;
 
-import at.pegelhub.auth.application.AuthTokenIdHolder;
-import at.pegelhub.auth.application.AuthorizationService;
 import at.pegelhub.measurement.application.MeasurementService;
-import at.pegelhub.shared.error.UnauthorizedException;
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -14,15 +10,10 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
-import java.util.UUID;
-
 import static at.pegelhub.testsupport.ExampleData.ID;
 import static at.pegelhub.testsupport.ExampleData.MEASUREMENT;
 import static at.pegelhub.testsupport.ExampleData.MEASUREMENTS;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -40,72 +31,43 @@ class HttpMeasurementControllerTest {
     private MockMvc mockMvc;
 
     @MockitoBean
-    private AuthorizationService authorizationService;
-
-    @MockitoBean
     private MeasurementService measurementService;
 
-    @AfterEach
-    void clearAuthHolder() {
-        AuthTokenIdHolder.clear();
-    }
-
     @Test
-    void writeMeasurementDataUsesAuthContextAndClearsHolderAfterSuccess() throws Exception {
-        UUID tokenId = UUID.randomUUID();
-        when(authorizationService.authorize("valid")).thenReturn(tokenId);
-        doAnswer(invocation -> {
-            assertEquals(tokenId, AuthTokenIdHolder.get());
-            return null;
-        }).when(measurementService).writeMeasurements(any());
-
+    void writeMeasurementDataDelegatesToService() throws Exception {
         mockMvc.perform(post("/api/v1/measurement")
-                        .param("apiKey", "valid")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(validMeasurementsPayload()))
                 .andExpect(status().isOk())
                 .andExpect(content().string(""));
-
-        assertNull(AuthTokenIdHolder.get());
+        verify(measurementService).writeMeasurements(any());
     }
 
     @Test
-    void writeMeasurementDataClearsHolderAfterException() throws Exception {
-        UUID tokenId = UUID.randomUUID();
-        when(authorizationService.authorize("valid")).thenReturn(tokenId);
-        doAnswer(invocation -> {
-            assertEquals(tokenId, AuthTokenIdHolder.get());
-            throw new RuntimeException("write failed");
-        }).when(measurementService).writeMeasurements(any());
+    void writeMeasurementDataMapsServiceExceptionTo500() throws Exception {
+        doThrow(new RuntimeException("write failed")).when(measurementService).writeMeasurements(any());
 
         mockMvc.perform(post("/api/v1/measurement")
-                        .param("apiKey", "valid")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(validMeasurementsPayload()))
                 .andExpect(status().isInternalServerError())
                 .andExpect(content().string("write failed"));
-
-        assertNull(AuthTokenIdHolder.get());
     }
 
     @Test
     void findMeasurementInRangeReturnsJsonArray() throws Exception {
-        when(authorizationService.authorize("valid")).thenReturn(UUID.randomUUID());
         when(measurementService.getByRange("72h")).thenReturn(MEASUREMENTS);
 
-        mockMvc.perform(get("/api/v1/measurement/{range}", "72h")
-                        .param("apiKey", "valid"))
+        mockMvc.perform(get("/api/v1/measurement/{range}", "72h"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].measurement").value(MEASUREMENT.measurement().toString()));
     }
 
     @Test
     void findMeasurementForSupplierInRangeReturnsJsonArray() throws Exception {
-        when(authorizationService.authorize("valid")).thenReturn(UUID.randomUUID());
         when(measurementService.getBySupplierAndRange("stationNR", "72h")).thenReturn(MEASUREMENTS);
 
         mockMvc.perform(get("/api/v1/measurement/supplier/{range}", "72h")
-                        .param("apiKey", "valid")
                         .param("stationNumber", "stationNR"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].measurement").value(MEASUREMENT.measurement().toString()));
@@ -113,11 +75,9 @@ class HttpMeasurementControllerTest {
 
     @Test
     void findLatestMeasurementBySupplierReturnsJson() throws Exception {
-        when(authorizationService.authorize("valid")).thenReturn(UUID.randomUUID());
         when(measurementService.getLatestBySupplier("stationNR")).thenReturn(MEASUREMENT);
 
         mockMvc.perform(get("/api/v1/measurement/supplier/latest")
-                        .param("apiKey", "valid")
                         .param("stationNumber", "stationNR"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.measurement").value(MEASUREMENT.measurement().toString()));
@@ -125,11 +85,9 @@ class HttpMeasurementControllerTest {
 
     @Test
     void findAverageMeasurementForSupplierInRangeReturnsJson() throws Exception {
-        when(authorizationService.authorize("valid")).thenReturn(UUID.randomUUID());
         when(measurementService.getAverageBySupplierAndRange("stationNR", "72h")).thenReturn(MEASUREMENT);
 
         mockMvc.perform(get("/api/v1/measurement/supplier/average/{range}", "72h")
-                        .param("apiKey", "valid")
                         .param("stationNumber", "stationNR"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.measurement").value(MEASUREMENT.measurement().toString()));
@@ -137,11 +95,9 @@ class HttpMeasurementControllerTest {
 
     @Test
     void findMeasurementByIdReturnsJson() throws Exception {
-        when(authorizationService.authorize("valid")).thenReturn(UUID.randomUUID());
         when(measurementService.getLastData(ID)).thenReturn(MEASUREMENT);
 
-        mockMvc.perform(get("/api/v1/measurement/last/{uuid}", ID)
-                        .param("apiKey", "valid"))
+        mockMvc.perform(get("/api/v1/measurement/last/{uuid}", ID))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.measurement").value(MEASUREMENT.measurement().toString()));
     }
@@ -159,57 +115,18 @@ class HttpMeasurementControllerTest {
     }
 
     @Test
-    void protectedMeasurementEndpointsRejectUnauthorizedRequests() throws Exception {
-        doThrow(new UnauthorizedException("unauthorized")).when(authorizationService).authorize(any());
-
-        mockMvc.perform(post("/api/v1/measurement")
-                        .param("apiKey", "invalid")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(validMeasurementsPayload()))
-                .andExpect(status().isUnauthorized())
-                .andExpect(content().string("Unauthorized"));
-
-        mockMvc.perform(get("/api/v1/measurement/{range}", "72h").param("apiKey", "invalid"))
-                .andExpect(status().isUnauthorized());
-
-        mockMvc.perform(get("/api/v1/measurement/supplier/{range}", "72h")
-                        .param("apiKey", "invalid")
-                        .param("stationNumber", "stationNR"))
-                .andExpect(status().isUnauthorized());
-
-        mockMvc.perform(get("/api/v1/measurement/supplier/latest")
-                        .param("apiKey", "invalid")
-                        .param("stationNumber", "stationNR"))
-                .andExpect(status().isUnauthorized());
-
-        mockMvc.perform(get("/api/v1/measurement/supplier/average/{range}", "72h")
-                        .param("apiKey", "invalid")
-                        .param("stationNumber", "stationNR"))
-                .andExpect(status().isUnauthorized());
-
-        mockMvc.perform(get("/api/v1/measurement/last/{uuid}", ID)
-                        .param("apiKey", "invalid"))
-                .andExpect(status().isUnauthorized());
-    }
-
-    @Test
     void averageEndpointRequiresStationNumber() throws Exception {
-        when(authorizationService.authorize("valid")).thenReturn(UUID.randomUUID());
-
-        mockMvc.perform(get("/api/v1/measurement/supplier/average/{range}", "72h")
-                        .param("apiKey", "valid"))
+        mockMvc.perform(get("/api/v1/measurement/supplier/average/{range}", "72h"))
                 .andExpect(status().isBadRequest());
     }
 
     @Test
     void findMeasurementForSupplierInRangeMapsRuntimeExceptionTo500() throws Exception {
-        when(authorizationService.authorize("valid")).thenReturn(UUID.randomUUID());
         doThrow(new RuntimeException("range parse failed"))
                 .when(measurementService)
                 .getBySupplierAndRange("stationNR", "invalid");
 
         mockMvc.perform(get("/api/v1/measurement/supplier/{range}", "invalid")
-                        .param("apiKey", "valid")
                         .param("stationNumber", "stationNR"))
                 .andExpect(status().isInternalServerError())
                 .andExpect(content().string("range parse failed"));

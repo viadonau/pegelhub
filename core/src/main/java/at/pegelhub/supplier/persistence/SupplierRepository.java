@@ -50,14 +50,6 @@ public interface SupplierRepository {
     void deleteSupplier(UUID uuid);
 
     /**
-     * Gets the id of a supplier by its auth id.
-     *
-     * @param uuid the given auth id.
-     * @return the supplier, which is managed by the given auth id.
-     */
-    UUID getSupplierIdForAuthId(UUID uuid);
-
-    /**
      * Returns a supplier, if one already exists for this stationNumber.
      *
      * @param stationNumber the name of the station.
@@ -65,6 +57,7 @@ public interface SupplierRepository {
      */
     Optional<Supplier> findByStationNumber(String stationNumber);
 
+    Optional<Supplier> findByConnectorKeycloakClientId(String keycloakClientId);
+
     UUID getConnectorID(UUID uuid);
 }
-

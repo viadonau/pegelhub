@@ -52,7 +52,7 @@ public final class DtoToDomainConverter {
                 convert(connector.softwareManufacturer()),
                 convert(connector.technicallyResponsible()),
                 convert(connector.operationCompany()),
-                connector.notes(), connector.apiToken());
+                connector.notes());
     }
 
     public static StationManufacturer convert(CreateStationManufacturerDto stationManufacturer) {
