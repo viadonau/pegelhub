@@ -40,12 +40,18 @@ In local Compose, the same declared token is passed both to InfluxDB first-start
 
 ## Manual Dev Profile
 
+For a non-container app run, start local dependencies through the helper, then run `core-app` with the `dev` Spring profile:
+
+```bash
+bash .agents/skills/pegelhub-local-dev/scripts/pegelhub-local-dev.sh compose-up-deps
+```
+
 The `dev` Spring profile defaults to:
 
 ```yaml
 pegelhub:
   influx:
-    url: ${INFLUX_URL:http://localhost:8086/}
+    url: ${INFLUX_URL:http://localhost:8111/}
     org: ${INFLUX_ORG:pegelhub}
     token: ${INFLUX_TOKEN:local-dev-influx-token-change-me-000000000000000000000000000000}
     data-bucket: ${INFLUX_DATA_BUCKET:pegelhub-data}

@@ -19,12 +19,12 @@ Commands:
   test-core              Run core module tests.
   build-core             Build the core module with tests skipped.
   compose-up             Build and start the local Docker Compose stack.
-  compose-up-deps        Start only meta-db and data-db for IDE/Maven app runs.
+  compose-up-deps        Start databases and Keycloak for IDE/Maven app runs.
   compose-config         Validate Docker Compose config without printing resolved env.
   compose-ps             Show Docker Compose service status.
   compose-down           Stop and remove local compose containers; keep volumes.
   restart [service]      Restart one service, default: core-app.
-  logs [service]         Show recent logs for core-app, meta-db, data-db, or all.
+  logs [service]         Show recent logs for one service or all.
   logs-errors [service]  Show recent warning/error-looking log lines only.
   health                 Check actuator health.
   wait-health [seconds]  Wait for actuator health, default: 120 seconds.
@@ -157,8 +157,8 @@ compose_up() {
 
 compose_up_deps() {
   compose_config
-  run_compose up -d meta-db data-db
-  run_compose ps meta-db data-db
+  run_compose up -d meta-db data-db keycloak-db keycloak
+  run_compose ps meta-db data-db keycloak-db keycloak
 }
 
 compose_ps() {

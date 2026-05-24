@@ -55,7 +55,7 @@ Local defaults live in `.env.example`. Copy it to `.env` and adjust local-only v
 
 | Variable | Used by | Meaning |
 | --- | --- | --- |
-| `INFLUX_URL` | `core-app` | InfluxDB base URL. Compose sets this to `http://data-db:8086/`; the dev profile defaults to `http://localhost:8086/`. |
+| `INFLUX_URL` | `core-app` | InfluxDB base URL. Compose sets this to `http://data-db:8086/`; the dev profile defaults to `http://localhost:8111/` for the helper-managed local dependency stack. |
 | `INFLUX_ORG` | InfluxDB, `core-app` | Influx organization used by both buckets. |
 | `INFLUX_TOKEN` | InfluxDB, `core-app` | Token used by the app to read and write buckets. Local dev uses a deterministic throwaway token. |
 | `INFLUX_INTERNAL_BUCKET` | InfluxDB | Initial setup bucket required by the official InfluxDB image. The app does not use it. |
@@ -75,7 +75,7 @@ The `dev` profile has defaults for local InfluxDB:
 ```yaml
 pegelhub:
   influx:
-    url: ${INFLUX_URL:http://localhost:8086/}
+    url: ${INFLUX_URL:http://localhost:8111/}
     org: ${INFLUX_ORG:pegelhub}
     token: ${INFLUX_TOKEN:local-dev-influx-token-change-me-000000000000000000000000000000}
     data-bucket: ${INFLUX_DATA_BUCKET:pegelhub-data}

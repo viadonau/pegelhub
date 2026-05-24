@@ -21,11 +21,11 @@ bash .agents/skills/pegelhub-local-dev/scripts/pegelhub-local-dev.sh doctor
 - `env-check`: compare `.env.example` keys against `.env` without printing values.
 - `test-core`: run core tests with `mvn -f core/pom.xml -DfailIfNoTests=false test`.
 - `build-core`: package the core with tests skipped.
-- `compose-up`: validate config, build/start `core-app`, `meta-db`, `data-db`, then wait for actuator health.
-- `compose-up-deps`: validate config and start only `meta-db` and `data-db` for IDE/Maven app runs.
+- `compose-up`: validate config, build/start the local Compose stack, then wait for actuator health.
+- `compose-up-deps`: validate config and start `meta-db`, `data-db`, `keycloak-db`, and `keycloak` for IDE/Maven app runs.
 - `compose-ps`, `compose-config`, `restart [service]`, `compose-down`: inspect or control the stack. `compose-down` keeps volumes.
-- `logs [core-app|meta-db|data-db|all]`: targeted logs, default `core-app`; set `TAIL=300` when needed.
-- `logs-errors [core-app|meta-db|data-db|all]`: recent warning/error-looking lines only; use before dumping full logs.
+- `logs [core-app|meta-db|data-db|keycloak|keycloak-db|all]`: targeted logs, default `core-app`; set `TAIL=300` when needed.
+- `logs-errors [core-app|meta-db|data-db|keycloak|keycloak-db|all]`: recent warning/error-looking lines only; use before dumping full logs.
 - `health`, `wait-health [seconds]`, `smoke [--raw]`, `api-get <path>`: low-risk runtime checks. Default `smoke` prints compact reachability; `smoke --raw` prints payloads.
 
 Override `PEGELHUB_REPO_ROOT`, `CORE_BASE_URL`, `ACTUATOR_BASE_URL`, or `TAIL` only when the defaults do not match the current environment.
@@ -42,8 +42,8 @@ Override `PEGELHUB_REPO_ROOT`, `CORE_BASE_URL`, `ACTUATOR_BASE_URL`, or `TAIL` o
 
 - Core API: `http://localhost:8080/api/v1/**`
 - Actuator: `http://localhost:8081/actuator`
-- Compose services: `core-app`, `meta-db`, `data-db`
-- Host ports: core `8080`, actuator `8081`, Postgres `5444`, InfluxDB `8111`
+- Compose services: `core-app`, `meta-db`, `data-db`, `keycloak-db`, `keycloak`
+- Host ports: core `8080`, actuator `8081`, Postgres `5444`, InfluxDB `8111`, Keycloak `8082`
 - Local config file: `core/.env` in the current repo layout
 - Local defaults template: `core/.env.example`
 - Compose file: `core/docker-compose.yaml`

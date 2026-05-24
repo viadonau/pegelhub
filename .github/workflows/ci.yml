@@ -1,0 +1,36 @@
+name: CI
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  maven:
+    name: Maven Checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - name: Test core
+        run: mvn -B -ntp -f core/pom.xml test
+
+      - name: Test connectors
+        run: mvn -B -ntp -f connectors/pom.xml test
+
+      - name: Package core
+        run: mvn -B -ntp -f core/pom.xml -DskipTests package
+
+      - name: Package connectors
+        run: mvn -B -ntp -f connectors/pom.xml -DskipTests package

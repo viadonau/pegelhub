@@ -9,7 +9,7 @@ RUN cmake -S . -B build -DCMAKE_BUILD_TYPE=Release && cmake --build build
 FROM eclipse-temurin:21-jre-jammy
 WORKDIR /app
 
-COPY ./target/ma-connector-1.0.0-SNAPSHOT.jar /app/connector.jar
+COPY ./target/ma-connector.jar /app/connector.jar
 COPY ./target/lib/ /app/lib/
 COPY --from=build-native /native/build/libRevPiReader.so /app/native/
 RUN mkdir -p /app/config /app/data
