@@ -2,7 +2,7 @@
   <configuration default="false" name="Pegelhub Core: Docker Compose" type="docker-deploy" factoryName="docker-compose.yml" server-name="Docker">
     <deployment type="docker-compose.yml">
       <settings>
-        <option name="envFilePath" value="$PROJECT_DIR$/core/testenvironment.vars" />
+        <option name="envFilePath" value="$PROJECT_DIR$/core/.env" />
         <option name="removeOrphansOnComposeDown" value="false" />
         <option name="commandLineOptions" value="--build" />
         <option name="sourceFilePath" value="$PROJECT_DIR$/core/docker-compose.yaml" />

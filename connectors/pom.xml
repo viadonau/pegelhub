@@ -23,7 +23,7 @@
 
     <properties>
         <maven.compiler.release>21</maven.compiler.release>
-        <argLine></argLine>
+        <argLine/>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <library.version>2.0.0-SNAPSHOT</library.version>
         <slf4j.version>2.0.17</slf4j.version>
@@ -121,6 +121,7 @@
     </dependencyManagement>
 
     <build>
+        <finalName>${project.artifactId}</finalName>
         <pluginManagement>
             <plugins>
                 <plugin>

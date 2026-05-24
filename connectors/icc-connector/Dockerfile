@@ -2,7 +2,7 @@ FROM amazoncorretto:21-alpine-jdk
 
 WORKDIR /app
 
-COPY ./target/icc-connector-1.0.0-SNAPSHOT.jar /app/connector.jar
+COPY ./target/icc-connector.jar /app/connector.jar
 COPY ./target/lib/ /app/lib/
 RUN mkdir -p /app/config
 

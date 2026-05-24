@@ -19,7 +19,7 @@ mvn -pl connectors/icc-connector -am -DskipTests package
 
 The build produces:
 
-- `target/icc-connector-1.0.0-SNAPSHOT.jar`
+- `target/icc-connector.jar`
 - `target/lib/*.jar`
 
 You do not need to build `library` separately anymore; the reactor handles it.

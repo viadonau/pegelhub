@@ -46,8 +46,8 @@ The local compose setup starts:
 Run:
 
 ```bash
-cp .env.example .env
-docker compose up --build -d
+bash ../.agents/skills/pegelhub-local-dev/scripts/pegelhub-local-dev.sh init-env
+bash ../.agents/skills/pegelhub-local-dev/scripts/pegelhub-local-dev.sh compose-up
 ```
 
 The app is then reachable on `localhost:8080`, actuator on `localhost:8081`, and local Keycloak on `http://pegelhub-keycloak.test:8082`.
@@ -67,36 +67,38 @@ The Postman collection for the core HTTP API lives in `docs/api/postman/` and us
 
 ## Manual Dev Profile
 
-For a non-container app run, start local Postgres and InfluxDB, then run the app with the `dev` profile:
+For a non-container app run, start local dependencies through the helper, then run the app with the `dev` profile:
 
 ```bash
-docker run --name postgres -p 5432:5432 \
-  -e POSTGRES_USER=postgres \
-  -e POSTGRES_PASSWORD=postgres \
-  -e POSTGRES_DB=pegelhub \
-  -d postgres
-
-docker run --name influxdb -p 8086:8086 \
-  -e DOCKER_INFLUXDB_INIT_MODE=setup \
-  -e DOCKER_INFLUXDB_INIT_USERNAME=admin \
-  -e DOCKER_INFLUXDB_INIT_PASSWORD=admin1234 \
-  -e DOCKER_INFLUXDB_INIT_ORG=pegelhub \
-  -e DOCKER_INFLUXDB_INIT_BUCKET=pegelhub-internal \
-  -e DOCKER_INFLUXDB_INIT_ADMIN_TOKEN=local-dev-influx-token-change-me-000000000000000000000000000000 \
-  -e INFLUX_DATA_BUCKET=pegelhub-data \
-  -e INFLUX_TELEMETRY_BUCKET=pegelhub-telemetry \
-  -v "$PWD/docker/influxdb/init:/docker-entrypoint-initdb.d:ro" \
-  -d influxdb:2.2-alpine
+bash ../.agents/skills/pegelhub-local-dev/scripts/pegelhub-local-dev.sh init-env
+bash ../.agents/skills/pegelhub-local-dev/scripts/pegelhub-local-dev.sh compose-up-deps
 ```
 
-The `dev` profile defaults to the token shown above. Override `INFLUX_TOKEN`, `INFLUX_ORG`, `INFLUX_DATA_BUCKET`, and `INFLUX_TELEMETRY_BUCKET` when you use different local values.
+The `dev` profile defaults to the helper's local dependency ports:
+
+- Postgres: `localhost:5444`
+- InfluxDB: `http://localhost:8111/`
+- Keycloak issuer: `http://pegelhub-keycloak.test:8082/realms/pegelhub`
+
+Add this hosts entry before running Core from the host:
+
+```text
+127.0.0.1 pegelhub-keycloak.test
+```
+
+Override `KEYCLOAK_ISSUER_URI`, `INFLUX_TOKEN`, `INFLUX_ORG`, `INFLUX_DATA_BUCKET`, and `INFLUX_TELEMETRY_BUCKET` when you use different local values.
 
 ## Packaging
 
-Build the application jar and Docker image from `core/`:
+Build the application jar from `core/`:
 
 ```bash
 mvn -DskipTests package
+```
+
+Build the Docker image from `core/`. The Dockerfile builds the jar inside the image build, so it does not require a pre-existing local `target/app.jar`:
+
+```bash
 docker build . -t pegelhub-core:latest
 ```
 

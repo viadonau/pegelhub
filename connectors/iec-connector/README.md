@@ -20,7 +20,7 @@ mvn -pl connectors/iec-connector -am -DskipTests package
 
 The build produces:
 
-- `target/iec-connector-1.0.0-SNAPSHOT.jar`
+- `target/iec-connector.jar`
 - `target/lib/*.jar`
 
 ## Configuration
