@@ -1,0 +1,130 @@
+name: pegelhub-runtime
+
+volumes:
+  metastore-data:
+  datastore-data:
+  keycloak-data:
+
+networks:
+  pegelhub-runtime:
+    driver: bridge
+
+services:
+  meta-db:
+    image: postgres:14-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_PASSWORD: ${META_PASSWORD}
+      POSTGRES_DB: ${META_DB}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d ${META_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 5s
+    volumes:
+      - metastore-data:/var/lib/postgresql/data
+    ports:
+      - "5444:5432"
+    networks:
+      - pegelhub-runtime
+
+  data-db:
+    image: influxdb:2.2-alpine
+    restart: unless-stopped
+    environment:
+      DOCKER_INFLUXDB_INIT_MODE: setup
+      DOCKER_INFLUXDB_INIT_USERNAME: ${INFLUX_ADMIN_USER}
+      DOCKER_INFLUXDB_INIT_PASSWORD: ${INFLUX_ADMIN_PASSWORD}
+      DOCKER_INFLUXDB_INIT_ORG: ${INFLUX_ORG}
+      DOCKER_INFLUXDB_INIT_BUCKET: ${INFLUX_INTERNAL_BUCKET}
+      DOCKER_INFLUXDB_INIT_ADMIN_TOKEN: ${INFLUX_TOKEN}
+      INFLUX_DATA_BUCKET: ${INFLUX_DATA_BUCKET}
+      INFLUX_TELEMETRY_BUCKET: ${INFLUX_TELEMETRY_BUCKET}
+    volumes:
+      - datastore-data:/var/lib/influxdb2
+      - ./docker/influxdb/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD", "influx", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+    ports:
+      - "8111:8086"
+    networks:
+      - pegelhub-runtime
+
+  keycloak-db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: keycloak
+      POSTGRES_PASSWORD: ${KEYCLOAK_DB_PASSWORD}
+      POSTGRES_DB: ${KEYCLOAK_DB}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U keycloak -d ${KEYCLOAK_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 5s
+    volumes:
+      - keycloak-data:/var/lib/postgresql/data
+    networks:
+      - pegelhub-runtime
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.2
+    restart: unless-stopped
+    command: ["start-dev", "--import-realm"]
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN_USER}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://keycloak-db:5432/${KEYCLOAK_DB}
+      KC_DB_USERNAME: keycloak
+      KC_DB_PASSWORD: ${KEYCLOAK_DB_PASSWORD}
+      KC_HEALTH_ENABLED: "true"
+      KC_HOSTNAME: ${KEYCLOAK_HOSTNAME_URL}
+      KC_HOSTNAME_STRICT: "false"
+      KC_HTTP_PORT: 8082
+    volumes:
+      - ./docker/keycloak/import:/opt/keycloak/data/import:ro
+    ports:
+      - "8082:8082"
+      - "9000:9000"
+    depends_on:
+      keycloak-db:
+        condition: service_healthy
+    networks:
+      pegelhub-runtime:
+        aliases:
+          - pegelhub-keycloak.test
+
+  core-app:
+    image: ${PEGELHUB_CORE_IMAGE:?Set PEGELHUB_CORE_IMAGE to a published pegelhub-core image}
+    pull_policy: always
+    restart: unless-stopped
+    environment:
+      DB_URI: meta-db:5432/${META_DB}
+      DB_USER: postgres
+      DB_PASSWORD: ${META_PASSWORD}
+      INFLUX_URL: http://data-db:8086/
+      INFLUX_ORG: ${INFLUX_ORG}
+      INFLUX_TOKEN: ${INFLUX_TOKEN}
+      INFLUX_DATA_BUCKET: ${INFLUX_DATA_BUCKET}
+      INFLUX_TELEMETRY_BUCKET: ${INFLUX_TELEMETRY_BUCKET}
+      KEYCLOAK_ISSUER_URI: ${KEYCLOAK_ISSUER_URI}
+      PEGELHUB_API_AUDIENCE: ${PEGELHUB_API_AUDIENCE}
+    ports:
+      - "8080:8080"
+      - "8081:8081"
+    depends_on:
+      meta-db:
+        condition: service_healthy
+      data-db:
+        condition: service_healthy
+      keycloak:
+        condition: service_started
+    networks:
+      - pegelhub-runtime
