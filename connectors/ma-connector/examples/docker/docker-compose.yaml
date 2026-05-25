@@ -1,8 +1,9 @@
-version: "3.8"
 services:
   ma-connector:
-    build: .
-    image: ma-connector
+    image: ${MA_CONNECTOR_IMAGE:-ghcr.io/example-owner/pegelhub-ma-connector:v0.1.0}
+    restart: unless-stopped
+    extra_hosts:
+      - "pegelhub-keycloak.test:${PEGELHUB_HOST_IP:?Set PEGELHUB_HOST_IP to the Core/Keycloak host LAN IP}"
     devices:
       - "/dev/piControl0:/dev/piControl0"
     volumes:

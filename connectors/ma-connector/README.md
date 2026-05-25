@@ -65,8 +65,8 @@ Each metadata YAML file defines one RevPi input by its variable name from piCtor
 revInput: "InputValue_1"
 keycloak:
   tokenUrl: "http://pegelhub-keycloak.test:8082/realms/pegelhub/protocol/openid-connect/token"
-  clientId: "local-connector-example"
-  clientSecret: "local-dev-connector-secret-change-me"
+  clientId: "local-ma-connector"
+  clientSecret: "local-dev-ma-connector-secret-change-me"
 sendMetaDataOnStartup: false
 isSupplier: true
 supplier:
@@ -85,10 +85,10 @@ supplier:
 * Network connectivity to the Pegelhub Core
 
 ### 5.2 Get the image
-Option A - use the prebuilt image:
+Option A - use a published release image:
 
 ```bash
-docker pull markusf01/pegelhub-ma-connector:latest
+docker pull ghcr.io/<owner>/pegelhub-ma-connector:v0.1.0
 ```
 
 Option B - build from source and load on the RevPi:
@@ -116,16 +116,16 @@ docker load -i /home/pi/ma-connector.tar
 
 ### 5.3 Docker Compose
 
-Create a `docker-compose.yaml` on the RevPi. If you use the prebuilt image, set `image: markusf01/pegelhub-ma-connector:latest`. If you loaded a locally built image, set `image: ma-connector`.
+Create a `docker-compose.yaml` on the RevPi. If you use a published image, set `MA_CONNECTOR_IMAGE` to the GHCR image tag. If you loaded a locally built image, set `MA_CONNECTOR_IMAGE=ma-connector`.
 An example file is checked in at `examples/docker/docker-compose.yaml`.
 
 ```yaml
-version: "2.2"
 services:
   ma-connector:
-    image: markusf01/pegelhub-ma-connector:latest
+    image: ${MA_CONNECTOR_IMAGE:-ghcr.io/example-owner/pegelhub-ma-connector:v0.1.0}
+    restart: unless-stopped
     extra_hosts:
-      - "pegelhub-keycloak.test:<Mac LAN IP>"
+      - "pegelhub-keycloak.test:${PEGELHUB_HOST_IP}"
     devices:
       - "/dev/piControl0:/dev/piControl0"
     volumes:
@@ -134,6 +134,12 @@ services:
     environment:
       JAVA_TOOL_OPTIONS: "-DLOG_LEVEL=INFO"
 ```
+
+When the RevPi talks to Core and Keycloak running on another machine in the same LAN,
+set `PEGELHUB_HOST_IP` to that machine's LAN IP, for example the Mac IP `10.0.0.2`.
+Do not set it to the RevPi's own IP. The connector requests tokens from
+`pegelhub-keycloak.test`, so the container needs this host mapping when Keycloak is not
+running in the same Docker network.
 
 ### 5.4 Configure files
 
