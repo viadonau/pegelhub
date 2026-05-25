@@ -2,9 +2,20 @@ name: Images
 
 on:
   workflow_dispatch:
+    inputs:
+      push:
+        description: Push images to GHCR
+        required: true
+        default: false
+        type: boolean
 
 permissions:
   contents: read
+  packages: write
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_OWNER: ${{ github.repository_owner }}
 
 jobs:
   core:
@@ -16,8 +27,35 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Log in to GHCR
+        if: ${{ inputs.push }}
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Image metadata
+        id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/pegelhub-core
+          tags: |
+            type=raw,value=ci-${{ github.run_number }}
+            type=sha,prefix=sha-,format=short
+
       - name: Build core image
-        run: docker build core --tag pegelhub-core:ci
+        uses: docker/build-push-action@v7
+        with:
+          context: core
+          platforms: linux/amd64
+          load: ${{ ! inputs.push }}
+          push: ${{ inputs.push }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
 
   connectors:
     name: Connector Images
@@ -49,6 +87,14 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
 
+      - name: Log in to GHCR
+        if: ${{ inputs.push }}
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Set up Java
         uses: actions/setup-java@v5
         with:
@@ -59,5 +105,21 @@ jobs:
       - name: Package connectors
         run: mvn -B -ntp -f connectors/pom.xml -DskipTests package
 
+      - name: Image metadata
+        id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/pegelhub-${{ matrix.connector }}
+          tags: |
+            type=raw,value=ci-${{ github.run_number }}
+            type=sha,prefix=sha-,format=short
+
       - name: Build connector image
-        run: docker buildx build --platform ${{ matrix.platform }} --load connectors/${{ matrix.connector }} --tag pegelhub-${{ matrix.connector }}:ci
+        uses: docker/build-push-action@v7
+        with:
+          context: connectors/${{ matrix.connector }}
+          platforms: ${{ matrix.platform }}
+          load: ${{ ! inputs.push }}
+          push: ${{ inputs.push }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
