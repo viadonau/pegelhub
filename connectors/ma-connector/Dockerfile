@@ -3,6 +3,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends cmake g++ make
 
 WORKDIR /native
 COPY src/main/native/ ./
+COPY target/generated-sources/jni/ ./generated/
 
 RUN cmake -S . -B build -DCMAKE_BUILD_TYPE=Release && cmake --build build
 

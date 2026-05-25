@@ -100,10 +100,11 @@ mvn -pl connectors/ma-connector -am -DskipTests package
 # The Java build produces:
 # - connectors/ma-connector/target/ma-connector.jar
 # - connectors/ma-connector/target/lib/*.jar
+# - connectors/ma-connector/target/generated-sources/jni/*.h
 
 # Build the container image from the connector directory
 cd connectors/ma-connector
-docker buildx build --platform linux/arm/v7 -t ma-connector .
+docker buildx build --platform linux/arm64/v8 --load -t ma-connector .
 docker save -o ma-connector.tar ma-connector
 
 # Transfer to the RevPi (example using scp; a USB stick works too)
@@ -123,6 +124,8 @@ version: "2.2"
 services:
   ma-connector:
     image: markusf01/pegelhub-ma-connector:latest
+    extra_hosts:
+      - "pegelhub-keycloak.test:<Mac LAN IP>"
     devices:
       - "/dev/piControl0:/dev/piControl0"
     volumes:
@@ -134,13 +137,19 @@ services:
 
 ### 5.4 Configure files
 
-Prepare configuration and inputs on the host (same directory as your `docker-compose.yaml`):
+Prepare the connector config and input YAML files on the host (same directory as your `docker-compose.yaml`):
 
 ```bash
 mkdir -p config data/inputs
 cp ./your-connector.properties config/connector.properties
 cp ./your-inputs/*.yaml      data/inputs/
 ```
+
+`connector.properties` contains connector runtime settings such as `Core.IP`, `Core.Port`,
+`DelayInterval`, and `InputsDir`. Each input YAML contains the RevPi variable name
+(`revInput`) plus the PegelHub/Keycloak client settings used by that input. The mA connector
+does not use a separate `pegelhub.yaml`; checked-in examples live under `examples/config/`
+and `examples/data/inputs/`.
 
 ### 5.5 Start
 

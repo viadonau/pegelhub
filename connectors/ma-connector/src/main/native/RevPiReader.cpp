@@ -10,7 +10,7 @@
 #include <unistd.h>
 
 #include "revpi/piControl.h"
-#include "generated/org_stm_pegelhub_connector_ma_jni_RevPiReaderImpl.h"
+#include "generated/at_pegelhub_connector_ma_jni_RevPiReaderImpl.h"
 
 namespace {
     int handle = -1;
@@ -39,7 +39,7 @@ namespace {
     }
 } // helpers
 
-JNIEXPORT jint JNICALL Java_org_stm_pegelhub_connector_ma_jni_RevPiReaderImpl_resolveOffsetByName
+JNIEXPORT jint JNICALL Java_at_pegelhub_connector_ma_jni_RevPiReaderImpl_resolveOffsetByName
 (JNIEnv *env, jobject /*obj*/, jstring jname) {
     if (!jname) {
         errno = 0;
@@ -72,7 +72,7 @@ JNIEXPORT jint JNICALL Java_org_stm_pegelhub_connector_ma_jni_RevPiReaderImpl_re
     return inputStruct.i16uAddress;
 }
 
-JNIEXPORT jint JNICALL Java_org_stm_pegelhub_connector_ma_jni_RevPiReaderImpl_readFromOffset
+JNIEXPORT jint JNICALL Java_at_pegelhub_connector_ma_jni_RevPiReaderImpl_readFromOffset
 (JNIEnv *env, jobject /*obj*/, jint offset) {
     if (offset < 0) {
         errno = 0;
@@ -102,8 +102,8 @@ JNIEXPORT jint JNICALL Java_org_stm_pegelhub_connector_ma_jni_RevPiReaderImpl_re
     return value;
 }
 
-JNIEXPORT void JNICALL Java_org_stm_pegelhub_connector_ma_jni_RevPiReaderImpl_close
-(JNIEnv *env, jobject /*obj*/) {
+JNIEXPORT void JNICALL Java_at_pegelhub_connector_ma_jni_RevPiReaderImpl_close
+(JNIEnv * /*env*/, jobject /*obj*/) {
     if (handle >= 0) {
         const int fd = handle;
         handle = -1;
