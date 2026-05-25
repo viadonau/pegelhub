@@ -102,4 +102,10 @@ Build the Docker image from `core/`. The Dockerfile builds the jar inside the im
 docker build . -t pegelhub-core:latest
 ```
 
+## Release Runtime
+
+Published Core images can be run with `docker-compose.release.yaml` and
+`.env.release.example`. The release deployment flow, image pinning, backups, rollback,
+and connector runtime notes are documented in `docs/release-deployment.md`.
+
 `docker-compose.yaml`, `.env.example`, and `docker/influxdb/init/` are intended as a local or self-hosted developer setup. Runtime secrets should be injected through environment variables or a deployment secret manager, not committed to the repository.
