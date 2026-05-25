@@ -190,6 +190,47 @@
       ]
     },
     {
+      "clientId": "local-ma-connector",
+      "name": "Local mA Connector",
+      "description": "Local-only mA connector client for RevPi development.",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "authorizationServicesEnabled": false,
+      "fullScopeAllowed": true,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "local-dev-ma-connector-secret-change-me",
+      "protocolMappers": [
+        {
+          "name": "audience-pegelhub-core-api",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.client.audience": "pegelhub-core-api",
+            "access.token.claim": "true",
+            "id.token.claim": "false"
+          }
+        }
+      ],
+      "defaultClientScopes": [
+        "web-origins",
+        "acr",
+        "profile",
+        "roles"
+      ],
+      "optionalClientScopes": [
+        "address",
+        "phone",
+        "offline_access",
+        "microprofile-jwt"
+      ]
+    },
+    {
       "clientId": "local-operator",
       "name": "Local Operator",
       "description": "Local-only operator client for metadata/admin smoke tests.",
@@ -236,6 +277,17 @@
       "username": "service-account-local-connector-example",
       "enabled": true,
       "serviceAccountClientId": "local-connector-example",
+      "clientRoles": {
+        "pegelhub-core-api": [
+          "measurement:write",
+          "telemetry:write"
+        ]
+      }
+    },
+    {
+      "username": "service-account-local-ma-connector",
+      "enabled": true,
+      "serviceAccountClientId": "local-ma-connector",
       "clientRoles": {
         "pegelhub-core-api": [
           "measurement:write",
