@@ -122,7 +122,7 @@ An example file is checked in at `examples/docker/docker-compose.yaml`.
 ```yaml
 services:
   ma-connector:
-    image: ${MA_CONNECTOR_IMAGE:-ghcr.io/example-owner/pegelhub-ma-connector:v0.1.0}
+    image: ${MA_CONNECTOR_IMAGE:?Set MA_CONNECTOR_IMAGE to the published ma connector image}
     restart: unless-stopped
     extra_hosts:
       - "pegelhub-keycloak.test:${PEGELHUB_HOST_IP}"
