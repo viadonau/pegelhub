@@ -1,5 +1,5 @@
 name: Docker Image
-description: Build a Docker image and optionally push it.
+description: Build and push a Docker image.
 
 inputs:
   image:
@@ -10,9 +10,6 @@ inputs:
     required: true
   platforms:
     description: Target platform list for Buildx.
-    required: true
-  push:
-    description: Whether to push the image instead of loading it locally.
     required: true
 
 runs:
@@ -35,7 +32,6 @@ runs:
       with:
         context: ${{ inputs.context }}
         platforms: ${{ inputs.platforms }}
-        load: ${{ inputs.push != 'true' && !contains(inputs.platforms, ',') }}
-        push: ${{ inputs.push == 'true' }}
+        push: true
         tags: ${{ steps.meta.outputs.tags }}
         labels: ${{ steps.meta.outputs.labels }}
