@@ -1,0 +1,41 @@
+name: Docker Image
+description: Build a Docker image and optionally push it.
+
+inputs:
+  image:
+    description: Fully qualified image name without tag.
+    required: true
+  context:
+    description: Docker build context.
+    required: true
+  platforms:
+    description: Target platform list for Buildx.
+    required: true
+  push:
+    description: Whether to push the image instead of loading it locally.
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Image metadata
+      id: meta
+      uses: docker/metadata-action@v6
+      with:
+        images: ${{ inputs.image }}
+        flavor: latest=false
+        tags: |
+          type=raw,value=ci-${{ github.run_number }},enable=${{ github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/heads/') }}
+          type=ref,event=tag
+          type=sha,prefix=sha-,format=short
+
+    - name: Build image
+      id: build
+      uses: docker/build-push-action@v7
+      with:
+        context: ${{ inputs.context }}
+        platforms: ${{ inputs.platforms }}
+        load: ${{ inputs.push != 'true' }}
+        push: ${{ inputs.push == 'true' }}
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
