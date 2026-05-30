@@ -35,7 +35,7 @@ runs:
       with:
         context: ${{ inputs.context }}
         platforms: ${{ inputs.platforms }}
-        load: ${{ inputs.push != 'true' }}
+        load: ${{ inputs.push != 'true' && !contains(inputs.platforms, ',') }}
         push: ${{ inputs.push == 'true' }}
         tags: ${{ steps.meta.outputs.tags }}
         labels: ${{ steps.meta.outputs.labels }}
