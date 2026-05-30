@@ -9,6 +9,10 @@ on:
         default: false
         type: boolean
   push:
+    # TEMPORARY: remove this branches block after testing the image workflow on this PR branch.
+    # Branch pushes are build-only; publishing stays limited to manual push=true or v* tags.
+    branches:
+      - feature/PH-11-CD-pipeline
     tags:
       - 'v*'
 
@@ -34,7 +38,7 @@ jobs:
         uses: docker/setup-buildx-action@v4
 
       - name: Log in to GHCR
-        if: ${{ github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.push) }}
+        if: ${{ startsWith(github.ref, 'refs/tags/') || (github.event_name == 'workflow_dispatch' && inputs.push) }}
         uses: docker/login-action@v4
         with:
           registry: ${{ env.REGISTRY }}
@@ -58,13 +62,13 @@ jobs:
         with:
           context: core
           platforms: linux/amd64
-          load: ${{ github.event_name == 'workflow_dispatch' && ! inputs.push }}
-          push: ${{ github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.push) }}
+          load: ${{ !(startsWith(github.ref, 'refs/tags/') || (github.event_name == 'workflow_dispatch' && inputs.push)) }}
+          push: ${{ startsWith(github.ref, 'refs/tags/') || (github.event_name == 'workflow_dispatch' && inputs.push) }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
 
       - name: Summarize published core image
-        if: ${{ github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.push) }}
+        if: ${{ startsWith(github.ref, 'refs/tags/') || (github.event_name == 'workflow_dispatch' && inputs.push) }}
         env:
           IMAGE_DIGEST: ${{ steps.build.outputs.digest }}
           IMAGE_TAGS: ${{ steps.meta.outputs.tags }}
@@ -109,7 +113,7 @@ jobs:
         uses: docker/setup-buildx-action@v4
 
       - name: Log in to GHCR
-        if: ${{ github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.push) }}
+        if: ${{ startsWith(github.ref, 'refs/tags/') || (github.event_name == 'workflow_dispatch' && inputs.push) }}
         uses: docker/login-action@v4
         with:
           registry: ${{ env.REGISTRY }}
@@ -143,13 +147,13 @@ jobs:
         with:
           context: connectors/${{ matrix.connector }}
           platforms: ${{ matrix.platform }}
-          load: ${{ github.event_name == 'workflow_dispatch' && ! inputs.push }}
-          push: ${{ github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.push) }}
+          load: ${{ !(startsWith(github.ref, 'refs/tags/') || (github.event_name == 'workflow_dispatch' && inputs.push)) }}
+          push: ${{ startsWith(github.ref, 'refs/tags/') || (github.event_name == 'workflow_dispatch' && inputs.push) }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
 
       - name: Summarize published connector image
-        if: ${{ github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.push) }}
+        if: ${{ startsWith(github.ref, 'refs/tags/') || (github.event_name == 'workflow_dispatch' && inputs.push) }}
         env:
           IMAGE_DIGEST: ${{ steps.build.outputs.digest }}
           IMAGE_TAGS: ${{ steps.meta.outputs.tags }}
