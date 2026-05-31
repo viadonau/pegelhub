@@ -1,8 +1,8 @@
 ---
 keycloak:
   tokenUrl: "http://pegelhub-keycloak.test:8082/realms/pegelhub/protocol/openid-connect/token"
-  clientId: "local-connector-example"
-  clientSecret: "local-dev-connector-secret-change-me"
+  clientId: "local-ma-connector"
+  clientSecret: "local-dev-ma-connector-secret-change-me"
 sendMetaDataOnStartup: false
 revInput: "InputValue_1"
 isSupplier: true

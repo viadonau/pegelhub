@@ -65,6 +65,7 @@ Local-only client-credentials clients:
 | Client id | Secret | Purpose |
 | --- | --- | --- |
 | `local-connector-example` | `local-dev-connector-secret-change-me` | Connector write smoke tests. |
+| `local-ma-connector` | `local-dev-ma-connector-secret-change-me` | Local RevPi mA connector development. |
 | `local-operator` | `local-dev-operator-secret-change-me` | Metadata/admin smoke tests. |
 
 These are throwaway local credentials. Never reuse them outside local development.
