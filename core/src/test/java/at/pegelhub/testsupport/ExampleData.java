@@ -11,7 +11,7 @@ import at.pegelhub.telemetry.domain.Telemetry;
 import org.assertj.core.util.VisibleForTesting;
 
 import java.time.Duration;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Map;
@@ -32,7 +32,7 @@ public final class ExampleData {
     //region data
     public static final UUID ID = UUID.fromString("d7305ab2-0b3d-4081-914a-e2c6047c1e12");
     public static final String MEASUREMENT_ID = "a93fdc3d-b71f-44ce-a826-fe1dc1f1f357";
-    public static final String TIMESTAMP = "2010-10-12T08:50:00";
+    public static final String TIMESTAMP = "2010-10-12T08:50:00Z";
     public static final Map<String, Double> FIELDS = Map.of("key1", 1.0);
     public static final Map<String, String> INFOS = Map.of("key1", "value1");
     public static final String IP_ADDRESS = "172.0.0.0";
@@ -42,10 +42,10 @@ public final class ExampleData {
     public static final double TEMPERATURE = -2.0;
     public static final double PERFORMANCE = 2.0;
     public static final double FIELD_STRENGTH = 2.0;
-    public static final Measurement MEASUREMENT = new Measurement(UUID.fromString(MEASUREMENT_ID), LocalDateTime.parse(TIMESTAMP), FIELDS, INFOS);
+    public static final Measurement MEASUREMENT = new Measurement(UUID.fromString(MEASUREMENT_ID), Instant.parse(TIMESTAMP), FIELDS, INFOS);
     public static final List<Measurement> MEASUREMENTS = List.of(MEASUREMENT);
     public static final Telemetry TELEMETRY = new Telemetry(MEASUREMENT_ID, IP_ADDRESS, IP_ADDRESS,
-            TIMESTAMP, CYCLE_TIME, TEMPERATURE, TEMPERATURE, PERFORMANCE, PERFORMANCE,
+            Instant.parse(TIMESTAMP), CYCLE_TIME, TEMPERATURE, TEMPERATURE, PERFORMANCE, PERFORMANCE,
             PERFORMANCE, PERFORMANCE, FIELD_STRENGTH);
     public static final List<Telemetry> TELEMETRIES = List.of(TELEMETRY);
     //endregion

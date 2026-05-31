@@ -19,9 +19,12 @@ pegelhub:
     token: ${INFLUX_TOKEN}
     data-bucket: ${INFLUX_DATA_BUCKET}
     telemetry-bucket: ${INFLUX_TELEMETRY_BUCKET}
+    latest-range: ${INFLUX_LATEST_RANGE:72h}
 ```
 
-`InfluxDBConfiguration` creates one client for the data bucket and one client for the telemetry bucket. Repositories select the correct client and bucket through Spring qualifiers.
+`InfluxDBConfiguration` creates one shared client for the InfluxDB server. Repositories select the target bucket explicitly for each write and query through bucket-specific `DatabaseProperties` beans.
+The actuator Influx health check pings the server and performs a tiny read query against both configured buckets.
+Latest-value endpoints use `INFLUX_LATEST_RANGE` to define how far back they search.
 
 The local Docker setup uses one explicit token:
 
@@ -61,6 +64,7 @@ Local defaults live in `.env.example`. Copy it to `.env` and adjust local-only v
 | `INFLUX_INTERNAL_BUCKET` | InfluxDB | Initial setup bucket required by the official InfluxDB image. The app does not use it. |
 | `INFLUX_DATA_BUCKET` | InfluxDB, `core-app` | Bucket for measurement data. |
 | `INFLUX_TELEMETRY_BUCKET` | InfluxDB, `core-app` | Bucket for telemetry data. |
+| `INFLUX_LATEST_RANGE` | `core-app` | Flux duration used by latest-value endpoints, defaulting to `72h`. |
 | `INFLUX_ADMIN_USER` | InfluxDB | Local admin username for first-start setup. |
 | `INFLUX_ADMIN_PASSWORD` | InfluxDB | Local admin password for first-start setup. |
 

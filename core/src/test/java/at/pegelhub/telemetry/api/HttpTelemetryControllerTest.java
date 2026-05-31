@@ -41,7 +41,7 @@ class HttpTelemetryControllerTest {
                                   "measurement": "a93fdc3d-b71f-44ce-a826-fe1dc1f1f357",
                                   "stationIPAddressIntern": "172.0.0.0",
                                   "stationIPAddressExtern": "172.0.0.0",
-                                  "timestamp": "2010-10-12T08:50:00",
+                                  "timestamp": "2010-10-12T08:50:00Z",
                                   "cycleTime": 1,
                                   "temperatureWater": -2.0,
                                   "temperatureAir": -2.0,

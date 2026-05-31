@@ -15,8 +15,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.access.AccessDeniedException;
 
-import java.sql.Timestamp;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -60,7 +59,7 @@ final class MeasurementServiceImplTest {
                 .thenReturn(Optional.of(supplierWithConnector(ConnectorStatus.ACTIVE)));
 
         measurementService.writeMeasurements(new WriteMeasurements(List.of(new WriteMeasurement(
-                LocalDateTime.now(),
+                Instant.now(),
                 Map.of("waterLevel", 1.0),
                 Map.of()))));
 
@@ -72,7 +71,7 @@ final class MeasurementServiceImplTest {
         when(SUPPLIER_REPOSITORY.findByConnectorKeycloakClientId("local-connector-example")).thenReturn(Optional.empty());
 
         assertThrows(NotFoundException.class, () -> measurementService.writeMeasurements(new WriteMeasurements(List.of(
-                new WriteMeasurement(LocalDateTime.now(), Map.of("waterLevel", 1.0), Map.of())
+                new WriteMeasurement(Instant.now(), Map.of("waterLevel", 1.0), Map.of())
         ))));
     }
 
@@ -82,7 +81,7 @@ final class MeasurementServiceImplTest {
                 .thenReturn(Optional.of(supplierWithConnector(ConnectorStatus.SUSPENDED)));
 
         assertThrows(AccessDeniedException.class, () -> measurementService.writeMeasurements(new WriteMeasurements(List.of(
-                new WriteMeasurement(LocalDateTime.now(), Map.of("waterLevel", 1.0), Map.of())
+                new WriteMeasurement(Instant.now(), Map.of("waterLevel", 1.0), Map.of())
         ))));
     }
 
@@ -151,10 +150,10 @@ final class MeasurementServiceImplTest {
 
     @Test
     void getSystemTimeDelegatesToRepository() {
-        Timestamp ts = Timestamp.valueOf(LocalDateTime.of(2026, 1, 2, 3, 4, 5));
+        Instant ts = Instant.parse("2026-01-02T03:04:05Z");
         when(MEASUREMENT_REPOSITORY.getSystemTime()).thenReturn(ts);
 
-        Timestamp result = measurementService.getSystemTime();
+        Instant result = measurementService.getSystemTime();
 
         assertEquals(ts, result);
     }

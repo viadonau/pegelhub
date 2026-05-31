@@ -2,14 +2,10 @@ package at.pegelhub.lib.internal.dto;
 
 import at.pegelhub.lib.model.Telemetry;
 
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Map;
-import java.util.UUID;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 public record TelemetryCollectionReceiveDto(Map<String, Map<String, TelemetryReceiveDtoInnerType>> entriesMap) {
     public record TelemetryReceiveDtoInnerType(String stationIPAddressExtern, String stationIPAddressIntern,
@@ -42,12 +38,16 @@ public record TelemetryCollectionReceiveDto(Map<String, Map<String, TelemetryRec
             var tels = measurement.getValue().entrySet().stream().map(entry -> {
                 var tel = entry.getValue().toUnfinishedTelemetry();
                 tel.setMeasurement(measurement.getKey());
-                tel.setTimestamp(LocalDateTime.parse(entry.getKey(), DateTimeFormatter.ISO_ZONED_DATE_TIME));
+                tel.setTimestamp(parseTimestamp(entry.getKey()));
                 return tel;
             }).toList();
             telemetries.addAll(tels);
         }
 
         return telemetries;
+    }
+
+    private static Instant parseTimestamp(String timestamp) {
+        return Instant.parse(timestamp);
     }
 }

@@ -183,7 +183,7 @@ class SecurityConfigurationWebMvcTest {
                 {
                   "measurements": [
                     {
-                      "timestamp": "2026-04-25T10:15:30",
+                      "timestamp": "2026-04-25T10:15:30Z",
                       "fields": {
                         "waterLevel": 10.5,
                         "flow": 20.5

@@ -8,8 +8,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
-import java.sql.Timestamp;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import static at.pegelhub.testsupport.ExampleData.ID;
 import static at.pegelhub.testsupport.ExampleData.MEASUREMENT;
 import static at.pegelhub.testsupport.ExampleData.MEASUREMENTS;
@@ -104,7 +103,7 @@ class HttpMeasurementControllerTest {
 
     @Test
     void getSystemTimeIsPublic() throws Exception {
-        Timestamp ts = Timestamp.valueOf(LocalDateTime.of(2026, 1, 2, 3, 4, 5));
+        Instant ts = Instant.parse("2026-01-02T03:04:05Z");
         when(measurementService.getSystemTime()).thenReturn(ts);
 
         mockMvc.perform(get("/api/v1/measurement/systemTime"))
@@ -137,7 +136,7 @@ class HttpMeasurementControllerTest {
                 {
                   "measurements": [
                     {
-                      "timestamp": "2026-04-25T10:15:30",
+                      "timestamp": "2026-04-25T10:15:30Z",
                       "fields": {
                         "waterLevel": 10.5,
                         "flow": 20.5

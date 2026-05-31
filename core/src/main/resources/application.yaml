@@ -34,6 +34,7 @@ pegelhub:
     token: ${INFLUX_TOKEN}
     data-bucket: ${INFLUX_DATA_BUCKET}
     telemetry-bucket: ${INFLUX_TELEMETRY_BUCKET}
+    latest-range: ${INFLUX_LATEST_RANGE:72h}
 
 management:
   server:

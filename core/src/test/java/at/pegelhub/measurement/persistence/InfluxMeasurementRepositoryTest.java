@@ -1,16 +1,17 @@
 package at.pegelhub.measurement.persistence;
 
 import com.influxdb.client.InfluxDBClient;
-import com.influxdb.exceptions.InfluxException;
 import at.pegelhub.measurement.domain.Measurement;
 import at.pegelhub.shared.influx.DatabaseProperties;
+import at.pegelhub.shared.influx.FluxDuration;
 import at.pegelhub.testsupport.InfluxIntegrationTestBase;
 import at.pegelhub.testsupport.PegelHubInfluxContainer;
+import com.influxdb.exceptions.InfluxException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
@@ -27,6 +28,7 @@ final class InfluxMeasurementRepositoryTest extends InfluxIntegrationTestBase {
             PegelHubInfluxContainer.ORG,
             PegelHubInfluxContainer.DATA_BUCKET,
             PegelHubInfluxContainer.ADMIN_TOKEN);
+    private static final FluxDuration LATEST_RANGE = new FluxDuration("72h");
 
     private InfluxDBClient client;
     private InfluxMeasurementRepository repository;
@@ -34,7 +36,7 @@ final class InfluxMeasurementRepositoryTest extends InfluxIntegrationTestBase {
     @BeforeEach
     void setUp() {
         client = getInfluxDBDataClient();
-        repository = new InfluxMeasurementRepository(client, PROPERTIES);
+        repository = new InfluxMeasurementRepository(client, PROPERTIES, LATEST_RANGE);
     }
 
     @AfterEach
@@ -44,17 +46,18 @@ final class InfluxMeasurementRepositoryTest extends InfluxIntegrationTestBase {
 
     @Test
     void constructorWithNullArgsThrowsNPE() {
-        assertThrows(NullPointerException.class, () -> new InfluxMeasurementRepository(null, PROPERTIES));
-        assertThrows(NullPointerException.class, () -> new InfluxMeasurementRepository(client, null));
+        assertThrows(NullPointerException.class, () -> new InfluxMeasurementRepository(null, PROPERTIES, LATEST_RANGE));
+        assertThrows(NullPointerException.class, () -> new InfluxMeasurementRepository(client, null, LATEST_RANGE));
+        assertThrows(NullPointerException.class, () -> new InfluxMeasurementRepository(client, PROPERTIES, null));
     }
 
     @Test
     void writesReadsRangeAndLatestMeasurementData() {
         UUID id = UUID.randomUUID();
-        LocalDateTime recentTimestamp = LocalDateTime.now(ZoneOffset.UTC)
-                .minusHours(1)
+        Instant recentTimestamp = Instant.now()
+                .minus(1, ChronoUnit.HOURS)
                 .truncatedTo(ChronoUnit.SECONDS);
-        LocalDateTime oldTimestamp = recentTimestamp.minusHours(5);
+        Instant oldTimestamp = recentTimestamp.minus(5, ChronoUnit.HOURS);
         Measurement oldMeasurement = new Measurement(
                 id,
                 oldTimestamp,
@@ -73,11 +76,11 @@ final class InfluxMeasurementRepositoryTest extends InfluxIntegrationTestBase {
     }
 
     @Test
-    void invalidRangeThrowsInfluxException() {
-        assertThrows(InfluxException.class, () -> repository.getByRange(null));
-        assertThrows(InfluxException.class, () -> repository.getByRange(""));
-        assertThrows(InfluxException.class, () -> repository.getByRange("null"));
-        assertThrows(InfluxException.class, () -> repository.getByRange("-3d"));
+    void invalidRangeThrowsIllegalArgumentException() {
+        assertThrows(IllegalArgumentException.class, () -> repository.getByRange(null));
+        assertThrows(IllegalArgumentException.class, () -> repository.getByRange(""));
+        assertThrows(IllegalArgumentException.class, () -> repository.getByRange("null"));
+        assertThrows(IllegalArgumentException.class, () -> repository.getByRange("-3d"));
     }
 
     @Test

@@ -5,8 +5,7 @@ import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import at.pegelhub.connector.ma.jni.RevPiReader;
 
-import java.time.LocalDateTime;
-import java.time.ZoneOffset;
+import java.time.Instant;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -23,7 +22,7 @@ public final class MaReadJob implements Runnable {
      */
     @Override
     public void run() {
-        LocalDateTime nowUtc = LocalDateTime.now(ZoneOffset.UTC);
+        Instant now = Instant.now();
 
         inputRegistry.supplierOffsets().forEach(offset -> {
             try {
@@ -33,7 +32,7 @@ public final class MaReadJob implements Runnable {
                 Map<String, Double> fields = new HashMap<>();
                 fields.put("value", (double) inputValue);
 
-                Measurement measurement = new Measurement(nowUtc, fields, new HashMap<>());
+                Measurement measurement = new Measurement(now, fields, new HashMap<>());
 
                 inputRegistry.getSupplier(offset).ifPresentOrElse(
                         communicator -> {

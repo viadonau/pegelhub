@@ -1,6 +1,6 @@
 package at.pegelhub.lib.model;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.UUID;
 
 /**
@@ -11,7 +11,7 @@ public class Telemetry {
     private String measurement;
     private String stationIPAddressIntern;
     private String stationIPAddressExtern;
-    private LocalDateTime timestamp;
+    private Instant timestamp;
     private Long cycleTime;
     private Double temperatureWater;
     private Double temperatureAir;
@@ -26,7 +26,7 @@ public class Telemetry {
         this.measurement = "";
         this.stationIPAddressIntern = "";
         this.stationIPAddressExtern = "";
-        this.timestamp = LocalDateTime.now();
+        this.timestamp = Instant.now();
     }
 
     public String getMeasurement() {
@@ -53,11 +53,11 @@ public class Telemetry {
         this.stationIPAddressExtern = stationIPAddressExtern;
     }
 
-    public LocalDateTime getTimestamp() {
+    public Instant getTimestamp() {
         return timestamp;
     }
 
-    public void setTimestamp(LocalDateTime timestamp) {
+    public void setTimestamp(Instant timestamp) {
         this.timestamp = timestamp;
     }
 

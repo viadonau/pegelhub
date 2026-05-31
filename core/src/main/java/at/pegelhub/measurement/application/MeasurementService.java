@@ -3,7 +3,7 @@ package at.pegelhub.measurement.application;
 import at.pegelhub.measurement.domain.Measurement;
 import at.pegelhub.measurement.domain.WriteMeasurements;
 
-import java.sql.Timestamp;
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
@@ -61,6 +61,5 @@ public interface MeasurementService {
      */
     Measurement getLastData(UUID uuid);
 
-    Timestamp getSystemTime();
+    Instant getSystemTime();
 }
-

@@ -1,6 +1,6 @@
 package at.pegelhub.lib.model;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -9,7 +9,7 @@ import java.util.Map;
  */
 public class Measurement {
     // should be UUID but core doesn't support it yet
-    private LocalDateTime timestamp;
+    private Instant timestamp;
     private final Map<String, Double> fields;
     private final Map<String, String> infos;
 
@@ -17,22 +17,22 @@ public class Measurement {
         this(new HashMap<>(), new HashMap<>());
     }
     public Measurement(Map<String, Double> fields, Map<String, String> infos) {
-        this.timestamp = LocalDateTime.now();
+        this.timestamp = Instant.now();
         this.fields = fields;
         this.infos = infos;
     }
-    public Measurement(LocalDateTime timestamp, Map<String, Double> fields, Map<String, String> infos) {
+    public Measurement(Instant timestamp, Map<String, Double> fields, Map<String, String> infos) {
         this.timestamp = timestamp;
         this.fields = fields;
         this.infos = infos;
     }
 
 
-    public LocalDateTime getTimestamp() {
+    public Instant getTimestamp() {
         return timestamp;
     }
 
-    public void setTimestamp(LocalDateTime timestamp) {
+    public void setTimestamp(Instant timestamp) {
         this.timestamp = timestamp;
     }
 

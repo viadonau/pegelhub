@@ -6,8 +6,7 @@ import at.pegelhub.lib.PegelHubCommunicator;
 import at.pegelhub.lib.model.Measurement;
 import org.junit.jupiter.api.Test;
 
-import java.time.LocalDateTime;
-import java.time.ZoneOffset;
+import java.time.Instant;
 import java.util.*;
 
 import static org.mockito.Mockito.*;
@@ -17,7 +16,7 @@ class IecWriteJobTest {
     private static Measurement m(double v) {
         Map<String, Double> fields = new HashMap<>();
         fields.put("value", v);
-        return new Measurement(LocalDateTime.now(ZoneOffset.UTC), fields, new HashMap<>());
+        return new Measurement(Instant.now(), fields, new HashMap<>());
     }
 
     @Test

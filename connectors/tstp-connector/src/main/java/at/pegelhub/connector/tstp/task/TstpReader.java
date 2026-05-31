@@ -9,9 +9,6 @@ import org.slf4j.LoggerFactory;
 
 import java.time.Duration;
 import java.time.Instant;
-import java.time.ZoneId;
-import java.time.ZonedDateTime;
-import java.time.temporal.ChronoUnit;
 import java.util.*;
 
 public class TstpReader extends TimerTask {
@@ -62,9 +59,6 @@ public class TstpReader extends TimerTask {
     }
 
     private Instant getLookBackTimestamp() {
-        ZonedDateTime currentTime = ZonedDateTime.now(ZoneId.systemDefault());
-        return currentTime.minus(durationToLookBack)
-                .minus(Duration.of(currentTime.getOffset().getTotalSeconds(), ChronoUnit.SECONDS))
-                .toInstant();
+        return Instant.now().minus(durationToLookBack);
     }
 }

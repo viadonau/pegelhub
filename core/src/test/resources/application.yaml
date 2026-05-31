@@ -17,6 +17,7 @@ pegelhub:
     token: test-token
     data-bucket: data
     telemetry-bucket: telemetry
+    latest-range: 72h
 
 logging:
   level:

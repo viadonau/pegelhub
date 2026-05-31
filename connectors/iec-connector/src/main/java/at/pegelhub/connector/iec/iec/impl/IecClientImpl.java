@@ -10,8 +10,7 @@ import org.openmuc.j60870.ie.*;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.time.Duration;
-import java.time.LocalDateTime;
-import java.time.ZoneOffset;
+import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -163,7 +162,7 @@ public class IecClientImpl implements IecClient {
             Map<String, Double> fields = new HashMap<>();
             fields.put("value", value);
 
-            LocalDateTime currentTime = LocalDateTime.now(ZoneOffset.UTC);
+            Instant currentTime = Instant.now();
             Measurement m = new Measurement(currentTime, fields, new HashMap<>());
 
             measurementQueue.add(new ReceivedMeasurement(ioa, m));

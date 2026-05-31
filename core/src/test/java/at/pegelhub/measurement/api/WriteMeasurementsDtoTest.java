@@ -2,7 +2,7 @@ package at.pegelhub.measurement.api;
 
 import org.junit.jupiter.api.Test;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 
@@ -13,7 +13,7 @@ public class WriteMeasurementsDtoTest {
 
     @Test
     void constructor_WhenEverythingWorks() {
-        assertDoesNotThrow(() -> new WriteMeasurementsDto(List.of(new WriteMeasurementDto(LocalDateTime.now(), Map.of("hello", 1.0), Map.of()))));
+        assertDoesNotThrow(() -> new WriteMeasurementsDto(List.of(new WriteMeasurementDto(Instant.now(), Map.of("hello", 1.0), Map.of()))));
     }
 
     @Test

@@ -17,13 +17,16 @@ import org.apache.hc.core5.http.ClassicHttpResponse;
 import org.apache.hc.core5.http.HttpEntity;
 import org.apache.hc.core5.http.HttpStatus;
 import org.apache.hc.core5.http.io.HttpClientResponseHandler;
+import org.apache.hc.core5.http.io.entity.EntityUtils;
 import org.junit.jupiter.api.*;
 
 import java.io.*;
 import java.net.MalformedURLException;
 import java.net.URL;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -383,6 +386,38 @@ public class HttpPegelHubCommunicatorTest {
                 var meas = new Measurement();
                 phc.sendMeasurements(List.of(meas));
             });
+        }
+
+        @Test
+        public void sendMeasurements_SerializesInstantTimestampAsUtcJson() throws IOException {
+            when(properties.isSupplier()).thenReturn(true);
+            List<String> requestBodies = new ArrayList<>();
+            when(httpClient.execute(any(), any(HttpClientResponseHandler.class))).thenAnswer(a -> {
+                var request = (org.apache.hc.client5.http.classic.methods.HttpUriRequestBase) a.getRawArguments()[0];
+                var responseCallback = (HttpClientResponseHandler<?>) a.getRawArguments()[1];
+                ClassicHttpResponse httpResp = mock(ClassicHttpResponse.class);
+                HttpEntity entity = mock(HttpEntity.class);
+                String body = request.getUri().toString().contains("keycloak.local")
+                        ? "{\"access_token\":\"local-access-token\",\"expires_in\":300}"
+                        : "";
+                if (!request.getUri().toString().contains("keycloak.local")) {
+                    requestBodies.add(EntityUtils.toString(request.getEntity()));
+                }
+                when(entity.getContent()).thenReturn(new ByteArrayInputStream(body.getBytes()));
+                when(httpResp.getEntity()).thenReturn(entity);
+                when(httpResp.getCode()).thenReturn(HttpStatus.SC_OK);
+                return responseCallback.handleResponse(httpResp);
+            });
+
+            var fields = new HashMap<String, Double>();
+            fields.put("value", 1.0);
+            phc.sendMeasurements(List.of(new Measurement(
+                    Instant.parse("2026-04-25T10:15:30Z"),
+                    fields,
+                    new HashMap<>())));
+
+            assertEquals(1, requestBodies.size());
+            assertTrue(requestBodies.getFirst().contains("\"timestamp\":\"2026-04-25T10:15:30Z\""));
         }
 
         @Test

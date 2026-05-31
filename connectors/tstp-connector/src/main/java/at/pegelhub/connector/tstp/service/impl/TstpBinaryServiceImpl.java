@@ -3,7 +3,9 @@ package at.pegelhub.connector.tstp.service.impl;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.nio.ByteBuffer;
+import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -86,13 +88,13 @@ public class TstpBinaryServiceImpl implements TstpBinaryService {
             int bits = ByteBuffer.wrap(Arrays.copyOfRange(toDecode, j + 8, j + 12)).order(java.nio.ByteOrder.BIG_ENDIAN).getInt();
             double ieeeFloat = Float.intBitsToFloat(bits);
             double roundedFloat = BigDecimal.valueOf(ieeeFloat).setScale(2, RoundingMode.HALF_UP).doubleValue();
-            LocalDateTime dateTime = LocalDateTime.of(year, month, day, hours, minutes, seconds);
+            Instant timestamp = LocalDateTime.of(year, month, day, hours, minutes, seconds).toInstant(ZoneOffset.UTC);
 
             HashMap<String, Double> valueMap = new HashMap<>();
             valueMap.put("value", roundedFloat);
 
             // TODO infos necessary??
-            measurementList.add(new Measurement(dateTime, valueMap, new HashMap<>()));
+            measurementList.add(new Measurement(timestamp, valueMap, new HashMap<>()));
         }
         return measurementList;
     }
@@ -104,7 +106,7 @@ public class TstpBinaryServiceImpl implements TstpBinaryService {
 
         for (int i = 0; i < toEncode.size(); i++) {
             Measurement currentMeasurement = toEncode.get(i);
-            LocalDateTime timestamp = currentMeasurement.getTimestamp();
+            LocalDateTime timestamp = LocalDateTime.ofInstant(currentMeasurement.getTimestamp(), ZoneOffset.UTC);
             float measurementValue = (float) currentMeasurement.getFields().get("value").doubleValue();
 
             byte[] dateBytes = new byte[8];

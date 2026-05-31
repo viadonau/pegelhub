@@ -32,8 +32,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 
 import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
-import java.sql.Timestamp;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.List;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
@@ -107,7 +106,7 @@ class AuthPolicyMatrixWebMvcTest {
         when(measurementService.getLatestBySupplier(anyString())).thenReturn(MEASUREMENT);
         when(measurementService.getAverageBySupplierAndRange(anyString(), anyString())).thenReturn(MEASUREMENT);
         when(measurementService.getLastData(any())).thenReturn(MEASUREMENT);
-        when(measurementService.getSystemTime()).thenReturn(Timestamp.valueOf(LocalDateTime.of(2026, 1, 2, 3, 4, 5)));
+        when(measurementService.getSystemTime()).thenReturn(Instant.parse("2026-01-02T03:04:05Z"));
 
         when(telemetryService.saveTelemetry(any())).thenReturn(TELEMETRY);
         when(telemetryService.getByRange(anyString())).thenReturn(TELEMETRIES);
@@ -219,7 +218,7 @@ class AuthPolicyMatrixWebMvcTest {
                 {
                   "measurements": [
                     {
-                      "timestamp": "2026-04-25T10:15:30",
+                      "timestamp": "2026-04-25T10:15:30Z",
                       "fields": {
                         "waterLevel": 10.5,
                         "flow": 20.5
@@ -239,7 +238,7 @@ class AuthPolicyMatrixWebMvcTest {
                   "measurement": "a93fdc3d-b71f-44ce-a826-fe1dc1f1f357",
                   "stationIPAddressIntern": "172.0.0.0",
                   "stationIPAddressExtern": "172.0.0.0",
-                  "timestamp": "2010-10-12T08:50:00",
+                  "timestamp": "2010-10-12T08:50:00Z",
                   "cycleTime": 1,
                   "temperatureWater": -2.0,
                   "temperatureAir": -2.0,

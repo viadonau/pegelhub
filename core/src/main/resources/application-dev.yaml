@@ -31,3 +31,4 @@ pegelhub:
     token: ${INFLUX_TOKEN:local-dev-influx-token-change-me-000000000000000000000000000000}
     data-bucket: ${INFLUX_DATA_BUCKET:pegelhub-data}
     telemetry-bucket: ${INFLUX_TELEMETRY_BUCKET:pegelhub-telemetry}
+    latest-range: ${INFLUX_LATEST_RANGE:72h}

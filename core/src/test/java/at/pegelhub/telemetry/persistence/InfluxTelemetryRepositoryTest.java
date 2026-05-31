@@ -1,11 +1,12 @@
 package at.pegelhub.telemetry.persistence;
 
-import com.influxdb.client.InfluxDBClient;
-import com.influxdb.exceptions.InfluxException;
 import at.pegelhub.shared.influx.DatabaseProperties;
+import at.pegelhub.shared.influx.FluxDuration;
 import at.pegelhub.telemetry.domain.Telemetry;
 import at.pegelhub.testsupport.InfluxIntegrationTestBase;
 import at.pegelhub.testsupport.PegelHubInfluxContainer;
+import com.influxdb.client.InfluxDBClient;
+import com.influxdb.exceptions.InfluxException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -24,6 +25,7 @@ final class InfluxTelemetryRepositoryTest extends InfluxIntegrationTestBase {
             PegelHubInfluxContainer.ORG,
             PegelHubInfluxContainer.TELEMETRY_BUCKET,
             PegelHubInfluxContainer.ADMIN_TOKEN);
+    private static final FluxDuration LATEST_RANGE = new FluxDuration("72h");
 
     private InfluxDBClient client;
     private InfluxTelemetryRepository repository;
@@ -31,7 +33,7 @@ final class InfluxTelemetryRepositoryTest extends InfluxIntegrationTestBase {
     @BeforeEach
     void setUp() {
         client = getInfluxDBTelemetryClient();
-        repository = new InfluxTelemetryRepository(client, PROPERTIES);
+        repository = new InfluxTelemetryRepository(client, PROPERTIES, LATEST_RANGE);
     }
 
     @AfterEach
@@ -41,16 +43,17 @@ final class InfluxTelemetryRepositoryTest extends InfluxIntegrationTestBase {
 
     @Test
     void constructorWithNullArgsThrowsNPE() {
-        assertThrows(NullPointerException.class, () -> new InfluxTelemetryRepository(null, PROPERTIES));
-        assertThrows(NullPointerException.class, () -> new InfluxTelemetryRepository(client, null));
+        assertThrows(NullPointerException.class, () -> new InfluxTelemetryRepository(null, PROPERTIES, LATEST_RANGE));
+        assertThrows(NullPointerException.class, () -> new InfluxTelemetryRepository(client, null, LATEST_RANGE));
+        assertThrows(NullPointerException.class, () -> new InfluxTelemetryRepository(client, PROPERTIES, null));
     }
 
     @Test
     void writesReadsRangeAndLatestTelemetryData() {
         String id = UUID.randomUUID().toString();
         Instant now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
-        String recentTimestamp = now.minus(1, ChronoUnit.HOURS).toString();
-        String oldTimestamp = now.minus(6, ChronoUnit.HOURS).toString();
+        Instant recentTimestamp = now.minus(1, ChronoUnit.HOURS);
+        Instant oldTimestamp = now.minus(6, ChronoUnit.HOURS);
         Telemetry oldTelemetry = telemetry(id, oldTimestamp, 11, 15.1);
         Telemetry recentTelemetry = telemetry(id, recentTimestamp, 12, 16.2);
 
@@ -64,11 +67,11 @@ final class InfluxTelemetryRepositoryTest extends InfluxIntegrationTestBase {
     }
 
     @Test
-    void invalidRangeThrowsInfluxException() {
-        assertThrows(InfluxException.class, () -> repository.getByRange(null));
-        assertThrows(InfluxException.class, () -> repository.getByRange(""));
-        assertThrows(InfluxException.class, () -> repository.getByRange("null"));
-        assertThrows(InfluxException.class, () -> repository.getByRange("-3d"));
+    void invalidRangeThrowsIllegalArgumentException() {
+        assertThrows(IllegalArgumentException.class, () -> repository.getByRange(null));
+        assertThrows(IllegalArgumentException.class, () -> repository.getByRange(""));
+        assertThrows(IllegalArgumentException.class, () -> repository.getByRange("null"));
+        assertThrows(IllegalArgumentException.class, () -> repository.getByRange("-3d"));
     }
 
     @Test
@@ -78,7 +81,7 @@ final class InfluxTelemetryRepositoryTest extends InfluxIntegrationTestBase {
         assertThrows(InfluxException.class, () -> repository.getLastData(id));
     }
 
-    private static Telemetry telemetry(String id, String timestamp, int cycleTime, double temperatureWater) {
+    private static Telemetry telemetry(String id, Instant timestamp, int cycleTime, double temperatureWater) {
         return new Telemetry(
                 id,
                 "10.0.0.1",

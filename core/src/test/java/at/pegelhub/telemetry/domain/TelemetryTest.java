@@ -2,6 +2,8 @@ package at.pegelhub.telemetry.domain;
 
 import org.junit.jupiter.api.Test;
 
+import java.time.Instant;
+
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -10,7 +12,7 @@ final class TelemetryTest {
 
     private static final String MEASUREMENT = "measurement";
     private static final String IP_ADDRESS = "172.0.0.0";
-    private static final String TIMESTAMP = "10.02.2022";
+    private static final Instant TIMESTAMP = Instant.parse("2022-02-10T10:30:00Z");
     private static final int CYCLE_TIME = 1;
     private static final int INVALID_CYCLE_TIME = -2;
     private static final double TEMPERATURE = -2.0;

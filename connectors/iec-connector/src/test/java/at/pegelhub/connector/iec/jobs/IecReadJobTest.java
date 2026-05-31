@@ -6,8 +6,7 @@ import at.pegelhub.lib.PegelHubCommunicator;
 import at.pegelhub.lib.model.Measurement;
 import org.junit.jupiter.api.Test;
 
-import java.time.LocalDateTime;
-import java.time.ZoneOffset;
+import java.time.Instant;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -21,7 +20,7 @@ class IecReadJobTest {
     private static Measurement m(double v) {
         var fields = new HashMap<String, Double>();
         fields.put("value", v);
-        return new Measurement(LocalDateTime.now(ZoneOffset.UTC), fields, new HashMap<>());
+        return new Measurement(Instant.now(), fields, new HashMap<>());
     }
 
     @Test

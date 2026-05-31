@@ -8,7 +8,7 @@ import com.google.gson.reflect.TypeToken;
 import at.pegelhub.lib.PegelHubCommunicator;
 import at.pegelhub.lib.exception.NotFoundException;
 import at.pegelhub.lib.internal.dto.*;
-import at.pegelhub.lib.internal.gsonconverters.LocalDateTimeConverter;
+import at.pegelhub.lib.internal.gsonconverters.InstantConverter;
 import at.pegelhub.lib.model.*;
 import org.apache.hc.client5.http.classic.methods.HttpGet;
 import org.apache.hc.client5.http.classic.methods.HttpPost;
@@ -28,8 +28,7 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
-import java.sql.Timestamp;
-import java.time.*;
+import java.time.Instant;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -67,6 +66,12 @@ public class HttpPegelHubCommunicator implements PegelHubCommunicator {
 
     private static boolean hasText(String value) {
         return value != null && !value.isBlank();
+    }
+
+    private static Gson gsonWithInstantSupport() {
+        return new GsonBuilder()
+                .registerTypeAdapter(Instant.class, new InstantConverter())
+                .create();
     }
 
     private synchronized String fetchAccessToken() {
@@ -213,21 +218,9 @@ public class HttpPegelHubCommunicator implements PegelHubCommunicator {
 
             return client.execute(http, response -> {
                 var json = EntityUtils.toString(response.getEntity());
-                var gson = new GsonBuilder()
-                        .registerTypeAdapter(LocalDateTime.class, new LocalDateTimeConverter())
-                        .create();
+                var gson = gsonWithInstantSupport();
                 var listType = new TypeToken<List<Measurement>>() {
                 };
-                List<Measurement> meass = gson.fromJson(json, listType);
-
-                for (Measurement m : meass) {
-                    if (m.getTimestamp() == null) {
-                        String timeStampWithOffset = m.getInfos().get("TimestampWithOffset");
-                        OffsetDateTime offsetDateTime = OffsetDateTime.parse(timeStampWithOffset);
-                        m.setTimestamp(convertedTime(m.getTimestamp(), offsetDateTime.getOffset()));
-                    }
-                }
-
                 return gson.fromJson(json, listType);
             });
         } catch (Exception e) {
@@ -250,9 +243,7 @@ public class HttpPegelHubCommunicator implements PegelHubCommunicator {
                 }
 
                 var json = EntityUtils.toString(response.getEntity());
-                var gson = new GsonBuilder()
-                        .registerTypeAdapter(LocalDateTime.class, new LocalDateTimeConverter())
-                        .create();
+                var gson = gsonWithInstantSupport();
                 return gson.fromJson(json, Measurement.class);
             }));
         } catch (Exception e) {
@@ -287,11 +278,6 @@ public class HttpPegelHubCommunicator implements PegelHubCommunicator {
                 var mapType = new TypeToken<Map<String, Map<String, TelemetryCollectionReceiveDto.TelemetryReceiveDtoInnerType>>>() {
                 };
 
-                Collection<Telemetry> telCol = new TelemetryCollectionReceiveDto(gson.fromJson(json, mapType)).toTelemetryCollection();
-                List<Telemetry> telList = telCol.stream().toList();
-                for (Telemetry t : telList) {
-                    t.setTimestamp(convertedTime(t.getTimestamp(), null));
-                }
                 return new TelemetryCollectionReceiveDto(gson.fromJson(json, mapType)).toTelemetryCollection();
             });
         } catch (Exception e) {
@@ -318,9 +304,6 @@ public class HttpPegelHubCommunicator implements PegelHubCommunicator {
                 };
                 var telemetry = new TelemetryCollectionReceiveDto(gson.fromJson(json, mapType)).toTelemetryCollection();
                 Optional<Telemetry> returnValue = telemetry.stream().findFirst();
-                if (returnValue.isPresent()) {
-                    returnValue.get().setTimestamp(convertedTime(returnValue.get().getTimestamp(), null));
-                }
                 return returnValue;
             });
         } catch (Exception e) {
@@ -333,23 +316,12 @@ public class HttpPegelHubCommunicator implements PegelHubCommunicator {
         try {
             ensureIsSupplier();
 
-            for (Measurement m : meass) {
-                if (m.getTimestamp() == null) {
-                    String timeStampWithOffset = m.getInfos().get("TimestampWithOffset");
-                    OffsetDateTime offsetDateTime = OffsetDateTime.parse(timeStampWithOffset);
-                    m.setTimestamp(convertedTime(m.getTimestamp(), offsetDateTime.getOffset()));
-                    Thread.sleep(500);
-                }
-            }
-
             final URI uri = baseUrl.toURI().resolve(measurementRoute);
             final var http = new HttpPost(uri);
             authorize(http);
             http.setHeader("Content-Type", "application/json");
             var dto = new MeasurementsSendDto(meass.stream().map(m -> new MeasurementSendDto(m.getTimestamp(), m.getFields(), m.getInfos())).toList());
-            var gson = new GsonBuilder()
-                    .registerTypeAdapter(LocalDateTime.class, new LocalDateTimeConverter())
-                    .create();
+            var gson = gsonWithInstantSupport();
             var json = gson.toJson(dto, MeasurementsSendDto.class);
             var entity = HttpEntities.create(json);
             http.setEntity(entity);
@@ -371,16 +343,12 @@ public class HttpPegelHubCommunicator implements PegelHubCommunicator {
         try {
             ensureIsSupplier();
 
-            tel.setTimestamp(convertedTime(tel.getTimestamp(), null));
-
             final URI uri = baseUrl.toURI().resolve(telemetryRoute);
             final var http = new HttpPost(uri);
             authorize(http);
             http.setHeader("Content-Type", "application/json");
 
-            var gson = new GsonBuilder()
-                    .registerTypeAdapter(LocalDateTime.class, new LocalDateTimeConverter())
-                    .create();
+            var gson = gsonWithInstantSupport();
             var json = gson.toJson(tel, Telemetry.class);
             var entity = HttpEntities.create(json);
             http.setEntity(entity);
@@ -587,16 +555,13 @@ public class HttpPegelHubCommunicator implements PegelHubCommunicator {
 
     }
 
-    public Timestamp getSystemTime() {
+    public Instant getSystemTime() {
         try {
             final URI uri = baseUrl.toURI().resolve(measurementRoute + "/systemTime");
             final var http = new HttpGet(uri);
             return client.execute(http, response -> {
                 var json = EntityUtils.toString(response.getEntity());
-                var gson = new Gson();
-                var mapType = new TypeToken<Timestamp>() {
-                };
-                return gson.fromJson(json, mapType);
+                return gsonWithInstantSupport().fromJson(json, Instant.class);
             });
         } catch (URISyntaxException e) {
             throw new RuntimeException(e);
@@ -640,9 +605,7 @@ public class HttpPegelHubCommunicator implements PegelHubCommunicator {
                 }
 
                 var json = EntityUtils.toString(response.getEntity());
-                var gson = new GsonBuilder()
-                        .registerTypeAdapter(LocalDateTime.class, new LocalDateTimeConverter())
-                        .create();
+                var gson = gsonWithInstantSupport();
                 return gson.fromJson(json, Measurement.class);
             }));
         } catch (Exception e) {
@@ -677,9 +640,7 @@ public class HttpPegelHubCommunicator implements PegelHubCommunicator {
                     throw new NotFoundException("supplier does not exist");
                 }
                 var json = EntityUtils.toString(response.getEntity());
-                var gson = new GsonBuilder()
-                        .registerTypeAdapter(LocalDateTime.class, new LocalDateTimeConverter())
-                        .create();
+                var gson = gsonWithInstantSupport();
                 var listType = new TypeToken<List<Measurement>>() {
                 };
                 return gson.fromJson(json, listType);
@@ -707,53 +668,11 @@ public class HttpPegelHubCommunicator implements PegelHubCommunicator {
                 }
 
                 var json = EntityUtils.toString(response.getEntity());
-                var gson = new GsonBuilder()
-                        .registerTypeAdapter(LocalDateTime.class, new LocalDateTimeConverter())
-                        .create();
+                var gson = gsonWithInstantSupport();
                 return gson.fromJson(json, Measurement.class);
             }));
         } catch (Exception e) {
             throw new RuntimeException(e);
-        }
-    }
-
-    private LocalDateTime convertedTime(LocalDateTime pTime, ZoneOffset offset) {
-        if (offset == null) {
-            if (!properties.isSupplier()) {
-                LOG.debug("Timestamp before converting: " + pTime);
-                ZonedDateTime originalDateTime = pTime.atZone(ZoneId.of("UTC"));
-                ZonedDateTime convertedDateTime = ZonedDateTime.ofInstant(
-                        originalDateTime.toInstant(),
-                        ZoneOffset.systemDefault());
-                LOG.debug("Timestamp after converting: " + convertedDateTime);
-                return convertedDateTime.toLocalDateTime();
-            } else {
-                LOG.debug("Timestamp before converting: " + pTime);
-                ZonedDateTime originalDateTime = pTime.atZone(ZoneId.systemDefault());
-                ZonedDateTime convertedDateTime = ZonedDateTime.ofInstant(
-                        originalDateTime.toInstant(),
-                        ZoneOffset.UTC);
-                LOG.debug("Timestamp after converting: " + convertedDateTime);
-                return convertedDateTime.toLocalDateTime();
-            }
-        } else {
-            if (!properties.isSupplier()) {
-                LOG.debug("Timestamp before converting: " + pTime);
-                ZonedDateTime originalDateTime = pTime.atZone(ZoneId.of("UTC"));
-                ZonedDateTime convertedDateTime = ZonedDateTime.ofInstant(
-                        originalDateTime.toInstant(),
-                        offset);
-                LOG.debug("Timestamp after converting: " + convertedDateTime);
-                return convertedDateTime.toLocalDateTime();
-            } else {
-                LOG.debug("Timestamp before converting: " + pTime);
-                ZonedDateTime originalDateTime = pTime.atZone(offset);
-                ZonedDateTime convertedDateTime = ZonedDateTime.ofInstant(
-                        originalDateTime.toInstant(),
-                        ZoneOffset.UTC);
-                LOG.debug("Timestamp after converting: " + convertedDateTime);
-                return convertedDateTime.toLocalDateTime();
-            }
         }
     }
 }

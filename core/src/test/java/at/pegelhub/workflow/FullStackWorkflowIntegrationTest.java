@@ -27,8 +27,6 @@ import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import java.time.Instant;
-import java.time.LocalDateTime;
-import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Map;
@@ -54,10 +52,10 @@ final class FullStackWorkflowIntegrationTest extends FullStackIntegrationTestBas
                 List.of("measurement:write", "measurement:read"));
         String stationNumber = "supplier-station-" + suffix;
         SupplierDto supplier = postSupplier(operator, connectorToken, stationNumber);
-        LocalDateTime latestTimestamp = LocalDateTime.now(ZoneOffset.UTC).minusMinutes(5).truncatedTo(ChronoUnit.SECONDS);
+        Instant latestTimestamp = Instant.now().minus(5, ChronoUnit.MINUTES).truncatedTo(ChronoUnit.SECONDS);
         WriteMeasurementsDto measurements = new WriteMeasurementsDto(List.of(
                 new WriteMeasurementDto(
-                        latestTimestamp.minusHours(4),
+                        latestTimestamp.minus(4, ChronoUnit.HOURS),
                         Map.of("waterLevel", 10.5, "flow", 20.5),
                         Map.of("quality", "old")),
                 new WriteMeasurementDto(
@@ -130,7 +128,7 @@ final class FullStackWorkflowIntegrationTest extends FullStackIntegrationTestBas
                 "taker-client-" + suffix,
                 List.of("telemetry:write", "telemetry:read"));
         TakerDto taker = postTaker(operator, connectorToken, "taker-station-" + suffix);
-        String timestamp = Instant.now().minus(5, ChronoUnit.MINUTES).truncatedTo(ChronoUnit.SECONDS).toString();
+        Instant timestamp = Instant.now().minus(5, ChronoUnit.MINUTES).truncatedTo(ChronoUnit.SECONDS);
         Telemetry telemetry = new Telemetry(
                 taker.id().toString(),
                 "10.0.0.5",
@@ -242,7 +240,7 @@ final class FullStackWorkflowIntegrationTest extends FullStackIntegrationTestBas
     private static void assertMeasurement(
             Measurement measurement,
             UUID expectedId,
-            LocalDateTime expectedTimestamp,
+            Instant expectedTimestamp,
             String expectedQuality,
             double expectedWaterLevel,
             double expectedFlow) {

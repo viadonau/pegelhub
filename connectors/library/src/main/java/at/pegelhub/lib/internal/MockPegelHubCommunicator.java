@@ -5,8 +5,7 @@ import at.pegelhub.lib.model.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.sql.Timestamp;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.ThreadLocalRandom;
 
@@ -21,7 +20,7 @@ public class MockPegelHubCommunicator implements PegelHubCommunicator {
     private Measurement createRandomMeasurement(String stationNumber) {
         // Generate a random timestamp within the last 30 days
         long randomSeconds = ThreadLocalRandom.current().nextLong(30L * 24 * 60 * 60);
-        LocalDateTime timestamp = LocalDateTime.now().minusSeconds(randomSeconds);
+        Instant timestamp = Instant.now().minusSeconds(randomSeconds);
 
         // Generate random measurement values within a plausible range
         Map<String, Double> fields = new HashMap<>();
@@ -93,7 +92,7 @@ public class MockPegelHubCommunicator implements PegelHubCommunicator {
     }
 
     @Override
-    public Timestamp getSystemTime() {
+    public Instant getSystemTime() {
         LOG.debug("STUB: getSystemTime called.");
         return null;
     }

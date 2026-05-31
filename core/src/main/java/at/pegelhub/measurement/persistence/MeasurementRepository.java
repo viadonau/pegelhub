@@ -3,7 +3,7 @@ package at.pegelhub.measurement.persistence;
 
 import at.pegelhub.measurement.domain.Measurement;
 
-import java.sql.Timestamp;
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
@@ -53,5 +53,5 @@ public interface MeasurementRepository {
      */
     Measurement getAverageByIdAndRange(UUID id, String range);
 
-    Timestamp getSystemTime();
+    Instant getSystemTime();
 }

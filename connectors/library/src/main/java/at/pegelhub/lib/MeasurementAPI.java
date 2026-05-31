@@ -2,8 +2,7 @@ package at.pegelhub.lib;
 
 import at.pegelhub.lib.model.Measurement;
 
-import java.net.URI;
-import java.sql.Timestamp;
+import java.time.Instant;
 import java.util.*;
 
 /**
@@ -62,7 +61,7 @@ public interface MeasurementAPI {
      */
     void sendMeasurements(List<Measurement> meass);
 
-    Timestamp getSystemTime();
+    Instant getSystemTime();
 
     Optional<Measurement> getTimestampOfLastMeasurementByUUID(UUID uuid);
 }

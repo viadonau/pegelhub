@@ -11,8 +11,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.*;
-import java.time.*;
-import java.time.temporal.ChronoUnit;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -122,10 +122,7 @@ public class FtpTask extends TimerTask {
     }
 
     private Instant getLookBackTimestamp() {
-        ZonedDateTime currentTime = ZonedDateTime.now(ZoneId.systemDefault());
-        return currentTime.minus(durationToLookBack)
-                .minus(Duration.of(currentTime.getOffset().getTotalSeconds(), ChronoUnit.SECONDS))
-                .toInstant();
+        return Instant.now().minus(durationToLookBack);
     }
 
     private Stream<Entry> parseFile(FTPFile file) {
@@ -181,7 +178,7 @@ public class FtpTask extends TimerTask {
             }
 
             var m = new Measurement();
-            m.setTimestamp(value.getKey().toInstant().atZone(ZoneId.systemDefault()).toLocalDateTime());
+            m.setTimestamp(value.getKey().toInstant());
             m.getFields().put("value", Double.parseDouble(value.getValue()));
             // isn't resetting at the end of each day, still needs to be reworked
 //            m.getFields().put("ID", (double) influxID.getIDValue());

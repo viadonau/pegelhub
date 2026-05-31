@@ -9,7 +9,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import org.springframework.web.bind.annotation.*;
 
-import java.sql.Timestamp;
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
@@ -95,7 +95,7 @@ public class HttpMeasurementController {
     }
 
     @GetMapping("/systemTime")
-    public Timestamp getSystemtime() {
+    public Instant getSystemtime() {
         return measurementService.getSystemTime();
     }
 

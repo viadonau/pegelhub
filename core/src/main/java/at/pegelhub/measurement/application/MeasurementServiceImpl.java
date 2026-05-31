@@ -12,7 +12,7 @@ import at.pegelhub.supplier.persistence.SupplierRepository;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 
-import java.sql.Timestamp;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -109,7 +109,7 @@ public final class MeasurementServiceImpl implements MeasurementService {
         return measurementRepository.getLastData(uuid);
     }
 
-    public Timestamp getSystemTime()
+    public Instant getSystemTime()
     {
         return measurementRepository.getSystemTime();
     }
