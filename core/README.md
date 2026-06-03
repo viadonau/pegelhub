@@ -86,7 +86,7 @@ Add this hosts entry before running Core from the host:
 127.0.0.1 pegelhub-keycloak.test
 ```
 
-Override `KEYCLOAK_ISSUER_URI`, `INFLUX_TOKEN`, `INFLUX_ORG`, `INFLUX_DATA_BUCKET`, and `INFLUX_TELEMETRY_BUCKET` when you use different local values.
+Override `KEYCLOAK_ISSUER_URI`, `PEGELHUB_FRONTEND_URL`, `INFLUX_TOKEN`, `INFLUX_ORG`, `INFLUX_DATA_BUCKET`, and `INFLUX_TELEMETRY_BUCKET` when you use different local values.
 
 ## Packaging
 

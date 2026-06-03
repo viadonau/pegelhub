@@ -31,6 +31,35 @@ The compose stack adds:
 - `keycloak-db`, a dedicated local Postgres database for Keycloak;
 - `keycloak`, exposed at `http://pegelhub-keycloak.test:8082`;
 - realm import from `core/docker/keycloak/import/pegelhub-realm.json`.
+- a bind-mounted local login theme from `core/docker/keycloak/themes` to `/opt/keycloak/themes`.
+
+`PEGELHUB_FRONTEND_URL` defines the frontend origin used by the imported Keycloak
+client for redirects, web origins, and the login error page's **Back to
+Application** link. Set it independently in each environment. Realm import runs
+only when the realm does not already exist, so changing this value does not
+update an existing realm.
+
+## Iterate On The Login Theme
+
+The local Keycloak container runs in `start-dev` mode with theme caches disabled:
+
+```text
+--spi-theme-static-max-age=-1
+--spi-theme-cache-themes=false
+--spi-theme-cache-templates=false
+```
+
+Edit the theme files under:
+
+```text
+core/docker/keycloak/themes/pegelhub/login
+```
+
+Then reload the browser tab that shows the Keycloak login page. You should not need to rebuild the image or restart Keycloak for ordinary CSS and FreeMarker template changes. If you change Docker Compose itself, recreate the Keycloak service once so the new command flags are applied:
+
+```sh
+docker compose -f core/docker-compose.yaml up -d --force-recreate keycloak
+```
 
 Realm import runs only when the realm does not already exist. If you need to recreate the local realm, stop and remove only the Keycloak database volume after explicitly accepting local identity data loss.
 

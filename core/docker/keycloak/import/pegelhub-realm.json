@@ -2,6 +2,7 @@
   "realm": "pegelhub",
   "enabled": true,
   "displayName": "PegelHub Local",
+  "loginTheme": "pegelhub",
   "accessTokenLifespan": 600,
   "ssoSessionIdleTimeout": 1800,
   "ssoSessionMaxLifespan": 3600,
@@ -108,15 +109,13 @@
       "serviceAccountsEnabled": false,
       "authorizationServicesEnabled": false,
       "fullScopeAllowed": true,
+      "rootUrl": "${PEGELHUB_FRONTEND_URL}",
+      "baseUrl": "/",
       "redirectUris": [
-        "http://localhost:4200/*",
-        "http://127.0.0.1:4200/*",
-        "http://pegelhub-frontend.test/*"
+        "${PEGELHUB_FRONTEND_URL}/*"
       ],
       "webOrigins": [
-        "http://localhost:4200",
-        "http://127.0.0.1:4200",
-        "http://pegelhub-frontend.test"
+        "${PEGELHUB_FRONTEND_URL}"
       ],
       "attributes": {
         "pkce.code.challenge.method": "S256"
