@@ -1,0 +1,170 @@
+name: ${COMPOSE_PROJECT_NAME:-pegelhub-staging}
+
+volumes:
+  caddy-config:
+  caddy-data:
+  metastore-data:
+  datastore-data:
+  keycloak-data:
+
+networks:
+  pegelhub-staging:
+    driver: bridge
+
+services:
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    environment:
+      PEGELHUB_FRONTEND_HOSTNAME: ${PEGELHUB_FRONTEND_HOSTNAME}
+      PEGELHUB_API_HOSTNAME: ${PEGELHUB_API_HOSTNAME}
+      PEGELHUB_KEYCLOAK_HOSTNAME: ${PEGELHUB_KEYCLOAK_HOSTNAME}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-config:/config
+      - caddy-data:/data
+    depends_on:
+      - keycloak
+    networks:
+      pegelhub-staging:
+        aliases:
+          - ${PEGELHUB_FRONTEND_HOSTNAME}
+          - ${PEGELHUB_API_HOSTNAME}
+          - ${PEGELHUB_KEYCLOAK_HOSTNAME}
+
+  frontend:
+    profiles:
+      - frontend
+    image: ${PEGELHUB_FRONTEND_IMAGE}
+    pull_policy: always
+    restart: unless-stopped
+    networks:
+      - pegelhub-staging
+
+  meta-db:
+    image: postgres:14-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_PASSWORD: ${META_PASSWORD}
+      POSTGRES_DB: ${META_DB}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d ${META_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+    volumes:
+      - metastore-data:/var/lib/postgresql/data
+    networks:
+      - pegelhub-staging
+
+  data-db:
+    image: influxdb:2.2-alpine
+    restart: unless-stopped
+    environment:
+      DOCKER_INFLUXDB_INIT_MODE: setup
+      DOCKER_INFLUXDB_INIT_USERNAME: ${INFLUX_ADMIN_USER}
+      DOCKER_INFLUXDB_INIT_PASSWORD: ${INFLUX_ADMIN_PASSWORD}
+      DOCKER_INFLUXDB_INIT_ORG: ${INFLUX_ORG}
+      DOCKER_INFLUXDB_INIT_BUCKET: ${INFLUX_INTERNAL_BUCKET}
+      DOCKER_INFLUXDB_INIT_ADMIN_TOKEN: ${INFLUX_TOKEN}
+      INFLUX_DATA_BUCKET: ${INFLUX_DATA_BUCKET}
+      INFLUX_TELEMETRY_BUCKET: ${INFLUX_TELEMETRY_BUCKET}
+    healthcheck:
+      test: ["CMD", "influx", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 15s
+    volumes:
+      - datastore-data:/var/lib/influxdb2
+      - ../../core/docker/influxdb/init:/docker-entrypoint-initdb.d:ro
+    networks:
+      - pegelhub-staging
+
+  keycloak-db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: keycloak
+      POSTGRES_PASSWORD: ${KEYCLOAK_DB_PASSWORD}
+      POSTGRES_DB: ${KEYCLOAK_DB}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U keycloak -d ${KEYCLOAK_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+    volumes:
+      - keycloak-data:/var/lib/postgresql/data
+    networks:
+      - pegelhub-staging
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.2
+    restart: unless-stopped
+    command: ["start", "--import-realm"]
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN_USER}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://keycloak-db:5432/${KEYCLOAK_DB}
+      KC_DB_USERNAME: keycloak
+      KC_DB_PASSWORD: ${KEYCLOAK_DB_PASSWORD}
+      KC_HEALTH_ENABLED: "true"
+      KC_HOSTNAME: https://${PEGELHUB_KEYCLOAK_HOSTNAME}
+      KC_HOSTNAME_STRICT: "true"
+      KC_HTTP_ENABLED: "true"
+      KC_HTTP_PORT: 8080
+      KC_PROXY_HEADERS: xforwarded
+    volumes:
+      - ../../core/docker/keycloak/import:/opt/keycloak/data/import:ro
+    depends_on:
+      keycloak-db:
+        condition: service_healthy
+    networks:
+      - pegelhub-staging
+
+  core-app:
+    image: ghcr.io/viadonau/pegelhub-core:${PEGELHUB_IMAGE_TAG:?Set PEGELHUB_IMAGE_TAG}
+    pull_policy: always
+    restart: unless-stopped
+    environment:
+      JAVA_TOOL_OPTIONS: ${CORE_JAVA_TOOL_OPTIONS:-}
+      DB_URI: meta-db:5432/${META_DB}
+      DB_USER: postgres
+      DB_PASSWORD: ${META_PASSWORD}
+      INFLUX_URL: http://data-db:8086/
+      INFLUX_ORG: ${INFLUX_ORG}
+      INFLUX_TOKEN: ${INFLUX_TOKEN}
+      INFLUX_DATA_BUCKET: ${INFLUX_DATA_BUCKET}
+      INFLUX_TELEMETRY_BUCKET: ${INFLUX_TELEMETRY_BUCKET}
+      KEYCLOAK_ISSUER_URI: https://${PEGELHUB_KEYCLOAK_HOSTNAME}/realms/pegelhub
+    depends_on:
+      meta-db:
+        condition: service_healthy
+      data-db:
+        condition: service_healthy
+      keycloak:
+        condition: service_started
+    networks:
+      - pegelhub-staging
+
+  ftp-connector:
+    image: ghcr.io/viadonau/pegelhub-ftp-connector:${PEGELHUB_IMAGE_TAG:?Set PEGELHUB_IMAGE_TAG}
+    pull_policy: always
+    restart: unless-stopped
+    environment:
+      JAVA_TOOL_OPTIONS: ${FTP_JAVA_TOOL_OPTIONS:-}
+    volumes:
+      - ${FTP_CONFIG_DIR:-./ftp-config}:/app/config:ro
+    depends_on:
+      core-app:
+        condition: service_started
+      keycloak:
+        condition: service_started
+    networks:
+      - pegelhub-staging
