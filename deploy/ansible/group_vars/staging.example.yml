@@ -1,0 +1,30 @@
+---
+# Copy this file to group_vars/staging.yml and adjust it for the staging host.
+
+pegelhub_staging_deploy_user: pegelhub-deploy
+pegelhub_staging_deploy_group: pegelhub-deploy
+
+pegelhub_staging_repo_url: https://github.com/viadonau/pegelhub.git
+pegelhub_staging_repo_dir: /opt/pegelhub
+
+pegelhub_staging_repo_version: main
+
+# Optional: public key matching GitHub Environment secret STAGING_SSH_PRIVATE_KEY.
+# Leave empty to manage authorized_keys manually.
+pegelhub_staging_deploy_authorized_key: ""
+
+pegelhub_staging_packages:
+  - ca-certificates
+  - curl
+  - git
+  - gnupg
+  - python3
+  - python3-apt
+  - python3-debian
+
+pegelhub_staging_docker_packages:
+  - docker-ce
+  - docker-ce-cli
+  - containerd.io
+  - docker-buildx-plugin
+  - docker-compose-plugin

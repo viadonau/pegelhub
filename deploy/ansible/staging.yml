@@ -1,0 +1,202 @@
+---
+- name: Prepare PegelHub staging host
+  hosts: staging
+  become: true
+  gather_facts: true
+
+  pre_tasks:
+    - name: Assert supported operating system family
+      ansible.builtin.assert:
+        that:
+          - ansible_facts["os_family"] == "Debian"
+          - ansible_facts["distribution"] in ["Debian", "Ubuntu"]
+        fail_msg: "This bootstrap currently supports Debian and Ubuntu staging hosts."
+
+    - name: Resolve Docker apt architecture
+      ansible.builtin.set_fact:
+        docker_apt_arch: "{{ docker_arch_map.get(ansible_facts['architecture'], ansible_facts['architecture']) }}"
+      vars:
+        docker_arch_map:
+          aarch64: arm64
+          armv7l: armhf
+          x86_64: amd64
+
+    - name: Validate required staging variables
+      ansible.builtin.assert:
+        that:
+          - pegelhub_staging_deploy_user | length > 0
+          - pegelhub_staging_deploy_group | length > 0
+          - pegelhub_staging_repo_url | length > 0
+          - pegelhub_staging_repo_dir | length > 0
+          - pegelhub_staging_repo_version | length > 0
+
+  tasks:
+    - name: Install base packages
+      ansible.builtin.apt:
+        name: "{{ pegelhub_staging_packages }}"
+        state: present
+        update_cache: true
+        cache_valid_time: 3600
+
+    - name: Create deploy group
+      ansible.builtin.group:
+        name: "{{ pegelhub_staging_deploy_group }}"
+        state: present
+
+    - name: Create Docker group before assigning membership
+      ansible.builtin.group:
+        name: docker
+        state: present
+
+    - name: Create deploy user
+      ansible.builtin.user:
+        name: "{{ pegelhub_staging_deploy_user }}"
+        group: "{{ pegelhub_staging_deploy_group }}"
+        groups: docker
+        append: true
+        shell: /bin/bash
+        create_home: true
+        state: present
+      register: deploy_user_result
+
+    - name: Create deploy user SSH directory
+      ansible.builtin.file:
+        path: "{{ deploy_user_result.home | default('/home/' ~ pegelhub_staging_deploy_user) }}/.ssh"
+        state: directory
+        owner: "{{ pegelhub_staging_deploy_user }}"
+        group: "{{ pegelhub_staging_deploy_group }}"
+        mode: "0700"
+      when: pegelhub_staging_deploy_authorized_key | length > 0
+
+    - name: Install deploy SSH public key
+      ansible.builtin.lineinfile:
+        path: "{{ deploy_user_result.home | default('/home/' ~ pegelhub_staging_deploy_user) }}/.ssh/authorized_keys"
+        line: "{{ pegelhub_staging_deploy_authorized_key }}"
+        create: true
+        owner: "{{ pegelhub_staging_deploy_user }}"
+        group: "{{ pegelhub_staging_deploy_group }}"
+        mode: "0600"
+      when: pegelhub_staging_deploy_authorized_key | length > 0
+
+    - name: Create apt keyring directory
+      ansible.builtin.file:
+        path: /etc/apt/keyrings
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+
+    - name: Install Docker apt signing key
+      ansible.builtin.get_url:
+        url: "https://download.docker.com/linux/{{ ansible_facts['distribution'] | lower }}/gpg"
+        dest: /etc/apt/keyrings/docker.asc
+        owner: root
+        group: root
+        mode: "0644"
+
+    - name: Configure Docker apt repository
+      ansible.builtin.deb822_repository:
+        name: docker
+        types:
+          - deb
+        uris:
+          - "https://download.docker.com/linux/{{ ansible_facts['distribution'] | lower }}"
+        suites:
+          - "{{ ansible_facts['distribution_release'] }}"
+        components:
+          - stable
+        architectures:
+          - "{{ docker_apt_arch }}"
+        signed_by: /etc/apt/keyrings/docker.asc
+        state: present
+
+    - name: Refresh apt cache after Docker repository change
+      ansible.builtin.apt:
+        update_cache: true
+
+    - name: Install Docker packages
+      ansible.builtin.apt:
+        name: "{{ pegelhub_staging_docker_packages }}"
+        state: present
+        update_cache: true
+
+    - name: Ensure Docker socket is enabled and running
+      ansible.builtin.service:
+        name: docker.socket
+        state: started
+        enabled: true
+
+    - name: Ensure Docker service is enabled and running
+      ansible.builtin.service:
+        name: docker
+        state: started
+        enabled: true
+
+    - name: Create repository directory
+      ansible.builtin.file:
+        path: "{{ pegelhub_staging_repo_dir }}"
+        state: directory
+        owner: "{{ pegelhub_staging_deploy_user }}"
+        group: "{{ pegelhub_staging_deploy_group }}"
+        mode: "0755"
+
+    - name: Clone or update PegelHub repository
+      ansible.builtin.git:
+        repo: "{{ pegelhub_staging_repo_url }}"
+        dest: "{{ pegelhub_staging_repo_dir }}"
+        version: "{{ pegelhub_staging_repo_version }}"
+        update: true
+      become: true
+      become_user: "{{ pegelhub_staging_deploy_user }}"
+
+    - name: Create staging runtime directories
+      ansible.builtin.file:
+        path: "{{ pegelhub_staging_repo_dir }}/{{ item.path }}"
+        state: directory
+        owner: "{{ pegelhub_staging_deploy_user }}"
+        group: "{{ pegelhub_staging_deploy_group }}"
+        mode: "{{ item.mode }}"
+      loop:
+        - path: deploy/staging/ftp-config
+          mode: "0700"
+        - path: deploy/staging/state
+          mode: "0750"
+
+    - name: Create staging env file from example when missing
+      ansible.builtin.copy:
+        src: "{{ pegelhub_staging_repo_dir }}/deploy/staging/.env.example"
+        dest: "{{ pegelhub_staging_repo_dir }}/deploy/staging/.env"
+        remote_src: true
+        force: false
+        owner: "{{ pegelhub_staging_deploy_user }}"
+        group: "{{ pegelhub_staging_deploy_group }}"
+        mode: "0600"
+
+    - name: Sync missing staging env template keys
+      ansible.builtin.command:
+        cmd: "{{ pegelhub_staging_repo_dir }}/deploy/staging/scripts/sync-env-template.sh"
+        chdir: "{{ pegelhub_staging_repo_dir }}/deploy/staging"
+      become: true
+      become_user: "{{ pegelhub_staging_deploy_user }}"
+      register: sync_env_template_result
+      changed_when: "'added ' in sync_env_template_result.stdout or 'created ' in sync_env_template_result.stdout"
+
+    - name: Initialize server-local staging secrets
+      ansible.builtin.command:
+        cmd: "{{ pegelhub_staging_repo_dir }}/deploy/staging/scripts/init-env-secrets.sh"
+        chdir: "{{ pegelhub_staging_repo_dir }}/deploy/staging"
+      become: true
+      become_user: "{{ pegelhub_staging_deploy_user }}"
+      register: init_env_secrets_result
+      changed_when: "'initialized ' in init_env_secrets_result.stdout"
+
+    - name: Show next manual steps
+      ansible.builtin.debug:
+        msg:
+          - "Staging host bootstrap complete."
+          - "Review {{ pegelhub_staging_repo_dir }}/deploy/staging/.env and fill hostnames, URLs, and image values."
+          - "Missing keys from .env.example are appended without overwriting existing values."
+          - "Server-local database and Keycloak secrets are initialized automatically when placeholders are present."
+          - "Create connector.properties and pegelhub.yaml under {{ pegelhub_staging_repo_dir }}/deploy/staging/ftp-config."
+          - "Log in to GHCR on the staging host if packages are private."
+          - "Run {{ pegelhub_staging_repo_dir }}/deploy/staging/scripts/deploy.sh --check sha-<short-sha> as {{ pegelhub_staging_deploy_user }}."

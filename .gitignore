@@ -7,6 +7,13 @@ target/
 core/.env
 core/.env.local
 core/.datastoreconfig/
+deploy/staging/.env
+deploy/staging/ftp-config/
+deploy/staging/state/
+deploy/staging/*.rendered.yaml
+deploy/ansible/group_vars/staging.yml
+deploy/ansible/inventory/staging.ini
+connectors/ftp-connector/examples/data/login*.txt
 connectors/ma-connector/src/main/native/generated
 connectors/ma-connector/src/main/native/cmake-*
 

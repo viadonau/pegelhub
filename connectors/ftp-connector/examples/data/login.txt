@@ -1,5 +1,0 @@
-private static final String HOST = "77.244.244.162";
-private static final String USER = "web47ftppegelsend";
-private static final String PASS = "noHeshEkJernaw7";
-private static final String FTP_URL = "ftp://%s:%s@%s/%s;type=d";
-

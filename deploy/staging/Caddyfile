@@ -1,0 +1,17 @@
+https://{$PEGELHUB_FRONTEND_HOSTNAME} {
+	encode zstd gzip
+	reverse_proxy frontend:80
+	handle_errors {
+		respond "PegelHub frontend is not deployed in this stack yet." 503
+	}
+}
+
+https://{$PEGELHUB_API_HOSTNAME} {
+	encode zstd gzip
+	reverse_proxy core-app:8080
+}
+
+https://{$PEGELHUB_KEYCLOAK_HOSTNAME} {
+	encode zstd gzip
+	reverse_proxy keycloak:8080
+}
