@@ -70,18 +70,7 @@ public class InfluxMeasurementRepository implements MeasurementRepository {
     }
 
     /**
-     * @param range in which the returned values reside.
-     * @return the values inside the specified range
-     */
-    @Override
-    public List<Measurement> getByRange(String range) {
-        String query = FluxQueries.range(properties, new FluxDuration(range));
-
-        return toMeasurements(ConnectionHelper.queryData(this.client, properties, query));
-    }
-
-    /**
-     * @param id of the measurement.
+     * @param timeSeriesId of the TimeSeries.
      * @param range in which the returned values reside.
      * @return the value with the specified ID in the specified range
      */

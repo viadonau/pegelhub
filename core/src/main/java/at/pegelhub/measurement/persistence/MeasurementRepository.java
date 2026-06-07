@@ -20,14 +20,6 @@ public interface MeasurementRepository {
     void storeMeasurements(List<Measurement> measurements);
 
     /**
-     * Queries a measurement from the repository.
-     *
-     * @param range in which the returned values reside.
-     * @return the measurements in that range.
-     */
-    List<Measurement> getByRange(String range);
-
-    /**
      * Queries measurements from the repository.
      *
      * @param timeSeriesId of the TimeSeries.

@@ -10,8 +10,6 @@ import at.pegelhub.lib.PegelHubCommunicator;
 import at.pegelhub.lib.PegelHubCommunicatorFactory;
 import at.pegelhub.lib.internal.ApplicationProperties;
 import at.pegelhub.lib.internal.ApplicationPropertiesFactory;
-import at.pegelhub.lib.internal.dto.SupplierSendDto;
-import at.pegelhub.lib.internal.dto.TakerSendDto;
 
 import java.net.MalformedURLException;
 import java.net.URI;
@@ -31,19 +29,15 @@ public class TstpTaskFactory {
                 HttpClient.newHttpClient(),
                 new TstpXmlServiceImpl(new TstpBinaryServiceImpl()));
 
-        if (properties.isSupplier()) {
-            SupplierSendDto supplier = properties.getSupplier();
-            int stationId = supplier.stationId();
+        int stationId = properties.getStationId();
 
+        if (properties.isSupplier()) {
             return new TstpReader(phCommunicator,
                     tstpCommunicator,
                     conOpt.readDelay(),
                     conOpt.timeSeriesId(),
                     new TstpCatalogServiceImpl(tstpCommunicator, stationId));
         } else {
-            TakerSendDto taker = properties.getTaker();
-            int stationId = taker.stationId();
-
             return new TstpWriter(phCommunicator,
                     tstpCommunicator,
                     conOpt.readDelay().toSeconds()+"s",

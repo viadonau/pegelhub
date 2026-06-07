@@ -58,9 +58,6 @@ public final class MeasurementServiceImpl implements MeasurementService {
     public void writeMeasurements(WriteMeasurements writeMeasurements) {
         Connector connector = connectorRepository.findByKeycloakClientId(currentActor.get().clientId())
                 .orElseThrow(() -> new NotFoundException("Connector not registered"));
-        if (connector.getId() == null) {
-            throw new NotFoundException("Connector not registered");
-        }
         if (connector.getStatus() != ConnectorStatus.ACTIVE) {
             throw new AccessDeniedException("Connector is not active");
         }
@@ -86,15 +83,6 @@ public final class MeasurementServiceImpl implements MeasurementService {
         measurementRepository.storeMeasurements(measurements);
     }
 
-    /**
-     * @param range in which the returned values reside.
-     * @return all saved measurements in the specified range
-     */
-    @Override
-    public List<Measurement> getByRange(String range) {
-        return measurementRepository.getByRange(range);
-    }
-
     @Override
     public List<Measurement> getByTimeSeriesAndRange(TimeSeriesId timeSeriesId, String range) {
         timeSeriesService.get(timeSeriesId);
@@ -111,16 +99,6 @@ public final class MeasurementServiceImpl implements MeasurementService {
     public Measurement getAverageByTimeSeriesAndRange(TimeSeriesId timeSeriesId, String range) {
         timeSeriesService.get(timeSeriesId);
         return measurementRepository.getAverageByTimeSeriesIdAndRange(timeSeriesId, range);
-    }
-
-    /**
-     *
-      * @param uuid of the measurement.
-     * @return gets the last {@link Measurement} with the specified {@link UUID}
-     */
-    @Override
-    public Measurement getLastData(UUID uuid) {
-        return getLatestByTimeSeries(new TimeSeriesId(uuid));
     }
 
     public Instant getSystemTime()

@@ -81,10 +81,11 @@ final class InfluxMeasurementRepositoryTest extends InfluxIntegrationTestBase {
 
     @Test
     void invalidRangeThrowsIllegalArgumentException() {
-        assertThrows(IllegalArgumentException.class, () -> repository.getByRange(null));
-        assertThrows(IllegalArgumentException.class, () -> repository.getByRange(""));
-        assertThrows(IllegalArgumentException.class, () -> repository.getByRange("null"));
-        assertThrows(IllegalArgumentException.class, () -> repository.getByRange("-3d"));
+        TimeSeriesId anyTimeSeries = new TimeSeriesId(UUID.randomUUID());
+        assertThrows(IllegalArgumentException.class, () -> repository.getByTimeSeriesIdAndRange(anyTimeSeries, null));
+        assertThrows(IllegalArgumentException.class, () -> repository.getByTimeSeriesIdAndRange(anyTimeSeries, ""));
+        assertThrows(IllegalArgumentException.class, () -> repository.getByTimeSeriesIdAndRange(anyTimeSeries, "null"));
+        assertThrows(IllegalArgumentException.class, () -> repository.getByTimeSeriesIdAndRange(anyTimeSeries, "-3d"));
     }
 
     @Test

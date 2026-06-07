@@ -36,11 +36,8 @@ public class HttpPegelHubCommunicator implements PegelHubCommunicator {
 
     private static final Logger LOG = LoggerFactory.getLogger(HttpPegelHubCommunicator.class);
     private final String measurementRoute;
-    private final String telemetryRoute;
     private final String contactRoute;
     private final String connectorRoute;
-    private final String takerRoute;
-    private final String supplierRoute;
     private final URL baseUrl;
     private final CloseableHttpClient client;
     private final ApplicationProperties properties;
@@ -105,98 +102,14 @@ public class HttpPegelHubCommunicator implements PegelHubCommunicator {
         }
     }
 
-    private void ensureIsTaker() {
-        if (properties.isSupplier()) throw new IllegalArgumentException();
-    }
-
-    private void ensureIsSupplier() {
-        if (!properties.isSupplier()) throw new IllegalArgumentException();
-    }
-
-    private void sendMetaData() {
-        if (properties.isSupplier()) {
-            sendSupplierData();
-        } else {
-            sendTakerData();
-        }
-    }
-
-    private void sendSupplierData() {
-        try {
-            final URI uri = baseUrl.toURI().resolve(supplierRoute);
-            final var http = new HttpPost(uri);
-            authorize(http);
-            http.setHeader("Content-Type", "application/json");
-
-            LOG.debug("Summertime: " + properties.getSupplier().isSummertime());
-
-
-            var gson = new Gson();
-            var json = gson.toJson(properties.getSupplier(), SupplierSendDto.class);
-            var entity = HttpEntities.create(json);
-            http.setEntity(entity);
-
-            boolean result = client.<Boolean>execute(http, response -> {
-                EntityUtils.consume(response.getEntity());
-                return response.getCode() == HttpStatus.SC_OK;
-            });
-            if (!result) {
-                throw new RuntimeException("Invalid request");
-            }
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    private void sendTakerData() {
-        try {
-            final URI uri = baseUrl.toURI().resolve(takerRoute);
-            final var http = new HttpPost(uri);
-            authorize(http);
-            http.setHeader("Content-Type", "application/json");
-
-            var gson = new Gson();
-            var json = gson.toJson(properties.getTaker(), TakerSendDto.class);
-            var entity = HttpEntities.create(json);
-            http.setEntity(entity);
-
-            boolean result = client.<Boolean>execute(http, response -> {
-                EntityUtils.consume(response.getEntity());
-                LOG.info(response.getCode() + "");
-                return response.getCode() == HttpStatus.SC_OK;
-            });
-            if (!result) {
-                throw new RuntimeException("Invalid request");
-            }
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-    }
-
     public HttpPegelHubCommunicator(CloseableHttpClient client, URL baseUrl, ApplicationProperties properties) {
-        this(client, baseUrl, properties,
-                "api/v1/measurement",
-                "api/v1/telemetry",
-                "api/v1/contact",
-                "api/v1/connector",
-                "api/v1/taker",
-                "api/v1/supplier");
-    }
-
-    public HttpPegelHubCommunicator(CloseableHttpClient client, URL baseUrl, ApplicationProperties properties, String measurementRoute, String telemetryRoute, String contactRoute, String connectorRoute, String takerRoute, String supplierRoute) {
         this.client = client;
         this.baseUrl = baseUrl;
-        this.measurementRoute = measurementRoute;
-        this.telemetryRoute = telemetryRoute;
-        this.contactRoute = contactRoute;
-        this.connectorRoute = connectorRoute;
-        this.takerRoute = takerRoute;
-        this.supplierRoute = supplierRoute;
+        this.measurementRoute = "api/v1/measurement";
+        this.contactRoute = "api/v1/contact";
+        this.connectorRoute = "api/v1/connector";
         this.properties = properties;
         requireOAuthConfiguration();
-        if (properties.isSupplierDataToSend()) {
-            sendMetaData();
-        }
     }
 
     private void requireOAuthConfiguration() {
@@ -208,57 +121,8 @@ public class HttpPegelHubCommunicator implements PegelHubCommunicator {
     }
 
     @Override
-    public Collection<Measurement> getMeasurements(String timespan) {
-        try {
-            ensureIsTaker();
-
-            final URI uri = baseUrl.toURI().resolve(measurementRoute + "/" + timespan);
-            final var http = new HttpGet(uri);
-            authorize(http);
-
-            return client.execute(http, response -> {
-                var json = EntityUtils.toString(response.getEntity());
-                var gson = gsonWithInstantSupport();
-                var listType = new TypeToken<List<MeasurementReceiveDto>>() {
-                };
-                List<MeasurementReceiveDto> measurements = gson.fromJson(json, listType);
-                return measurements.stream()
-                        .map(MeasurementReceiveDto::toMeasurement)
-                        .toList();
-            });
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    @Override
-    public Optional<Measurement> getMeasurementByUUID(UUID uuid) {
-        try {
-            ensureIsTaker();
-
-            final URI uri = baseUrl.toURI().resolve(measurementRoute + "/last/" + uuid);
-            final var http = new HttpGet(uri);
-            authorize(http);
-
-            return Optional.ofNullable(client.execute(http, response -> {
-                if (response.getCode() != HttpStatus.SC_OK) {
-                    throw new RuntimeException("Invalid status: " + response.getCode());
-                }
-
-                var json = EntityUtils.toString(response.getEntity());
-                var gson = gsonWithInstantSupport();
-                return gson.fromJson(json, MeasurementReceiveDto.class).toMeasurement();
-            }));
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    @Override
     public Collection<Measurement> getMeasurementsOfTimeSeries(UUID timeSeriesId, String timespan) {
         try {
-            ensureIsTaker();
-
             final URI uri = baseUrl.toURI().resolve(measurementRoute + "/time-series/" + timeSeriesId + "/" + timespan);
             final var http = new HttpGet(uri);
             authorize(http);
@@ -286,8 +150,6 @@ public class HttpPegelHubCommunicator implements PegelHubCommunicator {
     @Override
     public Optional<Measurement> getLatestMeasurementOfTimeSeries(UUID timeSeriesId) {
         try {
-            ensureIsTaker();
-
             final URI uri = baseUrl.toURI().resolve(measurementRoute + "/time-series/" + timeSeriesId + "/latest");
             final var http = new HttpGet(uri);
             authorize(http);
@@ -307,58 +169,8 @@ public class HttpPegelHubCommunicator implements PegelHubCommunicator {
     }
 
     @Override
-    public Collection<Telemetry> getTelemetry(String timespan) {
-        try {
-            ensureIsTaker();
-            final URI uri = baseUrl.toURI().resolve(telemetryRoute + "/" + timespan);
-            final var http = new HttpGet(uri);
-            authorize(http);
-            LOG.debug("Executing GET request to URI: {}", uri);
-
-            return client.execute(http, response -> {
-                var json = EntityUtils.toString(response.getEntity());
-                var gson = new Gson();
-                var mapType = new TypeToken<Map<String, Map<String, TelemetryCollectionReceiveDto.TelemetryReceiveDtoInnerType>>>() {
-                };
-
-                return new TelemetryCollectionReceiveDto(gson.fromJson(json, mapType)).toTelemetryCollection();
-            });
-        } catch (Exception e) {
-            LOG.error("Exception during telemetry fetch: {}", e.getMessage(), e);
-            throw new RuntimeException(e);
-        }
-    }
-
-    @Override
-    public Optional<Telemetry> getTelemetryByUUID(UUID uuid) {
-        try {
-            ensureIsTaker();
-            final URI uri = baseUrl.toURI().resolve(telemetryRoute + "/last/" + uuid);
-            final var http = new HttpGet(uri);
-            authorize(http);
-
-            return client.execute(http, response -> {
-                if (response.getCode() != HttpStatus.SC_OK) {
-                    throw new RuntimeException("Invalid status: " + response.getCode());
-                }
-                var json = EntityUtils.toString(response.getEntity());
-                var gson = new Gson();
-                var mapType = new TypeToken<Map<String, Map<String, TelemetryCollectionReceiveDto.TelemetryReceiveDtoInnerType>>>() {
-                };
-                var telemetry = new TelemetryCollectionReceiveDto(gson.fromJson(json, mapType)).toTelemetryCollection();
-                Optional<Telemetry> returnValue = telemetry.stream().findFirst();
-                return returnValue;
-            });
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    @Override
     public void sendMeasurements(List<Measurement> meass) {
         try {
-            ensureIsSupplier();
-
             final URI uri = baseUrl.toURI().resolve(measurementRoute);
             final var http = new HttpPost(uri);
             authorize(http);
@@ -395,37 +207,8 @@ public class HttpPegelHubCommunicator implements PegelHubCommunicator {
     }
 
     @Override
-    public void sendTelemetry(Telemetry tel) {
-        try {
-            ensureIsSupplier();
-
-            final URI uri = baseUrl.toURI().resolve(telemetryRoute);
-            final var http = new HttpPost(uri);
-            authorize(http);
-            http.setHeader("Content-Type", "application/json");
-
-            var gson = gsonWithInstantSupport();
-            var json = gson.toJson(tel, Telemetry.class);
-            var entity = HttpEntities.create(json);
-            http.setEntity(entity);
-
-            boolean result = client.<Boolean>execute(http, response -> {
-                EntityUtils.consume(response.getEntity());
-                return response.getCode() == HttpStatus.SC_OK;
-            });
-            if (!result) {
-                throw new RuntimeException("Invalid request");
-            }
-        } catch (Exception e) {
-            LOG.debug(e.getMessage());
-            throw new RuntimeException(e);
-        }
-    }
-
-    @Override
     public Collection<Connector> getConnectors() {
         try {
-
             final URI uri = baseUrl.toURI().resolve(connectorRoute);
             final var http = new HttpGet(uri);
             authorize(http);
@@ -446,7 +229,6 @@ public class HttpPegelHubCommunicator implements PegelHubCommunicator {
     @Override
     public Optional<Connector> getConnectorByUUID(UUID uuid) {
         try {
-
             final URI uri = baseUrl.toURI().resolve(connectorRoute + "/" + uuid);
             final var http = new HttpGet(uri);
             authorize(http);
@@ -473,7 +255,6 @@ public class HttpPegelHubCommunicator implements PegelHubCommunicator {
     @Override
     public void sendConnector(Connector connector) {
         try {
-
             final URI uri = baseUrl.toURI().resolve(connectorRoute);
             final var http = new HttpPost(uri);
             authorize(http);
@@ -572,45 +353,6 @@ public class HttpPegelHubCommunicator implements PegelHubCommunicator {
         client.close();
     }
 
-    @Override
-    public Collection<Supplier> getSuppliers() {
-        try {
-            final URI uri = baseUrl.toURI().resolve(supplierRoute);
-            final var http = new HttpGet(uri);
-            authorize(http);
-            return client.execute(http, response -> {
-                var json = EntityUtils.toString(response.getEntity());
-                var gson = new Gson();
-                var mapType = new TypeToken<Collection<Supplier>>() {
-                };
-                return gson.fromJson(json, mapType);
-            });
-        } catch (Exception e) {
-            LOG.error(e + "");
-            throw new RuntimeException(e);
-        }
-    }
-
-    @Override
-    public Optional<Supplier> getSupplierbyUUID(UUID uuid) {
-        Collection<Supplier> suppliers = getSuppliers();
-
-        if (uuid != null) {
-            String id = uuid.toString();
-            Set<Supplier> supplierSet = suppliers.stream().filter(s -> id.equals(s.getId())).collect(Collectors.toSet());
-
-            if (supplierSet.size() == 1) {
-                return supplierSet.stream().findFirst();
-            } else {
-                throw new NotFoundException("No supplier found");
-            }
-        } else {
-            throw new IllegalArgumentException("UUID cannot be null!");
-        }
-
-
-    }
-
     public Instant getSystemTime() {
         try {
             final URI uri = baseUrl.toURI().resolve(measurementRoute + "/systemTime");
@@ -618,27 +360,6 @@ public class HttpPegelHubCommunicator implements PegelHubCommunicator {
             return client.execute(http, response -> {
                 var json = EntityUtils.toString(response.getEntity());
                 return gsonWithInstantSupport().fromJson(json, Instant.class);
-            });
-        } catch (URISyntaxException e) {
-            throw new RuntimeException(e);
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    @Override
-    public UUID getConnectorID(UUID uuid) {
-        try {
-            final URI uri = baseUrl.toURI().resolve(supplierRoute + "/connectorID/" + uuid.toString());
-            LOG.debug(uri + "");
-            final var http = new HttpGet(uri);
-            authorize(http);
-            return client.execute(http, response -> {
-                var json = EntityUtils.toString(response.getEntity());
-                var gson = new Gson();
-                var mapType = new TypeToken<UUID>() {
-                };
-                return gson.fromJson(json, mapType);
             });
         } catch (URISyntaxException e) {
             throw new RuntimeException(e);

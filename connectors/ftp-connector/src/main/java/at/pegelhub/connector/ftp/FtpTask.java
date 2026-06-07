@@ -170,7 +170,7 @@ public class FtpTask extends TimerTask {
                 return null;
             }
 
-            if(Integer.parseInt(e.getInfos().get("location")) != (properties.getSupplier().stationId())){
+            if(Integer.parseInt(e.getInfos().get("location")) != properties.getStationId()){
                 return null;
             }
 

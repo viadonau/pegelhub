@@ -2,16 +2,9 @@ package at.pegelhub.lib.test;
 
 import at.pegelhub.lib.internal.ApplicationProperties;
 import at.pegelhub.lib.internal.HttpPegelHubCommunicator;
-import at.pegelhub.lib.internal.dto.CompleteConnectorSendDto;
-import at.pegelhub.lib.internal.dto.ContactSendDto;
-import at.pegelhub.lib.internal.dto.StationManufacturerSendDto;
-import at.pegelhub.lib.internal.dto.SupplierSendDto;
-import at.pegelhub.lib.internal.dto.TakerSendDto;
-import at.pegelhub.lib.internal.dto.TakerServiceManufacturerSendDto;
 import at.pegelhub.lib.model.Connector;
 import at.pegelhub.lib.model.Contact;
 import at.pegelhub.lib.model.Measurement;
-import at.pegelhub.lib.model.Telemetry;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.core5.http.ClassicHttpResponse;
 import org.apache.hc.core5.http.HttpEntity;
@@ -87,7 +80,7 @@ public class HttpPegelHubCommunicatorTest {
             return responseCallback.handleResponse(httpResp);
         });
 
-        phc.getMeasurements("72h");
+        phc.getMeasurementsOfTimeSeries(uuid, "72h");
 
         assertEquals("http://keycloak.local/token", requestUris.get(0));
         assertEquals("Bearer local-access-token", authorizationHeaders.get(1));
@@ -113,13 +106,13 @@ public class HttpPegelHubCommunicatorTest {
             return responseCallback.handleResponse(httpResp);
         });
 
-        phc.getMeasurements("72h");
+        phc.getMeasurementsOfTimeSeries(uuid, "72h");
 
         assertFalse(requestUris.getFirst().contains("apiKey"));
     }
 
     @Test
-    public void constructorSkipsStartupMetadataWhenDisabled() throws MalformedURLException {
+    public void constructorSkipsStartupMetadata() throws MalformedURLException {
         var startupProperties = mock(ApplicationProperties.class);
         when(startupProperties.getTokenUrl()).thenReturn("http://keycloak.local/token");
         when(startupProperties.getClientId()).thenReturn("local-connector-example");
@@ -127,42 +120,7 @@ public class HttpPegelHubCommunicatorTest {
 
         new HttpPegelHubCommunicator(httpClient, baseUrl(), startupProperties);
 
-        verify(startupProperties).isSupplierDataToSend();
         verifyNoMoreInteractions(httpClient);
-    }
-
-    @Test
-    public void constructorSendsSupplierMetadataWhenEnabledForSupplier() throws IOException {
-        var startupProperties = mock(ApplicationProperties.class);
-        when(startupProperties.getTokenUrl()).thenReturn("http://keycloak.local/token");
-        when(startupProperties.getClientId()).thenReturn("local-connector-example");
-        when(startupProperties.getClientSecret()).thenReturn("secret");
-        when(startupProperties.isSupplierDataToSend()).thenReturn(true);
-        when(startupProperties.isSupplier()).thenReturn(true);
-        when(startupProperties.getSupplier()).thenReturn(supplier());
-        List<String> requestUris = new ArrayList<>();
-        mockSuccessfulMetadataResponse(requestUris);
-
-        new HttpPegelHubCommunicator(httpClient, baseUrl(), startupProperties);
-
-        assertEquals(List.of("http://keycloak.local/token", "http://localhost:1111/api/v1/supplier"), requestUris);
-    }
-
-    @Test
-    public void constructorSendsTakerMetadataWhenEnabledForTaker() throws IOException {
-        var startupProperties = mock(ApplicationProperties.class);
-        when(startupProperties.getTokenUrl()).thenReturn("http://keycloak.local/token");
-        when(startupProperties.getClientId()).thenReturn("local-connector-example");
-        when(startupProperties.getClientSecret()).thenReturn("secret");
-        when(startupProperties.isSupplierDataToSend()).thenReturn(true);
-        when(startupProperties.isSupplier()).thenReturn(false);
-        when(startupProperties.getTaker()).thenReturn(taker());
-        List<String> requestUris = new ArrayList<>();
-        mockSuccessfulMetadataResponse(requestUris);
-
-        new HttpPegelHubCommunicator(httpClient, baseUrl(), startupProperties);
-
-        assertEquals(List.of("http://keycloak.local/token", "http://localhost:1111/api/v1/taker"), requestUris);
     }
 
     @Test
@@ -316,46 +274,6 @@ public class HttpPegelHubCommunicatorTest {
     @DisplayName("Measurement API Tests")
     class MeasurementAPITest {
         @Test
-        public void getMeasurements_FilledCollectionWhenData() throws IOException {
-            mockSuccessfulResponse(getResource("MeasurementsFilledResponse.json"));
-            when(properties.isSupplier()).thenReturn(false);
-
-            Collection<Measurement> measurements = phc.getMeasurements("");
-
-            assertFalse(measurements.isEmpty());
-            assertEquals(UUID.fromString("395c0232-d110-40fd-bd7f-2bb4a0f2009d"), measurements.iterator().next().getTimeSeriesId());
-        }
-
-        @Test
-        public void getMeasurements_EmptyCollectionWhenNoData() throws IOException {
-            mockSuccessfulResponse(getResource("EmptyArray.json"));
-            when(properties.isSupplier()).thenReturn(false);
-
-            Collection<Measurement> measurements = phc.getMeasurements("");
-
-            assertTrue(measurements.isEmpty());
-        }
-
-        @Test
-        public void getMeasurements_ThrowsWhenNotTaker() throws IOException {
-            mockSuccessfulResponse(getResource("EmptyObject.json"));
-            when(properties.isSupplier()).thenReturn(true);
-
-            assertThrows(Exception.class, () -> phc.getMeasurements(""));
-        }
-
-        @Test
-        public void getMeasurementByUUID_ValueWhenData() throws IOException {
-            mockSuccessfulResponse(getResource("Measurement.json"));
-            when(properties.isSupplier()).thenReturn(false);
-
-            Optional<Measurement> measurement = phc.getMeasurementByUUID(uuid);
-
-            assertTrue(measurement.isPresent());
-            assertEquals(UUID.fromString("395c0232-d110-40fd-bd7f-2bb4a0f2009d"), measurement.orElseThrow().getTimeSeriesId());
-        }
-
-        @Test
         public void getMeasurementsOfTimeSeries_UsesTimeSeriesRoute() throws IOException {
             when(properties.isSupplier()).thenReturn(false);
             List<String> requestUris = new ArrayList<>();
@@ -414,30 +332,6 @@ public class HttpPegelHubCommunicatorTest {
         }
 
         @Test
-        public void getMeasurementByUUID_EmptyWhenNoData() throws IOException {
-            when(properties.isSupplier()).thenReturn(false);
-
-            Optional<Measurement> measurement = phc.getMeasurementByUUID(uuid);
-
-            assertTrue(measurement.isEmpty());
-        }
-
-        @Test
-        public void getMeasurementByUUID_ThrowsWhenConnectionError() {
-            when(properties.isSupplier()).thenReturn(false);
-            assertThrows(Exception.class, () -> {
-                mockFailedResponse(HttpStatus.SC_REQUEST_TIMEOUT);
-                phc.getMeasurementByUUID(uuid);
-            });
-        }
-
-        @Test
-        public void getMeasurementByUUID_ThrowsWhenNotTaker() {
-            when(properties.isSupplier()).thenReturn(true);
-            assertThrows(RuntimeException.class, () -> phc.getMeasurementByUUID(uuid));
-        }
-
-        @Test
         public void sendMeasurements_DoesNotThrowWhenHandlingOKResponse() throws IOException {
             mockSuccessfulResponse(getResource("EmptyResponse.json"));
             when(properties.isSupplier()).thenReturn(true);
@@ -492,17 +386,6 @@ public class HttpPegelHubCommunicatorTest {
         }
 
         @Test
-        public void sendMeasurements_ThrowsWhenNotSupplier() throws IOException {
-            mockFailedResponse(400);
-            when(properties.isSupplier()).thenReturn(false);
-
-            assertThrows(RuntimeException.class, () -> {
-                var meas = measurement();
-                phc.sendMeasurements(List.of(meas));
-            });
-        }
-
-        @Test
         public void sendMeasurements_ThrowsWhenMeasurementIsMissingTimeSeriesId() {
             when(properties.isSupplier()).thenReturn(true);
 
@@ -514,108 +397,6 @@ public class HttpPegelHubCommunicatorTest {
                     UUID.fromString("395c0232-d110-40fd-bd7f-2bb4a0f2009d"),
                     Instant.parse("2026-04-25T10:15:30Z"),
                     1.0);
-        }
-    }
-
-    @Nested
-    @DisplayName("Telemetry API Tests")
-    class TelemetryAPITest {
-        @Test
-        public void getTelemetry_FilledCollectionWhenData() throws IOException {
-            mockSuccessfulResponse(getResource("TelemetryFilledResponse.json"));
-            when(properties.isSupplier()).thenReturn(false);
-
-            Collection<Telemetry> telemetries = phc.getTelemetry("");
-
-            assertFalse(telemetries.isEmpty());
-        }
-
-        @Test
-        public void getTelemetry_EmptyCollectionWhenNoData() throws IOException {
-            mockSuccessfulResponse(getResource("EmptyObject.json"));
-            when(properties.isSupplier()).thenReturn(false);
-
-            Collection<Telemetry> telemetries = phc.getTelemetry("7d");
-
-            assertTrue(telemetries.isEmpty());
-        }
-
-        @Test
-        public void getTelemetry_ThrowsWhenNotTaker() throws IOException {
-            mockSuccessfulResponse(getResource("EmptyObject.json"));
-            when(properties.isSupplier()).thenReturn(true);
-
-            assertThrows(Exception.class, () -> {
-                mockFailedResponse(HttpStatus.SC_REQUEST_TIMEOUT);
-                phc.getTelemetry("7d");
-            });
-        }
-
-        @Test
-        public void getTelemetryByUUID_ValueWhenData() throws IOException {
-            mockSuccessfulResponse(getResource("Telemetry.json"));
-            when(properties.isSupplier()).thenReturn(false);
-
-            Optional<Telemetry> telemetry = phc.getTelemetryByUUID(uuid);
-
-            assertTrue(telemetry.isPresent());
-        }
-
-        @Test
-        public void getTelemetryByUUID_EmptyWhenNoData() throws IOException {
-            mockSuccessfulResponse(getResource("EmptyObject.json"));
-            when(properties.isSupplier()).thenReturn(false);
-
-            Optional<Telemetry> telemetry = phc.getTelemetryByUUID(uuid);
-
-            assertTrue(telemetry.isEmpty());
-        }
-
-        @Test
-        public void getTelemetryByUUID_ThrowsWhenConnectionError() {
-            when(properties.isSupplier()).thenReturn(false);
-            assertThrows(Exception.class, () -> {
-                mockFailedResponse(HttpStatus.SC_REQUEST_TIMEOUT);
-                phc.getTelemetryByUUID(uuid);
-            });
-        }
-
-        @Test
-        public void getTelemetryByUUID_ThrowsWhenNotTaker() {
-            when(properties.isSupplier()).thenReturn(true);
-            assertThrows(RuntimeException.class, () -> phc.getTelemetryByUUID(uuid));
-        }
-
-        @Test
-        public void sendTelemetry_DoesNotThrowWhenHandlingOKResponse() throws IOException {
-            mockSuccessfulResponse(getResource("EmptyResponse.json"));
-            when(properties.isSupplier()).thenReturn(true);
-
-            assertDoesNotThrow(() -> {
-                var tel = new Telemetry();
-                phc.sendTelemetry(tel);
-            });
-        }
-
-        @Test
-        public void sendTelemetry_ThrowsWhenHandlingBadResponse() throws IOException {
-            mockFailedResponse(400);
-            when(properties.isSupplier()).thenReturn(true);
-
-            assertThrows(Exception.class, () -> {
-                var tel = new Telemetry();
-                phc.sendTelemetry(tel);
-            });
-        }
-
-        @Test
-        public void sendTelemetry_ThrowsWhenNotSupplier() {
-            when(properties.isSupplier()).thenReturn(false);
-
-            assertThrows(RuntimeException.class, () -> {
-                var tel = new Telemetry();
-                phc.sendTelemetry(tel);
-            });
         }
     }
 
@@ -645,87 +426,6 @@ public class HttpPegelHubCommunicatorTest {
             when(httpResp.getCode()).thenReturn(code);
             return responseCallback.handleResponse(httpResp);
         });
-    }
-
-    private void mockSuccessfulMetadataResponse(List<String> requestUris) throws IOException {
-        when(httpClient.execute(any(), any(HttpClientResponseHandler.class))).thenAnswer(a -> {
-            var request = (org.apache.hc.client5.http.classic.methods.HttpUriRequestBase) a.getRawArguments()[0];
-            requestUris.add(request.getUri().toString());
-            var responseCallback = (HttpClientResponseHandler<?>) a.getRawArguments()[1];
-            ClassicHttpResponse httpResp = mock(ClassicHttpResponse.class);
-            HttpEntity entity = mock(HttpEntity.class);
-            String body = request.getUri().toString().contains("keycloak.local")
-                    ? "{\"access_token\":\"local-access-token\",\"expires_in\":300}"
-                    : "";
-            when(entity.getContent()).thenReturn(new ByteArrayInputStream(body.getBytes()));
-            when(httpResp.getEntity()).thenReturn(entity);
-            when(httpResp.getCode()).thenReturn(HttpStatus.SC_OK);
-            return responseCallback.handleResponse(httpResp);
-        });
-    }
-
-    private SupplierSendDto supplier() {
-        return new SupplierSendDto(
-                "station-1",
-                1,
-                "Station 1",
-                "Danube",
-                'A',
-                new StationManufacturerSendDto("manufacturer", "type", "1.0", "remark"),
-                connector(),
-                10,
-                1.0,
-                "usage",
-                "normal",
-                1.0,
-                "place",
-                1.0,
-                "left",
-                1.0,
-                1.0,
-                1.0,
-                1.0,
-                1.0,
-                1.0,
-                1,
-                1.0,
-                1,
-                1.0,
-                1,
-                1.0,
-                1.0,
-                1.0,
-                1.0,
-                "0P",
-                false,
-                false);
-    }
-
-    private TakerSendDto taker() {
-        return new TakerSendDto(
-                "taker-1",
-                1,
-                new TakerServiceManufacturerSendDto("manufacturer", "system", "1.0", "remark"),
-                connector(),
-                10);
-    }
-
-    private CompleteConnectorSendDto connector() {
-        return new CompleteConnectorSendDto(
-                "connector-1",
-                contact(),
-                "type",
-                "1.0",
-                "1.0",
-                "definition",
-                contact(),
-                contact(),
-                contact(),
-                "");
-    }
-
-    private ContactSendDto contact() {
-        return new ContactSendDto("", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "");
     }
 
     private URL baseUrl() throws MalformedURLException {

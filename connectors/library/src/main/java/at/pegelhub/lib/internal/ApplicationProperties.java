@@ -1,14 +1,11 @@
 package at.pegelhub.lib.internal;
 
-import at.pegelhub.lib.internal.dto.SupplierSendDto;
-import at.pegelhub.lib.internal.dto.TakerSendDto;
-
 import java.util.Map;
 
 public interface ApplicationProperties {
     boolean isSupplier();
-    SupplierSendDto getSupplier();
-    TakerSendDto getTaker();
+
+    int getStationId();
 
     String getTokenUrl();
 
@@ -17,10 +14,6 @@ public interface ApplicationProperties {
     String getClientSecret();
 
     boolean isRefreshNecessary();
-
-    boolean isSupplierDataToSend();
-
-    void setUtcIsUsed(Boolean utcIsUsed);
 
     Map<String, Object> getProperties();
 

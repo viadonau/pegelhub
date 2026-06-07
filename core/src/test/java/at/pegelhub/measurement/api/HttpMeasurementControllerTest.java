@@ -57,15 +57,6 @@ class HttpMeasurementControllerTest {
     }
 
     @Test
-    void findMeasurementInRangeReturnsJsonArray() throws Exception {
-        when(measurementService.getByRange("72h")).thenReturn(MEASUREMENTS);
-
-        mockMvc.perform(get("/api/v1/measurement/{range}", "72h"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].timeSeriesId.value").value(MEASUREMENT.timeSeriesId().value().toString()));
-    }
-
-    @Test
     void findMeasurementForTimeSeriesInRangeReturnsJsonArray() throws Exception {
         when(measurementService.getByTimeSeriesAndRange(TIME_SERIES_ID, "72h")).thenReturn(MEASUREMENTS);
 
@@ -88,15 +79,6 @@ class HttpMeasurementControllerTest {
         when(measurementService.getAverageByTimeSeriesAndRange(TIME_SERIES_ID, "72h")).thenReturn(MEASUREMENT);
 
         mockMvc.perform(get("/api/v1/measurement/time-series/{timeSeriesId}/average/{range}", TIME_SERIES_ID.value(), "72h"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.timeSeriesId.value").value(MEASUREMENT.timeSeriesId().value().toString()));
-    }
-
-    @Test
-    void findMeasurementByIdReturnsJson() throws Exception {
-        when(measurementService.getLastData(ID)).thenReturn(MEASUREMENT);
-
-        mockMvc.perform(get("/api/v1/measurement/last/{uuid}", ID))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.timeSeriesId.value").value(MEASUREMENT.timeSeriesId().value().toString()));
     }

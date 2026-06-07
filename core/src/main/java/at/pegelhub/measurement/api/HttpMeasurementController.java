@@ -36,18 +36,8 @@ public class HttpMeasurementController {
             @ApiResponse(responseCode = "201", description = "The given measurement was successfully created.")
     })
     @PostMapping
-    public synchronized void writeMeasurementData(@Valid @RequestBody WriteMeasurementsDto measurements) {
+    public void writeMeasurementData(@Valid @RequestBody WriteMeasurementsDto measurements) {
         measurementService.writeMeasurements(convert(measurements));
-    }
-
-    @Operation(summary = "Gets all Measurement Data in Range")
-    @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Returns all Measurement Data in Range",
-                    content = {@Content(mediaType = "application/json", schema = @Schema(implementation = Measurement.class))})
-    })
-    @GetMapping("/{range}")
-    public List<Measurement> findMeasurementInRange(@PathVariable String range) {
-        return measurementService.getByRange(range);
     }
 
     @Operation(summary = "Gets all Measurement Data for TimeSeries In Range")
@@ -83,16 +73,6 @@ public class HttpMeasurementController {
             @PathVariable UUID timeSeriesId,
             @PathVariable String range) {
         return measurementService.getAverageByTimeSeriesAndRange(new TimeSeriesId(timeSeriesId), range);
-    }
-
-    @Operation(summary = "Gets last Measurement entry for ID")
-    @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Returns the measurement entry",
-                    content = {@Content(mediaType = "application/json", schema = @Schema(implementation = Measurement.class))})
-    })
-    @GetMapping("/last/{uuid}")
-    public Measurement findMeasurementById(@PathVariable UUID uuid) {
-        return measurementService.getLastData(uuid);
     }
 
     @GetMapping("/systemTime")

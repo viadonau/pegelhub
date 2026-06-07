@@ -1,5 +1,9 @@
 package at.pegelhub.workflow;
 
+import at.pegelhub.access.api.CreateAccessGrantRequest;
+import at.pegelhub.access.domain.AccessPermission;
+import at.pegelhub.access.domain.AccessResourceType;
+import at.pegelhub.connector.api.ConnectorDto;
 import at.pegelhub.connector.api.CreateConnectorDto;
 import at.pegelhub.connector.api.RegisterConnectorRequest;
 import at.pegelhub.connector.domain.ConnectorStatus;
@@ -7,14 +11,13 @@ import at.pegelhub.contact.api.CreateContactDto;
 import at.pegelhub.measurement.api.WriteMeasurementDto;
 import at.pegelhub.measurement.api.WriteMeasurementsDto;
 import at.pegelhub.measurement.domain.Measurement;
-import at.pegelhub.supplier.api.CreateStationManufacturerDto;
-import at.pegelhub.supplier.api.CreateSupplierDto;
-import at.pegelhub.supplier.api.SupplierDto;
-import at.pegelhub.taker.api.CreateTakerDto;
-import at.pegelhub.taker.api.CreateTakerServiceManufacturerDto;
-import at.pegelhub.taker.api.TakerDto;
-import at.pegelhub.telemetry.domain.Telemetry;
+import at.pegelhub.station.api.CreateStationRequest;
+import at.pegelhub.station.api.StationResponse;
+import at.pegelhub.stationowner.api.CreateStationOwnerRequest;
+import at.pegelhub.stationowner.api.StationOwnerResponse;
 import at.pegelhub.testsupport.FullStackIntegrationTestBase;
+import at.pegelhub.timeseries.api.CreateTimeSeriesRequest;
+import at.pegelhub.timeseries.api.TimeSeriesResponse;
 import org.junit.jupiter.api.Test;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpEntity;
@@ -43,25 +46,28 @@ final class FullStackWorkflowIntegrationTest extends FullStackIntegrationTestBas
     private JwtDecoder jwtDecoder;
 
     @Test
-    void supplierMeasurementWorkflowWritesAndReadsInfluxDataThroughHttp() {
+    void timeSeriesMeasurementWorkflowWritesAndReadsInfluxDataThroughHttp() {
         String suffix = compactId(UUID.randomUUID());
         AuthToken operator = token("operator-" + suffix, "local-operator", List.of("metadata:write", "system:admin"));
         AuthToken connectorToken = token(
                 "measurement-" + suffix,
                 "supplier-client-" + suffix,
                 List.of("measurement:write", "measurement:read"));
-        String stationNumber = "supplier-station-" + suffix;
-        SupplierDto supplier = postSupplier(operator, connectorToken, stationNumber);
+        ConnectorDto connector = registerConnector(operator, connectorToken.clientId(), "mc-" + compactId(connectorToken.clientId()));
+        StationOwnerResponse owner = postStationOwner(operator, "Owner " + suffix);
+        StationResponse station = postStation(operator, owner.id(), "station-" + suffix);
+        TimeSeriesResponse timeSeries = postTimeSeries(operator, station.id(), "water-level", "cm");
+        grantWriteAccess(operator, connector.id(), timeSeries.id());
         Instant latestTimestamp = Instant.now().minus(5, ChronoUnit.MINUTES).truncatedTo(ChronoUnit.SECONDS);
         WriteMeasurementsDto measurements = new WriteMeasurementsDto(List.of(
                 new WriteMeasurementDto(
+                        timeSeries.id(),
                         latestTimestamp.minus(4, ChronoUnit.HOURS),
-                        Map.of("waterLevel", 10.5, "flow", 20.5),
-                        Map.of("quality", "old")),
+                        10.5),
                 new WriteMeasurementDto(
+                        timeSeries.id(),
                         latestTimestamp,
-                        Map.of("waterLevel", 11.5, "flow", 21.5),
-                        Map.of("quality", "latest"))));
+                        11.5)));
 
         ResponseEntity<Void> writeResponse = rest.exchange(
                 "/api/v1/measurement",
@@ -69,149 +75,101 @@ final class FullStackWorkflowIntegrationTest extends FullStackIntegrationTestBas
                 bearerEntity(measurements, connectorToken),
                 Void.class);
         ResponseEntity<Measurement> latestResponse = rest.exchange(
-                "/api/v1/measurement/supplier/latest?stationNumber={stationNumber}",
+                "/api/v1/measurement/time-series/{timeSeriesId}/latest",
                 HttpMethod.GET,
                 bearerEntity(null, connectorToken),
                 Measurement.class,
-                stationNumber);
+                timeSeries.id());
         ResponseEntity<List<Measurement>> rangeResponse = rest.exchange(
-                "/api/v1/measurement/supplier/3h?stationNumber={stationNumber}",
+                "/api/v1/measurement/time-series/{timeSeriesId}/{range}",
                 HttpMethod.GET,
                 bearerEntity(null, connectorToken),
                 new ParameterizedTypeReference<>() {
                 },
-                stationNumber);
-        ResponseEntity<Measurement> averageResponse = rest.exchange(
-                "/api/v1/measurement/supplier/average/6h?stationNumber={stationNumber}",
-                HttpMethod.GET,
-                bearerEntity(null, connectorToken),
-                Measurement.class,
-                stationNumber);
+                timeSeries.id(),
+                "3h");
         ResponseEntity<String> systemTimeResponse = rest.getForEntity(
                 "/api/v1/measurement/systemTime",
                 String.class);
-        ResponseEntity<String> missingSupplierResponse = rest.exchange(
-                "/api/v1/measurement/supplier/latest?stationNumber={stationNumber}",
-                HttpMethod.GET,
-                bearerEntity(null, connectorToken),
-                String.class,
-                "missing-supplier");
-        ResponseEntity<String> invalidRangeResponse = rest.exchange(
-                "/api/v1/measurement/supplier/not-a-range?stationNumber={stationNumber}",
-                HttpMethod.GET,
-                bearerEntity(null, connectorToken),
-                String.class,
-                stationNumber);
 
         assertThat(writeResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(latestResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertMeasurement(latestResponse.getBody(), supplier.id(), latestTimestamp, "latest", 11.5, 21.5);
-        assertThat(rangeResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(rangeResponse.getBody()).singleElement()
-                .satisfies(measurement -> assertMeasurement(measurement, supplier.id(), latestTimestamp, "latest", 11.5, 21.5));
-        assertThat(averageResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(averageResponse.getBody()).isNotNull();
-        assertThat(averageResponse.getBody().measurement()).isEqualTo(supplier.id());
-        assertThat(averageResponse.getBody().fields()).containsKeys("waterLevel", "flow");
-        assertThat(systemTimeResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(systemTimeResponse.getBody()).contains("T");
-        assertThat(missingSupplierResponse.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
-        assertThat(invalidRangeResponse.getStatusCode()).isEqualTo(HttpStatus.INTERNAL_SERVER_ERROR);
-    }
-
-    @Test
-    void takerTelemetryWorkflowWritesAndReadsInfluxDataThroughHttp() {
-        String suffix = compactId(UUID.randomUUID());
-        AuthToken operator = token("operator-" + suffix, "local-operator", List.of("metadata:write", "system:admin"));
-        AuthToken connectorToken = token(
-                "telemetry-" + suffix,
-                "taker-client-" + suffix,
-                List.of("telemetry:write", "telemetry:read"));
-        TakerDto taker = postTaker(operator, connectorToken, "taker-station-" + suffix);
-        Instant timestamp = Instant.now().minus(5, ChronoUnit.MINUTES).truncatedTo(ChronoUnit.SECONDS);
-        Telemetry telemetry = new Telemetry(
-                taker.id().toString(),
-                "10.0.0.5",
-                "203.0.113.5",
-                timestamp,
-                30,
-                7.5,
-                8.5,
-                12.5,
-                24.5,
-                1.5,
-                2.5,
-                90.5);
-
-        ResponseEntity<Telemetry> writeResponse = rest.exchange(
-                "/api/v1/telemetry",
-                HttpMethod.POST,
-                bearerEntity(telemetry, connectorToken),
-                Telemetry.class);
-        ResponseEntity<Telemetry> latestResponse = rest.exchange(
-                "/api/v1/telemetry/last/{uuid}",
-                HttpMethod.GET,
-                bearerEntity(null, connectorToken),
-                Telemetry.class,
-                taker.id());
-        ResponseEntity<List<Telemetry>> rangeResponse = rest.exchange(
-                "/api/v1/telemetry/1h",
-                HttpMethod.GET,
-                bearerEntity(null, connectorToken),
-                new ParameterizedTypeReference<>() {
-                });
-
-        assertThat(writeResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(writeResponse.getBody()).isEqualTo(telemetry);
-        assertThat(latestResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(latestResponse.getBody()).isEqualTo(telemetry);
+        assertMeasurement(latestResponse.getBody(), timeSeries.id(), latestTimestamp, connector.id(), 11.5);
         assertThat(rangeResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(rangeResponse.getBody())
                 .isNotNull()
-                .filteredOn(entry -> telemetry.measurement().equals(entry.measurement()))
-                .contains(telemetry);
+                .filteredOn(measurement -> timeSeries.id().equals(measurement.timeSeriesId().value()))
+                .singleElement()
+                .satisfies(measurement -> assertMeasurement(measurement, timeSeries.id(), latestTimestamp, connector.id(), 11.5));
+        assertThat(systemTimeResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(systemTimeResponse.getBody()).contains("T");
     }
 
-    private SupplierDto postSupplier(AuthToken operator, AuthToken connectorToken, String stationNumber) {
-        String connectorNumber = "sc-" + compactId(connectorToken.clientId());
-        registerConnector(operator, connectorToken.clientId(), connectorNumber);
-
-        ResponseEntity<SupplierDto> response = rest.exchange(
-                "/api/v1/supplier",
-                HttpMethod.POST,
-                bearerEntity(supplierDto(stationNumber, connectorNumber), operator),
-                SupplierDto.class);
-
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(response.getBody()).isNotNull();
-        return response.getBody();
-    }
-
-    private TakerDto postTaker(AuthToken operator, AuthToken connectorToken, String stationNumber) {
-        String connectorNumber = "tc-" + compactId(connectorToken.clientId());
-        registerConnector(operator, connectorToken.clientId(), connectorNumber);
-
-        ResponseEntity<TakerDto> response = rest.exchange(
-                "/api/v1/taker",
-                HttpMethod.POST,
-                bearerEntity(takerDto(stationNumber, connectorNumber), operator),
-                TakerDto.class);
-
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(response.getBody()).isNotNull();
-        return response.getBody();
-    }
-
-    private void registerConnector(AuthToken operator, String keycloakClientId, String connectorNumber) {
+    private ConnectorDto registerConnector(AuthToken operator, String keycloakClientId, String connectorNumber) {
         RegisterConnectorRequest request = new RegisterConnectorRequest(
                 keycloakClientId,
                 ConnectorStatus.ACTIVE,
                 connectorDto(connectorNumber));
 
-        ResponseEntity<Void> response = rest.exchange(
+        ResponseEntity<ConnectorDto> response = rest.exchange(
                 "/api/v1/admin/connectors",
                 HttpMethod.POST,
                 bearerEntity(request, operator),
+                ConnectorDto.class);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+        assertThat(response.getBody()).isNotNull();
+        return response.getBody();
+    }
+
+    private StationOwnerResponse postStationOwner(AuthToken operator, String name) {
+        ResponseEntity<StationOwnerResponse> response = rest.exchange(
+                "/api/v1/station-owners",
+                HttpMethod.POST,
+                bearerEntity(new CreateStationOwnerRequest(name, compactId(name), null), operator),
+                StationOwnerResponse.class);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+        assertThat(response.getBody()).isNotNull();
+        return response.getBody();
+    }
+
+    private StationResponse postStation(AuthToken operator, UUID ownerId, String stationNumber) {
+        ResponseEntity<StationResponse> response = rest.exchange(
+                "/api/v1/stations",
+                HttpMethod.POST,
+                bearerEntity(new CreateStationRequest(ownerId, stationNumber, "Station " + stationNumber, "Danube", "Wachau"), operator),
+                StationResponse.class);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+        assertThat(response.getBody()).isNotNull();
+        return response.getBody();
+    }
+
+    private TimeSeriesResponse postTimeSeries(AuthToken operator, UUID stationId, String observedProperty, String unit) {
+        ResponseEntity<TimeSeriesResponse> response = rest.exchange(
+                "/api/v1/time-series",
+                HttpMethod.POST,
+                bearerEntity(new CreateTimeSeriesRequest(stationId, observedProperty, unit, null, 900L, null), operator),
+                TimeSeriesResponse.class);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+        assertThat(response.getBody()).isNotNull();
+        return response.getBody();
+    }
+
+    private void grantWriteAccess(AuthToken operator, UUID connectorId, UUID timeSeriesId) {
+        ResponseEntity<Void> response = rest.exchange(
+                "/api/v1/access-grants",
+                HttpMethod.POST,
+                bearerEntity(new CreateAccessGrantRequest(
+                        connectorId,
+                        AccessResourceType.TIME_SERIES,
+                        timeSeriesId,
+                        AccessPermission.WRITE,
+                        null,
+                        null,
+                        false), operator),
                 Void.class);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CREATED);
@@ -239,63 +197,15 @@ final class FullStackWorkflowIntegrationTest extends FullStackIntegrationTestBas
 
     private static void assertMeasurement(
             Measurement measurement,
-            UUID expectedId,
+            UUID expectedTimeSeriesId,
             Instant expectedTimestamp,
-            String expectedQuality,
-            double expectedWaterLevel,
-            double expectedFlow) {
+            UUID expectedConnectorId,
+            double expectedValue) {
         assertThat(measurement).isNotNull();
-        assertThat(measurement.measurement()).isEqualTo(expectedId);
-        assertThat(measurement.timestamp()).isEqualTo(expectedTimestamp);
-        assertThat(measurement.infos()).containsEntry("quality", expectedQuality);
-        assertThat(measurement.fields()).containsEntry("waterLevel", expectedWaterLevel);
-        assertThat(measurement.fields()).containsEntry("flow", expectedFlow);
-    }
-
-    private static CreateSupplierDto supplierDto(String stationNumber, String connectorNumber) {
-        return new CreateSupplierDto(
-                stationNumber,
-                101,
-                "supplier station",
-                "Danube",
-                'W',
-                new CreateStationManufacturerDto("station manufacturer", "station type", "1.0.0", "station remark"),
-                connectorDto(connectorNumber),
-                300_000L,
-                0.5,
-                "main usage",
-                "normal",
-                1.0,
-                "reference place",
-                2.0,
-                "left",
-                48.1,
-                16.2,
-                48.3,
-                16.4,
-                3.0,
-                4.0,
-                5,
-                6.0,
-                7,
-                8.0,
-                9,
-                10.0,
-                11.0,
-                12.0,
-                13.0,
-                "channel",
-                false,
-                false);
-    }
-
-    private static CreateTakerDto takerDto(String stationNumber, String connectorNumber) {
-        return new CreateTakerDto(
-                stationNumber,
-                201,
-                new CreateTakerServiceManufacturerDto("taker manufacturer", "taker system", "1.0.0", "request remark"),
-                connectorDto(connectorNumber),
-                600_000L);
+        assertThat(measurement.timeSeriesId().value()).isEqualTo(expectedTimeSeriesId);
+        assertThat(measurement.observedAt()).isEqualTo(expectedTimestamp);
+        assertThat(measurement.submittedByConnectorId().value()).isEqualTo(expectedConnectorId);
+        assertThat(measurement.value()).isEqualTo(expectedValue);
     }
 
     private static CreateConnectorDto connectorDto(String connectorNumber) {

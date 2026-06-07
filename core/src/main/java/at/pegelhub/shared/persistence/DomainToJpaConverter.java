@@ -4,14 +4,6 @@ import at.pegelhub.connector.domain.Connector;
 import at.pegelhub.connector.persistence.JpaConnector;
 import at.pegelhub.contact.domain.Contact;
 import at.pegelhub.contact.persistence.JpaContact;
-import at.pegelhub.supplier.domain.StationManufacturer;
-import at.pegelhub.supplier.domain.Supplier;
-import at.pegelhub.supplier.persistence.JpaStationManufacturer;
-import at.pegelhub.supplier.persistence.JpaSupplier;
-import at.pegelhub.taker.domain.Taker;
-import at.pegelhub.taker.domain.TakerServiceManufacturer;
-import at.pegelhub.taker.persistence.JpaTaker;
-import at.pegelhub.taker.persistence.JpaTakerServiceManufacturer;
 
 import java.util.HashSet;
 import java.util.Set;
@@ -58,14 +50,12 @@ public class DomainToJpaConverter {
                 connector.getNotes(),
                 connector.getKeycloakClientId(),
                 connector.getStatus()
-
         );
     }
 
     public static Set<JpaConnector> convert(Set<Connector> connector) {
         Set<JpaConnector> returnValue = new HashSet<>();
-        for(Connector c: connector)
-        {
+        for(Connector c: connector) {
             JpaConnector work = new JpaConnector(c.getId(),
                     c.getConnectorNumber(),
                     convert(c.getManufacturer()),
@@ -82,74 +72,5 @@ public class DomainToJpaConverter {
             returnValue.add(work);
         }
         return returnValue;
-    }
-
-    public static JpaStationManufacturer convert(StationManufacturer stationManufacturer) {
-        return new JpaStationManufacturer(
-                stationManufacturer.getId(),
-                stationManufacturer.getStationManufacturerName(),
-                stationManufacturer.getStationManufacturerType(),
-                stationManufacturer.getStationManufacturerFirmwareVersion(),
-                stationManufacturer.getStationRemark()
-        );
-    }
-
-    public static JpaSupplier convert(Supplier supplier) {
-        return new JpaSupplier(
-                supplier.getId(),
-                supplier.getStationNumber(),
-                supplier.getStationId(),
-                supplier.getStationName(),
-                supplier.getStationWater(),
-                supplier.getStationWaterType(),
-                convert(supplier.getStationManufacturer()),
-                convert(supplier.getConnector()),
-                supplier.getRefreshRate(),
-                supplier.getAccuracy(),
-                supplier.getMainUsage(),
-                supplier.getDataCritically(),
-                supplier.getStationBaseReferenceLevel(),
-                supplier.getStationReferencePlace(),
-                supplier.getStationWaterKilometer(),
-                supplier.getStationWaterSide(),
-                supplier.getStationWaterLatitude(),
-                supplier.getStationWaterLongitude(),
-                supplier.getStationWaterLatitudem(),
-                supplier.getStationWaterLongitudem(),
-                supplier.getHsw100(),
-                supplier.getHsw(),
-                supplier.getHswReference(),
-                supplier.getMw(),
-                supplier.getMwReference(),
-                supplier.getRnw(),
-                supplier.getRnwReference(),
-                supplier.getHsq100(),
-                supplier.getHsq(),
-                supplier.getMq(),
-                supplier.getRnq(),
-                supplier.getChannelUse(),
-                supplier.getUtcIsUsed(),
-                supplier.getIsSummertime());
-    }
-
-    public static JpaTaker convert(Taker taker) {
-        return new JpaTaker(
-                taker.getId(),
-                taker.getStationNumber(),
-                taker.getStationId(),
-                convert(taker.getTakerServiceManufacturer()),
-                convert(taker.getConnector()),
-                taker.getRefreshRate()
-        );
-    }
-
-    public static JpaTakerServiceManufacturer convert(TakerServiceManufacturer takerServiceManufacturer) {
-        return new JpaTakerServiceManufacturer(
-                takerServiceManufacturer.getId(),
-                takerServiceManufacturer.getTakerManufacturerName(),
-                takerServiceManufacturer.getTakerSystemName(),
-                takerServiceManufacturer.getStationManufacturerFirmwareVersion(),
-                takerServiceManufacturer.getRequestRemark()
-        );
     }
 }

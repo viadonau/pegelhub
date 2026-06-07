@@ -134,15 +134,6 @@ final class MeasurementServiceImplTest {
     }
 
     @Test
-    void getByRangeDelegatesToRepository() {
-        when(MEASUREMENT_REPOSITORY.getByRange("72d")).thenReturn(List.of(MEASUREMENT));
-
-        List<Measurement> result = measurementService.getByRange("72d");
-
-        assertEquals(List.of(MEASUREMENT), result);
-    }
-
-    @Test
     void getByTimeSeriesAndRangeReturnsMeasurementsForExistingTimeSeries() {
         when(MEASUREMENT_REPOSITORY.getByTimeSeriesIdAndRange(TIME_SERIES_ID, "72d")).thenReturn(List.of(MEASUREMENT));
 
@@ -171,15 +162,6 @@ final class MeasurementServiceImplTest {
 
         assertEquals(MEASUREMENT, result);
         verify(TIME_SERIES_SERVICE).get(TIME_SERIES_ID);
-    }
-
-    @Test
-    void getLastDataDelegatesToRepository() {
-        when(MEASUREMENT_REPOSITORY.getLatestByTimeSeriesId(TIME_SERIES_ID)).thenReturn(MEASUREMENT);
-
-        Measurement result = measurementService.getLastData(TIME_SERIES_ID.value());
-
-        assertEquals(MEASUREMENT, result);
     }
 
     @Test
