@@ -10,17 +10,20 @@ import org.slf4j.LoggerFactory;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.*;
+import java.util.UUID;
 
 public class TstpReader extends TimerTask {
     private static final Logger LOG = LoggerFactory.getLogger(TstpReader.class);
     private final TstpCommunicator tstpCommunicator;
     private final PegelHubCommunicator phCommunicator;
     private final Duration durationToLookBack;
+    private final UUID timeSeriesId;
     private final TstpCatalogService tstpCatalogService;
 
-    public TstpReader(PegelHubCommunicator phCommunicator, TstpCommunicator tstpCommunicator, Duration durationToLookBack, TstpCatalogService tstpCatalogService) {
+    public TstpReader(PegelHubCommunicator phCommunicator, TstpCommunicator tstpCommunicator, Duration durationToLookBack, UUID timeSeriesId, TstpCatalogService tstpCatalogService) {
         this.phCommunicator = phCommunicator;
         this.durationToLookBack = durationToLookBack;
+        this.timeSeriesId = timeSeriesId;
         this.tstpCommunicator = tstpCommunicator;
         this.tstpCatalogService = tstpCatalogService;
     }
@@ -38,7 +41,9 @@ public class TstpReader extends TimerTask {
             List<Measurement> measurements = tstpCommunicator.getMeasurements(zrid, getLookBackTimestamp(), Instant.now());
             LOG.info("Read in measurements from tstp server");
             if (!measurements.isEmpty()) {
-                phCommunicator.sendMeasurements(measurements);
+                phCommunicator.sendMeasurements(measurements.stream()
+                        .map(this::withTimeSeriesId)
+                        .toList());
                 LOG.info("Sent measurements to core");
             } else {
                 LOG.info("Measurement List is empty - nothing was sent to the core");
@@ -60,5 +65,9 @@ public class TstpReader extends TimerTask {
 
     private Instant getLookBackTimestamp() {
         return Instant.now().minus(durationToLookBack);
+    }
+
+    private Measurement withTimeSeriesId(Measurement measurement) {
+        return new Measurement(timeSeriesId, measurement.getObservedAt(), measurement.getValue());
     }
 }

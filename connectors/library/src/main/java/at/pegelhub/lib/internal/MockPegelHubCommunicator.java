@@ -14,26 +14,15 @@ public class MockPegelHubCommunicator implements PegelHubCommunicator {
 
     /**
      * Generates a single Measurement object with random data.
-     * @param stationNumber The station number to include in the info map.
+     * @param timeSeriesId The TimeSeries ID to generate data for.
      * @return A new Measurement object.
      */
-    private Measurement createRandomMeasurement(String stationNumber) {
+    private Measurement createRandomMeasurement(UUID timeSeriesId) {
         // Generate a random timestamp within the last 30 days
         long randomSeconds = ThreadLocalRandom.current().nextLong(30L * 24 * 60 * 60);
-        Instant timestamp = Instant.now().minusSeconds(randomSeconds);
+        Instant observedAt = Instant.now().minusSeconds(randomSeconds);
 
-        // Generate random measurement values within a plausible range
-        Map<String, Double> fields = new HashMap<>();
-        fields.put("value", ThreadLocalRandom.current().nextDouble(50.0, 1500.0)); // in m³/s
-
-        // Add informational data
-        Map<String, String> infos = new HashMap<>();
-        infos.put("stationNumber", stationNumber);
-        infos.put("unit_waterLevel", "m");
-        infos.put("unit_flowRate", "m³/s");
-        infos.put("unit_temperature", "°C");
-
-        return new Measurement(timestamp, fields, infos);
+        return new Measurement(timeSeriesId, observedAt, ThreadLocalRandom.current().nextDouble(50.0, 1500.0));
     }
 
     // --- Special Implementation for Measurements ---
@@ -44,26 +33,25 @@ public class MockPegelHubCommunicator implements PegelHubCommunicator {
         List<Measurement> randomMeasurements = new ArrayList<>();
         for (int i = 0; i < 5; i++) {
             // Using a generic station number as none is provided
-            randomMeasurements.add(createRandomMeasurement("ST-RAND-" + (i+1)));
+            randomMeasurements.add(createRandomMeasurement(UUID.randomUUID()));
         }
         LOG.debug("STUB: Returning {} random measurements.", randomMeasurements.size());
         return randomMeasurements;
     }
 
     @Override
-    public Collection<Measurement> getMeasurementsOfStation(String stationNumber, String timespan) {
-        LOG.debug("STUB: getMeasurementsOfStation called for station: {} with timespan: {}", stationNumber, timespan);
+    public Collection<Measurement> getMeasurementsOfTimeSeries(UUID timeSeriesId, String timespan) {
+        LOG.debug("STUB: getMeasurementsOfTimeSeries called for TimeSeries: {} with timespan: {}", timeSeriesId, timespan);
         List<Measurement> randomMeasurements = new ArrayList<>();
         for (int i = 0; i < 5; i++) {
-            randomMeasurements.add(createRandomMeasurement(stationNumber));
+            randomMeasurements.add(createRandomMeasurement(timeSeriesId));
         }
-        LOG.debug("STUB: Returning {} random measurements for station {}", randomMeasurements.size(), stationNumber);
         return randomMeasurements;
     }
 
     @Override
-    public Optional<Measurement> getLatestMeasurementOfStation() {
-        return Optional.of(createRandomMeasurement("stationNumber"));
+    public Optional<Measurement> getLatestMeasurementOfTimeSeries(UUID timeSeriesId) {
+        return Optional.of(createRandomMeasurement(timeSeriesId));
     }
 
     // --- Generic Implementations ---
@@ -72,12 +60,6 @@ public class MockPegelHubCommunicator implements PegelHubCommunicator {
     public Optional<Measurement> getMeasurementByUUID(UUID uuid) {
         LOG.debug("STUB: getMeasurementByUUID called for UUID: {}", uuid);
         return Optional.empty();
-    }
-
-    @Override
-    public HashSet<Long> getMeasurementsIDsOfStation(String stationNumber, String timespan) {
-        LOG.debug("STUB: getMeasurementsIDsOfStation called for station: {}", stationNumber);
-        return null;
     }
 
     @Override
@@ -95,12 +77,6 @@ public class MockPegelHubCommunicator implements PegelHubCommunicator {
     public Instant getSystemTime() {
         LOG.debug("STUB: getSystemTime called.");
         return null;
-    }
-
-    @Override
-    public Optional<Measurement> getTimestampOfLastMeasurementByUUID(UUID uuid) {
-        LOG.debug("STUB: getTimestampOfLastMeasurementByUUID called for UUID: {}", uuid);
-        return Optional.empty();
     }
 
     @Override

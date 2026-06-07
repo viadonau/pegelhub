@@ -26,8 +26,6 @@ public class FtpTask extends TimerTask {
     private final PegelHubCommunicator communicator;
     private final Parser parser;
 
-    //TODO rework influxId or remove completely
-//    private InfluxID influxID;
     private final ApplicationProperties properties;
 
     public FtpTask(FTPClient ftp, ConnectorOptions conOpts, PegelHubCommunicator communicator, Parser parser) {
@@ -36,7 +34,6 @@ public class FtpTask extends TimerTask {
         this.communicator = communicator;
         this.parser = parser;
         this.properties = new ApplicationPropertiesImpl(conOpts.propertiesFile());
-//        this.influxID = new InfluxID(communicator, properties);
         this.durationToLookBack = conOpts.readDelay();
     }
 
@@ -169,7 +166,7 @@ public class FtpTask extends TimerTask {
     private Stream<Measurement> convertEntryToMeasurementStream(Entry e) {
         return e.getValues().entrySet().stream().map(value -> {
             // TODO the check if the location is correct should be refactored into the parser or something like that
-            if (!Util.canParseDouble(value.getValue()) && !Util.canParseDouble(e.getInfos().get("location"))) {
+            if (!Util.canParseDouble(value.getValue()) || !Util.canParseDouble(e.getInfos().get("location"))) {
                 return null;
             }
 
@@ -177,14 +174,7 @@ public class FtpTask extends TimerTask {
                 return null;
             }
 
-            var m = new Measurement();
-            m.setTimestamp(value.getKey().toInstant());
-            m.getFields().put("value", Double.parseDouble(value.getValue()));
-            // isn't resetting at the end of each day, still needs to be reworked
-//            m.getFields().put("ID", (double) influxID.getIDValue());
-            m.getInfos().putAll(e.getInfos());
-//            influxID.addID();
-            return m;
+            return new Measurement(conOpts.timeSeriesId(), value.getKey().toInstant(), Double.parseDouble(value.getValue()));
         }).filter(Objects::nonNull);
     }
 }

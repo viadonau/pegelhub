@@ -1,12 +1,13 @@
 [
   {
-    "measurement": "395c0232-d110-40fd-bd7f-2bb4a0f2009d",
-    "timestamp": "2023-04-19T13:27:51.460Z",
-    "fields": {
-      "a": 0.1,
-      "b": 0.1,
-      "c": 0.1
+    "timeSeriesId": {
+      "value": "395c0232-d110-40fd-bd7f-2bb4a0f2009d"
     },
-    "infos": {}
+    "observedAt": "2023-04-19T13:27:51.460Z",
+    "receivedAt": "2023-04-19T13:27:52.460Z",
+    "value": 0.1,
+    "submittedByConnectorId": {
+      "value": "74bcffac-8fa6-41ac-aa9d-53d082447226"
+    }
   }
 ]

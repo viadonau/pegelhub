@@ -12,12 +12,14 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.Properties;
+import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 @ExtendWith(MockitoExtension.class)
 class TstpConfigServiceImplTest {
     private static final String TEST_CORE_PROPERTIES_PATH = "test_core.properties";
+    private static final UUID TIME_SERIES_ID = UUID.fromString("11111111-1111-1111-1111-111111111111");
 
     @InjectMocks
     private TstpConfigServiceImpl tstpConfigService;
@@ -38,6 +40,7 @@ class TstpConfigServiceImplTest {
         assertEquals("tstp.test.com", options.tstpAddress());
         assertEquals(8030, options.tstpPort());
         assertEquals(Duration.ofHours(1), options.readDelay());
+        assertEquals(TIME_SERIES_ID, options.timeSeriesId());
         assertEquals(TEST_CORE_PROPERTIES_PATH, options.propertiesFile());
     }
 
@@ -65,6 +68,7 @@ class TstpConfigServiceImplTest {
         properties.setProperty("core.port", "8080");
         properties.setProperty("tstp.address", "tstp.test.com");
         properties.setProperty("tstp.port", "8030");
+        properties.setProperty("timeSeriesId", TIME_SERIES_ID.toString());
 
         Path tempFile = Files.createTempFile("test_tstp_config-", ".properties");
         try (var out = Files.newOutputStream(tempFile)) {

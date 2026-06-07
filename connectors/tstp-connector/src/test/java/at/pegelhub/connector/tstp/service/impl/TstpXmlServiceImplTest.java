@@ -102,9 +102,7 @@ class TstpXmlServiceImplTest {
     void testParseXmlPutRequest() {
         List<Measurement> measurements = new ArrayList<>();
         Instant dateTime = Instant.parse("2010-08-03T13:30:00Z");
-        HashMap<String, Double> valueMap = new HashMap<>();
-        valueMap.put("value", 664.7);
-        measurements.add(new Measurement(dateTime, valueMap, new HashMap<>()));
+        measurements.add(new Measurement(null, dateTime, 664.7));
 
         String xmlPutRequest = tstpXmlService.parseXmlPutRequest(measurements);
         assertTrue(xmlPutRequest.contains("ANZ=\"1\""));

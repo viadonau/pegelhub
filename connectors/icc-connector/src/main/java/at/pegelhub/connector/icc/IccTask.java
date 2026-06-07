@@ -8,42 +8,41 @@ import org.slf4j.LoggerFactory;
 
 import java.util.List;
 import java.util.TimerTask;
+import java.util.UUID;
 
 /**
  * Task of syncing data from one source hub to the sink hub.
- * Only fetches the newly added relevant data points of the provided station numbers (of the source)s.
+ * Only fetches the newly added relevant data points of the configured TimeSeries from the source.
  */
 public class IccTask extends TimerTask {
 
     private static final Logger LOG = LoggerFactory.getLogger(IccTask.class);
     private final PegelHubCommunicator source;
     private final PegelHubCommunicator sink;
-    private final List<String> stationNumbers;
+    private final List<UUID> timeSeriesIds;
     private final String refreshInterval;
 
-    public IccTask(PegelHubCommunicator source, PegelHubCommunicator sink, List<String> stationNumbers, String refreshInterval) {
+    public IccTask(PegelHubCommunicator source, PegelHubCommunicator sink, List<UUID> timeSeriesIds, String refreshInterval) {
         this.source = source;
         this.sink = sink;
-        this.stationNumbers = stationNumbers;
+        this.timeSeriesIds = timeSeriesIds;
         this.refreshInterval = refreshInterval;
     }
 
     /**
-     * Fetches all recent data of {@code stationNumbers} within the interval {@code refreshInterval} of PH {@code source} and sends it to PH {@code sink}.
+     * Fetches recent TimeSeries data within {@code refreshInterval} from the source and sends it to the sink.
      */
     @Override
     public void run() {
-        for (String stationNumber : stationNumbers) {
+        for (UUID timeSeriesId : timeSeriesIds) {
             try {
-                List<Measurement> measurements = source.getMeasurementsOfStation(stationNumber, refreshInterval).stream().toList();
+                List<Measurement> measurements = source.getMeasurementsOfTimeSeries(timeSeriesId, refreshInterval).stream().toList();
                 sink.sendMeasurements(measurements);
             } catch (NotFoundException nfe) {
-                LOG.error("No data found for station number " + stationNumber);
+                LOG.error("No data found for TimeSeries " + timeSeriesId);
             } catch (Exception ex) {
-                LOG.error("Error when syncing data for station " + stationNumber);
+                LOG.error("Error when syncing data for TimeSeries " + timeSeriesId);
             }
         }
-
-
     }
 }

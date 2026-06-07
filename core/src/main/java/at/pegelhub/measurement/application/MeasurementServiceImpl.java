@@ -1,21 +1,26 @@
 package at.pegelhub.measurement.application;
 
+import at.pegelhub.access.application.AccessAuthorizationService;
+import at.pegelhub.access.domain.AccessPermission;
+import at.pegelhub.access.domain.AccessResourceRef;
+import at.pegelhub.connector.domain.Connector;
+import at.pegelhub.connector.domain.ConnectorId;
 import at.pegelhub.connector.domain.ConnectorStatus;
 import at.pegelhub.measurement.domain.Measurement;
-import at.pegelhub.supplier.domain.Supplier;
 import at.pegelhub.measurement.domain.WriteMeasurement;
 import at.pegelhub.measurement.domain.WriteMeasurements;
 import at.pegelhub.security.CurrentActor;
 import at.pegelhub.shared.error.NotFoundException;
 import at.pegelhub.measurement.persistence.MeasurementRepository;
-import at.pegelhub.supplier.persistence.SupplierRepository;
+import at.pegelhub.connector.persistence.ConnectorRepository;
+import at.pegelhub.timeseries.application.TimeSeriesService;
+import at.pegelhub.timeseries.domain.TimeSeriesId;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
 import java.util.UUID;
 
 import static java.util.Objects.requireNonNull;
@@ -26,17 +31,23 @@ import static java.util.Objects.requireNonNull;
 @Service
 public final class MeasurementServiceImpl implements MeasurementService {
 
-    private final SupplierRepository supplierRepository;
+    private final ConnectorRepository connectorRepository;
     private final MeasurementRepository measurementRepository;
     private final CurrentActor currentActor;
+    private final TimeSeriesService timeSeriesService;
+    private final AccessAuthorizationService accessAuthorizationService;
 
     public MeasurementServiceImpl(
-            SupplierRepository supplierRepository,
+            ConnectorRepository connectorRepository,
             MeasurementRepository measurementRepository,
-            CurrentActor currentActor) {
-        this.supplierRepository = requireNonNull(supplierRepository);
+            CurrentActor currentActor,
+            TimeSeriesService timeSeriesService,
+            AccessAuthorizationService accessAuthorizationService) {
+        this.connectorRepository = requireNonNull(connectorRepository);
         this.measurementRepository = requireNonNull(measurementRepository);
         this.currentActor = requireNonNull(currentActor);
+        this.timeSeriesService = requireNonNull(timeSeriesService);
+        this.accessAuthorizationService = requireNonNull(accessAuthorizationService);
     }
 
     /**
@@ -45,15 +56,32 @@ public final class MeasurementServiceImpl implements MeasurementService {
      */
     @Override
     public void writeMeasurements(WriteMeasurements writeMeasurements) {
-        Supplier supplier = supplierRepository.findByConnectorKeycloakClientId(currentActor.get().clientId())
+        Connector connector = connectorRepository.findByKeycloakClientId(currentActor.get().clientId())
                 .orElseThrow(() -> new NotFoundException("Connector not registered"));
-        if (supplier.getConnector() == null || supplier.getConnector().getStatus() != ConnectorStatus.ACTIVE) {
+        if (connector.getId() == null) {
+            throw new NotFoundException("Connector not registered");
+        }
+        if (connector.getStatus() != ConnectorStatus.ACTIVE) {
             throw new AccessDeniedException("Connector is not active");
         }
-        UUID supplierId = supplier.getId();
+        ConnectorId connectorId = new ConnectorId(connector.getId());
+        Instant receivedAt = Instant.now();
         List<Measurement> measurements = new ArrayList<>(writeMeasurements.measurements().size());
         for (WriteMeasurement measurement : writeMeasurements.measurements()) {
-            measurements.add(new Measurement(supplierId, measurement.timestamp(), measurement.fields(), measurement.infos()));
+            timeSeriesService.get(measurement.timeSeriesId());
+            if (!accessAuthorizationService.isAllowed(
+                    connectorId,
+                    AccessResourceRef.timeSeries(measurement.timeSeriesId()),
+                    AccessPermission.WRITE,
+                    receivedAt)) {
+                throw new AccessDeniedException("Connector is not allowed to write this TimeSeries");
+            }
+            measurements.add(new Measurement(
+                    measurement.timeSeriesId(),
+                    measurement.observedAt(),
+                    receivedAt,
+                    measurement.value(),
+                    connectorId));
         }
         measurementRepository.storeMeasurements(measurements);
     }
@@ -67,36 +95,22 @@ public final class MeasurementServiceImpl implements MeasurementService {
         return measurementRepository.getByRange(range);
     }
 
-    /**
-     * @param stationNumber of the supplier
-     * @param range in which the returned values reside.
-     * @return the measurements from a specific station in a specified range
-     */
     @Override
-    public List<Measurement> getBySupplierAndRange(String stationNumber, String range) {
-        Optional<Supplier> supplier = supplierRepository.findByStationNumber(stationNumber);
-        if(supplier.isPresent()){
-            return measurementRepository.getByIDAndRange(supplier.get().getId(),range);
-        }
-        throw new NotFoundException("No data found for given supplier");
+    public List<Measurement> getByTimeSeriesAndRange(TimeSeriesId timeSeriesId, String range) {
+        timeSeriesService.get(timeSeriesId);
+        return measurementRepository.getByTimeSeriesIdAndRange(timeSeriesId, range);
     }
 
     @Override
-    public Measurement getLatestBySupplier(String stationNumber) {
-        Optional<Supplier> supplier = supplierRepository.findByStationNumber(stationNumber);
-        if(supplier.isPresent()){
-            return measurementRepository.getLastData(supplier.get().getId());
-        }
-        throw new NotFoundException("No data found for given supplier");
+    public Measurement getLatestByTimeSeries(TimeSeriesId timeSeriesId) {
+        timeSeriesService.get(timeSeriesId);
+        return measurementRepository.getLatestByTimeSeriesId(timeSeriesId);
     }
 
     @Override
-    public Measurement getAverageBySupplierAndRange(String stationNumber, String range) {
-        Optional<Supplier> supplier = supplierRepository.findByStationNumber(stationNumber);
-        if(supplier.isPresent()){
-            return measurementRepository.getAverageByIdAndRange(supplier.get().getId(), range);
-        }
-        throw new NotFoundException("No data found for given supplier");
+    public Measurement getAverageByTimeSeriesAndRange(TimeSeriesId timeSeriesId, String range) {
+        timeSeriesService.get(timeSeriesId);
+        return measurementRepository.getAverageByTimeSeriesIdAndRange(timeSeriesId, range);
     }
 
     /**
@@ -106,7 +120,7 @@ public final class MeasurementServiceImpl implements MeasurementService {
      */
     @Override
     public Measurement getLastData(UUID uuid) {
-        return measurementRepository.getLastData(uuid);
+        return getLatestByTimeSeries(new TimeSeriesId(uuid));
     }
 
     public Instant getSystemTime()

@@ -14,16 +14,16 @@ import at.pegelhub.lib.internal.dto.SupplierSendDto;
 import at.pegelhub.lib.internal.dto.TakerSendDto;
 
 import java.net.MalformedURLException;
+import java.net.URI;
 import java.net.URL;
 import java.net.http.HttpClient;
 import java.util.TimerTask;
 
 public class TstpTaskFactory {
     public static TimerTask getTstpTask(ConnectorOptions conOpt) throws MalformedURLException {
-        PegelHubCommunicator phCommunicator = PegelHubCommunicatorFactory.create(new URL(
-                String.format("http://%s:%s/",
-                        conOpt.coreAddress(),
-                        conOpt.corePort())), conOpt.propertiesFile());
+        PegelHubCommunicator phCommunicator = PegelHubCommunicatorFactory.create(URI.create(String.format("http://%s:%s/",
+                conOpt.coreAddress(),
+                conOpt.corePort())).toURL(), conOpt.propertiesFile());
         ApplicationProperties properties = ApplicationPropertiesFactory.create(conOpt.propertiesFile());
         TstpCommunicator tstpCommunicator = new TstpCommunicatorImpl(
                 conOpt.tstpAddress(),
@@ -38,6 +38,7 @@ public class TstpTaskFactory {
             return new TstpReader(phCommunicator,
                     tstpCommunicator,
                     conOpt.readDelay(),
+                    conOpt.timeSeriesId(),
                     new TstpCatalogServiceImpl(tstpCommunicator, stationId));
         } else {
             TakerSendDto taker = properties.getTaker();
@@ -46,7 +47,7 @@ public class TstpTaskFactory {
             return new TstpWriter(phCommunicator,
                     tstpCommunicator,
                     conOpt.readDelay().toSeconds()+"s",
-                    taker.stationNumber(),
+                    conOpt.timeSeriesId(),
                     new TstpCatalogServiceImpl(tstpCommunicator, stationId));
         }
     }

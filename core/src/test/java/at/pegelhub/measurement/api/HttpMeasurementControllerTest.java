@@ -1,6 +1,7 @@
 package at.pegelhub.measurement.api;
 
 import at.pegelhub.measurement.application.MeasurementService;
+import at.pegelhub.timeseries.domain.TimeSeriesId;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -25,6 +26,8 @@ import static org.hamcrest.Matchers.containsString;
 
 @WebMvcTest(HttpMeasurementController.class)
 class HttpMeasurementControllerTest {
+
+    private static final TimeSeriesId TIME_SERIES_ID = MEASUREMENT.timeSeriesId();
 
     @Autowired
     private MockMvc mockMvc;
@@ -59,37 +62,34 @@ class HttpMeasurementControllerTest {
 
         mockMvc.perform(get("/api/v1/measurement/{range}", "72h"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].measurement").value(MEASUREMENT.measurement().toString()));
+                .andExpect(jsonPath("$[0].timeSeriesId.value").value(MEASUREMENT.timeSeriesId().value().toString()));
     }
 
     @Test
-    void findMeasurementForSupplierInRangeReturnsJsonArray() throws Exception {
-        when(measurementService.getBySupplierAndRange("stationNR", "72h")).thenReturn(MEASUREMENTS);
+    void findMeasurementForTimeSeriesInRangeReturnsJsonArray() throws Exception {
+        when(measurementService.getByTimeSeriesAndRange(TIME_SERIES_ID, "72h")).thenReturn(MEASUREMENTS);
 
-        mockMvc.perform(get("/api/v1/measurement/supplier/{range}", "72h")
-                        .param("stationNumber", "stationNR"))
+        mockMvc.perform(get("/api/v1/measurement/time-series/{timeSeriesId}/{range}", TIME_SERIES_ID.value(), "72h"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].measurement").value(MEASUREMENT.measurement().toString()));
+                .andExpect(jsonPath("$[0].timeSeriesId.value").value(MEASUREMENT.timeSeriesId().value().toString()));
     }
 
     @Test
-    void findLatestMeasurementBySupplierReturnsJson() throws Exception {
-        when(measurementService.getLatestBySupplier("stationNR")).thenReturn(MEASUREMENT);
+    void findLatestMeasurementByTimeSeriesReturnsJson() throws Exception {
+        when(measurementService.getLatestByTimeSeries(TIME_SERIES_ID)).thenReturn(MEASUREMENT);
 
-        mockMvc.perform(get("/api/v1/measurement/supplier/latest")
-                        .param("stationNumber", "stationNR"))
+        mockMvc.perform(get("/api/v1/measurement/time-series/{timeSeriesId}/latest", TIME_SERIES_ID.value()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.measurement").value(MEASUREMENT.measurement().toString()));
+                .andExpect(jsonPath("$.timeSeriesId.value").value(MEASUREMENT.timeSeriesId().value().toString()));
     }
 
     @Test
-    void findAverageMeasurementForSupplierInRangeReturnsJson() throws Exception {
-        when(measurementService.getAverageBySupplierAndRange("stationNR", "72h")).thenReturn(MEASUREMENT);
+    void findAverageMeasurementForTimeSeriesInRangeReturnsJson() throws Exception {
+        when(measurementService.getAverageByTimeSeriesAndRange(TIME_SERIES_ID, "72h")).thenReturn(MEASUREMENT);
 
-        mockMvc.perform(get("/api/v1/measurement/supplier/average/{range}", "72h")
-                        .param("stationNumber", "stationNR"))
+        mockMvc.perform(get("/api/v1/measurement/time-series/{timeSeriesId}/average/{range}", TIME_SERIES_ID.value(), "72h"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.measurement").value(MEASUREMENT.measurement().toString()));
+                .andExpect(jsonPath("$.timeSeriesId.value").value(MEASUREMENT.timeSeriesId().value().toString()));
     }
 
     @Test
@@ -98,7 +98,7 @@ class HttpMeasurementControllerTest {
 
         mockMvc.perform(get("/api/v1/measurement/last/{uuid}", ID))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.measurement").value(MEASUREMENT.measurement().toString()));
+                .andExpect(jsonPath("$.timeSeriesId.value").value(MEASUREMENT.timeSeriesId().value().toString()));
     }
 
     @Test
@@ -114,19 +114,12 @@ class HttpMeasurementControllerTest {
     }
 
     @Test
-    void averageEndpointRequiresStationNumber() throws Exception {
-        mockMvc.perform(get("/api/v1/measurement/supplier/average/{range}", "72h"))
-                .andExpect(status().isBadRequest());
-    }
-
-    @Test
-    void findMeasurementForSupplierInRangeMapsRuntimeExceptionTo500() throws Exception {
+    void findMeasurementForTimeSeriesInRangeMapsRuntimeExceptionTo500() throws Exception {
         doThrow(new RuntimeException("range parse failed"))
                 .when(measurementService)
-                .getBySupplierAndRange("stationNR", "invalid");
+                .getByTimeSeriesAndRange(TIME_SERIES_ID, "invalid");
 
-        mockMvc.perform(get("/api/v1/measurement/supplier/{range}", "invalid")
-                        .param("stationNumber", "stationNR"))
+        mockMvc.perform(get("/api/v1/measurement/time-series/{timeSeriesId}/{range}", TIME_SERIES_ID.value(), "invalid"))
                 .andExpect(status().isInternalServerError())
                 .andExpect(content().string("range parse failed"));
     }
@@ -136,14 +129,9 @@ class HttpMeasurementControllerTest {
                 {
                   "measurements": [
                     {
-                      "timestamp": "2026-04-25T10:15:30Z",
-                      "fields": {
-                        "waterLevel": 10.5,
-                        "flow": 20.5
-                      },
-                      "infos": {
-                        "quality": "ok"
-                      }
+                      "timeSeriesId": "8ce8c5b6-f093-4d46-b770-7239cdfa3d76",
+                      "observedAt": "2026-04-25T10:15:30Z",
+                      "value": 10.5
                     }
                   ]
                 }

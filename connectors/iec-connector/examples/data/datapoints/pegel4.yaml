@@ -5,6 +5,7 @@ keycloak:
   clientSecret: "local-dev-connector-secret-change-me"
 sendMetaDataOnStartup: false
 iecIOA: 66058
+timeSeriesId: "695c0232-d110-40fd-bd7f-2bb4a0f2009d"
 isSupplier: false
 taker:
   number: "8084865"

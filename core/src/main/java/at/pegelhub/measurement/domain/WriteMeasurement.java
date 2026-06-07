@@ -1,19 +1,21 @@
 package at.pegelhub.measurement.domain;
 
-import java.time.Instant;
-import java.util.Map;
+import at.pegelhub.timeseries.domain.TimeSeriesId;
 
-import static at.pegelhub.shared.validation.Validations.requireNotEmpty;
+import java.time.Instant;
+
 import static java.util.Objects.requireNonNull;
 
 /**
- * Domain class to create a single measurement.
+ * A scalar observation submitted for one TimeSeries.
  */
-public record WriteMeasurement(Instant timestamp, Map<String, Double> fields, Map<String, String> infos) {
+public record WriteMeasurement(TimeSeriesId timeSeriesId, Instant observedAt, double value) {
 
     public WriteMeasurement {
-        requireNonNull(timestamp);
-        requireNotEmpty(fields);
-        requireNonNull(infos);
+        requireNonNull(timeSeriesId);
+        requireNonNull(observedAt);
+        if (!Double.isFinite(value)) {
+            throw new IllegalArgumentException("value must be finite");
+        }
     }
 }

@@ -183,14 +183,9 @@ class SecurityConfigurationWebMvcTest {
                 {
                   "measurements": [
                     {
-                      "timestamp": "2026-04-25T10:15:30Z",
-                      "fields": {
-                        "waterLevel": 10.5,
-                        "flow": 20.5
-                      },
-                      "infos": {
-                        "quality": "ok"
-                      }
+                      "timeSeriesId": "8ce8c5b6-f093-4d46-b770-7239cdfa3d76",
+                      "observedAt": "2026-04-25T10:15:30Z",
+                      "value": 10.5
                     }
                   ]
                 }

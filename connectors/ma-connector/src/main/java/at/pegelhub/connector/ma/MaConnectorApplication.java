@@ -9,6 +9,7 @@ import at.pegelhub.connector.ma.core.MaConnectorScheduler;
 import at.pegelhub.connector.ma.jni.RevPiReader;
 import at.pegelhub.connector.ma.jni.RevPiReaderImpl;
 
+import java.net.URI;
 import java.net.URL;
 
 @Slf4j
@@ -23,7 +24,7 @@ public class MaConnectorApplication {
         try {
             MaConfigLoader configLoader = new MaConfigLoader();
             MaConnectorOptions config = configLoader.parseConfig(args);
-            URL coreBaseUrl = new URL("http", config.coreAddress(), config.corePort(), "/");
+            URL coreBaseUrl = URI.create("http://" + config.coreAddress() + ":" + config.corePort() + "/").toURL();
 
             RevPiReader revPiReader = new RevPiReaderImpl();
             InputRegistry inputRegistry = new InputRegistry(revPiReader, config.inputsDir(), coreBaseUrl);

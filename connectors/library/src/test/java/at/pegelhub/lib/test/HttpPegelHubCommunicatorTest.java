@@ -22,11 +22,11 @@ import org.junit.jupiter.api.*;
 
 import java.io.*;
 import java.net.MalformedURLException;
+import java.net.URI;
 import java.net.URL;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -48,7 +48,7 @@ public class HttpPegelHubCommunicatorTest {
         when(properties.getTokenUrl()).thenReturn("http://keycloak.local/token");
         when(properties.getClientId()).thenReturn("local-connector-example");
         when(properties.getClientSecret()).thenReturn("secret");
-        phc = new HttpPegelHubCommunicator(httpClient, new URL("http://localhost:1111/"), properties);
+        phc = new HttpPegelHubCommunicator(httpClient, baseUrl(), properties);
         uuid = UUID.fromString("74bcffac-8fa6-41ac-aa9d-53d082447226");
     }
 
@@ -125,7 +125,7 @@ public class HttpPegelHubCommunicatorTest {
         when(startupProperties.getClientId()).thenReturn("local-connector-example");
         when(startupProperties.getClientSecret()).thenReturn("secret");
 
-        new HttpPegelHubCommunicator(httpClient, new URL("http://localhost:1111/"), startupProperties);
+        new HttpPegelHubCommunicator(httpClient, baseUrl(), startupProperties);
 
         verify(startupProperties).isSupplierDataToSend();
         verifyNoMoreInteractions(httpClient);
@@ -143,7 +143,7 @@ public class HttpPegelHubCommunicatorTest {
         List<String> requestUris = new ArrayList<>();
         mockSuccessfulMetadataResponse(requestUris);
 
-        new HttpPegelHubCommunicator(httpClient, new URL("http://localhost:1111/"), startupProperties);
+        new HttpPegelHubCommunicator(httpClient, baseUrl(), startupProperties);
 
         assertEquals(List.of("http://keycloak.local/token", "http://localhost:1111/api/v1/supplier"), requestUris);
     }
@@ -160,7 +160,7 @@ public class HttpPegelHubCommunicatorTest {
         List<String> requestUris = new ArrayList<>();
         mockSuccessfulMetadataResponse(requestUris);
 
-        new HttpPegelHubCommunicator(httpClient, new URL("http://localhost:1111/"), startupProperties);
+        new HttpPegelHubCommunicator(httpClient, baseUrl(), startupProperties);
 
         assertEquals(List.of("http://keycloak.local/token", "http://localhost:1111/api/v1/taker"), requestUris);
     }
@@ -173,7 +173,7 @@ public class HttpPegelHubCommunicatorTest {
         when(startupProperties.getClientSecret()).thenReturn("secret");
 
         assertThrows(IllegalStateException.class, () ->
-                new HttpPegelHubCommunicator(httpClient, new URL("http://localhost:1111/"), startupProperties));
+                new HttpPegelHubCommunicator(httpClient, baseUrl(), startupProperties));
     }
 
     @Nested
@@ -323,6 +323,7 @@ public class HttpPegelHubCommunicatorTest {
             Collection<Measurement> measurements = phc.getMeasurements("");
 
             assertFalse(measurements.isEmpty());
+            assertEquals(UUID.fromString("395c0232-d110-40fd-bd7f-2bb4a0f2009d"), measurements.iterator().next().getTimeSeriesId());
         }
 
         @Test
@@ -351,6 +352,65 @@ public class HttpPegelHubCommunicatorTest {
             Optional<Measurement> measurement = phc.getMeasurementByUUID(uuid);
 
             assertTrue(measurement.isPresent());
+            assertEquals(UUID.fromString("395c0232-d110-40fd-bd7f-2bb4a0f2009d"), measurement.orElseThrow().getTimeSeriesId());
+        }
+
+        @Test
+        public void getMeasurementsOfTimeSeries_UsesTimeSeriesRoute() throws IOException {
+            when(properties.isSupplier()).thenReturn(false);
+            List<String> requestUris = new ArrayList<>();
+            when(httpClient.execute(any(), any(HttpClientResponseHandler.class))).thenAnswer(a -> {
+                var request = (org.apache.hc.client5.http.classic.methods.HttpUriRequestBase) a.getRawArguments()[0];
+                requestUris.add(request.getUri().toString());
+                var responseCallback = (HttpClientResponseHandler<?>) a.getRawArguments()[1];
+                ClassicHttpResponse httpResp = mock(ClassicHttpResponse.class);
+                HttpEntity entity = mock(HttpEntity.class);
+                String body = request.getUri().toString().contains("keycloak.local")
+                        ? "{\"access_token\":\"local-access-token\",\"expires_in\":300}"
+                        : getResource("MeasurementsFilledResponse.json");
+                when(entity.getContent()).thenReturn(new ByteArrayInputStream(body.getBytes()));
+                when(httpResp.getEntity()).thenReturn(entity);
+                when(httpResp.getCode()).thenReturn(HttpStatus.SC_OK);
+                return responseCallback.handleResponse(httpResp);
+            });
+
+            UUID timeSeriesId = UUID.fromString("395c0232-d110-40fd-bd7f-2bb4a0f2009d");
+
+            Collection<Measurement> measurements = phc.getMeasurementsOfTimeSeries(timeSeriesId, "72h");
+
+            assertFalse(measurements.isEmpty());
+            assertEquals(
+                    "http://localhost:1111/api/v1/measurement/time-series/395c0232-d110-40fd-bd7f-2bb4a0f2009d/72h",
+                    requestUris.get(1));
+        }
+
+        @Test
+        public void getLatestMeasurementOfTimeSeries_UsesTimeSeriesRoute() throws IOException {
+            when(properties.isSupplier()).thenReturn(false);
+            List<String> requestUris = new ArrayList<>();
+            when(httpClient.execute(any(), any(HttpClientResponseHandler.class))).thenAnswer(a -> {
+                var request = (org.apache.hc.client5.http.classic.methods.HttpUriRequestBase) a.getRawArguments()[0];
+                requestUris.add(request.getUri().toString());
+                var responseCallback = (HttpClientResponseHandler<?>) a.getRawArguments()[1];
+                ClassicHttpResponse httpResp = mock(ClassicHttpResponse.class);
+                HttpEntity entity = mock(HttpEntity.class);
+                String body = request.getUri().toString().contains("keycloak.local")
+                        ? "{\"access_token\":\"local-access-token\",\"expires_in\":300}"
+                        : getResource("Measurement.json");
+                when(entity.getContent()).thenReturn(new ByteArrayInputStream(body.getBytes()));
+                when(httpResp.getEntity()).thenReturn(entity);
+                when(httpResp.getCode()).thenReturn(HttpStatus.SC_OK);
+                return responseCallback.handleResponse(httpResp);
+            });
+
+            UUID timeSeriesId = UUID.fromString("395c0232-d110-40fd-bd7f-2bb4a0f2009d");
+
+            Optional<Measurement> measurement = phc.getLatestMeasurementOfTimeSeries(timeSeriesId);
+
+            assertTrue(measurement.isPresent());
+            assertEquals(
+                    "http://localhost:1111/api/v1/measurement/time-series/395c0232-d110-40fd-bd7f-2bb4a0f2009d/latest",
+                    requestUris.get(1));
         }
 
         @Test
@@ -383,13 +443,13 @@ public class HttpPegelHubCommunicatorTest {
             when(properties.isSupplier()).thenReturn(true);
 
             assertDoesNotThrow(() -> {
-                var meas = new Measurement();
+                var meas = measurement();
                 phc.sendMeasurements(List.of(meas));
             });
         }
 
         @Test
-        public void sendMeasurements_SerializesInstantTimestampAsUtcJson() throws IOException {
+        public void sendMeasurements_SerializesCleanMeasurementAsUtcJson() throws IOException {
             when(properties.isSupplier()).thenReturn(true);
             List<String> requestBodies = new ArrayList<>();
             when(httpClient.execute(any(), any(HttpClientResponseHandler.class))).thenAnswer(a -> {
@@ -409,15 +469,15 @@ public class HttpPegelHubCommunicatorTest {
                 return responseCallback.handleResponse(httpResp);
             });
 
-            var fields = new HashMap<String, Double>();
-            fields.put("value", 1.0);
             phc.sendMeasurements(List.of(new Measurement(
+                    UUID.fromString("395c0232-d110-40fd-bd7f-2bb4a0f2009d"),
                     Instant.parse("2026-04-25T10:15:30Z"),
-                    fields,
-                    new HashMap<>())));
+                    1.0)));
 
             assertEquals(1, requestBodies.size());
-            assertTrue(requestBodies.getFirst().contains("\"timestamp\":\"2026-04-25T10:15:30Z\""));
+            assertTrue(requestBodies.getFirst().contains("\"timeSeriesId\":\"395c0232-d110-40fd-bd7f-2bb4a0f2009d\""));
+            assertTrue(requestBodies.getFirst().contains("\"observedAt\":\"2026-04-25T10:15:30Z\""));
+            assertTrue(requestBodies.getFirst().contains("\"value\":1.0"));
         }
 
         @Test
@@ -426,7 +486,7 @@ public class HttpPegelHubCommunicatorTest {
             when(properties.isSupplier()).thenReturn(true);
 
             assertThrows(Exception.class, () -> {
-                var meas = new Measurement();
+                var meas = measurement();
                 phc.sendMeasurements(List.of(meas));
             });
         }
@@ -437,9 +497,23 @@ public class HttpPegelHubCommunicatorTest {
             when(properties.isSupplier()).thenReturn(false);
 
             assertThrows(RuntimeException.class, () -> {
-                var meas = new Measurement();
+                var meas = measurement();
                 phc.sendMeasurements(List.of(meas));
             });
+        }
+
+        @Test
+        public void sendMeasurements_ThrowsWhenMeasurementIsMissingTimeSeriesId() {
+            when(properties.isSupplier()).thenReturn(true);
+
+            assertThrows(RuntimeException.class, () -> phc.sendMeasurements(List.of(new Measurement())));
+        }
+
+        private Measurement measurement() {
+            return new Measurement(
+                    UUID.fromString("395c0232-d110-40fd-bd7f-2bb4a0f2009d"),
+                    Instant.parse("2026-04-25T10:15:30Z"),
+                    1.0);
         }
     }
 
@@ -652,6 +726,10 @@ public class HttpPegelHubCommunicatorTest {
 
     private ContactSendDto contact() {
         return new ContactSendDto("", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "");
+    }
+
+    private URL baseUrl() throws MalformedURLException {
+        return URI.create("http://localhost:1111/").toURL();
     }
 
     private String getResource(String name) throws IOException {

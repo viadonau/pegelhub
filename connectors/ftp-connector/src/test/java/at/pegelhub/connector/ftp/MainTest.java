@@ -8,10 +8,12 @@ import java.lang.reflect.Method;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
+import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 class MainTest {
+    private static final UUID TIME_SERIES_ID = UUID.fromString("11111111-1111-1111-1111-111111111111");
 
     @TempDir
     Path tmp;
@@ -33,6 +35,7 @@ class MainTest {
                 ftp.path=/incoming
                 parser.type=zrxp
                 read.delay=15m
+                timeSeriesId=11111111-1111-1111-1111-111111111111
                 """);
 
         ConnectorOptions options = invokeStatic("getConnectorOptions", new Class<?>[]{String.class}, tmp.toString());
@@ -46,6 +49,7 @@ class MainTest {
         assertEquals("/incoming", options.path());
         assertEquals(ParserType.ZRXP, options.parserType());
         assertEquals(Duration.ofMinutes(15), options.readDelay());
+        assertEquals(TIME_SERIES_ID, options.timeSeriesId());
         assertEquals(tmp.resolve("pegelhub.yaml").toString(), options.propertiesFile());
     }
 

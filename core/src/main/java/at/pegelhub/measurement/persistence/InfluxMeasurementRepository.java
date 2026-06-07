@@ -7,6 +7,7 @@ import com.influxdb.client.write.Point;
 import com.influxdb.exceptions.InfluxException;
 import com.influxdb.query.FluxRecord;
 import com.influxdb.query.FluxTable;
+import at.pegelhub.connector.domain.ConnectorId;
 import at.pegelhub.measurement.domain.Measurement;
 import at.pegelhub.shared.error.NotFoundException;
 import at.pegelhub.shared.influx.DatabaseProperties;
@@ -14,12 +15,15 @@ import at.pegelhub.shared.influx.ConnectionHelper;
 import at.pegelhub.shared.influx.FluxDuration;
 import at.pegelhub.shared.influx.FluxQueries;
 import at.pegelhub.shared.influx.InfluxPoint;
+import at.pegelhub.timeseries.domain.TimeSeriesId;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Repository;
 
 import java.time.Instant;
-import java.util.*;
-import java.util.stream.Collectors;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
+import java.util.UUID;
 
 import static java.util.Objects.requireNonNull;
 
@@ -30,6 +34,10 @@ import static java.util.Objects.requireNonNull;
  */
 @Repository
 public class InfluxMeasurementRepository implements MeasurementRepository {
+
+    private static final String VALUE_FIELD = "value";
+    private static final String RECEIVED_AT_FIELD = "receivedAt";
+    private static final String SUBMITTED_BY_CONNECTOR_ID_TAG = "submittedByConnectorId";
 
     private final InfluxDBClient client;
     private final DatabaseProperties properties;
@@ -51,14 +59,11 @@ public class InfluxMeasurementRepository implements MeasurementRepository {
     public void storeMeasurements(List<Measurement> measurements) {
         List<Point> dataPoints = new ArrayList<>(measurements.size());
         for (Measurement measurement : measurements) {
-            Point measurementData = Point.measurement(measurement.measurement().toString())
-                    .time(measurement.timestamp(), WritePrecision.MS);
-            for (Map.Entry<String, String> entry : measurement.infos().entrySet()) {
-                measurementData.addTag(entry.getKey(), entry.getValue());
-            }
-            for (Map.Entry<String, Double> entry : measurement.fields().entrySet()) {
-                measurementData.addField(entry.getKey(), entry.getValue());
-            }
+            Point measurementData = Point.measurement(measurement.timeSeriesId().value().toString())
+                    .time(measurement.observedAt(), WritePrecision.MS)
+                    .addTag(SUBMITTED_BY_CONNECTOR_ID_TAG, measurement.submittedByConnectorId().value().toString())
+                    .addField(VALUE_FIELD, measurement.value())
+                    .addField(RECEIVED_AT_FIELD, measurement.receivedAt().toString());
             dataPoints.add(measurementData);
         }
         ConnectionHelper.writePoints(this.client, properties, dataPoints);
@@ -81,8 +86,8 @@ public class InfluxMeasurementRepository implements MeasurementRepository {
      * @return the value with the specified ID in the specified range
      */
     @Override
-    public List<Measurement> getByIDAndRange(UUID id, String range) {
-        String query = FluxQueries.measurementRange(properties, id, new FluxDuration(range));
+    public List<Measurement> getByTimeSeriesIdAndRange(TimeSeriesId timeSeriesId, String range) {
+        String query = FluxQueries.measurementRange(properties, timeSeriesId.value(), new FluxDuration(range));
 
         return toMeasurements(ConnectionHelper.queryData(this.client, properties, query));
     }
@@ -93,33 +98,34 @@ public class InfluxMeasurementRepository implements MeasurementRepository {
      * @return the corresponding value to the specified {@link UUID}
      */
     @Override
-    public Measurement getLastData(UUID uuid) {
-        String query = FluxQueries.latestMeasurement(properties, uuid, latestRange);
+    public Measurement getLatestByTimeSeriesId(TimeSeriesId timeSeriesId) {
+        String query = FluxQueries.latestMeasurement(properties, timeSeriesId.value(), latestRange);
         List<Measurement> measurements = toMeasurements(ConnectionHelper.queryData(this.client, properties, query));
         if (measurements.isEmpty()) {
             throw new InfluxException("No measurement found");
         }
         return measurements.stream()
-                .max(Comparator.comparing(Measurement::timestamp))
+                .max(Comparator.comparing(Measurement::observedAt))
                 .orElseThrow(() -> new InfluxException("No measurement found"));
     }
 
     @Override
-    public Measurement getAverageByIdAndRange(UUID id, String range) {
-        String query = FluxQueries.meanMeasurement(properties, id, new FluxDuration(range));
+    public Measurement getAverageByTimeSeriesIdAndRange(TimeSeriesId timeSeriesId, String range) {
+        String query = FluxQueries.meanMeasurement(properties, timeSeriesId.value(), new FluxDuration(range));
 
         List<Measurement> results = toMeasurements(ConnectionHelper.queryData(this.client, properties, query));
 
         if (results.isEmpty()) {
-            throw new NotFoundException(String.format("No data found for ID %s in the last %s to calculate an average.", id, range));
+            throw new NotFoundException(String.format("No data found for TimeSeries %s in the last %s to calculate an average.", timeSeriesId.value(), range));
         }
 
         Measurement averagedMeasurement = results.getFirst();
         return new Measurement(
-                averagedMeasurement.measurement(),
+                averagedMeasurement.timeSeriesId(),
                 Instant.now(),
-                averagedMeasurement.fields(),
-                averagedMeasurement.infos()
+                Instant.now(),
+                averagedMeasurement.value(),
+                averagedMeasurement.submittedByConnectorId()
         );
     }
 
@@ -130,22 +136,30 @@ public class InfluxMeasurementRepository implements MeasurementRepository {
     private List<Measurement> toMeasurements(List<InfluxPoint> data) {
         List<Measurement> measurements = new ArrayList<>();
         for (InfluxPoint point : data) {
-            HashMap<String, Double> fields = new HashMap<>(point.fields().entrySet().stream()
-                    .filter(entry -> entry.getValue() instanceof Number)
-                    .collect(Collectors.toMap(Map.Entry::getKey, entry -> ((Number) entry.getValue()).doubleValue())));
-            HashMap<String, String> infos = new HashMap<>(point.tags());
-            Instant timestamp = point.isAggregate()
+            Instant observedAt = point.isAggregate()
                     ? Instant.now()
                     : point.timestamp();
+            Instant receivedAt = point.fields().containsKey(RECEIVED_AT_FIELD)
+                    ? Instant.parse(point.fields().get(RECEIVED_AT_FIELD).toString())
+                    : Instant.now();
 
             measurements.add(new Measurement(
-                    UUID.fromString(point.measurement()),
-                    timestamp,
-                    fields,
-                    infos)
+                    new TimeSeriesId(UUID.fromString(point.measurement())),
+                    observedAt,
+                    receivedAt,
+                    numericField(point, VALUE_FIELD),
+                    new ConnectorId(UUID.fromString(point.tags().get(SUBMITTED_BY_CONNECTOR_ID_TAG))))
             );
         }
         return measurements;
+    }
+
+    private double numericField(InfluxPoint point, String field) {
+        Object value = point.fields().get(field);
+        if (value instanceof Number number) {
+            return number.doubleValue();
+        }
+        throw new InfluxException("Measurement point is missing numeric field " + field);
     }
 
     @Override

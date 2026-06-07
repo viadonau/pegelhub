@@ -6,7 +6,6 @@ import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
@@ -29,17 +28,15 @@ public class TstpBinaryServiceImplTest {
 
         assertEquals(1, measurements.size());
         Measurement measurement = measurements.get(0);
-        assertEquals(Instant.parse("2010-08-03T13:30:00Z"), measurement.getTimestamp());
-        assertEquals(664.7, measurement.getFields().get("value"));
+        assertEquals(Instant.parse("2010-08-03T13:30:00Z"), measurement.getObservedAt());
+        assertEquals(664.7, measurement.getValue());
     }
 
     @Test
     public void testEncode_oneMeasurement_binaryWithOneMeasurement() {
         List<Measurement> measurements = new ArrayList<>();
         Instant dateTime = Instant.parse("2010-08-03T13:30:00Z");
-        HashMap<String, Double> valueMap = new HashMap<>();
-        valueMap.put("value", 664.7);
-        measurements.add(new Measurement(dateTime, valueMap, new HashMap<>()));
+        measurements.add(new Measurement(null, dateTime, 664.7));
 
         byte[] encodedBytes = tstpBinaryService.encode(measurements);
 
@@ -79,12 +76,8 @@ public class TstpBinaryServiceImplTest {
         List<Measurement> measurements = new ArrayList<>();
         Instant dateTime1 = Instant.parse("2010-08-03T13:30:00Z");
         Instant dateTime2 = Instant.parse("2024-05-24T07:44:37Z");
-        HashMap<String, Double> valueMap1 = new HashMap<>();
-        valueMap1.put("value", 664.7);
-        HashMap<String, Double> valueMap2 = new HashMap<>();
-        valueMap2.put("value", 351.0);
-        measurements.add(new Measurement(dateTime1, valueMap1, new HashMap<>()));
-        measurements.add(new Measurement(dateTime2, valueMap2, new HashMap<>()));
+        measurements.add(new Measurement(null, dateTime1, 664.7));
+        measurements.add(new Measurement(null, dateTime2, 351.0));
 
         byte[] encodedBytes = tstpBinaryService.encode(measurements);
 
@@ -106,10 +99,10 @@ public class TstpBinaryServiceImplTest {
 
         assertEquals(2, measurements.size());
         Measurement measurement1 = measurements.get(0);
-        assertEquals(Instant.parse("2010-08-03T13:30:00Z"), measurement1.getTimestamp());
-        assertEquals(664.7, measurement1.getFields().get("value"));
+        assertEquals(Instant.parse("2010-08-03T13:30:00Z"), measurement1.getObservedAt());
+        assertEquals(664.7, measurement1.getValue());
         Measurement measurement2 = measurements.get(1);
-        assertEquals(Instant.parse("2024-05-24T07:44:37Z"), measurement2.getTimestamp());
-        assertEquals(351.0, measurement2.getFields().get("value"));
+        assertEquals(Instant.parse("2024-05-24T07:44:37Z"), measurement2.getObservedAt());
+        assertEquals(351.0, measurement2.getValue());
     }
 }

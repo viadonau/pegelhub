@@ -28,6 +28,7 @@ class FluxQueriesTest {
                 .isEqualTo("from(bucket: \"data\\\"bucket\") |> range(start: -6h)"
                         + " |> filter(fn: (r) => r._measurement == \"e27efad9-b947-48b1-928e-c25663597f1c\") |> last()");
         assertThat(FluxQueries.meanMeasurement(DATABASE, id, new FluxDuration("7d")))
-                .endsWith(" |> filter(fn: (r) => r._measurement == \"e27efad9-b947-48b1-928e-c25663597f1c\") |> mean()");
+                .endsWith(" |> filter(fn: (r) => r._measurement == \"e27efad9-b947-48b1-928e-c25663597f1c\")"
+                        + " |> filter(fn: (r) => r._field == \"value\") |> mean()");
     }
 }

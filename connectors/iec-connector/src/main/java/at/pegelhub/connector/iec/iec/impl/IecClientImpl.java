@@ -74,7 +74,7 @@ public class IecClientImpl implements IecClient {
 
     @Override
     public void sendMeasurement(int ioa, Measurement measurement) {
-        float value = measurement.getFields().get("value").floatValue();
+        float value = measurement.getValue().floatValue();
 
         InformationElement[] elements = new InformationElement[]{
                 new IeShortFloat(value),
@@ -159,11 +159,8 @@ public class IecClientImpl implements IecClient {
             InformationElement[] elems = sets[0];
             double value = ((IeShortFloat) elems[0]).getValue();
 
-            Map<String, Double> fields = new HashMap<>();
-            fields.put("value", value);
-
             Instant currentTime = Instant.now();
-            Measurement m = new Measurement(currentTime, fields, new HashMap<>());
+            Measurement m = new Measurement(null, currentTime, value);
 
             measurementQueue.add(new ReceivedMeasurement(ioa, m));
         });

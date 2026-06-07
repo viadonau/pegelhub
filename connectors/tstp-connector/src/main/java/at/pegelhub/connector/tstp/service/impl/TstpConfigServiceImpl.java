@@ -7,6 +7,7 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.Properties;
+import java.util.UUID;
 
 public class TstpConfigServiceImpl implements TstpConfigService {
     private final String TSTP_CONFIG_PATH;
@@ -20,14 +21,15 @@ public class TstpConfigServiceImpl implements TstpConfigService {
     @Override
     public ConnectorOptions getConnectorOptions() throws IOException {
         Properties props = getProperties();
-        Duration readDelay = parseDurationString(props.getProperty("connector.readDelay"));
+        Duration readDelay = parseDurationString(requiredProperty(props, "connector.readDelay"));
 
         return new ConnectorOptions(
-                props.getProperty("core.address"),
-                Integer.parseInt(props.getProperty("core.port")),
-                props.getProperty("tstp.address"),
-                Integer.parseInt(props.getProperty("tstp.port")),
+                requiredProperty(props, "core.address"),
+                Integer.parseInt(requiredProperty(props, "core.port")),
+                requiredProperty(props, "tstp.address"),
+                Integer.parseInt(requiredProperty(props, "tstp.port")),
                 readDelay,
+                UUID.fromString(requiredProperty(props, "timeSeriesId")),
                 CORE_PROPERTIES_PATH
         );
     }
@@ -53,5 +55,13 @@ public class TstpConfigServiceImpl implements TstpConfigService {
         Properties props = new Properties();
         props.load(new FileInputStream(TSTP_CONFIG_PATH));
         return props;
+    }
+
+    private String requiredProperty(Properties props, String key) {
+        String value = props.getProperty(key);
+        if (value == null || value.isBlank()) {
+            throw new IllegalArgumentException("Missing or empty property: " + key);
+        }
+        return value;
     }
 }

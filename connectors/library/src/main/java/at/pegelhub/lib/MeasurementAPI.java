@@ -30,29 +30,9 @@ public interface MeasurementAPI {
      */
     Optional<Measurement> getMeasurementByUUID(UUID uuid);
 
-    /**
-     * Get all measurement data for the specified {@param timespan}.
-     * The {@param timespan} needs a specific format. It begins with a number and ends with a time specification of that number.
-     * Valid time specifications are:
-     * * m - Minutes
-     * * h - Hours
-     * * d - Days
-     * Examples:
-     * 72h - 72 hours in the past
-     * 720d - 720 days in the past
-     * @param stationNumber stationnumber of the supplier
-     * @param timespan the timespan from now to the past, which data is requested
-     * @return Collection of {@code Measurement} containing found measurements in {@param timespan}.
-     */
-    Collection<Measurement> getMeasurementsOfStation(String stationNumber, String timespan);
+    Collection<Measurement> getMeasurementsOfTimeSeries(UUID timeSeriesId, String timespan);
 
-    /**
-     * Get the latest measurement for configured takers station number.
-     * @return the latest {@code Measurement} for the supplier
-     */
-    Optional<Measurement> getLatestMeasurementOfStation();
-
-    HashSet<Long> getMeasurementsIDsOfStation(String stationNumber, String timespan);
+    Optional<Measurement> getLatestMeasurementOfTimeSeries(UUID timeSeriesId);
 
     /**
      * Sends a list of ({@code Measurement}) to the core instance.
@@ -62,6 +42,4 @@ public interface MeasurementAPI {
     void sendMeasurements(List<Measurement> meass);
 
     Instant getSystemTime();
-
-    Optional<Measurement> getTimestampOfLastMeasurementByUUID(UUID uuid);
 }

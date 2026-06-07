@@ -1,20 +1,23 @@
 package at.pegelhub.measurement.api;
 
-import java.time.Instant;
-import java.util.Map;
+import jakarta.validation.constraints.NotNull;
 
-import static at.pegelhub.shared.validation.Validations.requireNotEmpty;
+import java.time.Instant;
+import java.util.UUID;
+
 import static java.util.Objects.requireNonNull;
 
 /**
- * Dto to create a single measurement.
+ * Request DTO for submitting one scalar Measurement.
  */
-public record WriteMeasurementDto(Instant timestamp,
-                                  Map<String, Double> fields, Map<String, String> infos) {
+public record WriteMeasurementDto(
+        @NotNull UUID timeSeriesId,
+        @NotNull Instant observedAt,
+        @NotNull Double value) {
 
     public WriteMeasurementDto {
-        requireNonNull(timestamp);
-        requireNotEmpty(fields);
-        requireNonNull(infos);
+        requireNonNull(timeSeriesId);
+        requireNonNull(observedAt);
+        requireNonNull(value);
     }
 }

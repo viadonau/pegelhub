@@ -17,6 +17,7 @@ import at.pegelhub.taker.application.TakerService;
 import at.pegelhub.taker.application.TakerServiceManufacturerService;
 import at.pegelhub.telemetry.api.HttpTelemetryController;
 import at.pegelhub.telemetry.application.TelemetryService;
+import at.pegelhub.timeseries.domain.TimeSeriesId;
 import org.jspecify.annotations.NonNull;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -34,6 +35,7 @@ import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
 import java.time.Instant;
 import java.util.List;
+import java.util.UUID;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 
@@ -72,6 +74,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @AutoConfigureMockMvc(addFilters = false)
 class AuthPolicyMatrixWebMvcTest {
 
+    private static final TimeSeriesId TIME_SERIES_ID = new TimeSeriesId(UUID.fromString("8ce8c5b6-f093-4d46-b770-7239cdfa3d76"));
+
     @Autowired
     private MockMvc mockMvc;
 
@@ -102,9 +106,9 @@ class AuthPolicyMatrixWebMvcTest {
     @BeforeEach
     void prepare() {
         when(measurementService.getByRange(anyString())).thenReturn(MEASUREMENTS);
-        when(measurementService.getBySupplierAndRange(anyString(), anyString())).thenReturn(MEASUREMENTS);
-        when(measurementService.getLatestBySupplier(anyString())).thenReturn(MEASUREMENT);
-        when(measurementService.getAverageBySupplierAndRange(anyString(), anyString())).thenReturn(MEASUREMENT);
+        when(measurementService.getByTimeSeriesAndRange(any(), anyString())).thenReturn(MEASUREMENTS);
+        when(measurementService.getLatestByTimeSeries(any())).thenReturn(MEASUREMENT);
+        when(measurementService.getAverageByTimeSeriesAndRange(any(), anyString())).thenReturn(MEASUREMENT);
         when(measurementService.getLastData(any())).thenReturn(MEASUREMENT);
         when(measurementService.getSystemTime()).thenReturn(Instant.parse("2026-01-02T03:04:05Z"));
 
@@ -167,12 +171,9 @@ class AuthPolicyMatrixWebMvcTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(measurementsJson())),
                 new EndpointCase("measurement GET range", () -> get("/api/v1/measurement/{range}", "72h")),
-                new EndpointCase("measurement GET supplier range", () -> get("/api/v1/measurement/supplier/{range}", "72h")
-                        .param("stationNumber", "stationNR")),
-                new EndpointCase("measurement GET supplier latest", () -> get("/api/v1/measurement/supplier/latest")
-                        .param("stationNumber", "stationNR")),
-                new EndpointCase("measurement GET supplier average", () -> get("/api/v1/measurement/supplier/average/{range}", "72h")
-                        .param("stationNumber", "stationNR")),
+                new EndpointCase("measurement GET time series range", () -> get("/api/v1/measurement/time-series/{timeSeriesId}/{range}", TIME_SERIES_ID.value(), "72h")),
+                new EndpointCase("measurement GET time series latest", () -> get("/api/v1/measurement/time-series/{timeSeriesId}/latest", TIME_SERIES_ID.value())),
+                new EndpointCase("measurement GET time series average", () -> get("/api/v1/measurement/time-series/{timeSeriesId}/average/{range}", TIME_SERIES_ID.value(), "72h")),
                 new EndpointCase("measurement GET last", () -> get("/api/v1/measurement/last/{uuid}", ID)),
                 new EndpointCase("measurement system time", () -> get("/api/v1/measurement/systemTime")),
                 new EndpointCase("telemetry POST", () -> post("/api/v1/telemetry")
@@ -218,14 +219,9 @@ class AuthPolicyMatrixWebMvcTest {
                 {
                   "measurements": [
                     {
-                      "timestamp": "2026-04-25T10:15:30Z",
-                      "fields": {
-                        "waterLevel": 10.5,
-                        "flow": 20.5
-                      },
-                      "infos": {
-                        "quality": "ok"
-                      }
+                      "timeSeriesId": "8ce8c5b6-f093-4d46-b770-7239cdfa3d76",
+                      "observedAt": "2026-04-25T10:15:30Z",
+                      "value": 10.5
                     }
                   ]
                 }

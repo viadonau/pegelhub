@@ -5,6 +5,7 @@ keycloak:
   clientSecret: "local-dev-ma-connector-secret-change-me"
 sendMetaDataOnStartup: false
 revInput: "InputValue_1"
+timeSeriesId: "11111111-1111-1111-1111-111111111111"
 isSupplier: true
 supplier:
   number: "8759"

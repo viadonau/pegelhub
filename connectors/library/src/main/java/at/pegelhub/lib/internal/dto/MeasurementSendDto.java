@@ -1,6 +1,6 @@
 package at.pegelhub.lib.internal.dto;
 
 import java.time.Instant;
-import java.util.Map;
+import java.util.UUID;
 
-public record MeasurementSendDto(Instant timestamp, Map<String, Double> fields, Map<String, String> infos) {}
+public record MeasurementSendDto(UUID timeSeriesId, Instant observedAt, Double value) {}

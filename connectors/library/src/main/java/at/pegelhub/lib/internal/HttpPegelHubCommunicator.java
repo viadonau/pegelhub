@@ -219,9 +219,12 @@ public class HttpPegelHubCommunicator implements PegelHubCommunicator {
             return client.execute(http, response -> {
                 var json = EntityUtils.toString(response.getEntity());
                 var gson = gsonWithInstantSupport();
-                var listType = new TypeToken<List<Measurement>>() {
+                var listType = new TypeToken<List<MeasurementReceiveDto>>() {
                 };
-                return gson.fromJson(json, listType);
+                List<MeasurementReceiveDto> measurements = gson.fromJson(json, listType);
+                return measurements.stream()
+                        .map(MeasurementReceiveDto::toMeasurement)
+                        .toList();
             });
         } catch (Exception e) {
             throw new RuntimeException(e);
@@ -244,7 +247,7 @@ public class HttpPegelHubCommunicator implements PegelHubCommunicator {
 
                 var json = EntityUtils.toString(response.getEntity());
                 var gson = gsonWithInstantSupport();
-                return gson.fromJson(json, Measurement.class);
+                return gson.fromJson(json, MeasurementReceiveDto.class).toMeasurement();
             }));
         } catch (Exception e) {
             throw new RuntimeException(e);
@@ -252,15 +255,55 @@ public class HttpPegelHubCommunicator implements PegelHubCommunicator {
     }
 
     @Override
-    public Collection<Measurement> getMeasurementsOfStation(String stationNumber, String timespan) {
-        ensureIsTaker();
-        return _getMeasurementsByStationAndTime(stationNumber, timespan);
+    public Collection<Measurement> getMeasurementsOfTimeSeries(UUID timeSeriesId, String timespan) {
+        try {
+            ensureIsTaker();
+
+            final URI uri = baseUrl.toURI().resolve(measurementRoute + "/time-series/" + timeSeriesId + "/" + timespan);
+            final var http = new HttpGet(uri);
+            authorize(http);
+
+            return client.execute(http, response -> {
+                if (response.getCode() == 404) {
+                    throw new NotFoundException("time series does not exist");
+                }
+                var json = EntityUtils.toString(response.getEntity());
+                var gson = gsonWithInstantSupport();
+                var listType = new TypeToken<List<MeasurementReceiveDto>>() {
+                };
+                List<MeasurementReceiveDto> measurements = gson.fromJson(json, listType);
+                return measurements.stream()
+                        .map(MeasurementReceiveDto::toMeasurement)
+                        .toList();
+            });
+        } catch (NotFoundException nfe) {
+            throw new NotFoundException(nfe.getMessage());
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
     }
 
     @Override
-    public Optional<Measurement> getLatestMeasurementOfStation() {
-        ensureIsTaker();
-        return _getLatestMeasurementByStation(properties.getTaker().stationNumber());
+    public Optional<Measurement> getLatestMeasurementOfTimeSeries(UUID timeSeriesId) {
+        try {
+            ensureIsTaker();
+
+            final URI uri = baseUrl.toURI().resolve(measurementRoute + "/time-series/" + timeSeriesId + "/latest");
+            final var http = new HttpGet(uri);
+            authorize(http);
+
+            return Optional.ofNullable(client.execute(http, response -> {
+                if (response.getCode() != HttpStatus.SC_OK) {
+                    return null;
+                }
+
+                var json = EntityUtils.toString(response.getEntity());
+                var gson = gsonWithInstantSupport();
+                return gson.fromJson(json, MeasurementReceiveDto.class).toMeasurement();
+            }));
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
     }
 
     @Override
@@ -320,7 +363,7 @@ public class HttpPegelHubCommunicator implements PegelHubCommunicator {
             final var http = new HttpPost(uri);
             authorize(http);
             http.setHeader("Content-Type", "application/json");
-            var dto = new MeasurementsSendDto(meass.stream().map(m -> new MeasurementSendDto(m.getTimestamp(), m.getFields(), m.getInfos())).toList());
+            var dto = new MeasurementsSendDto(meass.stream().map(this::toMeasurementSendDto).toList());
             var gson = gsonWithInstantSupport();
             var json = gson.toJson(dto, MeasurementsSendDto.class);
             var entity = HttpEntities.create(json);
@@ -336,6 +379,19 @@ public class HttpPegelHubCommunicator implements PegelHubCommunicator {
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
+    }
+
+    private MeasurementSendDto toMeasurementSendDto(Measurement measurement) {
+        if (measurement.getTimeSeriesId() == null) {
+            throw new IllegalArgumentException("Measurement timeSeriesId must be set");
+        }
+        if (measurement.getObservedAt() == null) {
+            throw new IllegalArgumentException("Measurement observedAt must be set");
+        }
+        if (measurement.getValue() == null) {
+            throw new IllegalArgumentException("Measurement value must be set");
+        }
+        return new MeasurementSendDto(measurement.getTimeSeriesId(), measurement.getObservedAt(), measurement.getValue());
     }
 
     @Override
@@ -591,88 +647,4 @@ public class HttpPegelHubCommunicator implements PegelHubCommunicator {
         }
     }
 
-    //TODO: Verwend ich das überhaupt irgendwo? Ist der gleiche Code wie getMeasurementByUUID.
-    public Optional<Measurement> getTimestampOfLastMeasurementByUUID(UUID uuid) {
-        try {
-
-            final URI uri = baseUrl.toURI().resolve(measurementRoute + "/last/" + uuid);
-            final var http = new HttpGet(uri);
-            authorize(http);
-
-            return Optional.ofNullable(client.execute(http, response -> {
-                if (response.getCode() != HttpStatus.SC_OK) {
-                    throw new RuntimeException("Invalid status: " + response.getCode());
-                }
-
-                var json = EntityUtils.toString(response.getEntity());
-                var gson = gsonWithInstantSupport();
-                return gson.fromJson(json, Measurement.class);
-            }));
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    @Override
-    public HashSet<Long> getMeasurementsIDsOfStation(String stationNumber, String timespan) {
-
-        Collection<Measurement> measurements = _getMeasurementsByStationAndTime(stationNumber, timespan);
-        HashSet<Long> IDs = new HashSet<>();
-
-        for (Measurement m : measurements) {
-            //TODO needs to be changed at some point - but first need to find out why ID is needed
-            if (m.getFields().containsKey("ID")) {
-                Long work = Math.round(m.getFields().get("ID"));
-                IDs.add(work);
-            }
-        }
-        return IDs;
-    }
-
-    private Collection<Measurement> _getMeasurementsByStationAndTime(String stationNumber, String timespan) {
-        try {
-            final URI uri = baseUrl.toURI().resolve(measurementRoute + "/supplier/" + timespan + "?stationNumber=" + stationNumber);
-            final var http = new HttpGet(uri);
-            authorize(http);
-
-            return client.execute(http, response -> {
-                if (response.getCode() == 404) {
-                    throw new NotFoundException("supplier does not exist");
-                }
-                var json = EntityUtils.toString(response.getEntity());
-                var gson = gsonWithInstantSupport();
-                var listType = new TypeToken<List<Measurement>>() {
-                };
-                return gson.fromJson(json, listType);
-            });
-        } catch (NotFoundException nfe) {
-            throw new NotFoundException(nfe.getMessage());
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-
-    private Optional<Measurement> _getLatestMeasurementByStation(String stationNumber) {
-        try {
-            ensureIsTaker();
-
-            final URI uri = baseUrl.toURI()
-                    .resolve(measurementRoute + "/supplier/latest?stationNumber=" + stationNumber);
-            final var http = new HttpGet(uri);
-            authorize(http);
-
-            return Optional.ofNullable(client.execute(http, response -> {
-                if (response.getCode() != HttpStatus.SC_OK) {
-                    return null;
-                }
-
-                var json = EntityUtils.toString(response.getEntity());
-                var gson = gsonWithInstantSupport();
-                return gson.fromJson(json, Measurement.class);
-            }));
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-    }
 }

@@ -6,6 +6,7 @@ import at.pegelhub.connector.ftp.fileparsing.Parser;
 import at.pegelhub.connector.ftp.fileparsing.ParserFactory;
 import at.pegelhub.connector.ftp.fileparsing.ParserType;
 import at.pegelhub.lib.PegelHubCommunicator;
+import at.pegelhub.lib.model.Measurement;
 import org.apache.commons.net.ftp.FTPClient;
 import org.apache.commons.net.ftp.FTPFile;
 import org.junit.jupiter.api.*;
@@ -24,8 +25,10 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.time.Duration;
 import java.util.List;
+import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.*;
 
 public class FtpTaskTest {
@@ -33,13 +36,14 @@ public class FtpTaskTest {
     private PegelHubCommunicator comm;
     private ConnectorOptions conOpts;
     private String propertiesFile;
+    private static final UUID TIME_SERIES_ID = UUID.fromString("11111111-1111-1111-1111-111111111111");
 
     @BeforeEach
     public void setup() throws IOException {
         client = new FTPClient();
         comm = mock(PegelHubCommunicator.class);
         propertiesFile = createPropertiesFile();
-        conOpts = new ConnectorOptions(InetAddress.getByName("localhost"), 0, InetAddress.getByName("localhost"), 0, "user", "password", "", ParserType.ASC, Duration.ofHours(2), propertiesFile);
+        conOpts = new ConnectorOptions(InetAddress.getByName("localhost"), 0, InetAddress.getByName("localhost"), 0, "user", "password", "", ParserType.ASC, Duration.ofHours(2), TIME_SERIES_ID, propertiesFile);
     }
 
     private static String createPropertiesFile() throws IOException {
@@ -103,7 +107,7 @@ public class FtpTaskTest {
             var newConOpts = new ConnectorOptions(InetAddress.getByName("localhost"), 0,
                     InetAddress.getByName("localhost"), 1025,
                     "user", "password",
-                    "", ParserType.ASC, Duration.ofHours(2), propertiesFile);
+                    "", ParserType.ASC, Duration.ofHours(2), TIME_SERIES_ID, propertiesFile);
             var parser = ParserFactory.getParser(newConOpts.parserType());
             task = new FtpTask(client, newConOpts, comm, parser);
         }
@@ -117,7 +121,12 @@ public class FtpTaskTest {
         @Tag("SingleEntry.asc")
         public void ftpTaskLoadsASCFileAndSendsEntriesToCommunicator() {
             task.run();
-            verify(comm, atLeastOnce()).sendMeasurements(any(List.class));
+            verify(comm, atLeastOnce()).sendMeasurements(argThat(measurements -> {
+                Measurement measurement = measurements.getFirst();
+                assertEquals(TIME_SERIES_ID, measurement.getTimeSeriesId());
+                assertEquals(289.0, measurement.getValue());
+                return true;
+            }));
         }
 
         @Test
@@ -125,7 +134,11 @@ public class FtpTaskTest {
         public void ftpTaskLoadsFileWithMultipleEntriesAndSendsEntriesToCommunicator() {
             task.run();
 
-            verify(comm, atLeastOnce()).sendMeasurements(any(List.class));
+            verify(comm, atLeastOnce()).sendMeasurements(argThat(measurements -> {
+                Measurement measurement = measurements.getFirst();
+                assertEquals(TIME_SERIES_ID, measurement.getTimeSeriesId());
+                return true;
+            }));
         }
 
         @Test
@@ -134,7 +147,7 @@ public class FtpTaskTest {
             task.run();
             task.run();
 
-            verify(comm, times(1)).sendMeasurements(any(List.class));
+            verify(comm, times(1)).sendMeasurements(anyList());
         }
 
         @Test

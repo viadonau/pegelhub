@@ -34,9 +34,7 @@ class IecClientImplTest {
         f.setAccessible(true);
         f.set(client, conn);
 
-        var fields = new HashMap<String, Double>();
-        fields.put("value", 12.34);
-        var m = new Measurement(Instant.now(), fields, new HashMap<>());
+        var m = new Measurement(UUID.fromString("395c0232-d110-40fd-bd7f-2bb4a0f2009d"), Instant.now(), 12.34);
 
         // When
         client.sendMeasurement(66049, m);

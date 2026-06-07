@@ -10,6 +10,7 @@ import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Set;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.*;
@@ -23,6 +24,7 @@ class DataPointRegistryTest {
     private void writeYaml(Path file, int ioa, boolean isSupplier) throws Exception {
         Files.writeString(file, """
                 iecIOA: %d
+                timeSeriesId: "395c0232-d110-40fd-bd7f-2bb4a0f2009d"
                 isSupplier: %s
                 """.formatted(ioa, isSupplier));
     }
@@ -51,6 +53,7 @@ class DataPointRegistryTest {
 
             assertThat(reg.getSupplier(1001)).isPresent();
             assertThat(reg.getTaker(2002)).isPresent();
+            assertThat(reg.getTimeSeriesId(1001)).contains(UUID.fromString("395c0232-d110-40fd-bd7f-2bb4a0f2009d"));
             assertThat(reg.getSupplier(9999)).isEmpty();
         }
     }

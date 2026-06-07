@@ -2,10 +2,10 @@ package at.pegelhub.measurement.persistence;
 
 
 import at.pegelhub.measurement.domain.Measurement;
+import at.pegelhub.timeseries.domain.TimeSeriesId;
 
 import java.time.Instant;
 import java.util.List;
-import java.util.UUID;
 
 /**
  * Repository for all {@code Measurement}s.
@@ -30,28 +30,28 @@ public interface MeasurementRepository {
     /**
      * Queries measurements from the repository.
      *
-     * @param id of the measurement.
+     * @param timeSeriesId of the TimeSeries.
      * @param range in which the returned values reside.
-     * @return the last measurement with that uuid.
+     * @return the measurements for that TimeSeries in that range.
      */
-    List<Measurement> getByIDAndRange(UUID id, String range);
+    List<Measurement> getByTimeSeriesIdAndRange(TimeSeriesId timeSeriesId, String range);
 
     /**
      * Queries the last measurement from the repository.
      *
-     * @param uuid of the measurement.
-     * @return the last measurement with that uuid.
+     * @param timeSeriesId of the TimeSeries.
+     * @return the latest measurement for that TimeSeries.
      */
-    Measurement getLastData(UUID uuid);
+    Measurement getLatestByTimeSeriesId(TimeSeriesId timeSeriesId);
 
     /**
-     * Calculates the average of all fields for a measurement over a given time range.
+     * Calculates the average value for a TimeSeries over a given time range.
      *
-     * @param id    of the measurement (supplier).
+     * @param timeSeriesId of the TimeSeries.
      * @param range in which to calculate the average.
-     * @return a single measurement object with the averaged fields.
+     * @return a single measurement object with the averaged value.
      */
-    Measurement getAverageByIdAndRange(UUID id, String range);
+    Measurement getAverageByTimeSeriesIdAndRange(TimeSeriesId timeSeriesId, String range);
 
     Instant getSystemTime();
 }

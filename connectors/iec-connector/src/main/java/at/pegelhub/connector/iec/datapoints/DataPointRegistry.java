@@ -22,6 +22,7 @@ public class DataPointRegistry {
 
     private final Map<Integer, PegelHubCommunicator> suppliers = new HashMap<>();
     private final Map<Integer, PegelHubCommunicator> takers = new HashMap<>();
+    private final Map<Integer, UUID> timeSeriesIds = new HashMap<>();
 
     public DataPointRegistry(String dataPointsDir, URL coreBaseUrl) throws Exception {
         Objects.requireNonNull(dataPointsDir, "dataPointsDir");
@@ -41,6 +42,10 @@ public class DataPointRegistry {
         return Optional.ofNullable(takers.get(ioa));
     }
 
+    public Optional<UUID> getTimeSeriesId(int ioa) {
+        return Optional.ofNullable(timeSeriesIds.get(ioa));
+    }
+
     public Set<Integer> supplierIoas() {
         return Collections.unmodifiableSet(suppliers.keySet());
     }
@@ -58,7 +63,7 @@ public class DataPointRegistry {
                         try {
                             Raw raw = YAML.readValue(p.toFile(), Raw.class);
 
-                            if (raw.iecIoa == null || raw.isSupplier == null) {
+                            if (raw.iecIoa == null || raw.isSupplier == null || raw.timeSeriesId == null) {
                                 throw new IllegalArgumentException("Missing fields in " + p.getFileName());
                             }
 
@@ -75,8 +80,10 @@ public class DataPointRegistry {
                             } else {
                                 takers.put(ioa, comm);
                             }
+                            timeSeriesIds.put(ioa, raw.timeSeriesId);
 
-                            log.debug("Loaded datapoint: IOA={}, isSupplier={}, file={}", ioa, raw.isSupplier, p.getFileName());
+                            log.debug("Loaded datapoint: IOA={}, timeSeriesId={}, isSupplier={}, file={}",
+                                    ioa, raw.timeSeriesId, raw.isSupplier, p.getFileName());
                         } catch (Exception ex) {
                             log.warn("Skipping {}: {}", p.getFileName(), ex.getMessage());
                         }
@@ -95,5 +102,7 @@ public class DataPointRegistry {
         Integer iecIoa;
         @JsonProperty("isSupplier")
         Boolean isSupplier;
+        @JsonProperty("timeSeriesId")
+        UUID timeSeriesId;
     }
 }
