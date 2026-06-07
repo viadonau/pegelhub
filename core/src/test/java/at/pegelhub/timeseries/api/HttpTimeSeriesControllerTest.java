@@ -1,6 +1,7 @@
 package at.pegelhub.timeseries.api;
 
 import at.pegelhub.station.domain.StationId;
+import at.pegelhub.connector.domain.ConnectorId;
 import at.pegelhub.timeseries.application.CreateTimeSeriesCommand;
 import at.pegelhub.timeseries.application.TimeSeriesService;
 import at.pegelhub.timeseries.domain.ExternalTimeSeriesCode;
@@ -15,7 +16,6 @@ import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
-import java.time.Duration;
 import java.util.List;
 import java.util.UUID;
 
@@ -33,14 +33,15 @@ class HttpTimeSeriesControllerTest {
 
     private static final UUID TIME_SERIES_ID = UUID.fromString("00d570f1-9547-40fd-9b16-30ac083d0723");
     private static final UUID STATION_ID = UUID.fromString("a9a3d5e7-de04-43a2-8b10-abfb1bdd2819");
+    private static final UUID SOURCE_CONNECTOR_ID = UUID.fromString("b8614980-37c8-46b6-8d78-b6fb6f84c950");
     private static final TimeSeries TIME_SERIES = new TimeSeries(
             new TimeSeriesId(TIME_SERIES_ID),
             new StationId(STATION_ID),
             new ObservedPropertyCode("water-level"),
             new UnitCode("cm"),
             120.0,
-            Duration.ofMinutes(15),
-            new ExternalTimeSeriesCode("main-stage"));
+            new ExternalTimeSeriesCode("main-stage"),
+            new ConnectorId(SOURCE_CONNECTOR_ID));
 
     @Autowired
     private MockMvc mockMvc;
@@ -60,26 +61,26 @@ class HttpTimeSeriesControllerTest {
                                   "observedProperty": "water-level",
                                   "unit": "cm",
                                   "referenceLevel": 120.0,
-                                  "expectedIntervalSeconds": 900,
-                                  "externalCode": "main-stage"
+                                  "externalCode": "main-stage",
+                                  "sourceConnectorId": "%s"
                                 }
-                                """.formatted(STATION_ID)))
+                                """.formatted(STATION_ID, SOURCE_CONNECTOR_ID)))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.id").value(TIME_SERIES_ID.toString()))
                 .andExpect(jsonPath("$.stationId").value(STATION_ID.toString()))
                 .andExpect(jsonPath("$.observedProperty").value("water-level"))
                 .andExpect(jsonPath("$.unit").value("cm"))
                 .andExpect(jsonPath("$.referenceLevel").value(120.0))
-                .andExpect(jsonPath("$.expectedIntervalSeconds").value(900))
-                .andExpect(jsonPath("$.externalCode").value("main-stage"));
+                .andExpect(jsonPath("$.externalCode").value("main-stage"))
+                .andExpect(jsonPath("$.sourceConnectorId").value(SOURCE_CONNECTOR_ID.toString()));
 
         verify(timeSeries).create(eq(new CreateTimeSeriesCommand(
                 new StationId(STATION_ID),
                 new ObservedPropertyCode("water-level"),
                 new UnitCode("cm"),
                 120.0,
-                Duration.ofSeconds(900),
-                new ExternalTimeSeriesCode("main-stage"))));
+                new ExternalTimeSeriesCode("main-stage"),
+                new ConnectorId(SOURCE_CONNECTOR_ID))));
     }
 
     @Test
@@ -92,21 +93,6 @@ class HttpTimeSeriesControllerTest {
                                   "unit": "cm"
                                 }
                                 """))
-                .andExpect(status().isBadRequest());
-    }
-
-    @Test
-    void rejectsCreateWithNonPositiveExpectedInterval() throws Exception {
-        mockMvc.perform(post("/api/v1/time-series")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "stationId": "%s",
-                                  "observedProperty": "water-level",
-                                  "unit": "cm",
-                                  "expectedIntervalSeconds": 0
-                                }
-                                """.formatted(STATION_ID)))
                 .andExpect(status().isBadRequest());
     }
 

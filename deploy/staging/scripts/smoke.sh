@@ -73,7 +73,7 @@ if printf '%s' "$compose_profiles" | grep -Eq '(^|.*,)[[:space:]]*frontend[[:spa
 fi
 
 printf '%s\n' "Checking public API route..."
-retry "Public API route" sh -c 'curl -fsS "$1/api/v1/measurement/systemTime" >/dev/null' sh "$API_BASE_URL"
+retry "Public API route" sh -c 'curl -fsS "$1/api/v1/measurements/system-time" >/dev/null' sh "$API_BASE_URL"
 
 printf '%s\n' "Checking public Keycloak issuer discovery..."
 retry "Public Keycloak issuer discovery" sh -c 'curl -fsS "$1/.well-known/openid-configuration" | grep -q "\"issuer\""' sh "$KEYCLOAK_ISSUER_URI"

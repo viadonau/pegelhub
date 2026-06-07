@@ -14,7 +14,7 @@ import java.util.UUID;
         uniqueConstraints = @UniqueConstraint(
                 name = "uk_time_series_station_property_unit",
                 columnNames = {"station_id", "observed_property", "unit"}))
-class JpaTimeSeries {
+class TimeSeriesEntity {
 
     @Id
     private UUID id;
@@ -31,30 +31,30 @@ class JpaTimeSeries {
     @Column
     private Double referenceLevel;
 
-    @Column
-    private Long expectedIntervalSeconds;
-
     @Column(length = 160)
     private String externalCode;
 
-    protected JpaTimeSeries() {
+    @Column
+    private UUID sourceConnectorId;
+
+    protected TimeSeriesEntity() {
     }
 
-    JpaTimeSeries(
+    TimeSeriesEntity(
             UUID id,
             UUID stationId,
             String observedProperty,
             String unit,
             Double referenceLevel,
-            Long expectedIntervalSeconds,
-            String externalCode) {
+            String externalCode,
+            UUID sourceConnectorId) {
         this.id = id;
         this.stationId = stationId;
         this.observedProperty = observedProperty;
         this.unit = unit;
         this.referenceLevel = referenceLevel;
-        this.expectedIntervalSeconds = expectedIntervalSeconds;
         this.externalCode = externalCode;
+        this.sourceConnectorId = sourceConnectorId;
     }
 
     UUID id() {
@@ -77,11 +77,11 @@ class JpaTimeSeries {
         return referenceLevel;
     }
 
-    Long expectedIntervalSeconds() {
-        return expectedIntervalSeconds;
-    }
-
     String externalCode() {
         return externalCode;
+    }
+
+    UUID sourceConnectorId() {
+        return sourceConnectorId;
     }
 }

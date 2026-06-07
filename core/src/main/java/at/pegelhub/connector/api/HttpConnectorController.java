@@ -1,10 +1,7 @@
 package at.pegelhub.connector.api;
 
-import at.pegelhub.shared.web.DomainToDtoConverter;
-import at.pegelhub.shared.web.DtoToDomainConverter;
-import at.pegelhub.shared.web.*;
-
 import at.pegelhub.connector.application.ConnectorService;
+import at.pegelhub.connector.domain.ConnectorId;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
@@ -15,52 +12,49 @@ import java.util.UUID;
 
 import static java.util.Objects.requireNonNull;
 
-/**
- * REST controller for connectors.
- */
 @RestController
-@RequestMapping("/api/v1/connector")
-public class HttpConnectorController {
+@RequestMapping("/api/v1/connectors")
+public final class HttpConnectorController {
 
     private final ConnectorService connectorService;
 
-    public HttpConnectorController(ConnectorService connectorService) {
+    HttpConnectorController(ConnectorService connectorService) {
         this.connectorService = requireNonNull(connectorService);
     }
 
-    @Operation(summary = "Saves a Connector to the system")
+    @Operation(summary = "Creates a connector")
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Returns the saved Connector")
+            @ApiResponse(responseCode = "200", description = "Returns the created connector")
     })
     @PostMapping
-    public ConnectorDto saveConnector(@RequestBody CreateConnectorDto connector) {
-        return DomainToDtoConverter.convert(connectorService.createConnector(DtoToDomainConverter.convert(connector)));
+    public ConnectorDto create(@RequestBody CreateConnectorDto dto) {
+        return ConnectorMapper.toResponse(connectorService.create(ConnectorMapper.toCommand(dto)));
     }
 
-    @Operation(summary = "Gets a Connector by ID")
+    @Operation(summary = "Gets a connector by ID")
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Returns the Connector")
+            @ApiResponse(responseCode = "200", description = "Returns the connector")
     })
     @GetMapping("/{uuid}")
-    public ConnectorDto getConnectorById(@PathVariable UUID uuid) {
-        return DomainToDtoConverter.convert(connectorService.getConnectorById(uuid));
+    public ConnectorDto get(@PathVariable UUID uuid) {
+        return ConnectorMapper.toResponse(connectorService.get(new ConnectorId(uuid)));
     }
 
-    @Operation(summary = "Gets all Connectors")
+    @Operation(summary = "Lists all connectors")
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Returns all Connectors")
+            @ApiResponse(responseCode = "200", description = "Returns all connectors")
     })
     @GetMapping
-    public List<ConnectorDto> getAllConnectors() {
-        return DomainToDtoConverter.convert(connectorService.getAllConnectors());
+    public List<ConnectorDto> list() {
+        return connectorService.list().stream().map(ConnectorMapper::toResponse).toList();
     }
 
-    @Operation(summary = "Deletes a Connector by ID")
+    @Operation(summary = "Deletes a connector by ID")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200")
     })
     @DeleteMapping("/{uuid}")
-    public void deleteConnector(@PathVariable UUID uuid) {
-        connectorService.deleteConnector(uuid);
+    public void delete(@PathVariable UUID uuid) {
+        connectorService.delete(new ConnectorId(uuid));
     }
 }

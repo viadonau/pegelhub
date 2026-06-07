@@ -15,7 +15,6 @@ import at.pegelhub.timeseries.domain.TimeSeriesId;
 import at.pegelhub.timeseries.domain.UnitCode;
 import org.junit.jupiter.api.Test;
 
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -25,7 +24,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 final class AccessAuthorizationServiceImplTest {
 
-    private static final Instant NOW = Instant.parse("2026-06-07T12:00:00Z");
     private static final ConnectorId CONNECTOR_ID = new ConnectorId(UUID.fromString("72f95592-cfa2-442f-b819-e8d3be4c7b66"));
     private static final ConnectorId OTHER_CONNECTOR_ID = new ConnectorId(UUID.fromString("9e81d0bb-08fd-482a-8781-df58a85800d9"));
     private static final StationId STATION_ID = new StationId(UUID.fromString("100fc496-3021-4fdc-8545-8e3dadac08b0"));
@@ -44,8 +42,8 @@ final class AccessAuthorizationServiceImplTest {
         assertThat(service.isAllowed(
                 CONNECTOR_ID,
                 AccessResourceRef.timeSeries(TIME_SERIES_ID),
-                AccessPermission.WRITE,
-                NOW)).isTrue();
+                AccessPermission.WRITE)).isTrue();
+        assertThat(timeSeries.getCount).isZero();
     }
 
     @Test
@@ -55,8 +53,7 @@ final class AccessAuthorizationServiceImplTest {
         assertThat(service.isAllowed(
                 CONNECTOR_ID,
                 AccessResourceRef.timeSeries(TIME_SERIES_ID),
-                AccessPermission.WRITE,
-                NOW)).isFalse();
+                AccessPermission.WRITE)).isFalse();
     }
 
     @Test
@@ -66,42 +63,7 @@ final class AccessAuthorizationServiceImplTest {
         assertThat(service.isAllowed(
                 CONNECTOR_ID,
                 AccessResourceRef.timeSeries(TIME_SERIES_ID),
-                AccessPermission.WRITE,
-                NOW)).isFalse();
-    }
-
-    @Test
-    void manageGrantAllowsReadAndWrite() {
-        grants.saved.add(grant(CONNECTOR_ID, AccessResourceRef.timeSeries(TIME_SERIES_ID), AccessPermission.MANAGE));
-
-        assertThat(service.isAllowed(
-                CONNECTOR_ID,
-                AccessResourceRef.timeSeries(TIME_SERIES_ID),
-                AccessPermission.READ,
-                NOW)).isTrue();
-        assertThat(service.isAllowed(
-                CONNECTOR_ID,
-                AccessResourceRef.timeSeries(TIME_SERIES_ID),
-                AccessPermission.WRITE,
-                NOW)).isTrue();
-    }
-
-    @Test
-    void deniesOutsideValidityWindow() {
-        grants.saved.add(new AccessGrant(
-                new AccessGrantId(UUID.fromString("379256de-13a7-47fb-b8fe-1e1643540b98")),
-                CONNECTOR_ID,
-                AccessResourceRef.timeSeries(TIME_SERIES_ID),
-                AccessPermission.READ,
-                NOW.plusSeconds(60),
-                NOW.plusSeconds(120),
-                false));
-
-        assertThat(service.isAllowed(
-                CONNECTOR_ID,
-                AccessResourceRef.timeSeries(TIME_SERIES_ID),
-                AccessPermission.READ,
-                NOW)).isFalse();
+                AccessPermission.WRITE)).isFalse();
     }
 
     @Test
@@ -112,8 +74,20 @@ final class AccessAuthorizationServiceImplTest {
         assertThat(service.isAllowed(
                 CONNECTOR_ID,
                 AccessResourceRef.timeSeries(TIME_SERIES_ID),
-                AccessPermission.READ,
-                NOW)).isTrue();
+                AccessPermission.READ)).isTrue();
+    }
+
+    @Test
+    void stationCascadeLoadsRequestedTimeSeriesOnlyOnce() {
+        timeSeries.saved.add(timeSeries(TIME_SERIES_ID, STATION_ID));
+        grants.saved.add(grant(CONNECTOR_ID, AccessResourceRef.station(OTHER_STATION_ID), AccessPermission.READ));
+        grants.saved.add(grant(CONNECTOR_ID, AccessResourceRef.station(STATION_ID), AccessPermission.READ));
+
+        assertThat(service.isAllowed(
+                CONNECTOR_ID,
+                AccessResourceRef.timeSeries(TIME_SERIES_ID),
+                AccessPermission.READ)).isTrue();
+        assertThat(timeSeries.getCount).isEqualTo(1);
     }
 
     @Test
@@ -124,34 +98,18 @@ final class AccessAuthorizationServiceImplTest {
         assertThat(service.isAllowed(
                 CONNECTOR_ID,
                 AccessResourceRef.timeSeries(TIME_SERIES_ID),
-                AccessPermission.READ,
-                NOW)).isFalse();
+                AccessPermission.READ)).isFalse();
     }
 
     @Test
-    void futureTimeSeriesRequiresStationGrantWithIncludeFutureFlag() {
-        grants.saved.add(grant(CONNECTOR_ID, AccessResourceRef.station(STATION_ID), AccessPermission.WRITE));
+    void stationReadGrantDoesNotAllowWritingTimeSeriesAtThatStation() {
+        timeSeries.saved.add(timeSeries(TIME_SERIES_ID, STATION_ID));
+        grants.saved.add(grant(CONNECTOR_ID, AccessResourceRef.station(STATION_ID), AccessPermission.READ));
 
-        assertThat(service.isAllowedForFutureTimeSeries(
+        assertThat(service.isAllowed(
                 CONNECTOR_ID,
-                STATION_ID,
-                AccessPermission.WRITE,
-                NOW)).isFalse();
-
-        grants.saved.add(new AccessGrant(
-                new AccessGrantId(UUID.fromString("2fef14b4-4336-4687-8948-f50125f6f1a2")),
-                CONNECTOR_ID,
-                AccessResourceRef.station(STATION_ID),
-                AccessPermission.WRITE,
-                null,
-                null,
-                true));
-
-        assertThat(service.isAllowedForFutureTimeSeries(
-                CONNECTOR_ID,
-                STATION_ID,
-                AccessPermission.WRITE,
-                NOW)).isTrue();
+                AccessResourceRef.timeSeries(TIME_SERIES_ID),
+                AccessPermission.WRITE)).isFalse();
     }
 
     private static AccessGrant grant(ConnectorId connectorId, AccessResourceRef resource, AccessPermission permission) {
@@ -159,10 +117,7 @@ final class AccessAuthorizationServiceImplTest {
                 new AccessGrantId(UUID.randomUUID()),
                 connectorId,
                 resource,
-                permission,
-                null,
-                null,
-                false);
+                permission);
     }
 
     private static TimeSeries timeSeries(TimeSeriesId id, StationId stationId) {
@@ -209,6 +164,7 @@ final class AccessAuthorizationServiceImplTest {
     private static final class InMemoryTimeSeriesService implements TimeSeriesService {
 
         private final List<TimeSeries> saved = new ArrayList<>();
+        private int getCount;
 
         @Override
         public TimeSeries create(CreateTimeSeriesCommand command) {
@@ -217,6 +173,7 @@ final class AccessAuthorizationServiceImplTest {
 
         @Override
         public TimeSeries get(TimeSeriesId id) {
+            getCount++;
             return saved.stream()
                     .filter(series -> series.id().equals(id))
                     .findFirst()

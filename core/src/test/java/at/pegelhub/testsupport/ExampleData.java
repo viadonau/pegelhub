@@ -4,6 +4,7 @@ import at.pegelhub.connector.domain.Connector;
 import at.pegelhub.connector.domain.ConnectorId;
 import at.pegelhub.contact.domain.Contact;
 import at.pegelhub.measurement.domain.Measurement;
+import at.pegelhub.measurement.domain.MeasurementAverage;
 import at.pegelhub.telemetry.domain.Telemetry;
 import at.pegelhub.timeseries.domain.TimeSeriesId;
 import org.assertj.core.util.VisibleForTesting;
@@ -37,6 +38,12 @@ public final class ExampleData {
             1.0,
             new ConnectorId(ID));
     public static final List<Measurement> MEASUREMENTS = List.of(MEASUREMENT);
+    public static final MeasurementAverage MEASUREMENT_AVERAGE = new MeasurementAverage(
+            MEASUREMENT.timeSeriesId(),
+            Instant.parse(TIMESTAMP),
+            Instant.parse(TIMESTAMP).plusSeconds(3600),
+            1.0,
+            1);
     public static final Telemetry TELEMETRY = new Telemetry(MEASUREMENT_ID, IP_ADDRESS, IP_ADDRESS,
             Instant.parse(TIMESTAMP), CYCLE_TIME, TEMPERATURE, TEMPERATURE, PERFORMANCE, PERFORMANCE,
             PERFORMANCE, PERFORMANCE, FIELD_STRENGTH);
@@ -82,6 +89,7 @@ public final class ExampleData {
             CONTACT_PLZ, LOCATION, CONTACT_COUNTRY, EMERGENCY_NUMBER, EMERGENCY_NUMBER_TWO, EMERGENCY_MAIL,
             SERVICE_NUMBER, SERVICE_NUMBER_TWO, SERVICE_MAIL, ADMIN_NUMBER, ADMIN_NUMBER_TWO, ADMIN_MAIL, NOTES);
 
-    public static final Connector CONNECTOR = new Connector(ID, CONNECTOR_NUMBER, CONTACT, DESCRIPTION, VERSION, VERSION,
-            DATA_DEFINITION, CONTACT, CONTACT, CONTACT, NOTES);
+    public static final Connector CONNECTOR = new Connector(
+            new ConnectorId(ID), CONNECTOR_NUMBER, CONTACT, DESCRIPTION, VERSION, VERSION,
+            DATA_DEFINITION, CONTACT, CONTACT, CONTACT, NOTES, null, null);
 }

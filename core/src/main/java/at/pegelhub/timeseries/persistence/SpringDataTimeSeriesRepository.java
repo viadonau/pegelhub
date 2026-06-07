@@ -5,7 +5,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import java.util.List;
 import java.util.UUID;
 
-interface SpringDataTimeSeriesRepository extends JpaRepository<JpaTimeSeries, UUID> {
+interface SpringDataTimeSeriesRepository extends JpaRepository<TimeSeriesEntity, UUID> {
 
-    List<JpaTimeSeries> findByStationId(UUID stationId);
+    List<TimeSeriesEntity> findByStationId(UUID stationId);
 }

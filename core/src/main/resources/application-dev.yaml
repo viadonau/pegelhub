@@ -23,8 +23,6 @@ management:
 pegelhub:
   security:
     issuer-uri: ${KEYCLOAK_ISSUER_URI:http://pegelhub-keycloak.test:8082/realms/pegelhub}
-    audience: ${PEGELHUB_API_AUDIENCE:pegelhub-core-api}
-    api-client-id: ${PEGELHUB_API_CLIENT_ID:${PEGELHUB_API_AUDIENCE:pegelhub-core-api}}
   influx:
     url: ${INFLUX_URL:http://localhost:8111/}
     org: ${INFLUX_ORG:pegelhub}

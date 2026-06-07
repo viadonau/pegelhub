@@ -14,7 +14,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
-@Import(JpaStationRepositoryAdapter.class)
+@Import(StationRepositoryAdapter.class)
 final class StationRepositoryIntegrationTest extends JpaIntegrationTestBase {
 
     private static final StationOwnerId OWNER_ID = new StationOwnerId(

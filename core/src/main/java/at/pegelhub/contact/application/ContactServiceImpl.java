@@ -13,7 +13,7 @@ import static java.util.Objects.requireNonNull;
  * Default implementation for {@code ContactService}.
  */
 @Service
-public final class ContactServiceImpl implements ContactService {
+public class ContactServiceImpl implements ContactService {
 
     private final ContactRepository contactRepository;
 

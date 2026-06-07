@@ -6,17 +6,18 @@ import at.pegelhub.access.domain.AccessResourceRef;
 import at.pegelhub.access.domain.AccessResourceType;
 import at.pegelhub.access.persistence.AccessGrantRepository;
 import at.pegelhub.connector.domain.ConnectorId;
-import at.pegelhub.station.domain.StationId;
 import at.pegelhub.timeseries.application.TimeSeriesService;
+import at.pegelhub.timeseries.domain.TimeSeries;
 import at.pegelhub.timeseries.domain.TimeSeriesId;
 import org.springframework.stereotype.Service;
 
-import java.time.Instant;
+import java.util.List;
+import java.util.Optional;
 
 import static java.util.Objects.requireNonNull;
 
 @Service
-final class AccessAuthorizationServiceImpl implements AccessAuthorizationService {
+class AccessAuthorizationServiceImpl implements AccessAuthorizationService {
 
     private final AccessGrantRepository accessGrants;
     private final TimeSeriesService timeSeries;
@@ -30,46 +31,45 @@ final class AccessAuthorizationServiceImpl implements AccessAuthorizationService
     public boolean isAllowed(
             ConnectorId connectorId,
             AccessResourceRef resource,
-            AccessPermission permission,
-            Instant at) {
+            AccessPermission permission) {
         requireNonNull(connectorId);
         requireNonNull(resource);
         requireNonNull(permission);
-        var checkedAt = at == null ? Instant.now() : at;
-        return accessGrants.findByConnectorId(connectorId).stream()
-                .filter(grant -> isCurrentlyValid(grant, checkedAt))
-                .filter(grant -> permissionAllows(grant.permission(), permission))
-                .anyMatch(grant -> resourceAllows(grant, resource));
+        List<AccessGrant> matchingGrants = accessGrants.findByConnectorId(connectorId).stream()
+                .filter(grant -> grant.permission() == permission)
+                .toList();
+        Optional<TimeSeries> stationScopedTimeSeries = requestedTimeSeriesForStationScopedGrant(resource, matchingGrants);
+        return matchingGrants.stream()
+                .anyMatch(grant -> grantCoversResource(grant, resource, stationScopedTimeSeries));
     }
 
-    @Override
-    public boolean isAllowedForFutureTimeSeries(
-            ConnectorId connectorId,
-            StationId stationId,
-            AccessPermission permission,
-            Instant at) {
-        requireNonNull(connectorId);
-        requireNonNull(stationId);
-        requireNonNull(permission);
-        var checkedAt = at == null ? Instant.now() : at;
-        return accessGrants.findByConnectorId(connectorId).stream()
-                .filter(grant -> isCurrentlyValid(grant, checkedAt))
-                .filter(grant -> permissionAllows(grant.permission(), permission))
-                .anyMatch(grant -> grant.resource().type() == AccessResourceType.STATION
-                        && grant.resource().id().equals(stationId.value())
-                        && grant.includeFutureTimeSeries());
+    /**
+     * Resolves the requested TimeSeries only when it is needed to check station-scoped coverage.
+     * Direct TimeSeries grants can be matched by ID alone, but a Station grant must compare its
+     * Station ID with the requested TimeSeries' owning Station.
+     */
+    private Optional<TimeSeries> requestedTimeSeriesForStationScopedGrant(
+            AccessResourceRef requestedResource,
+            List<AccessGrant> matchingGrants) {
+        if (requestedResource.type() != AccessResourceType.TIME_SERIES) {
+            return Optional.empty();
+        }
+        boolean hasStationGrant = matchingGrants.stream()
+                .anyMatch(grant -> grant.resource().type() == AccessResourceType.STATION);
+        return hasStationGrant
+                ? Optional.of(timeSeries.get(new TimeSeriesId(requestedResource.id())))
+                : Optional.empty();
     }
 
-    private boolean isCurrentlyValid(AccessGrant grant, Instant at) {
-        return (grant.validFrom() == null || !at.isBefore(grant.validFrom()))
-                && (grant.validUntil() == null || at.isBefore(grant.validUntil()));
-    }
-
-    private boolean permissionAllows(AccessPermission granted, AccessPermission requested) {
-        return granted == AccessPermission.MANAGE || granted == requested;
-    }
-
-    private boolean resourceAllows(AccessGrant grant, AccessResourceRef requestedResource) {
+    /**
+     * Checks whether a grant's resource covers the requested resource.
+     * Direct resource matches are exact; Station grants cover TimeSeries whose stationId matches
+     * the grant's Station resource ID.
+     */
+    private boolean grantCoversResource(
+            AccessGrant grant,
+            AccessResourceRef requestedResource,
+            Optional<TimeSeries> stationScopedTimeSeries) {
         if (grant.resource().equals(requestedResource)) {
             return true;
         }
@@ -77,7 +77,8 @@ final class AccessAuthorizationServiceImpl implements AccessAuthorizationService
                 || requestedResource.type() != AccessResourceType.TIME_SERIES) {
             return false;
         }
-        var requestedTimeSeries = timeSeries.get(new TimeSeriesId(requestedResource.id()));
-        return grant.resource().id().equals(requestedTimeSeries.stationId().value());
+        return stationScopedTimeSeries
+                .map(timeSeries -> grant.resource().id().equals(timeSeries.stationId().value()))
+                .orElse(false);
     }
 }

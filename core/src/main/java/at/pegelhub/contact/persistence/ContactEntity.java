@@ -18,7 +18,7 @@ import java.util.UUID;
 @Data
 @EqualsAndHashCode(callSuper = false)
 @Table(name = "Contact")
-public class JpaContact extends IdentifiableEntity {
+public class ContactEntity extends IdentifiableEntity {
 
     @Column(length = 150)
     private String organization;
@@ -68,7 +68,7 @@ public class JpaContact extends IdentifiableEntity {
     @Column
     private String contactNodes;
 
-    public JpaContact(UUID id, String organization, String contactPerson, String contactStreet, String contactPlz, String location, String contactCountry, String emergencyNumber, String emergencyNumberTwo, String emergencyMail, String serviceNumber, String serviceNumberTwo, String serviceMail, String administrationPhoneNumber, String administrationPhoneNumberTwo, String administrationMail, String contactNodes) {
+    public ContactEntity(UUID id, String organization, String contactPerson, String contactStreet, String contactPlz, String location, String contactCountry, String emergencyNumber, String emergencyNumberTwo, String emergencyMail, String serviceNumber, String serviceNumberTwo, String serviceMail, String administrationPhoneNumber, String administrationPhoneNumberTwo, String administrationMail, String contactNodes) {
         this.id = id;
         this.organization = organization;
         this.contactPerson = contactPerson;
@@ -88,6 +88,6 @@ public class JpaContact extends IdentifiableEntity {
         this.contactNodes = contactNodes;
     }
 
-    public JpaContact() {
+    public ContactEntity() {
     }
 }

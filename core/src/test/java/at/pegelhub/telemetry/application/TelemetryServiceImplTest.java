@@ -51,7 +51,7 @@ final class TelemetryServiceImplTest {
     @Test
     public void saveTelemetry() {
         Telemetry savedTelemetry = new Telemetry(
-                CONNECTOR.getId().toString(),
+                CONNECTOR.id().value().toString(),
                 TELEMETRY.stationIPAddressIntern(),
                 TELEMETRY.stationIPAddressExtern(),
                 TELEMETRY.timestamp(),
@@ -84,7 +84,13 @@ final class TelemetryServiceImplTest {
 
     @Test
     public void saveTelemetryThrowsIfConnectorIsInactive() {
-        Connector inactiveConnector = CONNECTOR.withExternalAuth("local-taker-example", ConnectorStatus.SUSPENDED);
+        Connector inactiveConnector = new Connector(
+                CONNECTOR.id(), CONNECTOR.connectorNumber(),
+                CONNECTOR.manufacturer(), CONNECTOR.typeDescription(),
+                CONNECTOR.softwareVersion(), CONNECTOR.worksFromDataVersion(),
+                CONNECTOR.dataDefinition(), CONNECTOR.softwareManufacturer(),
+                CONNECTOR.technicallyResponsible(), CONNECTOR.operationCompany(),
+                CONNECTOR.notes(), "local-taker-example", ConnectorStatus.SUSPENDED);
         when(CONNECTOR_REPOSITORY.findByKeycloakClientId(ACTOR.clientId()))
                 .thenReturn(java.util.Optional.of(inactiveConnector));
 

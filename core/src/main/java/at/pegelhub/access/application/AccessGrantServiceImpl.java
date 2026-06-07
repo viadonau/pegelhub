@@ -2,6 +2,7 @@ package at.pegelhub.access.application;
 
 import at.pegelhub.access.domain.AccessGrant;
 import at.pegelhub.access.domain.AccessGrantId;
+import at.pegelhub.access.domain.AccessPermission;
 import at.pegelhub.access.domain.AccessResourceType;
 import at.pegelhub.access.persistence.AccessGrantRepository;
 import at.pegelhub.connector.application.ConnectorService;
@@ -9,6 +10,7 @@ import at.pegelhub.connector.domain.ConnectorId;
 import at.pegelhub.shared.error.NotFoundException;
 import at.pegelhub.station.domain.StationId;
 import at.pegelhub.station.application.StationService;
+import at.pegelhub.timeseries.domain.TimeSeries;
 import at.pegelhub.timeseries.domain.TimeSeriesId;
 import at.pegelhub.timeseries.application.TimeSeriesService;
 import org.springframework.stereotype.Service;
@@ -18,7 +20,7 @@ import java.util.List;
 import static java.util.Objects.requireNonNull;
 
 @Service
-final class AccessGrantServiceImpl implements AccessGrantService {
+class AccessGrantServiceImpl implements AccessGrantService {
 
     private final AccessGrantRepository accessGrants;
     private final ConnectorService connectors;
@@ -39,15 +41,12 @@ final class AccessGrantServiceImpl implements AccessGrantService {
     @Override
     public AccessGrant create(CreateAccessGrantCommand command) {
         requireNonNull(command);
-        connectors.getConnectorById(command.connectorId().value());
-        ensureResourceExists(command);
+        connectors.get(command.connectorId());
+        ensureResourceAllowsGrant(command);
         return accessGrants.save(AccessGrant.create(
                 command.connectorId(),
                 command.resource(),
-                command.permission(),
-                command.validFrom(),
-                command.validUntil(),
-                command.includeFutureTimeSeries()));
+                command.permission()));
     }
 
     @Override
@@ -65,15 +64,24 @@ final class AccessGrantServiceImpl implements AccessGrantService {
     @Override
     public List<AccessGrant> listForConnector(ConnectorId connectorId) {
         requireNonNull(connectorId);
-        connectors.getConnectorById(connectorId.value());
+        connectors.get(connectorId);
         return accessGrants.findByConnectorId(connectorId);
     }
 
-    private void ensureResourceExists(CreateAccessGrantCommand command) {
+    private void ensureResourceAllowsGrant(CreateAccessGrantCommand command) {
         if (command.resource().type() == AccessResourceType.STATION) {
             stations.get(new StationId(command.resource().id()));
+            if (command.permission() != AccessPermission.READ) {
+                throw new IllegalArgumentException("Station grants only support READ permission");
+            }
             return;
         }
-        timeSeries.get(new TimeSeriesId(command.resource().id()));
+        TimeSeries series = timeSeries.get(new TimeSeriesId(command.resource().id()));
+        if (command.permission() == AccessPermission.WRITE
+                && series.sourceConnectorId() != null
+                && !series.sourceConnectorId().equals(command.connectorId())) {
+            throw new IllegalArgumentException(
+                    "Connector is not the source connector for this TimeSeries");
+        }
     }
 }

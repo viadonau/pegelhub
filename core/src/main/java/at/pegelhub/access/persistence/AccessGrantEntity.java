@@ -9,12 +9,11 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
-import java.time.Instant;
 import java.util.UUID;
 
 @Entity
 @Table(name = "access_grant")
-class JpaAccessGrant {
+class AccessGrantEntity {
 
     @Id
     private UUID id;
@@ -33,35 +32,20 @@ class JpaAccessGrant {
     @Column(nullable = false, length = 40)
     private AccessPermission permission;
 
-    @Column
-    private Instant validFrom;
-
-    @Column
-    private Instant validUntil;
-
-    @Column(nullable = false)
-    private boolean includeFutureTimeSeries;
-
-    protected JpaAccessGrant() {
+    protected AccessGrantEntity() {
     }
 
-    JpaAccessGrant(
+    AccessGrantEntity(
             UUID id,
             UUID connectorId,
             AccessResourceType resourceType,
             UUID resourceId,
-            AccessPermission permission,
-            Instant validFrom,
-            Instant validUntil,
-            boolean includeFutureTimeSeries) {
+            AccessPermission permission) {
         this.id = id;
         this.connectorId = connectorId;
         this.resourceType = resourceType;
         this.resourceId = resourceId;
         this.permission = permission;
-        this.validFrom = validFrom;
-        this.validUntil = validUntil;
-        this.includeFutureTimeSeries = includeFutureTimeSeries;
     }
 
     UUID id() {
@@ -82,17 +66,5 @@ class JpaAccessGrant {
 
     AccessPermission permission() {
         return permission;
-    }
-
-    Instant validFrom() {
-        return validFrom;
-    }
-
-    Instant validUntil() {
-        return validUntil;
-    }
-
-    boolean includeFutureTimeSeries() {
-        return includeFutureTimeSeries;
     }
 }

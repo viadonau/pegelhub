@@ -2,6 +2,7 @@ package at.pegelhub.measurement.persistence;
 
 
 import at.pegelhub.measurement.domain.Measurement;
+import at.pegelhub.measurement.domain.MeasurementAverage;
 import at.pegelhub.timeseries.domain.TimeSeriesId;
 
 import java.time.Instant;
@@ -41,9 +42,9 @@ public interface MeasurementRepository {
      *
      * @param timeSeriesId of the TimeSeries.
      * @param range in which to calculate the average.
-     * @return a single measurement object with the averaged value.
+     * @return the aggregate average for that TimeSeries and range.
      */
-    Measurement getAverageByTimeSeriesIdAndRange(TimeSeriesId timeSeriesId, String range);
+    MeasurementAverage getAverageByTimeSeriesIdAndRange(TimeSeriesId timeSeriesId, String range);
 
     Instant getSystemTime();
 }

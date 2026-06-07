@@ -1,6 +1,7 @@
 package at.pegelhub.measurement.api;
 
 import at.pegelhub.measurement.domain.Measurement;
+import at.pegelhub.measurement.domain.MeasurementAverage;
 import at.pegelhub.measurement.application.MeasurementService;
 import at.pegelhub.timeseries.domain.TimeSeriesId;
 import io.swagger.v3.oas.annotations.Operation;
@@ -18,11 +19,8 @@ import java.util.UUID;
 import static at.pegelhub.measurement.api.DtoToDomainConverter.convert;
 import static java.util.Objects.requireNonNull;
 
-/**
- * REST controller for measurements.
- */
 @RestController
-@RequestMapping("/api/v1/measurement")
+@RequestMapping("/api/v1")
 public class HttpMeasurementController {
 
     private final MeasurementService measurementService;
@@ -31,52 +29,52 @@ public class HttpMeasurementController {
         this.measurementService = requireNonNull(measurementService);
     }
 
-    @Operation(summary = "Adds a new Measurement Entry to the system")
+    @Operation(summary = "Writes measurements for one or more time series")
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "201", description = "The given measurement was successfully created.")
+            @ApiResponse(responseCode = "200", description = "The measurements were successfully written.")
     })
-    @PostMapping
+    @PostMapping("/measurements")
     public void writeMeasurementData(@Valid @RequestBody WriteMeasurementsDto measurements) {
         measurementService.writeMeasurements(convert(measurements));
     }
 
-    @Operation(summary = "Gets all Measurement Data for TimeSeries In Range")
+    @Operation(summary = "Gets all measurements for a time series within a range")
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Returns all Measurement Data for TimeSeries",
+            @ApiResponse(responseCode = "200", description = "Returns all measurements for the time series in the range",
                     content = {@Content(mediaType = "application/json", schema = @Schema(implementation = Measurement.class))})
     })
-    @GetMapping("/time-series/{timeSeriesId}/{range}")
-    public List<Measurement> findMeasurementForTimeSeriesInRange(
+    @GetMapping("/time-series/{timeSeriesId}/measurements/{range}")
+    public List<Measurement> findMeasurementsInRange(
             @PathVariable UUID timeSeriesId,
             @PathVariable String range) {
         return measurementService.getByTimeSeriesAndRange(new TimeSeriesId(timeSeriesId), range);
     }
 
-    @Operation(summary = "Gets latest Measurement from TimeSeries")
+    @Operation(summary = "Gets the latest measurement for a time series")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Returns the latest measurement",
                     content = {@Content(mediaType = "application/json", schema = @Schema(implementation = Measurement.class))})
     })
-    @GetMapping("/time-series/{timeSeriesId}/latest")
-    public Measurement findLatestMeasurementByTimeSeries(@PathVariable UUID timeSeriesId) {
+    @GetMapping("/time-series/{timeSeriesId}/measurements/latest")
+    public Measurement findLatestMeasurement(@PathVariable UUID timeSeriesId) {
         return measurementService.getLatestByTimeSeries(new TimeSeriesId(timeSeriesId));
     }
 
-    @Operation(summary = "Gets the average Measurement value from a TimeSeries over a given time range.")
+    @Operation(summary = "Gets the average measurement value for a time series over a range")
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Returns a single Measurement object with the calculated average value over the time range.",
-                    content = {@Content(mediaType = "application/json", schema = @Schema(implementation = Measurement.class))}),
-            @ApiResponse(responseCode = "404", description = "No TimeSeries found or no data available in the specified range.")
+            @ApiResponse(responseCode = "200", description = "Returns the averaged measurement",
+                    content = {@Content(mediaType = "application/json", schema = @Schema(implementation = MeasurementAverage.class))}),
+            @ApiResponse(responseCode = "404", description = "No data available in the specified range.")
     })
-    @GetMapping("/time-series/{timeSeriesId}/average/{range}")
-    public Measurement findAverageMeasurementForTimeSeriesInRange(
+    @GetMapping("/time-series/{timeSeriesId}/measurements/average/{range}")
+    public MeasurementAverage findAverageMeasurement(
             @PathVariable UUID timeSeriesId,
             @PathVariable String range) {
         return measurementService.getAverageByTimeSeriesAndRange(new TimeSeriesId(timeSeriesId), range);
     }
 
-    @GetMapping("/systemTime")
-    public Instant getSystemtime() {
+    @GetMapping("/measurements/system-time")
+    public Instant getSystemTime() {
         return measurementService.getSystemTime();
     }
 

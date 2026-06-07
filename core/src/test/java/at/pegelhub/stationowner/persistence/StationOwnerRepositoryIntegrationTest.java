@@ -11,7 +11,7 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-@Import(JpaStationOwnerRepositoryAdapter.class)
+@Import(StationOwnerRepositoryAdapter.class)
 final class StationOwnerRepositoryIntegrationTest extends JpaIntegrationTestBase {
 
     private static final StationOwnerId OWNER_ID = new StationOwnerId(

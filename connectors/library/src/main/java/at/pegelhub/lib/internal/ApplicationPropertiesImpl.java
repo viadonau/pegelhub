@@ -40,6 +40,11 @@ public class ApplicationPropertiesImpl implements ApplicationProperties {
     @Override
     public int getStationId() {
         Map<String, Object> metadata = (Map<String, Object>) data.get(isSupplier ? "supplier" : "taker");
+        if (metadata == null) {
+            throw new IllegalStateException(
+                    "Missing '" + (isSupplier ? "supplier" : "taker") + "' section in connector config. "
+                            + "The stationId is required for protocol-level operations.");
+        }
         return (Integer) metadata.get("id");
     }
 

@@ -35,6 +35,7 @@ import static at.pegelhub.testsupport.ExampleData.CONTACT;
 import static at.pegelhub.testsupport.ExampleData.CONNECTOR;
 import static at.pegelhub.testsupport.ExampleData.ID;
 import static at.pegelhub.testsupport.ExampleData.MEASUREMENT;
+import static at.pegelhub.testsupport.ExampleData.MEASUREMENT_AVERAGE;
 import static at.pegelhub.testsupport.ExampleData.MEASUREMENTS;
 import static at.pegelhub.testsupport.ExampleData.TELEMETRIES;
 import static at.pegelhub.testsupport.ExampleData.TELEMETRY;
@@ -77,16 +78,16 @@ class AuthPolicyMatrixWebMvcTest {
     void prepare() {
         when(measurementService.getByTimeSeriesAndRange(any(), anyString())).thenReturn(MEASUREMENTS);
         when(measurementService.getLatestByTimeSeries(any())).thenReturn(MEASUREMENT);
-        when(measurementService.getAverageByTimeSeriesAndRange(any(), anyString())).thenReturn(MEASUREMENT);
+        when(measurementService.getAverageByTimeSeriesAndRange(any(), anyString())).thenReturn(MEASUREMENT_AVERAGE);
         when(measurementService.getSystemTime()).thenReturn(Instant.parse("2026-01-02T03:04:05Z"));
 
         when(telemetryService.saveTelemetry(any())).thenReturn(TELEMETRY);
         when(telemetryService.getByRange(anyString())).thenReturn(TELEMETRIES);
         when(telemetryService.getLastData(any())).thenReturn(TELEMETRY);
 
-        when(connectorService.createConnector(any())).thenReturn(CONNECTOR);
-        when(connectorService.getConnectorById(any())).thenReturn(CONNECTOR);
-        when(connectorService.getAllConnectors()).thenReturn(List.of(CONNECTOR));
+        when(connectorService.create(any())).thenReturn(CONNECTOR);
+        when(connectorService.get(any())).thenReturn(CONNECTOR);
+        when(connectorService.list()).thenReturn(List.of(CONNECTOR));
 
         when(contactService.createContact(any())).thenReturn(CONTACT);
         when(contactService.getContactById(any())).thenReturn(CONTACT);
@@ -117,13 +118,13 @@ class AuthPolicyMatrixWebMvcTest {
 
     private static Stream<EndpointCase> migratedEndpoints() {
         return Stream.of(
-                new EndpointCase("measurement POST", () -> post("/api/v1/measurement")
+                new EndpointCase("measurement POST", () -> post("/api/v1/measurements")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(measurementsJson())),
-                new EndpointCase("measurement GET time series range", () -> get("/api/v1/measurement/time-series/{timeSeriesId}/{range}", TIME_SERIES_ID.value(), "72h")),
-                new EndpointCase("measurement GET time series latest", () -> get("/api/v1/measurement/time-series/{timeSeriesId}/latest", TIME_SERIES_ID.value())),
-                new EndpointCase("measurement GET time series average", () -> get("/api/v1/measurement/time-series/{timeSeriesId}/average/{range}", TIME_SERIES_ID.value(), "72h")),
-                new EndpointCase("measurement system time", () -> get("/api/v1/measurement/systemTime")),
+                new EndpointCase("measurement GET time series range", () -> get("/api/v1/time-series/{timeSeriesId}/measurements/{range}", TIME_SERIES_ID.value(), "72h")),
+                new EndpointCase("measurement GET time series latest", () -> get("/api/v1/time-series/{timeSeriesId}/measurements/latest", TIME_SERIES_ID.value())),
+                new EndpointCase("measurement GET time series average", () -> get("/api/v1/time-series/{timeSeriesId}/measurements/average/{range}", TIME_SERIES_ID.value(), "72h")),
+                new EndpointCase("measurement system time", () -> get("/api/v1/measurements/system-time")),
                 new EndpointCase("telemetry POST", () -> post("/api/v1/telemetry")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(telemetryJson())),

@@ -1,5 +1,6 @@
 package at.pegelhub.timeseries.persistence;
 
+import at.pegelhub.connector.domain.ConnectorId;
 import at.pegelhub.station.domain.StationId;
 import at.pegelhub.testsupport.JpaIntegrationTestBase;
 import at.pegelhub.timeseries.domain.ExternalTimeSeriesCode;
@@ -12,18 +13,18 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Import;
 import org.springframework.dao.DataIntegrityViolationException;
 
-import java.time.Duration;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
-@Import(JpaTimeSeriesRepositoryAdapter.class)
+@Import(TimeSeriesRepositoryAdapter.class)
 final class TimeSeriesRepositoryIntegrationTest extends JpaIntegrationTestBase {
 
     private static final StationId STATION_ID = new StationId(UUID.fromString("f1bb3248-8cc0-48b8-a8a3-7f905433f98e"));
     private static final StationId OTHER_STATION_ID = new StationId(UUID.fromString("23794f24-af50-4f8a-b86f-c5733baf9de4"));
     private static final TimeSeriesId TIME_SERIES_ID = new TimeSeriesId(UUID.fromString("09f90453-b189-4a4b-a562-0be42fc55393"));
+    private static final ConnectorId SOURCE_CONNECTOR_ID = new ConnectorId(UUID.fromString("380175ec-395c-4d88-8532-6d6497b1b503"));
 
     @Autowired
     private TimeSeriesRepository timeSeries;
@@ -44,6 +45,7 @@ final class TimeSeriesRepositoryIntegrationTest extends JpaIntegrationTestBase {
         timeSeries.save(other);
 
         assertThat(timeSeries.findById(TIME_SERIES_ID)).contains(matching);
+        assertThat(timeSeries.findById(TIME_SERIES_ID).orElseThrow().sourceConnectorId()).isEqualTo(SOURCE_CONNECTOR_ID);
         assertThat(timeSeries.findAll()).contains(matching, other);
         assertThat(timeSeries.findByStationId(STATION_ID)).containsExactly(matching);
     }
@@ -71,7 +73,7 @@ final class TimeSeriesRepositoryIntegrationTest extends JpaIntegrationTestBase {
                 new ObservedPropertyCode(observedProperty),
                 new UnitCode(unit),
                 120.0,
-                Duration.ofMinutes(15),
-                new ExternalTimeSeriesCode("external-" + id.value()));
+                new ExternalTimeSeriesCode("external-" + id.value()),
+                SOURCE_CONNECTOR_ID);
     }
 }

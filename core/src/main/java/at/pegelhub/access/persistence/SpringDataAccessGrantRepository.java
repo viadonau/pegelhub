@@ -5,7 +5,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import java.util.List;
 import java.util.UUID;
 
-interface SpringDataAccessGrantRepository extends JpaRepository<JpaAccessGrant, UUID> {
+interface SpringDataAccessGrantRepository extends JpaRepository<AccessGrantEntity, UUID> {
 
-    List<JpaAccessGrant> findByConnectorId(UUID connectorId);
+    List<AccessGrantEntity> findByConnectorId(UUID connectorId);
 }

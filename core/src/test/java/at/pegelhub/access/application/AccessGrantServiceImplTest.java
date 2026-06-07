@@ -6,6 +6,7 @@ import at.pegelhub.access.domain.AccessPermission;
 import at.pegelhub.access.domain.AccessResourceRef;
 import at.pegelhub.access.persistence.AccessGrantRepository;
 import at.pegelhub.connector.application.ConnectorService;
+import at.pegelhub.connector.application.CreateConnectorCommand;
 import at.pegelhub.connector.domain.Connector;
 import at.pegelhub.connector.domain.ConnectorId;
 import at.pegelhub.connector.domain.ConnectorStatus;
@@ -21,6 +22,7 @@ import at.pegelhub.timeseries.domain.ObservedPropertyCode;
 import at.pegelhub.timeseries.domain.TimeSeries;
 import at.pegelhub.timeseries.domain.TimeSeriesId;
 import at.pegelhub.timeseries.domain.UnitCode;
+import at.pegelhub.contact.domain.Contact;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
@@ -32,6 +34,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 final class AccessGrantServiceImplTest {
+
+    private static final Contact EMPTY_CONTACT = new Contact(
+            UUID.randomUUID(), "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "");
 
     private static final ConnectorId CONNECTOR_ID = new ConnectorId(UUID.fromString("a0c57d32-ce76-4e89-9ce9-caa3ee5e33f7"));
     private static final ConnectorId OTHER_CONNECTOR_ID = new ConnectorId(UUID.fromString("8c6c64dc-0e9f-4112-af69-18988aa1f022"));
@@ -68,15 +73,24 @@ final class AccessGrantServiceImplTest {
         var grant = service.create(new CreateAccessGrantCommand(
                 CONNECTOR_ID,
                 AccessResourceRef.station(STATION_ID),
-                AccessPermission.WRITE,
-                null,
-                null,
-                true));
+                AccessPermission.READ));
 
         assertThat(grant.connectorId()).isEqualTo(CONNECTOR_ID);
         assertThat(grant.resource()).isEqualTo(AccessResourceRef.station(STATION_ID));
-        assertThat(grant.includeFutureTimeSeries()).isTrue();
         assertThat(repository.saved).containsExactly(grant);
+    }
+
+    @Test
+    void refusesWriteGrantForStation() {
+        connectors.connectorIds.add(CONNECTOR_ID);
+        stations.stations.add(STATION);
+
+        assertThrows(IllegalArgumentException.class, () -> service.create(new CreateAccessGrantCommand(
+                CONNECTOR_ID,
+                AccessResourceRef.station(STATION_ID),
+                AccessPermission.WRITE)));
+
+        assertThat(repository.saved).isEmpty();
     }
 
     @Test
@@ -87,12 +101,50 @@ final class AccessGrantServiceImplTest {
         var grant = service.create(new CreateAccessGrantCommand(
                 CONNECTOR_ID,
                 AccessResourceRef.timeSeries(TIME_SERIES_ID),
-                AccessPermission.READ,
-                null,
-                null,
-                false));
+                AccessPermission.READ));
 
         assertThat(grant.resource()).isEqualTo(AccessResourceRef.timeSeries(TIME_SERIES_ID));
+    }
+
+    @Test
+    void createsWriteGrantForTimeSeriesSourceConnector() {
+        connectors.connectorIds.add(CONNECTOR_ID);
+        timeSeries.timeSeries.add(timeSeriesWithSource(CONNECTOR_ID));
+
+        var grant = service.create(new CreateAccessGrantCommand(
+                CONNECTOR_ID,
+                AccessResourceRef.timeSeries(TIME_SERIES_ID),
+                AccessPermission.WRITE));
+
+        assertThat(grant.connectorId()).isEqualTo(CONNECTOR_ID);
+        assertThat(grant.permission()).isEqualTo(AccessPermission.WRITE);
+    }
+
+    @Test
+    void refusesWriteGrantForConnectorThatIsNotTimeSeriesSource() {
+        connectors.connectorIds.add(OTHER_CONNECTOR_ID);
+        timeSeries.timeSeries.add(timeSeriesWithSource(CONNECTOR_ID));
+
+        assertThrows(IllegalArgumentException.class, () -> service.create(new CreateAccessGrantCommand(
+                OTHER_CONNECTOR_ID,
+                AccessResourceRef.timeSeries(TIME_SERIES_ID),
+                AccessPermission.WRITE)));
+
+        assertThat(repository.saved).isEmpty();
+    }
+
+    @Test
+    void createsReadGrantForConnectorThatIsNotTimeSeriesSource() {
+        connectors.connectorIds.add(OTHER_CONNECTOR_ID);
+        timeSeries.timeSeries.add(timeSeriesWithSource(CONNECTOR_ID));
+
+        var grant = service.create(new CreateAccessGrantCommand(
+                OTHER_CONNECTOR_ID,
+                AccessResourceRef.timeSeries(TIME_SERIES_ID),
+                AccessPermission.READ));
+
+        assertThat(grant.connectorId()).isEqualTo(OTHER_CONNECTOR_ID);
+        assertThat(grant.permission()).isEqualTo(AccessPermission.READ);
     }
 
     @Test
@@ -102,10 +154,7 @@ final class AccessGrantServiceImplTest {
         assertThrows(NotFoundException.class, () -> service.create(new CreateAccessGrantCommand(
                 CONNECTOR_ID,
                 AccessResourceRef.station(STATION_ID),
-                AccessPermission.READ,
-                null,
-                null,
-                false)));
+                AccessPermission.READ)));
 
         assertThat(repository.saved).isEmpty();
     }
@@ -117,10 +166,7 @@ final class AccessGrantServiceImplTest {
         assertThrows(NotFoundException.class, () -> service.create(new CreateAccessGrantCommand(
                 CONNECTOR_ID,
                 AccessResourceRef.station(STATION_ID),
-                AccessPermission.READ,
-                null,
-                null,
-                false)));
+                AccessPermission.READ)));
 
         assertThat(repository.saved).isEmpty();
     }
@@ -132,10 +178,7 @@ final class AccessGrantServiceImplTest {
         assertThrows(NotFoundException.class, () -> service.create(new CreateAccessGrantCommand(
                 CONNECTOR_ID,
                 AccessResourceRef.timeSeries(TIME_SERIES_ID),
-                AccessPermission.READ,
-                null,
-                null,
-                false)));
+                AccessPermission.READ)));
 
         assertThat(repository.saved).isEmpty();
     }
@@ -181,10 +224,18 @@ final class AccessGrantServiceImplTest {
                 grantId,
                 connectorId,
                 AccessResourceRef.station(STATION_ID),
-                AccessPermission.READ,
+                AccessPermission.READ);
+    }
+
+    private static TimeSeries timeSeriesWithSource(ConnectorId sourceConnectorId) {
+        return new TimeSeries(
+                TIME_SERIES_ID,
+                STATION_ID,
+                new ObservedPropertyCode("water-level"),
+                new UnitCode("cm"),
                 null,
                 null,
-                false);
+                sourceConnectorId);
     }
 
     private static final class InMemoryAccessGrantRepository implements AccessGrantRepository {
@@ -222,30 +273,32 @@ final class AccessGrantServiceImplTest {
         private final List<ConnectorId> connectorIds = new ArrayList<>();
 
         @Override
-        public Connector createConnector(Connector connector) {
+        public Connector create(CreateConnectorCommand command) {
             throw new UnsupportedOperationException("Not needed by this test");
         }
 
         @Override
-        public Connector registerConnector(String keycloakClientId, ConnectorStatus status, Connector connector) {
+        public Connector register(String keycloakClientId, ConnectorStatus status, CreateConnectorCommand command) {
             throw new UnsupportedOperationException("Not needed by this test");
         }
 
         @Override
-        public Connector getConnectorById(UUID uuid) {
-            if (!connectorIds.contains(new ConnectorId(uuid))) {
-                throw new NotFoundException("Connector not found: " + uuid);
+        public Connector get(ConnectorId id) {
+            if (!connectorIds.contains(id)) {
+                throw new NotFoundException("Connector not found: " + id.value());
             }
-            return new Connector();
+            return new Connector(
+                    new ConnectorId(UUID.randomUUID()), "test", EMPTY_CONTACT, "t", "1", "1", "d",
+                    EMPTY_CONTACT, EMPTY_CONTACT, EMPTY_CONTACT, "", null, ConnectorStatus.ACTIVE);
         }
 
         @Override
-        public List<Connector> getAllConnectors() {
+        public List<Connector> list() {
             throw new UnsupportedOperationException("Not needed by this test");
         }
 
         @Override
-        public void deleteConnector(UUID uuid) {
+        public void delete(ConnectorId id) {
             throw new UnsupportedOperationException("Not needed by this test");
         }
     }

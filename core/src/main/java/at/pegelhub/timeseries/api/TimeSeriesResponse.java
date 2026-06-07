@@ -8,7 +8,7 @@ public record TimeSeriesResponse(
         String observedProperty,
         String unit,
         Double referenceLevel,
-        Long expectedIntervalSeconds,
-        String externalCode
+        String externalCode,
+        UUID sourceConnectorId
 ) {
 }

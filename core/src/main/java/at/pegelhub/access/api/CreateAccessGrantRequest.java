@@ -4,7 +4,6 @@ import at.pegelhub.access.domain.AccessPermission;
 import at.pegelhub.access.domain.AccessResourceType;
 import jakarta.validation.constraints.NotNull;
 
-import java.time.Instant;
 import java.util.UUID;
 
 public record CreateAccessGrantRequest(
@@ -18,12 +17,6 @@ public record CreateAccessGrantRequest(
         UUID resourceId,
 
         @NotNull
-        AccessPermission permission,
-
-        Instant validFrom,
-
-        Instant validUntil,
-
-        boolean includeFutureTimeSeries
+        AccessPermission permission
 ) {
 }

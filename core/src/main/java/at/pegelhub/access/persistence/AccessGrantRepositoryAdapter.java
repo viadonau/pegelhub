@@ -12,18 +12,18 @@ import java.util.Optional;
 import static java.util.Objects.requireNonNull;
 
 @Repository
-final class JpaAccessGrantRepositoryAdapter implements AccessGrantRepository {
+class AccessGrantRepositoryAdapter implements AccessGrantRepository {
 
     private final SpringDataAccessGrantRepository accessGrants;
 
-    JpaAccessGrantRepositoryAdapter(SpringDataAccessGrantRepository accessGrants) {
+    AccessGrantRepositoryAdapter(SpringDataAccessGrantRepository accessGrants) {
         this.accessGrants = requireNonNull(accessGrants);
     }
 
     @Override
     public AccessGrant save(AccessGrant accessGrant) {
         requireNonNull(accessGrant);
-        return toDomain(accessGrants.save(toJpa(accessGrant)));
+        return toDomain(accessGrants.save(toEntity(accessGrant)));
     }
 
     @Override
@@ -47,26 +47,20 @@ final class JpaAccessGrantRepositoryAdapter implements AccessGrantRepository {
                 .toList();
     }
 
-    private JpaAccessGrant toJpa(AccessGrant accessGrant) {
-        return new JpaAccessGrant(
+    private AccessGrantEntity toEntity(AccessGrant accessGrant) {
+        return new AccessGrantEntity(
                 accessGrant.id().value(),
                 accessGrant.connectorId().value(),
                 accessGrant.resource().type(),
                 accessGrant.resource().id(),
-                accessGrant.permission(),
-                accessGrant.validFrom(),
-                accessGrant.validUntil(),
-                accessGrant.includeFutureTimeSeries());
+                accessGrant.permission());
     }
 
-    private AccessGrant toDomain(JpaAccessGrant accessGrant) {
+    private AccessGrant toDomain(AccessGrantEntity accessGrant) {
         return new AccessGrant(
                 new AccessGrantId(accessGrant.id()),
                 new ConnectorId(accessGrant.connectorId()),
                 new AccessResourceRef(accessGrant.resourceType(), accessGrant.resourceId()),
-                accessGrant.permission(),
-                accessGrant.validFrom(),
-                accessGrant.validUntil(),
-                accessGrant.includeFutureTimeSeries());
+                accessGrant.permission());
     }
 }

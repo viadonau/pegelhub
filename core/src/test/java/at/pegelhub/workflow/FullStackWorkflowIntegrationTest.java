@@ -70,18 +70,18 @@ final class FullStackWorkflowIntegrationTest extends FullStackIntegrationTestBas
                         11.5)));
 
         ResponseEntity<Void> writeResponse = rest.exchange(
-                "/api/v1/measurement",
+                "/api/v1/measurements",
                 HttpMethod.POST,
                 bearerEntity(measurements, connectorToken),
                 Void.class);
         ResponseEntity<Measurement> latestResponse = rest.exchange(
-                "/api/v1/measurement/time-series/{timeSeriesId}/latest",
+                "/api/v1/time-series/{timeSeriesId}/measurements/latest",
                 HttpMethod.GET,
                 bearerEntity(null, connectorToken),
                 Measurement.class,
                 timeSeries.id());
         ResponseEntity<List<Measurement>> rangeResponse = rest.exchange(
-                "/api/v1/measurement/time-series/{timeSeriesId}/{range}",
+                "/api/v1/time-series/{timeSeriesId}/measurements/{range}",
                 HttpMethod.GET,
                 bearerEntity(null, connectorToken),
                 new ParameterizedTypeReference<>() {
@@ -89,7 +89,7 @@ final class FullStackWorkflowIntegrationTest extends FullStackIntegrationTestBas
                 timeSeries.id(),
                 "3h");
         ResponseEntity<String> systemTimeResponse = rest.getForEntity(
-                "/api/v1/measurement/systemTime",
+                "/api/v1/measurements/system-time",
                 String.class);
 
         assertThat(writeResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
@@ -150,7 +150,7 @@ final class FullStackWorkflowIntegrationTest extends FullStackIntegrationTestBas
         ResponseEntity<TimeSeriesResponse> response = rest.exchange(
                 "/api/v1/time-series",
                 HttpMethod.POST,
-                bearerEntity(new CreateTimeSeriesRequest(stationId, observedProperty, unit, null, 900L, null), operator),
+                bearerEntity(new CreateTimeSeriesRequest(stationId, observedProperty, unit, null, null, null), operator),
                 TimeSeriesResponse.class);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CREATED);
@@ -166,10 +166,7 @@ final class FullStackWorkflowIntegrationTest extends FullStackIntegrationTestBas
                         connectorId,
                         AccessResourceType.TIME_SERIES,
                         timeSeriesId,
-                        AccessPermission.WRITE,
-                        null,
-                        null,
-                        false), operator),
+                        AccessPermission.WRITE), operator),
                 Void.class);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CREATED);

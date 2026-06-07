@@ -28,7 +28,11 @@ public final class FluxQueries {
     }
 
     public static String meanMeasurement(DatabaseProperties database, UUID measurement, FluxDuration range) {
-        return measurementRange(database, measurement, range) + valueFieldFilter() + " |> mean()";
+        return measurementRange(database, measurement, range) + valueFieldFilter() + measurementGroup() + " |> mean()";
+    }
+
+    public static String countMeasurement(DatabaseProperties database, UUID measurement, FluxDuration range) {
+        return measurementRange(database, measurement, range) + valueFieldFilter() + measurementGroup() + " |> count()";
     }
 
     public static String bucketReadCheck(DatabaseProperties database) {
@@ -47,6 +51,10 @@ public final class FluxQueries {
 
     private static String valueFieldFilter() {
         return " |> filter(fn: (r) => r._field == \"value\")";
+    }
+
+    private static String measurementGroup() {
+        return " |> group(columns: [\"_measurement\"])";
     }
 
     static String stringLiteral(String value) {

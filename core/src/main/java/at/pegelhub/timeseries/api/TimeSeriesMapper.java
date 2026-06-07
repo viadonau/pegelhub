@@ -1,13 +1,12 @@
 package at.pegelhub.timeseries.api;
 
 import at.pegelhub.station.domain.StationId;
+import at.pegelhub.connector.domain.ConnectorId;
 import at.pegelhub.timeseries.application.CreateTimeSeriesCommand;
 import at.pegelhub.timeseries.domain.ExternalTimeSeriesCode;
 import at.pegelhub.timeseries.domain.ObservedPropertyCode;
 import at.pegelhub.timeseries.domain.TimeSeries;
 import at.pegelhub.timeseries.domain.UnitCode;
-
-import java.time.Duration;
 
 final class TimeSeriesMapper {
 
@@ -20,8 +19,8 @@ final class TimeSeriesMapper {
                 new ObservedPropertyCode(request.observedProperty()),
                 new UnitCode(request.unit()),
                 request.referenceLevel(),
-                toDuration(request.expectedIntervalSeconds()),
-                toExternalCode(request.externalCode()));
+                toExternalCode(request.externalCode()),
+                toConnectorId(request.sourceConnectorId()));
     }
 
     static TimeSeriesResponse toResponse(TimeSeries timeSeries) {
@@ -31,23 +30,23 @@ final class TimeSeriesMapper {
                 timeSeries.observedProperty().value(),
                 timeSeries.unit().value(),
                 timeSeries.referenceLevel(),
-                toSeconds(timeSeries.expectedInterval()),
-                toExternalCodeValue(timeSeries.externalCode()));
-    }
-
-    private static Duration toDuration(Long seconds) {
-        return seconds == null ? null : Duration.ofSeconds(seconds);
+                toExternalCodeValue(timeSeries.externalCode()),
+                toConnectorIdValue(timeSeries.sourceConnectorId()));
     }
 
     private static ExternalTimeSeriesCode toExternalCode(String externalCode) {
         return externalCode == null || externalCode.isBlank() ? null : new ExternalTimeSeriesCode(externalCode);
     }
 
-    private static Long toSeconds(Duration duration) {
-        return duration == null ? null : duration.toSeconds();
-    }
-
     private static String toExternalCodeValue(ExternalTimeSeriesCode externalCode) {
         return externalCode == null ? null : externalCode.value();
+    }
+
+    private static ConnectorId toConnectorId(java.util.UUID sourceConnectorId) {
+        return sourceConnectorId == null ? null : new ConnectorId(sourceConnectorId);
+    }
+
+    private static java.util.UUID toConnectorIdValue(ConnectorId sourceConnectorId) {
+        return sourceConnectorId == null ? null : sourceConnectorId.value();
     }
 }

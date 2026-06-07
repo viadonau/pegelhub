@@ -25,7 +25,7 @@ A single value observed for a time series at a specific time.
 _Avoid_: Observation, reading, Influx point
 
 **AccessGrant**:
-A PegelHub permission that allows a connector to read, write, or manage a station or time series.
+A PegelHub permission that allows a connector to read a station or time series, or write a specific time series.
 _Avoid_: Supplier role, Taker role, token permission
 
 **Operator**:

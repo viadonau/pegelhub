@@ -1,6 +1,7 @@
 package at.pegelhub.timeseries.persistence;
 
 import at.pegelhub.station.domain.StationId;
+import at.pegelhub.connector.domain.ConnectorId;
 import at.pegelhub.timeseries.domain.ExternalTimeSeriesCode;
 import at.pegelhub.timeseries.domain.ObservedPropertyCode;
 import at.pegelhub.timeseries.domain.TimeSeries;
@@ -8,25 +9,24 @@ import at.pegelhub.timeseries.domain.TimeSeriesId;
 import at.pegelhub.timeseries.domain.UnitCode;
 import org.springframework.stereotype.Repository;
 
-import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
 
 import static java.util.Objects.requireNonNull;
 
 @Repository
-final class JpaTimeSeriesRepositoryAdapter implements TimeSeriesRepository {
+class TimeSeriesRepositoryAdapter implements TimeSeriesRepository {
 
     private final SpringDataTimeSeriesRepository timeSeries;
 
-    JpaTimeSeriesRepositoryAdapter(SpringDataTimeSeriesRepository timeSeries) {
+    TimeSeriesRepositoryAdapter(SpringDataTimeSeriesRepository timeSeries) {
         this.timeSeries = requireNonNull(timeSeries);
     }
 
     @Override
     public TimeSeries save(TimeSeries timeSeries) {
         requireNonNull(timeSeries);
-        return toDomain(this.timeSeries.save(toJpa(timeSeries)));
+        return toDomain(this.timeSeries.save(toEntity(timeSeries)));
     }
 
     @Override
@@ -50,34 +50,26 @@ final class JpaTimeSeriesRepositoryAdapter implements TimeSeriesRepository {
                 .toList();
     }
 
-    private JpaTimeSeries toJpa(TimeSeries timeSeries) {
-        return new JpaTimeSeries(
+    private TimeSeriesEntity toEntity(TimeSeries timeSeries) {
+        return new TimeSeriesEntity(
                 timeSeries.id().value(),
                 timeSeries.stationId().value(),
                 timeSeries.observedProperty().value(),
                 timeSeries.unit().value(),
                 timeSeries.referenceLevel(),
-                toSeconds(timeSeries.expectedInterval()),
-                toExternalCodeValue(timeSeries.externalCode()));
+                toExternalCodeValue(timeSeries.externalCode()),
+                toConnectorIdValue(timeSeries.sourceConnectorId()));
     }
 
-    private TimeSeries toDomain(JpaTimeSeries timeSeries) {
+    private TimeSeries toDomain(TimeSeriesEntity timeSeries) {
         return new TimeSeries(
                 new TimeSeriesId(timeSeries.id()),
                 new StationId(timeSeries.stationId()),
                 new ObservedPropertyCode(timeSeries.observedProperty()),
                 new UnitCode(timeSeries.unit()),
                 timeSeries.referenceLevel(),
-                toDuration(timeSeries.expectedIntervalSeconds()),
-                toExternalCode(timeSeries.externalCode()));
-    }
-
-    private Long toSeconds(Duration duration) {
-        return duration == null ? null : duration.toSeconds();
-    }
-
-    private Duration toDuration(Long seconds) {
-        return seconds == null ? null : Duration.ofSeconds(seconds);
+                toExternalCode(timeSeries.externalCode()),
+                toConnectorId(timeSeries.sourceConnectorId()));
     }
 
     private String toExternalCodeValue(ExternalTimeSeriesCode externalCode) {
@@ -86,5 +78,13 @@ final class JpaTimeSeriesRepositoryAdapter implements TimeSeriesRepository {
 
     private ExternalTimeSeriesCode toExternalCode(String externalCode) {
         return externalCode == null ? null : new ExternalTimeSeriesCode(externalCode);
+    }
+
+    private java.util.UUID toConnectorIdValue(ConnectorId connectorId) {
+        return connectorId == null ? null : connectorId.value();
+    }
+
+    private ConnectorId toConnectorId(java.util.UUID connectorId) {
+        return connectorId == null ? null : new ConnectorId(connectorId);
     }
 }

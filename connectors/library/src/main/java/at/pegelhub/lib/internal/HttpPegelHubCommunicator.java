@@ -105,7 +105,7 @@ public class HttpPegelHubCommunicator implements PegelHubCommunicator {
     public HttpPegelHubCommunicator(CloseableHttpClient client, URL baseUrl, ApplicationProperties properties) {
         this.client = client;
         this.baseUrl = baseUrl;
-        this.measurementRoute = "api/v1/measurement";
+        this.measurementRoute = "api/v1/measurements";
         this.contactRoute = "api/v1/contact";
         this.connectorRoute = "api/v1/connector";
         this.properties = properties;
@@ -123,7 +123,7 @@ public class HttpPegelHubCommunicator implements PegelHubCommunicator {
     @Override
     public Collection<Measurement> getMeasurementsOfTimeSeries(UUID timeSeriesId, String timespan) {
         try {
-            final URI uri = baseUrl.toURI().resolve(measurementRoute + "/time-series/" + timeSeriesId + "/" + timespan);
+            final URI uri = baseUrl.toURI().resolve("api/v1/time-series/" + timeSeriesId + "/measurements/" + timespan);
             final var http = new HttpGet(uri);
             authorize(http);
 
@@ -150,7 +150,7 @@ public class HttpPegelHubCommunicator implements PegelHubCommunicator {
     @Override
     public Optional<Measurement> getLatestMeasurementOfTimeSeries(UUID timeSeriesId) {
         try {
-            final URI uri = baseUrl.toURI().resolve(measurementRoute + "/time-series/" + timeSeriesId + "/latest");
+            final URI uri = baseUrl.toURI().resolve("api/v1/time-series/" + timeSeriesId + "/measurements/latest");
             final var http = new HttpGet(uri);
             authorize(http);
 
@@ -355,7 +355,7 @@ public class HttpPegelHubCommunicator implements PegelHubCommunicator {
 
     public Instant getSystemTime() {
         try {
-            final URI uri = baseUrl.toURI().resolve(measurementRoute + "/systemTime");
+            final URI uri = baseUrl.toURI().resolve(measurementRoute + "/system-time");
             final var http = new HttpGet(uri);
             return client.execute(http, response -> {
                 var json = EntityUtils.toString(response.getEntity());

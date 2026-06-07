@@ -9,6 +9,7 @@ import com.influxdb.query.FluxRecord;
 import com.influxdb.query.FluxTable;
 import at.pegelhub.connector.domain.ConnectorId;
 import at.pegelhub.measurement.domain.Measurement;
+import at.pegelhub.measurement.domain.MeasurementAverage;
 import at.pegelhub.shared.error.NotFoundException;
 import at.pegelhub.shared.influx.DatabaseProperties;
 import at.pegelhub.shared.influx.ConnectionHelper;
@@ -81,41 +82,57 @@ public class InfluxMeasurementRepository implements MeasurementRepository {
         return toMeasurements(ConnectionHelper.queryData(this.client, properties, query));
     }
 
-    /**
-     *
-     * @param uuid of the measurement.
-     * @return the corresponding value to the specified {@link UUID}
-     */
     @Override
     public Measurement getLatestByTimeSeriesId(TimeSeriesId timeSeriesId) {
         String query = FluxQueries.latestMeasurement(properties, timeSeriesId.value(), latestRange);
         List<Measurement> measurements = toMeasurements(ConnectionHelper.queryData(this.client, properties, query));
         if (measurements.isEmpty()) {
-            throw new InfluxException("No measurement found");
+            throw new NotFoundException("No measurement found");
         }
         return measurements.stream()
                 .max(Comparator.comparing(Measurement::observedAt))
-                .orElseThrow(() -> new InfluxException("No measurement found"));
+                .orElseThrow(() -> new NotFoundException("No measurement found"));
     }
 
     @Override
-    public Measurement getAverageByTimeSeriesIdAndRange(TimeSeriesId timeSeriesId, String range) {
-        String query = FluxQueries.meanMeasurement(properties, timeSeriesId.value(), new FluxDuration(range));
+    public MeasurementAverage getAverageByTimeSeriesIdAndRange(TimeSeriesId timeSeriesId, String range) {
+        FluxDuration duration = new FluxDuration(range);
+        FluxRecord mean = singleAggregateRecord(FluxQueries.meanMeasurement(properties, timeSeriesId.value(), duration), timeSeriesId, range);
+        FluxRecord count = singleAggregateRecord(FluxQueries.countMeasurement(properties, timeSeriesId.value(), duration), timeSeriesId, range);
 
-        List<Measurement> results = toMeasurements(ConnectionHelper.queryData(this.client, properties, query));
+        return new MeasurementAverage(
+                timeSeriesId,
+                aggregateInstant(mean, "_start"),
+                aggregateInstant(mean, "_stop"),
+                aggregateNumber(mean).doubleValue(),
+                aggregateNumber(count).longValue());
+    }
 
-        if (results.isEmpty()) {
-            throw new NotFoundException(String.format("No data found for TimeSeries %s in the last %s to calculate an average.", timeSeriesId.value(), range));
+    private FluxRecord singleAggregateRecord(String query, TimeSeriesId timeSeriesId, String range) {
+        List<FluxTable> tables = client.getQueryApi().query(query, properties.org());
+        return tables.stream()
+                .flatMap(table -> table.getRecords().stream())
+                .findFirst()
+                .orElseThrow(() -> new NotFoundException(String.format(
+                        "No data found for TimeSeries %s in the last %s to calculate an average.",
+                        timeSeriesId.value(),
+                        range)));
+    }
+
+    private Instant aggregateInstant(FluxRecord record, String column) {
+        Object value = record.getValueByKey(column);
+        if (value instanceof Instant instant) {
+            return instant;
         }
+        throw new InfluxException("Measurement aggregate is missing timestamp column " + column);
+    }
 
-        Measurement averagedMeasurement = results.getFirst();
-        return new Measurement(
-                averagedMeasurement.timeSeriesId(),
-                Instant.now(),
-                Instant.now(),
-                averagedMeasurement.value(),
-                averagedMeasurement.submittedByConnectorId()
-        );
+    private Number aggregateNumber(FluxRecord record) {
+        Object value = record.getValue();
+        if (value instanceof Number number) {
+            return number;
+        }
+        throw new InfluxException("Measurement aggregate is missing numeric value");
     }
 
     /**

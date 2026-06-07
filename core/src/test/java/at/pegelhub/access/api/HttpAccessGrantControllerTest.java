@@ -15,7 +15,6 @@ import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
-import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
@@ -34,16 +33,11 @@ class HttpAccessGrantControllerTest {
     private static final UUID GRANT_ID = UUID.fromString("770f06e5-6293-4ca4-86e2-91f95db99d37");
     private static final UUID CONNECTOR_ID = UUID.fromString("512c03d7-8db1-4725-a02b-6fb01d34fe86");
     private static final UUID STATION_ID = UUID.fromString("f4cf3697-47c5-45d1-9f7e-9d2bdb84dc8d");
-    private static final Instant VALID_FROM = Instant.parse("2026-01-01T00:00:00Z");
-    private static final Instant VALID_UNTIL = Instant.parse("2026-12-31T00:00:00Z");
     private static final AccessGrant GRANT = new AccessGrant(
             new AccessGrantId(GRANT_ID),
             new ConnectorId(CONNECTOR_ID),
             AccessResourceRef.station(new StationId(STATION_ID)),
-            AccessPermission.WRITE,
-            VALID_FROM,
-            VALID_UNTIL,
-            true);
+            AccessPermission.READ);
 
     @Autowired
     private MockMvc mockMvc;
@@ -62,10 +56,7 @@ class HttpAccessGrantControllerTest {
                                   "connectorId": "%s",
                                   "resourceType": "STATION",
                                   "resourceId": "%s",
-                                  "permission": "WRITE",
-                                  "validFrom": "2026-01-01T00:00:00Z",
-                                  "validUntil": "2026-12-31T00:00:00Z",
-                                  "includeFutureTimeSeries": true
+                                  "permission": "READ"
                                 }
                                 """.formatted(CONNECTOR_ID, STATION_ID)))
                 .andExpect(status().isCreated())
@@ -73,18 +64,12 @@ class HttpAccessGrantControllerTest {
                 .andExpect(jsonPath("$.connectorId").value(CONNECTOR_ID.toString()))
                 .andExpect(jsonPath("$.resourceType").value("STATION"))
                 .andExpect(jsonPath("$.resourceId").value(STATION_ID.toString()))
-                .andExpect(jsonPath("$.permission").value("WRITE"))
-                .andExpect(jsonPath("$.validFrom").value("2026-01-01T00:00:00Z"))
-                .andExpect(jsonPath("$.validUntil").value("2026-12-31T00:00:00Z"))
-                .andExpect(jsonPath("$.includeFutureTimeSeries").value(true));
+                .andExpect(jsonPath("$.permission").value("READ"));
 
         verify(accessGrants).create(eq(new CreateAccessGrantCommand(
                 new ConnectorId(CONNECTOR_ID),
                 AccessResourceRef.station(new StationId(STATION_ID)),
-                AccessPermission.WRITE,
-                VALID_FROM,
-                VALID_UNTIL,
-                true)));
+                AccessPermission.READ)));
     }
 
     @Test
@@ -108,7 +93,7 @@ class HttpAccessGrantControllerTest {
         mockMvc.perform(get("/api/v1/access-grants/{id}", GRANT_ID))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(GRANT_ID.toString()))
-                .andExpect(jsonPath("$.permission").value("WRITE"));
+                .andExpect(jsonPath("$.permission").value("READ"));
     }
 
     @Test

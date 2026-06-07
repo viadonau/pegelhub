@@ -11,7 +11,7 @@ import java.util.List;
 import static java.util.Objects.requireNonNull;
 
 @Service
-final class StationOwnerServiceImpl implements StationOwnerService {
+class StationOwnerServiceImpl implements StationOwnerService {
 
     private final StationOwnerRepository stationOwners;
 

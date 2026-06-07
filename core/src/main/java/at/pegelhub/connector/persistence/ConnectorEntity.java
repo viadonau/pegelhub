@@ -1,29 +1,23 @@
 package at.pegelhub.connector.persistence;
 
 import at.pegelhub.connector.domain.ConnectorStatus;
-import at.pegelhub.contact.persistence.JpaContact;
-import at.pegelhub.shared.persistence.IdentifiableEntity;
-
-import lombok.Data;
-import lombok.EqualsAndHashCode;
-
+import at.pegelhub.contact.persistence.ContactEntity;
 import jakarta.persistence.*;
+
 import java.util.UUID;
 
-/**
- * JPA Data class for {@code Connector}s.
- */
-
 @Entity
-@Data
-@EqualsAndHashCode(callSuper = false)
 @Table(name = "Connector", uniqueConstraints = {
         @UniqueConstraint(columnNames = "keycloakClientId")
 })
-public class JpaConnector extends IdentifiableEntity {
+public class ConnectorEntity {
+
+    @Id
+    private UUID id;
+
     @ManyToOne
     @JoinColumn(nullable = false)
-    private JpaContact manufacturer;
+    private ContactEntity manufacturer;
 
     @Column(nullable = false, length = 50)
     private String connectorNumber;
@@ -42,17 +36,17 @@ public class JpaConnector extends IdentifiableEntity {
 
     @ManyToOne
     @JoinColumn(nullable = false)
-    private JpaContact softwareManufacturer;
+    private ContactEntity softwareManufacturer;
 
     @ManyToOne
     @JoinColumn(nullable = false)
-    private JpaContact technicallyResponsible;
+    private ContactEntity technicallyResponsible;
 
     @ManyToOne
     @JoinColumn(nullable = false)
-    private JpaContact operatingCompany;
+    private ContactEntity operatingCompany;
 
-    @Column()
+    @Column
     private String keycloakClientId;
 
     @Enumerated(EnumType.STRING)
@@ -62,12 +56,13 @@ public class JpaConnector extends IdentifiableEntity {
     @Column
     private String nodes;
 
-    public JpaConnector(UUID id, String connectorNumber, JpaContact manufacturer, String typeDescription, String softwareVersion, String worksFromDataVersion, String dataDefinition, JpaContact softwareManufacturer, JpaContact technicallyResponsible, JpaContact operatingCompany, String nodes) {
-        this(id, connectorNumber, manufacturer, typeDescription, softwareVersion, worksFromDataVersion, dataDefinition,
-                softwareManufacturer, technicallyResponsible, operatingCompany, nodes, null, ConnectorStatus.ACTIVE);
+    public ConnectorEntity() {
     }
 
-    public JpaConnector(UUID id, String connectorNumber, JpaContact manufacturer, String typeDescription, String softwareVersion, String worksFromDataVersion, String dataDefinition, JpaContact softwareManufacturer, JpaContact technicallyResponsible, JpaContact operatingCompany, String nodes, String keycloakClientId, ConnectorStatus status) {
+    public ConnectorEntity(UUID id, String connectorNumber, ContactEntity manufacturer, String typeDescription,
+                 String softwareVersion, String worksFromDataVersion, String dataDefinition,
+                 ContactEntity softwareManufacturer, ContactEntity technicallyResponsible,
+                 ContactEntity operatingCompany, String nodes, String keycloakClientId, ConnectorStatus status) {
         this.id = id;
         this.connectorNumber = connectorNumber;
         this.manufacturer = manufacturer;
@@ -83,6 +78,18 @@ public class JpaConnector extends IdentifiableEntity {
         this.status = status == null ? ConnectorStatus.ACTIVE : status;
     }
 
-    public JpaConnector() {
-    }
+    UUID getId() { return id; }
+    String getConnectorNumber() { return connectorNumber; }
+    ContactEntity getManufacturer() { return manufacturer; }
+    String getTypeDescription() { return typeDescription; }
+    String getSoftwareVersion() { return softwareVersion; }
+    String getWorksFromDataVersion() { return worksFromDataVersion; }
+    String getDataDefinition() { return dataDefinition; }
+    ContactEntity getSoftwareManufacturer() { return softwareManufacturer; }
+    ContactEntity getTechnicallyResponsible() { return technicallyResponsible; }
+    ContactEntity getOperatingCompany() { return operatingCompany; }
+    String getKeycloakClientId() { return keycloakClientId; }
+    ConnectorStatus getStatus() { return status; }
+    String getNodes() { return nodes; }
+    public void setKeycloakClientId(String keycloakClientId) { this.keycloakClientId = keycloakClientId; }
 }

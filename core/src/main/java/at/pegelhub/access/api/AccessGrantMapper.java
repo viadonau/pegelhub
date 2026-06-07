@@ -15,10 +15,7 @@ final class AccessGrantMapper {
         return new CreateAccessGrantCommand(
                 new ConnectorId(request.connectorId()),
                 new AccessResourceRef(request.resourceType(), request.resourceId()),
-                request.permission(),
-                request.validFrom(),
-                request.validUntil(),
-                request.includeFutureTimeSeries());
+                request.permission());
     }
 
     static AccessGrantResponse toResponse(AccessGrant accessGrant) {
@@ -27,10 +24,7 @@ final class AccessGrantMapper {
                 accessGrant.connectorId().value(),
                 accessGrant.resource().type(),
                 accessGrant.resource().id(),
-                accessGrant.permission(),
-                accessGrant.validFrom(),
-                accessGrant.validUntil(),
-                accessGrant.includeFutureTimeSeries());
+                accessGrant.permission());
     }
 
     static AccessResourceRef toResourceRef(AccessResourceType resourceType, java.util.UUID resourceId) {

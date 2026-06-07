@@ -17,12 +17,6 @@ import java.util.Set;
 @Component
 public class JwtAuthorityMapper {
 
-    private final PegelHubSecurityProperties properties;
-
-    public JwtAuthorityMapper(PegelHubSecurityProperties properties) {
-        this.properties = properties;
-    }
-
     public Converter<Jwt, AbstractAuthenticationToken> authenticationConverter() {
         return jwt -> new JwtAuthenticationToken(jwt, authorities(jwt), principalName(jwt));
     }
@@ -44,7 +38,7 @@ public class JwtAuthorityMapper {
             return Set.of();
         }
 
-        Object apiAccess = resourceAccess.get(properties.apiClientId());
+        Object apiAccess = resourceAccess.get(PegelHubSecurityProperties.API_AUDIENCE);
         if (!(apiAccess instanceof Map<?, ?> accessByClient)) {
             return Set.of();
         }

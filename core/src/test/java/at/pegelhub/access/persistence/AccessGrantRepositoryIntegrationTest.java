@@ -11,12 +11,11 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Import;
 
-import java.time.Instant;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-@Import(JpaAccessGrantRepositoryAdapter.class)
+@Import(AccessGrantRepositoryAdapter.class)
 final class AccessGrantRepositoryIntegrationTest extends JpaIntegrationTestBase {
 
     private static final ConnectorId CONNECTOR_ID = new ConnectorId(UUID.fromString("cb52832c-ad7a-45f8-bd75-26df8715523b"));
@@ -45,9 +44,6 @@ final class AccessGrantRepositoryIntegrationTest extends JpaIntegrationTestBase 
                 id,
                 connectorId,
                 AccessResourceRef.station(STATION_ID),
-                AccessPermission.MANAGE,
-                Instant.parse("2026-01-01T00:00:00Z"),
-                Instant.parse("2026-12-31T00:00:00Z"),
-                true);
+                AccessPermission.READ);
     }
 }

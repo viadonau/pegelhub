@@ -298,7 +298,7 @@ public class HttpPegelHubCommunicatorTest {
 
             assertFalse(measurements.isEmpty());
             assertEquals(
-                    "http://localhost:1111/api/v1/measurement/time-series/395c0232-d110-40fd-bd7f-2bb4a0f2009d/72h",
+                    "http://localhost:1111/api/v1/time-series/395c0232-d110-40fd-bd7f-2bb4a0f2009d/measurements/72h",
                     requestUris.get(1));
         }
 
@@ -327,7 +327,7 @@ public class HttpPegelHubCommunicatorTest {
 
             assertTrue(measurement.isPresent());
             assertEquals(
-                    "http://localhost:1111/api/v1/measurement/time-series/395c0232-d110-40fd-bd7f-2bb4a0f2009d/latest",
+                    "http://localhost:1111/api/v1/time-series/395c0232-d110-40fd-bd7f-2bb4a0f2009d/measurements/latest",
                     requestUris.get(1));
         }
 

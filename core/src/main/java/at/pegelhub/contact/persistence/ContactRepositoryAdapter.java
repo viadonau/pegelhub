@@ -1,7 +1,7 @@
 package at.pegelhub.contact.persistence;
 
-import at.pegelhub.shared.persistence.DomainToJpaConverter;
-import at.pegelhub.shared.persistence.JpaToDomainConverter;
+import at.pegelhub.shared.persistence.DomainToEntityConverter;
+import at.pegelhub.shared.persistence.EntityToDomainConverter;
 import at.pegelhub.shared.persistence.*;
 
 import at.pegelhub.contact.domain.Contact;
@@ -14,10 +14,10 @@ import java.util.UUID;
  * JDBC Implementation of the Interface {@code ContactRepository}.
  */
 @Repository
-public class JdbcContactRepository implements ContactRepository {
-    private final JpaContactRepository jpaContactRepository;
+public class ContactRepositoryAdapter implements ContactRepository {
+    private final SpringDataContactRepository jpaContactRepository;
 
-    public JdbcContactRepository(JpaContactRepository jpaContactRepository) {
+    public ContactRepositoryAdapter(SpringDataContactRepository jpaContactRepository) {
         this.jpaContactRepository = jpaContactRepository;
     }
 
@@ -31,7 +31,7 @@ public class JdbcContactRepository implements ContactRepository {
         if (contact.getId() == null) {
             contact = contact.withId(UUID.randomUUID());
         }
-        return JpaToDomainConverter.convert(jpaContactRepository.save(DomainToJpaConverter.convert(contact)));
+        return EntityToDomainConverter.convert(jpaContactRepository.save(DomainToEntityConverter.convert(contact)));
     }
 
     /**
@@ -40,7 +40,7 @@ public class JdbcContactRepository implements ContactRepository {
      */
     @Override
     public Contact getById(UUID uuid) {
-        return jpaContactRepository.findById(uuid).map(JpaToDomainConverter::convert).orElse(null);
+        return jpaContactRepository.findById(uuid).map(EntityToDomainConverter::convert).orElse(null);
     }
 
     /**
@@ -48,7 +48,7 @@ public class JdbcContactRepository implements ContactRepository {
      */
     @Override
     public List<Contact> getAllContacts() {
-        return JpaToDomainConverter.convert(jpaContactRepository.findAll());
+        return EntityToDomainConverter.convert(jpaContactRepository.findAll());
     }
 
     /**
@@ -57,7 +57,7 @@ public class JdbcContactRepository implements ContactRepository {
      */
     @Override
     public Contact update(Contact contact) {
-        return JpaToDomainConverter.convert(jpaContactRepository.save(DomainToJpaConverter.convert(contact)));
+        return EntityToDomainConverter.convert(jpaContactRepository.save(DomainToEntityConverter.convert(contact)));
     }
 
     /**

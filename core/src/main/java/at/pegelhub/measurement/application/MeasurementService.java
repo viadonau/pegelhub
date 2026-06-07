@@ -1,6 +1,7 @@
 package at.pegelhub.measurement.application;
 
 import at.pegelhub.measurement.domain.Measurement;
+import at.pegelhub.measurement.domain.MeasurementAverage;
 import at.pegelhub.measurement.domain.WriteMeasurements;
 import at.pegelhub.timeseries.domain.TimeSeriesId;
 
@@ -18,7 +19,7 @@ public interface MeasurementService {
 
     Measurement getLatestByTimeSeries(TimeSeriesId timeSeriesId);
 
-    Measurement getAverageByTimeSeriesAndRange(TimeSeriesId timeSeriesId, String range);
+    MeasurementAverage getAverageByTimeSeriesAndRange(TimeSeriesId timeSeriesId, String range);
 
     Instant getSystemTime();
 }

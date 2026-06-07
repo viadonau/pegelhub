@@ -1,9 +1,9 @@
 package at.pegelhub.shared.persistence;
 
-import at.pegelhub.connector.persistence.JpaConnector;
-import at.pegelhub.connector.persistence.JpaConnectorRepository;
-import at.pegelhub.contact.persistence.JpaContact;
-import at.pegelhub.contact.persistence.JpaContactRepository;
+import at.pegelhub.connector.persistence.ConnectorEntity;
+import at.pegelhub.connector.persistence.SpringDataConnectorRepository;
+import at.pegelhub.contact.persistence.ContactEntity;
+import at.pegelhub.contact.persistence.SpringDataContactRepository;
 import at.pegelhub.testsupport.JpaIntegrationTestBase;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -17,22 +17,22 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 final class MetadataPersistenceIntegrationTest extends JpaIntegrationTestBase {
 
     @Autowired
-    private JpaContactRepository contacts;
+    private SpringDataContactRepository contacts;
 
     @Autowired
-    private JpaConnectorRepository connectors;
+    private SpringDataConnectorRepository connectors;
 
     @Test
     void connectorKeycloakClientIdIsUnique() {
-        JpaContact contact = contacts.save(contact(UUID.fromString("20000000-0000-0000-0000-000000000003")));
-        JpaConnector first = connector(
+        ContactEntity contact = contacts.save(contact(UUID.fromString("20000000-0000-0000-0000-000000000003")));
+        ConnectorEntity first = connector(
                 UUID.fromString("30000000-0000-0000-0000-000000000003"),
                 "connector-a",
                 contact);
         first.setKeycloakClientId("local-connector-example");
         connectors.saveAndFlush(first);
 
-        JpaConnector second = connector(
+        ConnectorEntity second = connector(
                 UUID.fromString("30000000-0000-0000-0000-000000000004"),
                 "connector-b",
                 contact);
@@ -41,8 +41,8 @@ final class MetadataPersistenceIntegrationTest extends JpaIntegrationTestBase {
         assertThrows(DataIntegrityViolationException.class, () -> connectors.saveAndFlush(second));
     }
 
-    private static JpaContact contact(UUID id) {
-        return new JpaContact(
+    private static ContactEntity contact(UUID id) {
+        return new ContactEntity(
                 id,
                 "organization",
                 "contact person",
@@ -62,8 +62,8 @@ final class MetadataPersistenceIntegrationTest extends JpaIntegrationTestBase {
                 "notes");
     }
 
-    private static JpaConnector connector(UUID id, String connectorNumber, JpaContact contact) {
-        return new JpaConnector(
+    private static ConnectorEntity connector(UUID id, String connectorNumber, ContactEntity contact) {
+        return new ConnectorEntity(
                 id,
                 connectorNumber,
                 contact,
@@ -74,6 +74,8 @@ final class MetadataPersistenceIntegrationTest extends JpaIntegrationTestBase {
                 contact,
                 contact,
                 contact,
-                "notes");
+                "notes",
+                null,
+                null);
     }
 }

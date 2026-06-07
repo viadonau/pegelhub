@@ -12,7 +12,7 @@ import java.util.List;
 import static java.util.Objects.requireNonNull;
 
 @Service
-final class StationServiceImpl implements StationService {
+class StationServiceImpl implements StationService {
 
     private final StationRepository stations;
     private final StationOwnerService stationOwners;

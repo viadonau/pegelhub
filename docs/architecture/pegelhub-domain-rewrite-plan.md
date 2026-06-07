@@ -1,5 +1,7 @@
 # PegelHub Domain Rewrite Plan
 
+Status: this is the implementation plan for the domain migration. For the current branch architecture, including remaining legacy Contact and Telemetry pieces, use `docs/architecture/pegelhub-domain-model.md`.
+
 This plan prepares the rewrite from the current Supplier/Taker measurement model to the target model described in `CONTEXT.md` and ADR-0001/ADR-0002.
 
 ## Problem Statement
@@ -12,7 +14,7 @@ The rewrite should make the domain shape explicit:
 - `StationOwner` owns or is responsible for stations.
 - `Station` is the stable hydrological place.
 - `TimeSeries` is one observed series at a station, such as water level, discharge, water temperature, or air temperature.
-- `AccessGrant` gives a connector read, write, or manage permission for a station or time series.
+- `AccessGrant` gives a connector read permission for a station or time series, or write permission for a specific time series.
 - `Measurement` is one value for one time series at one observed time.
 
 ## Target Model
@@ -68,7 +70,6 @@ A TimeSeries belongs to one Station and describes the value series. It should in
 - observed property, such as water level, discharge, water temperature, or air temperature
 - unit
 - optional reference level
-- optional expected interval
 - optional external code for connector configuration/discovery
 
 The external code is metadata for mapping, not Measurement identity.
@@ -81,13 +82,11 @@ An AccessGrant has:
 
 - subject connector
 - resource Station or TimeSeries
-- permission: `READ`, `WRITE`, or `MANAGE`
-- optional validity range
-- optional station-level behavior for future TimeSeries
+- permission: `READ` or `WRITE`
 
-Station-level grants can authorize all current TimeSeries of the station. Whether they include future TimeSeries must be explicit.
+Station-level grants authorize `READ` access to all TimeSeries at the station, including TimeSeries created after the grant. Measurement `WRITE` grants are TimeSeries-scoped.
 
-Station-level grants do not include future TimeSeries unless an explicit `includeFutureTimeSeries` flag is set. The safe default is to grant only what exists at the time the grant is created.
+Direct TimeSeries `WRITE` grants are only valid for the TimeSeries source connector when `sourceConnectorId` is set. Other connectors may still receive `READ` grants for that TimeSeries.
 
 ### Telemetry
 
@@ -120,13 +119,13 @@ Each commit should compile and should either keep tests green or update the near
    Station references StationOwner by ID. Move only stable station fields first: station number, name, water body/location, and owner.
 
 5. Add TimeSeries domain, DTOs, JPA entity, repository, service, and controller tests.
-   TimeSeries references Station by ID and owns observed property, unit, reference level, expected interval, and optional external code.
+   TimeSeries references Station by ID and owns observed property, unit, reference level, and optional external code.
 
 6. Add AccessGrant domain, DTOs, JPA entity, repository, service, and tests.
    Grants reference Connector as subject and either Station or TimeSeries as resource. Do not wire Measurement writes yet.
 
 7. Add AccessGrant authorization service.
-   Provide a small application interface for checking whether the current Connector can `READ`, `WRITE`, or `MANAGE` a Station or TimeSeries.
+   Provide a small application interface for checking whether the current Connector can `READ` or `WRITE` a Station or TimeSeries.
 
 8. Redefine Measurement write DTOs.
    Replace `fields`/`infos` write maps with `timeSeriesId`, `observedAt`, `value`. Add Jakarta Bean Validation annotations and use `@Valid` at controller boundaries.
@@ -228,5 +227,7 @@ mvn -f connectors/icc-connector/pom.xml test
 - Clean Measurement writes use `timeSeriesId` directly.
 - Protocol-specific channel/address mapping stays outside the core Measurement identity.
 - TimeSeries observed property and unit start as string codes.
-- Station-level AccessGrants include future TimeSeries only when `includeFutureTimeSeries` is explicit.
+- TimeSeries may define an optional `sourceConnectorId` during metadata configuration; if present, only that connector can write source Measurements for the TimeSeries.
+- Station-level AccessGrants include future TimeSeries.
 - Technical connector telemetry is separate from hydrological Measurements.
+- Averages are derived aggregates and are returned as `MeasurementAverage`, not as observed Measurements.

@@ -9,7 +9,7 @@ import java.util.UUID;
 
 @Entity
 @Table(name = "station")
-class JpaStation {
+class StationEntity {
 
     @Id
     private UUID id;
@@ -29,10 +29,10 @@ class JpaStation {
     @Column(length = 500)
     private String location;
 
-    protected JpaStation() {
+    protected StationEntity() {
     }
 
-    JpaStation(UUID id, UUID ownerId, String stationNumber, String name, String waterBody, String location) {
+    StationEntity(UUID id, UUID ownerId, String stationNumber, String name, String waterBody, String location) {
         this.id = id;
         this.ownerId = ownerId;
         this.stationNumber = stationNumber;

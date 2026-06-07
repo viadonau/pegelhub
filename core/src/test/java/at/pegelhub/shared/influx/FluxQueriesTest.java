@@ -29,6 +29,11 @@ class FluxQueriesTest {
                         + " |> filter(fn: (r) => r._measurement == \"e27efad9-b947-48b1-928e-c25663597f1c\") |> last()");
         assertThat(FluxQueries.meanMeasurement(DATABASE, id, new FluxDuration("7d")))
                 .endsWith(" |> filter(fn: (r) => r._measurement == \"e27efad9-b947-48b1-928e-c25663597f1c\")"
-                        + " |> filter(fn: (r) => r._field == \"value\") |> mean()");
+                        + " |> filter(fn: (r) => r._field == \"value\")"
+                        + " |> group(columns: [\"_measurement\"]) |> mean()");
+        assertThat(FluxQueries.countMeasurement(DATABASE, id, new FluxDuration("7d")))
+                .endsWith(" |> filter(fn: (r) => r._measurement == \"e27efad9-b947-48b1-928e-c25663597f1c\")"
+                        + " |> filter(fn: (r) => r._field == \"value\")"
+                        + " |> group(columns: [\"_measurement\"]) |> count()");
     }
 }

@@ -10,5 +10,5 @@ import java.util.UUID;
  */
 
 @Repository
-public interface JpaContactRepository extends JpaRepository<JpaContact, UUID> {
+public interface SpringDataContactRepository extends JpaRepository<ContactEntity, UUID> {
 }

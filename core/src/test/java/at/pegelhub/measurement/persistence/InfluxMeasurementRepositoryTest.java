@@ -3,18 +3,17 @@ package at.pegelhub.measurement.persistence;
 import com.influxdb.client.InfluxDBClient;
 import at.pegelhub.connector.domain.ConnectorId;
 import at.pegelhub.measurement.domain.Measurement;
+import at.pegelhub.shared.error.NotFoundException;
 import at.pegelhub.shared.influx.DatabaseProperties;
 import at.pegelhub.shared.influx.FluxDuration;
 import at.pegelhub.testsupport.InfluxIntegrationTestBase;
 import at.pegelhub.testsupport.PegelHubInfluxContainer;
 import at.pegelhub.timeseries.domain.TimeSeriesId;
-import com.influxdb.exceptions.InfluxException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
-import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.UUID;
@@ -80,6 +79,37 @@ final class InfluxMeasurementRepositoryTest extends InfluxIntegrationTestBase {
     }
 
     @Test
+    void averagesMeasurementValuesAcrossConnectorTags() {
+        TimeSeriesId timeSeriesId = new TimeSeriesId(UUID.randomUUID());
+        ConnectorId connectorA = new ConnectorId(UUID.randomUUID());
+        ConnectorId connectorB = new ConnectorId(UUID.randomUUID());
+        Instant baseTimestamp = Instant.now()
+                .minus(1, ChronoUnit.HOURS)
+                .truncatedTo(ChronoUnit.SECONDS);
+        Measurement first = new Measurement(
+                timeSeriesId,
+                baseTimestamp,
+                baseTimestamp.plusSeconds(1),
+                10.0,
+                connectorA);
+        Measurement second = new Measurement(
+                timeSeriesId,
+                baseTimestamp.plusSeconds(60),
+                baseTimestamp.plusSeconds(61),
+                20.0,
+                connectorB);
+
+        repository.storeMeasurements(List.of(first, second));
+
+        var average = repository.getAverageByTimeSeriesIdAndRange(timeSeriesId, "3h");
+
+        assertThat(average.timeSeriesId()).isEqualTo(timeSeriesId);
+        assertThat(average.value()).isEqualTo(15.0);
+        assertThat(average.sampleCount()).isEqualTo(2);
+        assertThat(average.rangeEnd()).isAfter(average.rangeStart());
+    }
+
+    @Test
     void invalidRangeThrowsIllegalArgumentException() {
         TimeSeriesId anyTimeSeries = new TimeSeriesId(UUID.randomUUID());
         assertThrows(IllegalArgumentException.class, () -> repository.getByTimeSeriesIdAndRange(anyTimeSeries, null));
@@ -89,9 +119,9 @@ final class InfluxMeasurementRepositoryTest extends InfluxIntegrationTestBase {
     }
 
     @Test
-    void missingLatestMeasurementThrowsInfluxException() {
+    void missingLatestMeasurementThrowsNotFoundException() {
         UUID id = UUID.fromString("e27efad9-b947-48b1-928e-c25663597f1c");
 
-        assertThrows(InfluxException.class, () -> repository.getLatestByTimeSeriesId(new TimeSeriesId(id)));
+        assertThrows(NotFoundException.class, () -> repository.getLatestByTimeSeriesId(new TimeSeriesId(id)));
     }
 }

@@ -16,7 +16,7 @@ import java.util.UUID;
 import static java.util.Objects.requireNonNull;
 
 @Service
-public final class TelemetryServiceImpl implements TelemetryService {
+public class TelemetryServiceImpl implements TelemetryService {
 
     private final TelemetryRepository telemetryRepository;
     private final ConnectorRepository connectorRepository;
@@ -35,11 +35,11 @@ public final class TelemetryServiceImpl implements TelemetryService {
     public Telemetry saveTelemetry(Telemetry telemetry) {
         Connector connector = connectorRepository.findByKeycloakClientId(currentActor.get().clientId())
                 .orElseThrow(() -> new NotFoundException("Connector not registered"));
-        if (connector.getStatus() != ConnectorStatus.ACTIVE) {
+        if (connector.status() != ConnectorStatus.ACTIVE) {
             throw new AccessDeniedException("Connector is not active");
         }
         Telemetry telemetryForConnector = new Telemetry(
-                connector.getId().toString(),
+                connector.id().value().toString(),
                 telemetry.stationIPAddressIntern(),
                 telemetry.stationIPAddressExtern(),
                 telemetry.timestamp(),

@@ -12,6 +12,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import java.time.Instant;
 import static at.pegelhub.testsupport.ExampleData.ID;
 import static at.pegelhub.testsupport.ExampleData.MEASUREMENT;
+import static at.pegelhub.testsupport.ExampleData.MEASUREMENT_AVERAGE;
 import static at.pegelhub.testsupport.ExampleData.MEASUREMENTS;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
@@ -37,7 +38,7 @@ class HttpMeasurementControllerTest {
 
     @Test
     void writeMeasurementDataDelegatesToService() throws Exception {
-        mockMvc.perform(post("/api/v1/measurement")
+        mockMvc.perform(post("/api/v1/measurements")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(validMeasurementsPayload()))
                 .andExpect(status().isOk())
@@ -49,7 +50,7 @@ class HttpMeasurementControllerTest {
     void writeMeasurementDataMapsServiceExceptionTo500() throws Exception {
         doThrow(new RuntimeException("write failed")).when(measurementService).writeMeasurements(any());
 
-        mockMvc.perform(post("/api/v1/measurement")
+        mockMvc.perform(post("/api/v1/measurements")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(validMeasurementsPayload()))
                 .andExpect(status().isInternalServerError())
@@ -60,7 +61,7 @@ class HttpMeasurementControllerTest {
     void findMeasurementForTimeSeriesInRangeReturnsJsonArray() throws Exception {
         when(measurementService.getByTimeSeriesAndRange(TIME_SERIES_ID, "72h")).thenReturn(MEASUREMENTS);
 
-        mockMvc.perform(get("/api/v1/measurement/time-series/{timeSeriesId}/{range}", TIME_SERIES_ID.value(), "72h"))
+        mockMvc.perform(get("/api/v1/time-series/{timeSeriesId}/measurements/{range}", TIME_SERIES_ID.value(), "72h"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].timeSeriesId.value").value(MEASUREMENT.timeSeriesId().value().toString()));
     }
@@ -69,18 +70,20 @@ class HttpMeasurementControllerTest {
     void findLatestMeasurementByTimeSeriesReturnsJson() throws Exception {
         when(measurementService.getLatestByTimeSeries(TIME_SERIES_ID)).thenReturn(MEASUREMENT);
 
-        mockMvc.perform(get("/api/v1/measurement/time-series/{timeSeriesId}/latest", TIME_SERIES_ID.value()))
+        mockMvc.perform(get("/api/v1/time-series/{timeSeriesId}/measurements/latest", TIME_SERIES_ID.value()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.timeSeriesId.value").value(MEASUREMENT.timeSeriesId().value().toString()));
     }
 
     @Test
     void findAverageMeasurementForTimeSeriesInRangeReturnsJson() throws Exception {
-        when(measurementService.getAverageByTimeSeriesAndRange(TIME_SERIES_ID, "72h")).thenReturn(MEASUREMENT);
+        when(measurementService.getAverageByTimeSeriesAndRange(TIME_SERIES_ID, "72h")).thenReturn(MEASUREMENT_AVERAGE);
 
-        mockMvc.perform(get("/api/v1/measurement/time-series/{timeSeriesId}/average/{range}", TIME_SERIES_ID.value(), "72h"))
+        mockMvc.perform(get("/api/v1/time-series/{timeSeriesId}/measurements/average/{range}", TIME_SERIES_ID.value(), "72h"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.timeSeriesId.value").value(MEASUREMENT.timeSeriesId().value().toString()));
+                .andExpect(jsonPath("$.timeSeriesId.value").value(MEASUREMENT.timeSeriesId().value().toString()))
+                .andExpect(jsonPath("$.value").value(1.0))
+                .andExpect(jsonPath("$.sampleCount").value(1));
     }
 
     @Test
@@ -88,7 +91,7 @@ class HttpMeasurementControllerTest {
         Instant ts = Instant.parse("2026-01-02T03:04:05Z");
         when(measurementService.getSystemTime()).thenReturn(ts);
 
-        mockMvc.perform(get("/api/v1/measurement/systemTime"))
+        mockMvc.perform(get("/api/v1/measurements/system-time"))
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("2026-01-02")));
 
@@ -101,7 +104,7 @@ class HttpMeasurementControllerTest {
                 .when(measurementService)
                 .getByTimeSeriesAndRange(TIME_SERIES_ID, "invalid");
 
-        mockMvc.perform(get("/api/v1/measurement/time-series/{timeSeriesId}/{range}", TIME_SERIES_ID.value(), "invalid"))
+        mockMvc.perform(get("/api/v1/time-series/{timeSeriesId}/measurements/{range}", TIME_SERIES_ID.value(), "invalid"))
                 .andExpect(status().isInternalServerError())
                 .andExpect(content().string("range parse failed"));
     }

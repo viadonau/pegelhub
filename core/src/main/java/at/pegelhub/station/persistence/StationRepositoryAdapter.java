@@ -11,18 +11,18 @@ import java.util.Optional;
 import static java.util.Objects.requireNonNull;
 
 @Repository
-final class JpaStationRepositoryAdapter implements StationRepository {
+class StationRepositoryAdapter implements StationRepository {
 
     private final SpringDataStationRepository stations;
 
-    JpaStationRepositoryAdapter(SpringDataStationRepository stations) {
+    StationRepositoryAdapter(SpringDataStationRepository stations) {
         this.stations = requireNonNull(stations);
     }
 
     @Override
     public Station save(Station station) {
         requireNonNull(station);
-        return toDomain(stations.save(toJpa(station)));
+        return toDomain(stations.save(toEntity(station)));
     }
 
     @Override
@@ -38,8 +38,8 @@ final class JpaStationRepositoryAdapter implements StationRepository {
                 .toList();
     }
 
-    private JpaStation toJpa(Station station) {
-        return new JpaStation(
+    private StationEntity toEntity(Station station) {
+        return new StationEntity(
                 station.id().value(),
                 station.ownerId().value(),
                 station.stationNumber(),
@@ -48,7 +48,7 @@ final class JpaStationRepositoryAdapter implements StationRepository {
                 station.location());
     }
 
-    private Station toDomain(JpaStation station) {
+    private Station toDomain(StationEntity station) {
         return new Station(
                 new StationId(station.id()),
                 new StationOwnerId(station.ownerId()),

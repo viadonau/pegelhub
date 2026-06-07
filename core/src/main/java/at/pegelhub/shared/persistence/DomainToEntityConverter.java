@@ -1,17 +1,12 @@
-package at.pegelhub.shared.web;
+package at.pegelhub.shared.persistence;
 
-import at.pegelhub.contact.api.ContactDto;
 import at.pegelhub.contact.domain.Contact;
+import at.pegelhub.contact.persistence.ContactEntity;
 
-import java.util.List;
+public class DomainToEntityConverter {
 
-/**
- * Provider, which has methods to turn domain objects to dtos.
- */
-public final class DomainToDtoConverter {
-
-    public static ContactDto convert(Contact contact) {
-        return new ContactDto(
+    public static ContactEntity convert(Contact contact) {
+        return new ContactEntity(
                 contact.getId(),
                 contact.getOrganization(),
                 contact.getContactPerson(),
@@ -28,19 +23,6 @@ public final class DomainToDtoConverter {
                 contact.getAdministrationPhoneNumber(),
                 contact.getAdministrationPhoneNumberTwo(),
                 contact.getAdministrationMail(),
-                contact.getContactNodes()
-        );
-    }
-
-    public static Object convert(Object object) {
-        if (object instanceof Contact contact) {
-            return convert(contact);
-        }
-        return object;
-    }
-
-    @SuppressWarnings("unchecked")
-    public static <S, T> List<S> convert(List<T> elements) {
-        return (List<S>) elements.stream().map(DomainToDtoConverter::convert).toList();
+                contact.getContactNodes());
     }
 }

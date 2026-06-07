@@ -1,5 +1,10 @@
 package at.pegelhub.timeseries.application;
 
+import at.pegelhub.connector.application.ConnectorService;
+import at.pegelhub.connector.application.CreateConnectorCommand;
+import at.pegelhub.connector.domain.Connector;
+import at.pegelhub.connector.domain.ConnectorId;
+import at.pegelhub.connector.domain.ConnectorStatus;
 import at.pegelhub.shared.error.NotFoundException;
 import at.pegelhub.station.application.CreateStationCommand;
 import at.pegelhub.station.application.StationService;
@@ -14,7 +19,6 @@ import at.pegelhub.timeseries.domain.UnitCode;
 import at.pegelhub.timeseries.persistence.TimeSeriesRepository;
 import org.junit.jupiter.api.Test;
 
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -22,11 +26,13 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static at.pegelhub.testsupport.ExampleData.CONTACT;
 
 final class TimeSeriesServiceImplTest {
 
     private static final StationId STATION_ID = new StationId(UUID.fromString("dc59ba96-5ebc-404a-b220-95b18e8272b8"));
     private static final StationId OTHER_STATION_ID = new StationId(UUID.fromString("158c87fa-dc87-44f0-a92c-2fd93bc1020a"));
+    private static final ConnectorId SOURCE_CONNECTOR_ID = new ConnectorId(UUID.fromString("63b82393-3c4a-43fd-ae0c-f47ec13d0e75"));
     private static final TimeSeriesId TIME_SERIES_ID = new TimeSeriesId(UUID.fromString("2ff15221-acd5-49eb-a47d-e2df7206d034"));
     private static final Station STATION = new Station(
             STATION_ID,
@@ -38,18 +44,30 @@ final class TimeSeriesServiceImplTest {
 
     private final InMemoryTimeSeriesRepository repository = new InMemoryTimeSeriesRepository();
     private final InMemoryStationService stations = new InMemoryStationService();
-    private final TimeSeriesService service = new TimeSeriesServiceImpl(repository, stations);
+    private final InMemoryConnectorService connectors = new InMemoryConnectorService();
+    private final TimeSeriesService service = new TimeSeriesServiceImpl(repository, stations, connectors);
 
     @Test
     void createsTimeSeriesForExistingStation() {
         stations.stations.add(STATION);
+        connectors.connectorIds.add(SOURCE_CONNECTOR_ID);
 
         var timeSeries = service.create(command(STATION_ID));
 
         assertThat(timeSeries.id()).isNotNull();
         assertThat(timeSeries.stationId()).isEqualTo(STATION_ID);
         assertThat(timeSeries.observedProperty()).isEqualTo(new ObservedPropertyCode("water-level"));
+        assertThat(timeSeries.sourceConnectorId()).isEqualTo(SOURCE_CONNECTOR_ID);
         assertThat(repository.saved).containsExactly(timeSeries);
+    }
+
+    @Test
+    void refusesTimeSeriesForMissingSourceConnector() {
+        stations.stations.add(STATION);
+
+        assertThrows(NotFoundException.class, () -> service.create(command(STATION_ID)));
+
+        assertThat(repository.saved).isEmpty();
     }
 
     @Test
@@ -101,8 +119,8 @@ final class TimeSeriesServiceImplTest {
                 new ObservedPropertyCode("water-level"),
                 new UnitCode("cm"),
                 120.0,
-                Duration.ofMinutes(15),
-                new ExternalTimeSeriesCode("main-stage"));
+                new ExternalTimeSeriesCode("main-stage"),
+                SOURCE_CONNECTOR_ID);
     }
 
     private static TimeSeries timeSeries(TimeSeriesId id, StationId stationId) {
@@ -112,8 +130,8 @@ final class TimeSeriesServiceImplTest {
                 new ObservedPropertyCode("water-level"),
                 new UnitCode("cm"),
                 120.0,
-                Duration.ofMinutes(15),
-                new ExternalTimeSeriesCode("main-stage"));
+                new ExternalTimeSeriesCode("main-stage"),
+                SOURCE_CONNECTOR_ID);
     }
 
     private static final class InMemoryTimeSeriesRepository implements TimeSeriesRepository {
@@ -166,6 +184,39 @@ final class TimeSeriesServiceImplTest {
         @Override
         public List<Station> list() {
             return List.copyOf(stations);
+        }
+    }
+
+    private static final class InMemoryConnectorService implements ConnectorService {
+
+        private final List<ConnectorId> connectorIds = new ArrayList<>();
+
+        @Override
+        public Connector create(CreateConnectorCommand command) {
+            throw new UnsupportedOperationException("Not needed by this test");
+        }
+
+        @Override
+        public Connector register(String keycloakClientId, ConnectorStatus status, CreateConnectorCommand command) {
+            throw new UnsupportedOperationException("Not needed by this test");
+        }
+
+        @Override
+        public Connector get(ConnectorId id) {
+            if (!connectorIds.contains(id)) {
+                throw new NotFoundException("Connector not found: " + id.value());
+            }
+            return new Connector(id, "test", CONTACT, "type", "1.0", "1.0", "def", CONTACT, CONTACT, CONTACT, "", null, ConnectorStatus.ACTIVE);
+        }
+
+        @Override
+        public List<Connector> list() {
+            throw new UnsupportedOperationException("Not needed by this test");
+        }
+
+        @Override
+        public void delete(ConnectorId id) {
+            throw new UnsupportedOperationException("Not needed by this test");
         }
     }
 }
