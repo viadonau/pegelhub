@@ -75,7 +75,7 @@ public class TstpCommunicatorImpl implements TstpCommunicator {
     @Override
     public void sendMeasurements(String zrid, List<Measurement> measurements) {
         URI uri = URI.create(String.format(baseURI+"PUT&ZRID=%s",zrid));
-        measurements.sort(Comparator.comparing(Measurement::getTimestamp));
+        measurements.sort(Comparator.comparing(Measurement::getObservedAt));
         String requestBody = tstpXmlService.parseXmlPutRequest(measurements);
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(uri)

@@ -26,14 +26,13 @@ server:
 pegelhub:
   security:
     issuer-uri: ${KEYCLOAK_ISSUER_URI}
-    audience: ${PEGELHUB_API_AUDIENCE:pegelhub-core-api}
-    api-client-id: ${PEGELHUB_API_CLIENT_ID:${PEGELHUB_API_AUDIENCE:pegelhub-core-api}}
   influx:
     url: ${INFLUX_URL}
     org: ${INFLUX_ORG}
     token: ${INFLUX_TOKEN}
     data-bucket: ${INFLUX_DATA_BUCKET}
     telemetry-bucket: ${INFLUX_TELEMETRY_BUCKET}
+    latest-range: ${INFLUX_LATEST_RANGE:72h}
 
 management:
   server:

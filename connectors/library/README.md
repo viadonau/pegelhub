@@ -32,3 +32,18 @@ When omitted, `sendMetaDataOnStartup` defaults to `false`, so normal connector c
 - The library obtains a short-lived access token with `client_credentials`, caches it, and sends `Authorization: Bearer <token>`.
 
 The library does not write access tokens or secrets back to the YAML file.
+
+## Time Handling
+
+Measurement and telemetry timestamps are represented as `Instant` in the connector library.
+Outbound HTTP payloads therefore use ISO-8601 UTC strings such as:
+
+```json
+{
+  "timestamp": "2026-04-25T10:15:30Z"
+}
+```
+
+Connectors that receive protocol timestamps without an explicit offset must choose the timezone at the parsing boundary.
+For Pegelhub's current connectors, offset-free protocol timestamps are treated as UTC before they are stored in the shared `Measurement` model.
+The HTTP client expects timestamp values from Core to use the same instant format.

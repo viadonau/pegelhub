@@ -8,7 +8,7 @@ import com.google.gson.reflect.TypeToken;
 import at.pegelhub.lib.PegelHubCommunicator;
 import at.pegelhub.lib.exception.NotFoundException;
 import at.pegelhub.lib.internal.dto.*;
-import at.pegelhub.lib.internal.gsonconverters.LocalDateTimeConverter;
+import at.pegelhub.lib.internal.gsonconverters.InstantConverter;
 import at.pegelhub.lib.model.*;
 import org.apache.hc.client5.http.classic.methods.HttpGet;
 import org.apache.hc.client5.http.classic.methods.HttpPost;
@@ -28,8 +28,7 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
-import java.sql.Timestamp;
-import java.time.*;
+import java.time.Instant;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -37,11 +36,8 @@ public class HttpPegelHubCommunicator implements PegelHubCommunicator {
 
     private static final Logger LOG = LoggerFactory.getLogger(HttpPegelHubCommunicator.class);
     private final String measurementRoute;
-    private final String telemetryRoute;
     private final String contactRoute;
     private final String connectorRoute;
-    private final String takerRoute;
-    private final String supplierRoute;
     private final URL baseUrl;
     private final CloseableHttpClient client;
     private final ApplicationProperties properties;
@@ -67,6 +63,12 @@ public class HttpPegelHubCommunicator implements PegelHubCommunicator {
 
     private static boolean hasText(String value) {
         return value != null && !value.isBlank();
+    }
+
+    private static Gson gsonWithInstantSupport() {
+        return new GsonBuilder()
+                .registerTypeAdapter(Instant.class, new InstantConverter())
+                .create();
     }
 
     private synchronized String fetchAccessToken() {
@@ -100,98 +102,14 @@ public class HttpPegelHubCommunicator implements PegelHubCommunicator {
         }
     }
 
-    private void ensureIsTaker() {
-        if (properties.isSupplier()) throw new IllegalArgumentException();
-    }
-
-    private void ensureIsSupplier() {
-        if (!properties.isSupplier()) throw new IllegalArgumentException();
-    }
-
-    private void sendMetaData() {
-        if (properties.isSupplier()) {
-            sendSupplierData();
-        } else {
-            sendTakerData();
-        }
-    }
-
-    private void sendSupplierData() {
-        try {
-            final URI uri = baseUrl.toURI().resolve(supplierRoute);
-            final var http = new HttpPost(uri);
-            authorize(http);
-            http.setHeader("Content-Type", "application/json");
-
-            LOG.debug("Summertime: " + properties.getSupplier().isSummertime());
-
-
-            var gson = new Gson();
-            var json = gson.toJson(properties.getSupplier(), SupplierSendDto.class);
-            var entity = HttpEntities.create(json);
-            http.setEntity(entity);
-
-            boolean result = client.<Boolean>execute(http, response -> {
-                EntityUtils.consume(response.getEntity());
-                return response.getCode() == HttpStatus.SC_OK;
-            });
-            if (!result) {
-                throw new RuntimeException("Invalid request");
-            }
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    private void sendTakerData() {
-        try {
-            final URI uri = baseUrl.toURI().resolve(takerRoute);
-            final var http = new HttpPost(uri);
-            authorize(http);
-            http.setHeader("Content-Type", "application/json");
-
-            var gson = new Gson();
-            var json = gson.toJson(properties.getTaker(), TakerSendDto.class);
-            var entity = HttpEntities.create(json);
-            http.setEntity(entity);
-
-            boolean result = client.<Boolean>execute(http, response -> {
-                EntityUtils.consume(response.getEntity());
-                LOG.info(response.getCode() + "");
-                return response.getCode() == HttpStatus.SC_OK;
-            });
-            if (!result) {
-                throw new RuntimeException("Invalid request");
-            }
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-    }
-
     public HttpPegelHubCommunicator(CloseableHttpClient client, URL baseUrl, ApplicationProperties properties) {
-        this(client, baseUrl, properties,
-                "api/v1/measurement",
-                "api/v1/telemetry",
-                "api/v1/contact",
-                "api/v1/connector",
-                "api/v1/taker",
-                "api/v1/supplier");
-    }
-
-    public HttpPegelHubCommunicator(CloseableHttpClient client, URL baseUrl, ApplicationProperties properties, String measurementRoute, String telemetryRoute, String contactRoute, String connectorRoute, String takerRoute, String supplierRoute) {
         this.client = client;
         this.baseUrl = baseUrl;
-        this.measurementRoute = measurementRoute;
-        this.telemetryRoute = telemetryRoute;
-        this.contactRoute = contactRoute;
-        this.connectorRoute = connectorRoute;
-        this.takerRoute = takerRoute;
-        this.supplierRoute = supplierRoute;
+        this.measurementRoute = "api/v1/measurements";
+        this.contactRoute = "api/v1/contact";
+        this.connectorRoute = "api/v1/connector";
         this.properties = properties;
         requireOAuthConfiguration();
-        if (properties.isSupplierDataToSend()) {
-            sendMetaData();
-        }
     }
 
     private void requireOAuthConfiguration() {
@@ -203,126 +121,48 @@ public class HttpPegelHubCommunicator implements PegelHubCommunicator {
     }
 
     @Override
-    public Collection<Measurement> getMeasurements(String timespan) {
+    public Collection<Measurement> getMeasurementsOfTimeSeries(UUID timeSeriesId, String timespan) {
         try {
-            ensureIsTaker();
-
-            final URI uri = baseUrl.toURI().resolve(measurementRoute + "/" + timespan);
+            final URI uri = baseUrl.toURI().resolve("api/v1/time-series/" + timeSeriesId + "/measurements/" + timespan);
             final var http = new HttpGet(uri);
             authorize(http);
 
             return client.execute(http, response -> {
-                var json = EntityUtils.toString(response.getEntity());
-                var gson = new GsonBuilder()
-                        .registerTypeAdapter(LocalDateTime.class, new LocalDateTimeConverter())
-                        .create();
-                var listType = new TypeToken<List<Measurement>>() {
-                };
-                List<Measurement> meass = gson.fromJson(json, listType);
-
-                for (Measurement m : meass) {
-                    if (m.getTimestamp() == null) {
-                        String timeStampWithOffset = m.getInfos().get("TimestampWithOffset");
-                        OffsetDateTime offsetDateTime = OffsetDateTime.parse(timeStampWithOffset);
-                        m.setTimestamp(convertedTime(m.getTimestamp(), offsetDateTime.getOffset()));
-                    }
+                if (response.getCode() == 404) {
+                    throw new NotFoundException("time series does not exist");
                 }
-
-                return gson.fromJson(json, listType);
+                var json = EntityUtils.toString(response.getEntity());
+                var gson = gsonWithInstantSupport();
+                var listType = new TypeToken<List<MeasurementReceiveDto>>() {
+                };
+                List<MeasurementReceiveDto> measurements = gson.fromJson(json, listType);
+                return measurements.stream()
+                        .map(MeasurementReceiveDto::toMeasurement)
+                        .toList();
             });
+        } catch (NotFoundException nfe) {
+            throw new NotFoundException(nfe.getMessage());
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
     }
 
     @Override
-    public Optional<Measurement> getMeasurementByUUID(UUID uuid) {
+    public Optional<Measurement> getLatestMeasurementOfTimeSeries(UUID timeSeriesId) {
         try {
-            ensureIsTaker();
-
-            final URI uri = baseUrl.toURI().resolve(measurementRoute + "/last/" + uuid);
+            final URI uri = baseUrl.toURI().resolve("api/v1/time-series/" + timeSeriesId + "/measurements/latest");
             final var http = new HttpGet(uri);
             authorize(http);
 
             return Optional.ofNullable(client.execute(http, response -> {
                 if (response.getCode() != HttpStatus.SC_OK) {
-                    throw new RuntimeException("Invalid status: " + response.getCode());
+                    return null;
                 }
 
                 var json = EntityUtils.toString(response.getEntity());
-                var gson = new GsonBuilder()
-                        .registerTypeAdapter(LocalDateTime.class, new LocalDateTimeConverter())
-                        .create();
-                return gson.fromJson(json, Measurement.class);
+                var gson = gsonWithInstantSupport();
+                return gson.fromJson(json, MeasurementReceiveDto.class).toMeasurement();
             }));
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    @Override
-    public Collection<Measurement> getMeasurementsOfStation(String stationNumber, String timespan) {
-        ensureIsTaker();
-        return _getMeasurementsByStationAndTime(stationNumber, timespan);
-    }
-
-    @Override
-    public Optional<Measurement> getLatestMeasurementOfStation() {
-        ensureIsTaker();
-        return _getLatestMeasurementByStation(properties.getTaker().stationNumber());
-    }
-
-    @Override
-    public Collection<Telemetry> getTelemetry(String timespan) {
-        try {
-            ensureIsTaker();
-            final URI uri = baseUrl.toURI().resolve(telemetryRoute + "/" + timespan);
-            final var http = new HttpGet(uri);
-            authorize(http);
-            LOG.debug("Executing GET request to URI: {}", uri);
-
-            return client.execute(http, response -> {
-                var json = EntityUtils.toString(response.getEntity());
-                var gson = new Gson();
-                var mapType = new TypeToken<Map<String, Map<String, TelemetryCollectionReceiveDto.TelemetryReceiveDtoInnerType>>>() {
-                };
-
-                Collection<Telemetry> telCol = new TelemetryCollectionReceiveDto(gson.fromJson(json, mapType)).toTelemetryCollection();
-                List<Telemetry> telList = telCol.stream().toList();
-                for (Telemetry t : telList) {
-                    t.setTimestamp(convertedTime(t.getTimestamp(), null));
-                }
-                return new TelemetryCollectionReceiveDto(gson.fromJson(json, mapType)).toTelemetryCollection();
-            });
-        } catch (Exception e) {
-            LOG.error("Exception during telemetry fetch: {}", e.getMessage(), e);
-            throw new RuntimeException(e);
-        }
-    }
-
-    @Override
-    public Optional<Telemetry> getTelemetryByUUID(UUID uuid) {
-        try {
-            ensureIsTaker();
-            final URI uri = baseUrl.toURI().resolve(telemetryRoute + "/last/" + uuid);
-            final var http = new HttpGet(uri);
-            authorize(http);
-
-            return client.execute(http, response -> {
-                if (response.getCode() != HttpStatus.SC_OK) {
-                    throw new RuntimeException("Invalid status: " + response.getCode());
-                }
-                var json = EntityUtils.toString(response.getEntity());
-                var gson = new Gson();
-                var mapType = new TypeToken<Map<String, Map<String, TelemetryCollectionReceiveDto.TelemetryReceiveDtoInnerType>>>() {
-                };
-                var telemetry = new TelemetryCollectionReceiveDto(gson.fromJson(json, mapType)).toTelemetryCollection();
-                Optional<Telemetry> returnValue = telemetry.stream().findFirst();
-                if (returnValue.isPresent()) {
-                    returnValue.get().setTimestamp(convertedTime(returnValue.get().getTimestamp(), null));
-                }
-                return returnValue;
-            });
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
@@ -331,25 +171,12 @@ public class HttpPegelHubCommunicator implements PegelHubCommunicator {
     @Override
     public void sendMeasurements(List<Measurement> meass) {
         try {
-            ensureIsSupplier();
-
-            for (Measurement m : meass) {
-                if (m.getTimestamp() == null) {
-                    String timeStampWithOffset = m.getInfos().get("TimestampWithOffset");
-                    OffsetDateTime offsetDateTime = OffsetDateTime.parse(timeStampWithOffset);
-                    m.setTimestamp(convertedTime(m.getTimestamp(), offsetDateTime.getOffset()));
-                    Thread.sleep(500);
-                }
-            }
-
             final URI uri = baseUrl.toURI().resolve(measurementRoute);
             final var http = new HttpPost(uri);
             authorize(http);
             http.setHeader("Content-Type", "application/json");
-            var dto = new MeasurementsSendDto(meass.stream().map(m -> new MeasurementSendDto(m.getTimestamp(), m.getFields(), m.getInfos())).toList());
-            var gson = new GsonBuilder()
-                    .registerTypeAdapter(LocalDateTime.class, new LocalDateTimeConverter())
-                    .create();
+            var dto = new MeasurementsSendDto(meass.stream().map(this::toMeasurementSendDto).toList());
+            var gson = gsonWithInstantSupport();
             var json = gson.toJson(dto, MeasurementsSendDto.class);
             var entity = HttpEntities.create(json);
             http.setEntity(entity);
@@ -366,42 +193,22 @@ public class HttpPegelHubCommunicator implements PegelHubCommunicator {
         }
     }
 
-    @Override
-    public void sendTelemetry(Telemetry tel) {
-        try {
-            ensureIsSupplier();
-
-            tel.setTimestamp(convertedTime(tel.getTimestamp(), null));
-
-            final URI uri = baseUrl.toURI().resolve(telemetryRoute);
-            final var http = new HttpPost(uri);
-            authorize(http);
-            http.setHeader("Content-Type", "application/json");
-
-            var gson = new GsonBuilder()
-                    .registerTypeAdapter(LocalDateTime.class, new LocalDateTimeConverter())
-                    .create();
-            var json = gson.toJson(tel, Telemetry.class);
-            var entity = HttpEntities.create(json);
-            http.setEntity(entity);
-
-            boolean result = client.<Boolean>execute(http, response -> {
-                EntityUtils.consume(response.getEntity());
-                return response.getCode() == HttpStatus.SC_OK;
-            });
-            if (!result) {
-                throw new RuntimeException("Invalid request");
-            }
-        } catch (Exception e) {
-            LOG.debug(e.getMessage());
-            throw new RuntimeException(e);
+    private MeasurementSendDto toMeasurementSendDto(Measurement measurement) {
+        if (measurement.getTimeSeriesId() == null) {
+            throw new IllegalArgumentException("Measurement timeSeriesId must be set");
         }
+        if (measurement.getObservedAt() == null) {
+            throw new IllegalArgumentException("Measurement observedAt must be set");
+        }
+        if (measurement.getValue() == null) {
+            throw new IllegalArgumentException("Measurement value must be set");
+        }
+        return new MeasurementSendDto(measurement.getTimeSeriesId(), measurement.getObservedAt(), measurement.getValue());
     }
 
     @Override
     public Collection<Connector> getConnectors() {
         try {
-
             final URI uri = baseUrl.toURI().resolve(connectorRoute);
             final var http = new HttpGet(uri);
             authorize(http);
@@ -422,7 +229,6 @@ public class HttpPegelHubCommunicator implements PegelHubCommunicator {
     @Override
     public Optional<Connector> getConnectorByUUID(UUID uuid) {
         try {
-
             final URI uri = baseUrl.toURI().resolve(connectorRoute + "/" + uuid);
             final var http = new HttpGet(uri);
             authorize(http);
@@ -449,7 +255,6 @@ public class HttpPegelHubCommunicator implements PegelHubCommunicator {
     @Override
     public void sendConnector(Connector connector) {
         try {
-
             final URI uri = baseUrl.toURI().resolve(connectorRoute);
             final var http = new HttpPost(uri);
             authorize(http);
@@ -548,55 +353,13 @@ public class HttpPegelHubCommunicator implements PegelHubCommunicator {
         client.close();
     }
 
-    @Override
-    public Collection<Supplier> getSuppliers() {
+    public Instant getSystemTime() {
         try {
-            final URI uri = baseUrl.toURI().resolve(supplierRoute);
-            final var http = new HttpGet(uri);
-            authorize(http);
-            return client.execute(http, response -> {
-                var json = EntityUtils.toString(response.getEntity());
-                var gson = new Gson();
-                var mapType = new TypeToken<Collection<Supplier>>() {
-                };
-                return gson.fromJson(json, mapType);
-            });
-        } catch (Exception e) {
-            LOG.error(e + "");
-            throw new RuntimeException(e);
-        }
-    }
-
-    @Override
-    public Optional<Supplier> getSupplierbyUUID(UUID uuid) {
-        Collection<Supplier> suppliers = getSuppliers();
-
-        if (uuid != null) {
-            String id = uuid.toString();
-            Set<Supplier> supplierSet = suppliers.stream().filter(s -> id.equals(s.getId())).collect(Collectors.toSet());
-
-            if (supplierSet.size() == 1) {
-                return supplierSet.stream().findFirst();
-            } else {
-                throw new NotFoundException("No supplier found");
-            }
-        } else {
-            throw new IllegalArgumentException("UUID cannot be null!");
-        }
-
-
-    }
-
-    public Timestamp getSystemTime() {
-        try {
-            final URI uri = baseUrl.toURI().resolve(measurementRoute + "/systemTime");
+            final URI uri = baseUrl.toURI().resolve(measurementRoute + "/system-time");
             final var http = new HttpGet(uri);
             return client.execute(http, response -> {
                 var json = EntityUtils.toString(response.getEntity());
-                var gson = new Gson();
-                var mapType = new TypeToken<Timestamp>() {
-                };
-                return gson.fromJson(json, mapType);
+                return gsonWithInstantSupport().fromJson(json, Instant.class);
             });
         } catch (URISyntaxException e) {
             throw new RuntimeException(e);
@@ -605,155 +368,4 @@ public class HttpPegelHubCommunicator implements PegelHubCommunicator {
         }
     }
 
-    @Override
-    public UUID getConnectorID(UUID uuid) {
-        try {
-            final URI uri = baseUrl.toURI().resolve(supplierRoute + "/connectorID/" + uuid.toString());
-            LOG.debug(uri + "");
-            final var http = new HttpGet(uri);
-            authorize(http);
-            return client.execute(http, response -> {
-                var json = EntityUtils.toString(response.getEntity());
-                var gson = new Gson();
-                var mapType = new TypeToken<UUID>() {
-                };
-                return gson.fromJson(json, mapType);
-            });
-        } catch (URISyntaxException e) {
-            throw new RuntimeException(e);
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    //TODO: Verwend ich das überhaupt irgendwo? Ist der gleiche Code wie getMeasurementByUUID.
-    public Optional<Measurement> getTimestampOfLastMeasurementByUUID(UUID uuid) {
-        try {
-
-            final URI uri = baseUrl.toURI().resolve(measurementRoute + "/last/" + uuid);
-            final var http = new HttpGet(uri);
-            authorize(http);
-
-            return Optional.ofNullable(client.execute(http, response -> {
-                if (response.getCode() != HttpStatus.SC_OK) {
-                    throw new RuntimeException("Invalid status: " + response.getCode());
-                }
-
-                var json = EntityUtils.toString(response.getEntity());
-                var gson = new GsonBuilder()
-                        .registerTypeAdapter(LocalDateTime.class, new LocalDateTimeConverter())
-                        .create();
-                return gson.fromJson(json, Measurement.class);
-            }));
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    @Override
-    public HashSet<Long> getMeasurementsIDsOfStation(String stationNumber, String timespan) {
-
-        Collection<Measurement> measurements = _getMeasurementsByStationAndTime(stationNumber, timespan);
-        HashSet<Long> IDs = new HashSet<>();
-
-        for (Measurement m : measurements) {
-            //TODO needs to be changed at some point - but first need to find out why ID is needed
-            if (m.getFields().containsKey("ID")) {
-                Long work = Math.round(m.getFields().get("ID"));
-                IDs.add(work);
-            }
-        }
-        return IDs;
-    }
-
-    private Collection<Measurement> _getMeasurementsByStationAndTime(String stationNumber, String timespan) {
-        try {
-            final URI uri = baseUrl.toURI().resolve(measurementRoute + "/supplier/" + timespan + "?stationNumber=" + stationNumber);
-            final var http = new HttpGet(uri);
-            authorize(http);
-
-            return client.execute(http, response -> {
-                if (response.getCode() == 404) {
-                    throw new NotFoundException("supplier does not exist");
-                }
-                var json = EntityUtils.toString(response.getEntity());
-                var gson = new GsonBuilder()
-                        .registerTypeAdapter(LocalDateTime.class, new LocalDateTimeConverter())
-                        .create();
-                var listType = new TypeToken<List<Measurement>>() {
-                };
-                return gson.fromJson(json, listType);
-            });
-        } catch (NotFoundException nfe) {
-            throw new NotFoundException(nfe.getMessage());
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-
-    private Optional<Measurement> _getLatestMeasurementByStation(String stationNumber) {
-        try {
-            ensureIsTaker();
-
-            final URI uri = baseUrl.toURI()
-                    .resolve(measurementRoute + "/supplier/latest?stationNumber=" + stationNumber);
-            final var http = new HttpGet(uri);
-            authorize(http);
-
-            return Optional.ofNullable(client.execute(http, response -> {
-                if (response.getCode() != HttpStatus.SC_OK) {
-                    return null;
-                }
-
-                var json = EntityUtils.toString(response.getEntity());
-                var gson = new GsonBuilder()
-                        .registerTypeAdapter(LocalDateTime.class, new LocalDateTimeConverter())
-                        .create();
-                return gson.fromJson(json, Measurement.class);
-            }));
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    private LocalDateTime convertedTime(LocalDateTime pTime, ZoneOffset offset) {
-        if (offset == null) {
-            if (!properties.isSupplier()) {
-                LOG.debug("Timestamp before converting: " + pTime);
-                ZonedDateTime originalDateTime = pTime.atZone(ZoneId.of("UTC"));
-                ZonedDateTime convertedDateTime = ZonedDateTime.ofInstant(
-                        originalDateTime.toInstant(),
-                        ZoneOffset.systemDefault());
-                LOG.debug("Timestamp after converting: " + convertedDateTime);
-                return convertedDateTime.toLocalDateTime();
-            } else {
-                LOG.debug("Timestamp before converting: " + pTime);
-                ZonedDateTime originalDateTime = pTime.atZone(ZoneId.systemDefault());
-                ZonedDateTime convertedDateTime = ZonedDateTime.ofInstant(
-                        originalDateTime.toInstant(),
-                        ZoneOffset.UTC);
-                LOG.debug("Timestamp after converting: " + convertedDateTime);
-                return convertedDateTime.toLocalDateTime();
-            }
-        } else {
-            if (!properties.isSupplier()) {
-                LOG.debug("Timestamp before converting: " + pTime);
-                ZonedDateTime originalDateTime = pTime.atZone(ZoneId.of("UTC"));
-                ZonedDateTime convertedDateTime = ZonedDateTime.ofInstant(
-                        originalDateTime.toInstant(),
-                        offset);
-                LOG.debug("Timestamp after converting: " + convertedDateTime);
-                return convertedDateTime.toLocalDateTime();
-            } else {
-                LOG.debug("Timestamp before converting: " + pTime);
-                ZonedDateTime originalDateTime = pTime.atZone(offset);
-                ZonedDateTime convertedDateTime = ZonedDateTime.ofInstant(
-                        originalDateTime.toInstant(),
-                        ZoneOffset.UTC);
-                LOG.debug("Timestamp after converting: " + convertedDateTime);
-                return convertedDateTime.toLocalDateTime();
-            }
-        }
-    }
 }

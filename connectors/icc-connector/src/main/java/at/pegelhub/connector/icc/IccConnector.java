@@ -9,6 +9,7 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Timer;
 import java.util.TimerTask;
+import java.util.UUID;
 
 /**
  * Implementation of an Icc connector that periodically fetches data of the source defined in the config file.
@@ -22,12 +23,12 @@ public class IccConnector implements AutoCloseable {
     private final Timer sleepInterval;
     private final TimerTask task;
 
-    public IccConnector(URL sourceUrl, String sourceProperties, URL sinkUrl, String sinkProperties, List<String> stationNumbersList, Duration delay, String refreshInterval) {
+    public IccConnector(URL sourceUrl, String sourceProperties, URL sinkUrl, String sinkProperties, List<UUID> timeSeriesIds, Duration delay, String refreshInterval) {
         source = PegelHubCommunicatorFactory.create(sourceUrl, sourceProperties);
         sink = PegelHubCommunicatorFactory.create(sinkUrl, sinkProperties);
 
         sleepInterval = new Timer();
-        task = new IccTask(source, sink, stationNumbersList, refreshInterval);
+        task = new IccTask(source, sink, timeSeriesIds, refreshInterval);
         sleepInterval.scheduleAtFixedRate(task, 0, delay.toMillis());
     }
 

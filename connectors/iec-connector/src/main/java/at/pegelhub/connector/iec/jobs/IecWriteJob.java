@@ -16,11 +16,13 @@ public class IecWriteJob implements Runnable {
         try {
             dataPointRegistry.takerIoas().forEach(ioa ->
                     dataPointRegistry.getTaker(ioa).ifPresentOrElse(
-                            communicator -> communicator.getLatestMeasurementOfStation()
-                                    .ifPresentOrElse(
-                                            latest -> iecClient.sendMeasurement(ioa, latest),
-                                            () -> log.info("No measurement found for station of ioa: {}.", ioa)
-                                    ),
+                            communicator -> dataPointRegistry.getTimeSeriesId(ioa).ifPresentOrElse(
+                                    timeSeriesId -> communicator.getLatestMeasurementOfTimeSeries(timeSeriesId)
+                                            .ifPresentOrElse(
+                                                    latest -> iecClient.sendMeasurement(ioa, latest),
+                                                    () -> log.info("No measurement found for TimeSeries of IOA: {}.", ioa)
+                                            ),
+                                    () -> log.info("No TimeSeries ID configured for IOA: {}.", ioa)),
                             () -> log.info("No communicator found for ioa: {}.", ioa)
                     )
             );

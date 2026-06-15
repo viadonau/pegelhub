@@ -2,6 +2,7 @@ package at.pegelhub.measurement.api;
 
 import at.pegelhub.measurement.domain.WriteMeasurement;
 import at.pegelhub.measurement.domain.WriteMeasurements;
+import at.pegelhub.timeseries.domain.TimeSeriesId;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -24,6 +25,9 @@ final class DtoToDomainConverter {
     }
 
     private static WriteMeasurement convert(WriteMeasurementDto measurementDto) {
-        return new WriteMeasurement(measurementDto.timestamp(), measurementDto.fields(), measurementDto.infos());
+        return new WriteMeasurement(
+                new TimeSeriesId(measurementDto.timeSeriesId()),
+                measurementDto.observedAt(),
+                measurementDto.value());
     }
 }

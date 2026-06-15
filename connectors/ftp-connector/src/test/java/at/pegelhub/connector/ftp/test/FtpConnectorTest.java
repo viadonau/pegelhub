@@ -14,6 +14,7 @@ import org.mockito.Mockito;
 
 import java.io.IOException;
 import java.net.InetAddress;
+import java.net.URI;
 import java.net.URL;
 import java.net.UnknownHostException;
 import java.time.Duration;
@@ -27,13 +28,14 @@ import static org.mockito.Mockito.*;
 
 public class FtpConnectorTest {
     private ConnectorOptions conOpts;
+    private static final UUID TIME_SERIES_ID = UUID.fromString("11111111-1111-1111-1111-111111111111");
 
     @BeforeEach
     public void setup() throws UnknownHostException {
         conOpts = new ConnectorOptions(InetAddress.getByName("127.0.0.1"), 8081,
                 InetAddress.getByName("77.244.244.162"), 21,
                 "web47ftppegelsend", "noHeshEkJernaw7",
-                "/", ParserType.ASC, Duration.ofHours(2), null);
+                "/", ParserType.ASC, Duration.ofHours(2), TIME_SERIES_ID, null);
     }
 
     @Test
@@ -48,7 +50,7 @@ public class FtpConnectorTest {
             pegelhubMock.when(() -> PegelHubCommunicatorFactory.create(any())).thenReturn(mock(PegelHubCommunicator.class));
 
             try (var connector = new FtpConnector(conOpts)) {
-                pegelhubMock.verify(() -> PegelHubCommunicatorFactory.create(eq(new URL("http://127.0.0.1:8081/"))), atLeastOnce());
+                pegelhubMock.verify(() -> PegelHubCommunicatorFactory.create(eq(URI.create("http://127.0.0.1:8081/").toURL())), atLeastOnce());
             }
         }
     }

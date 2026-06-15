@@ -1,8 +1,6 @@
 package at.pegelhub.connector.api;
 
 import at.pegelhub.connector.application.ConnectorService;
-import at.pegelhub.shared.web.DomainToDtoConverter;
-import at.pegelhub.shared.web.DtoToDomainConverter;
 import io.swagger.v3.oas.annotations.Operation;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -16,21 +14,21 @@ import static java.util.Objects.requireNonNull;
 
 @RestController
 @RequestMapping("/api/v1/admin/connectors")
-public class HttpAdminConnectorController {
+public final class HttpAdminConnectorController {
 
     private final ConnectorService connectorService;
 
-    public HttpAdminConnectorController(ConnectorService connectorService) {
+    HttpAdminConnectorController(ConnectorService connectorService) {
         this.connectorService = requireNonNull(connectorService);
     }
 
     @Operation(summary = "Registers a connector identity binding")
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    public ConnectorDto registerConnector(@Valid @RequestBody RegisterConnectorRequest request) {
-        return DomainToDtoConverter.convert(connectorService.registerConnector(
+    public ConnectorDto register(@Valid @RequestBody RegisterConnectorRequest request) {
+        return ConnectorMapper.toResponse(connectorService.register(
                 request.keycloakClientId(),
                 request.resolvedStatus(),
-                DtoToDomainConverter.convert(request.connector())));
+                ConnectorMapper.toCommand(request.connector())));
     }
 }

@@ -11,8 +11,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class JwtAuthorityMapperTest {
 
-    private final JwtAuthorityMapper mapper = new JwtAuthorityMapper(
-            new PegelHubSecurityProperties("http://issuer.test/realms/pegelhub", "pegelhub-core-api", null));
+    private final JwtAuthorityMapper mapper = new JwtAuthorityMapper();
 
     @Test
     void mapsApiClientRolesAndScopesToAuthorities() {

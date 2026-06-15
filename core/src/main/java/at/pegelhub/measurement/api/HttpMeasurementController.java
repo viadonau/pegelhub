@@ -1,26 +1,26 @@
 package at.pegelhub.measurement.api;
 
 import at.pegelhub.measurement.domain.Measurement;
+import at.pegelhub.measurement.domain.MeasurementAverage;
 import at.pegelhub.measurement.application.MeasurementService;
+import at.pegelhub.timeseries.domain.TimeSeriesId;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.*;
 
-import java.sql.Timestamp;
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
 import static at.pegelhub.measurement.api.DtoToDomainConverter.convert;
 import static java.util.Objects.requireNonNull;
 
-/**
- * REST controller for measurements.
- */
 @RestController
-@RequestMapping("/api/v1/measurement")
+@RequestMapping("/api/v1")
 public class HttpMeasurementController {
 
     private final MeasurementService measurementService;
@@ -29,73 +29,52 @@ public class HttpMeasurementController {
         this.measurementService = requireNonNull(measurementService);
     }
 
-    @Operation(summary = "Adds a new Measurement Entry to the system")
+    @Operation(summary = "Writes measurements for one or more time series")
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "201", description = "The given measurement was successfully created.")
+            @ApiResponse(responseCode = "200", description = "The measurements were successfully written.")
     })
-    @PostMapping
-    public synchronized void writeMeasurementData(@RequestBody WriteMeasurementsDto measurements) {
+    @PostMapping("/measurements")
+    public void writeMeasurementData(@Valid @RequestBody WriteMeasurementsDto measurements) {
         measurementService.writeMeasurements(convert(measurements));
     }
 
-    @Operation(summary = "Gets all Measurement Data in Range")
+    @Operation(summary = "Gets all measurements for a time series within a range")
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Returns all Measurement Data in Range",
+            @ApiResponse(responseCode = "200", description = "Returns all measurements for the time series in the range",
                     content = {@Content(mediaType = "application/json", schema = @Schema(implementation = Measurement.class))})
     })
-    @GetMapping("/{range}")
-    public List<Measurement> findMeasurementInRange(@PathVariable String range) {
-        return measurementService.getByRange(range);
-    }
-
-    @Operation(summary = "Gets all Measurement Data for Supplier In Range")
-    @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Returns all Measurement Data for Supplier",
-                    content = {@Content(mediaType = "application/json", schema = @Schema(implementation = Measurement.class))})
-    })
-    @GetMapping("/supplier/{range}")
-    public List<Measurement> findMeasurementForSupplierInRange(
-            @RequestParam(name = "stationNumber", defaultValue = "") String stationNumber,
+    @GetMapping("/time-series/{timeSeriesId}/measurements/{range}")
+    public List<Measurement> findMeasurementsInRange(
+            @PathVariable UUID timeSeriesId,
             @PathVariable String range) {
-        return measurementService.getBySupplierAndRange(stationNumber, range);
+        return measurementService.getByTimeSeriesAndRange(new TimeSeriesId(timeSeriesId), range);
     }
 
-    @Operation(summary = "Gets latest Measurement from Supplier")
+    @Operation(summary = "Gets the latest measurement for a time series")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Returns the latest measurement",
                     content = {@Content(mediaType = "application/json", schema = @Schema(implementation = Measurement.class))})
     })
-    @GetMapping("/supplier/latest")
-    public Measurement findLatestMeasurementBySupplier(
-            @RequestParam(name = "stationNumber", defaultValue = "") String stationNumber) {
-        return measurementService.getLatestBySupplier(stationNumber);
+    @GetMapping("/time-series/{timeSeriesId}/measurements/latest")
+    public Measurement findLatestMeasurement(@PathVariable UUID timeSeriesId) {
+        return measurementService.getLatestByTimeSeries(new TimeSeriesId(timeSeriesId));
     }
 
-    @Operation(summary = "Gets the average of all measurement fields from a Supplier over a given time range.")
+    @Operation(summary = "Gets the average measurement value for a time series over a range")
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Returns a single Measurement object where each field is the calculated average over the time range.",
-                    content = {@Content(mediaType = "application/json", schema = @Schema(implementation = Measurement.class))}),
-            @ApiResponse(responseCode = "404", description = "No supplier found for the given station number or no data available in the specified range.")
+            @ApiResponse(responseCode = "200", description = "Returns the averaged measurement",
+                    content = {@Content(mediaType = "application/json", schema = @Schema(implementation = MeasurementAverage.class))}),
+            @ApiResponse(responseCode = "404", description = "No data available in the specified range.")
     })
-    @GetMapping("/supplier/average/{range}")
-    public Measurement findAverageMeasurementForSupplierInRange(
-            @RequestParam(name = "stationNumber") String stationNumber,
+    @GetMapping("/time-series/{timeSeriesId}/measurements/average/{range}")
+    public MeasurementAverage findAverageMeasurement(
+            @PathVariable UUID timeSeriesId,
             @PathVariable String range) {
-        return measurementService.getAverageBySupplierAndRange(stationNumber, range);
+        return measurementService.getAverageByTimeSeriesAndRange(new TimeSeriesId(timeSeriesId), range);
     }
 
-    @Operation(summary = "Gets last Measurement entry for ID")
-    @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Returns the measurement entry",
-                    content = {@Content(mediaType = "application/json", schema = @Schema(implementation = Measurement.class))})
-    })
-    @GetMapping("/last/{uuid}")
-    public Measurement findMeasurementById(@PathVariable UUID uuid) {
-        return measurementService.getLastData(uuid);
-    }
-
-    @GetMapping("/systemTime")
-    public Timestamp getSystemtime() {
+    @GetMapping("/measurements/system-time")
+    public Instant getSystemTime() {
         return measurementService.getSystemTime();
     }
 

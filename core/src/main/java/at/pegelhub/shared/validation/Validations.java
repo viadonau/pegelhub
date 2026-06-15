@@ -66,4 +66,21 @@ public class Validations {
         }
         return value;
     }
+
+    public static String normalizeRequired(String value, String message) {
+        requireNonNull(value);
+        value = value.trim();
+        if (value.isBlank()) {
+            throw new IllegalArgumentException(message);
+        }
+        return value;
+    }
+
+    public static String normalizeOptional(String value) {
+        if (value == null) {
+            return null;
+        }
+        value = value.trim();
+        return value.isBlank() ? null : value;
+    }
 }

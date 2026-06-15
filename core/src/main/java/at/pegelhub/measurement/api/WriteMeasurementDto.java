@@ -1,22 +1,23 @@
 package at.pegelhub.measurement.api;
 
-import org.springframework.format.annotation.DateTimeFormat;
+import jakarta.validation.constraints.NotNull;
 
-import java.time.LocalDateTime;
-import java.util.Map;
+import java.time.Instant;
+import java.util.UUID;
 
-import static at.pegelhub.shared.validation.Validations.requireNotEmpty;
 import static java.util.Objects.requireNonNull;
 
 /**
- * Dto to create a single measurement.
+ * Request DTO for submitting one scalar Measurement.
  */
-public record WriteMeasurementDto(@DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime timestamp,
-                                  Map<String, Double> fields, Map<String, String> infos) {
+public record WriteMeasurementDto(
+        @NotNull UUID timeSeriesId,
+        @NotNull Instant observedAt,
+        @NotNull Double value) {
 
     public WriteMeasurementDto {
-        requireNonNull(timestamp);
-        requireNotEmpty(fields);
-        requireNonNull(infos);
+        requireNonNull(timeSeriesId);
+        requireNonNull(observedAt);
+        requireNonNull(value);
     }
 }

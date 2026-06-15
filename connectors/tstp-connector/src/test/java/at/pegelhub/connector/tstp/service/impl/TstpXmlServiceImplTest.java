@@ -6,7 +6,7 @@ import at.pegelhub.lib.model.Measurement;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -101,10 +101,8 @@ class TstpXmlServiceImplTest {
     @Test
     void testParseXmlPutRequest() {
         List<Measurement> measurements = new ArrayList<>();
-        LocalDateTime dateTime = LocalDateTime.of(2010, 8, 3, 13, 30, 0);
-        HashMap<String, Double> valueMap = new HashMap<>();
-        valueMap.put("value", 664.7);
-        measurements.add(new Measurement(dateTime, valueMap, new HashMap<>()));
+        Instant dateTime = Instant.parse("2010-08-03T13:30:00Z");
+        measurements.add(new Measurement(null, dateTime, 664.7));
 
         String xmlPutRequest = tstpXmlService.parseXmlPutRequest(measurements);
         assertTrue(xmlPutRequest.contains("ANZ=\"1\""));

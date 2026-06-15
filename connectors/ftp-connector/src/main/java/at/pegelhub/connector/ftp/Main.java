@@ -10,6 +10,7 @@ import java.net.InetAddress;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.Properties;
+import java.util.UUID;
 
 public class Main {
     private static final Logger LOGGER = LoggerFactory.getLogger(Main.class);
@@ -63,6 +64,7 @@ public class Main {
                 props.getProperty("ftp.path"),
                 parserType,
                 readDelay,
+                UUID.fromString(requiredProperty(props, "timeSeriesId")),
                 resolvePegelhubConfigPath(configDir)
         );
     }
@@ -113,5 +115,13 @@ public class Main {
             case 's', 'S' -> Duration.ofSeconds(Long.parseLong(delayDuration));
             default -> throw new IllegalArgumentException(String.format("Unknown unit type for time: %c", unit));
         };
+    }
+
+    private static String requiredProperty(Properties props, String key) {
+        String value = props.getProperty(key);
+        if (value == null || value.isBlank()) {
+            throw new IllegalArgumentException("Missing or empty property: " + key);
+        }
+        return value;
     }
 }

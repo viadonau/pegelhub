@@ -106,10 +106,9 @@ Core receives these environment variables from Docker Compose:
 
 ```text
 KEYCLOAK_ISSUER_URI=http://pegelhub-keycloak.test:8082/realms/pegelhub
-PEGELHUB_API_AUDIENCE=pegelhub-core-api
 ```
 
-Spring Security must not disable issuer or audience validation to make local development easier. If token validation fails, first compare the token `iss` and `aud` claims with these values.
+Spring Security must not disable issuer or audience validation to make local development easier. If token validation fails, first compare the token `iss` claim with `KEYCLOAK_ISSUER_URI` and verify that the token `aud` claim contains the fixed API audience `pegelhub-core-api`.
 
 ## First-Slice Revocation Rule
 

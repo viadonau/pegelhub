@@ -9,17 +9,21 @@ import org.junit.jupiter.api.io.TempDir;
 import org.mockito.MockedStatic;
 import at.pegelhub.connector.ma.jni.RevPiReader;
 
+import java.net.URI;
 import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 class InputRegistryTest {
+    private static final UUID TIME_SERIES_A = UUID.fromString("11111111-1111-1111-1111-111111111111");
+    private static final UUID TIME_SERIES_B = UUID.fromString("22222222-2222-2222-2222-222222222222");
 
     @TempDir
     Path tmp;
@@ -32,7 +36,7 @@ class InputRegistryTest {
     @BeforeEach
     void setUp() throws Exception {
         revPiReader = mock(RevPiReader.class);
-        coreUrl = new URL("http", "localhost", 8080, "/");
+        coreUrl = URI.create("http://localhost:8080/").toURL();
         factoryMock = mockStatic(PegelHubCommunicatorFactory.class);
     }
 
@@ -48,8 +52,8 @@ class InputRegistryTest {
 
     @Test
     void shouldLoadInputsAndIgnoreNonYamlFiles() throws Exception {
-        writeYaml("a.yaml", "revInput: A\n");
-        writeYaml("b.yml",  "revInput: B\n");
+        writeYaml("a.yaml", "revInput: A\ntimeSeriesId: \"" + TIME_SERIES_A + "\"\n");
+        writeYaml("b.yml",  "revInput: B\ntimeSeriesId: \"" + TIME_SERIES_B + "\"\n");
         writeYaml("ignore.txt", "revInput: IGNORED\n");
 
         when(revPiReader.resolveOffsetByName("A")).thenReturn(10);
@@ -72,12 +76,13 @@ class InputRegistryTest {
         Optional<PegelHubCommunicator> s10 = registry.getSupplier(10);
         assertTrue(s10.isPresent());
         assertSame(commA, s10.get());
+        assertEquals(Optional.of(TIME_SERIES_A), registry.getTimeSeriesId(10));
     }
 
     @Test
     void shouldSkipDuplicateRevInputsAndKeepFirst() throws Exception {
-        writeYaml("x1.yaml", "revInput: X\n");
-        writeYaml("x2.yaml", "revInput: X\n");
+        writeYaml("x1.yaml", "revInput: X\ntimeSeriesId: \"" + TIME_SERIES_A + "\"\n");
+        writeYaml("x2.yaml", "revInput: X\ntimeSeriesId: \"" + TIME_SERIES_B + "\"\n");
 
         when(revPiReader.resolveOffsetByName("X")).thenReturn(5);
         PegelHubCommunicator comm = mock(PegelHubCommunicator.class);
@@ -92,8 +97,8 @@ class InputRegistryTest {
 
     @Test
     void shouldSkipDuplicateResolvedOffsetsAndKeepFirst() throws Exception {
-        writeYaml("a.yaml", "revInput: A\n");
-        writeYaml("b.yaml", "revInput: B\n");
+        writeYaml("a.yaml", "revInput: A\ntimeSeriesId: \"" + TIME_SERIES_A + "\"\n");
+        writeYaml("b.yaml", "revInput: B\ntimeSeriesId: \"" + TIME_SERIES_B + "\"\n");
 
         when(revPiReader.resolveOffsetByName("A")).thenReturn(7);
         when(revPiReader.resolveOffsetByName("B")).thenReturn(7); // same resolved offset
@@ -120,7 +125,7 @@ class InputRegistryTest {
 
     @Test
     void shouldExposeUnmodifiableOffsetsView() throws Exception {
-        writeYaml("a.yaml", "revInput: A\n");
+        writeYaml("a.yaml", "revInput: A\ntimeSeriesId: \"" + TIME_SERIES_A + "\"\n");
         when(revPiReader.resolveOffsetByName("A")).thenReturn(3);
         PegelHubCommunicator comm = mock(PegelHubCommunicator.class);
         factoryMock.when(() -> PegelHubCommunicatorFactory.create(eq(coreUrl), anyString())).thenReturn(comm);
@@ -136,5 +141,6 @@ class InputRegistryTest {
     void shouldReturnEmptyWhenSupplierUnknown() {
         InputRegistry registry = new InputRegistry(revPiReader, tmp.toString(), coreUrl);
         assertTrue(registry.getSupplier(42).isEmpty());
+        assertTrue(registry.getTimeSeriesId(42).isEmpty());
     }
 }

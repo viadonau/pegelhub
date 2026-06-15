@@ -89,7 +89,7 @@ Before cutover:
 - Connector service-account clients exist with only the roles they need.
 - Core connector records exist with matching `keycloakClientId` values.
 - Connector client secrets are installed through the deployment secret mechanism.
-- Core `KEYCLOAK_ISSUER_URI` and `PEGELHUB_API_AUDIENCE` are set.
+- Core `KEYCLOAK_ISSUER_URI` is set and tokens contain the fixed `pegelhub-core-api` audience.
 - Management endpoints are internal or protected by infrastructure.
 - Keycloak DB backup is complete and a Core rollback release is available.
 - Previous connector configs are preserved for forensic comparison, not fallback auth.

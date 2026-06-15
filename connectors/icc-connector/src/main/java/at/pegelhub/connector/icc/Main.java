@@ -5,12 +5,13 @@ import org.slf4j.LoggerFactory;
 
 import java.io.FileInputStream;
 import java.io.IOException;
-import java.net.URL;
+import java.net.URI;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Properties;
+import java.util.UUID;
 
 
 /**
@@ -45,22 +46,22 @@ public class Main {
 
         String sourceUrl = (String)props.get("Core.Source");
         String sinkUrl = (String)props.get("Core.Sink");
-        String sourceStationNumbers = (String)props.get("Icc.SourceStationNumber");
+        String sourceTimeSeriesIds = (String) props.get("Icc.SourceTimeSeriesId");
         String refreshInterval = (String)props.get("Icc.RefreshInterval");
         Duration delay = readDelay(refreshInterval);
 
         LOG.info("SourceUrl: {}", sourceUrl);
         LOG.info("SinkUrl: {}", sinkUrl);
-        LOG.info("SourceStationNumbers: {}", sourceStationNumbers);
+        LOG.info("SourceTimeSeriesIds: {}", sourceTimeSeriesIds);
         LOG.info("Interval: {}", delay);
 
-        List<String> sourceStationNumbersList = Arrays.stream(sourceStationNumbers.split(",")).toList();
+        List<UUID> sourceTimeSeriesIdList = parseTimeSeriesIds(sourceTimeSeriesIds);
 
         try {
             _icc = new IccConnector(
-                    new URL(sourceUrl), resolveSourcePegelhubPath(configDir),
-                    new URL(sinkUrl), resolveSinkPegelhubPath(configDir),
-                    sourceStationNumbersList, delay, refreshInterval
+                    URI.create(sourceUrl).toURL(), resolveSourcePegelhubPath(configDir),
+                    URI.create(sinkUrl).toURL(), resolveSinkPegelhubPath(configDir),
+                    sourceTimeSeriesIdList, delay, refreshInterval
             );
         } catch (Exception ex) {
             LOG.error("Creation of ICC Connector failed");
@@ -115,5 +116,13 @@ public class Main {
 
     private static String resolveSinkPegelhubPath(String configDir) {
         return Path.of(configDir, SINK_PEGELHUB_FILE).toString();
+    }
+
+    private static List<UUID> parseTimeSeriesIds(String sourceTimeSeriesIds) {
+        return Arrays.stream(sourceTimeSeriesIds.split(","))
+                .map(String::trim)
+                .filter(id -> !id.isBlank())
+                .map(UUID::fromString)
+                .toList();
     }
 }

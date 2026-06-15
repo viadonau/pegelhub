@@ -34,11 +34,11 @@ public class SecurityConfiguration {
                 .csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(authorize -> authorize
-                        .requestMatchers("/api/v1/measurement/systemTime").permitAll()
+                        .requestMatchers("/api/v1/measurements/system-time").permitAll()
                         .requestMatchers("/actuator/health", "/actuator/health/**", "/actuator/info").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/v1/admin/connectors").hasAuthority(SYSTEM_ADMIN.value())
-                        .requestMatchers(HttpMethod.POST, "/api/v1/measurement").hasAnyAuthority(MEASUREMENT_WRITE.value(), SYSTEM_ADMIN.value())
-                        .requestMatchers(HttpMethod.GET, "/api/v1/measurement/**").hasAnyAuthority(MEASUREMENT_READ.value(), SYSTEM_ADMIN.value())
+                        .requestMatchers(HttpMethod.POST, "/api/v1/measurements").hasAuthority(MEASUREMENT_WRITE.value())
+                        .requestMatchers(HttpMethod.GET, "/api/v1/time-series/*/measurements/**").hasAnyAuthority(MEASUREMENT_READ.value(), SYSTEM_ADMIN.value())
                         .requestMatchers(HttpMethod.POST, "/api/v1/telemetry").hasAnyAuthority(TELEMETRY_WRITE.value(), SYSTEM_ADMIN.value())
                         .requestMatchers(HttpMethod.GET, "/api/v1/telemetry/**").hasAnyAuthority(TELEMETRY_READ.value(), SYSTEM_ADMIN.value())
                         .requestMatchers(HttpMethod.GET, "/api/v1/**").hasAnyAuthority(METADATA_READ.value(), METADATA_WRITE.value(), SYSTEM_ADMIN.value())
@@ -57,7 +57,7 @@ public class SecurityConfiguration {
     JwtDecoder jwtDecoder(PegelHubSecurityProperties properties) {
         NimbusJwtDecoder jwtDecoder = JwtDecoders.fromIssuerLocation(properties.issuerUri());
         OAuth2TokenValidator<Jwt> issuerValidator = JwtValidators.createDefaultWithIssuer(properties.issuerUri());
-        OAuth2TokenValidator<Jwt> audienceValidator = new AudienceValidator(properties.audience());
+        OAuth2TokenValidator<Jwt> audienceValidator = new AudienceValidator(PegelHubSecurityProperties.API_AUDIENCE);
         jwtDecoder.setJwtValidator(new DelegatingOAuth2TokenValidator<>(issuerValidator, audienceValidator));
         return jwtDecoder;
     }

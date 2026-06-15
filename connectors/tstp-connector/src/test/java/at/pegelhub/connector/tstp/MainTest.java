@@ -8,10 +8,12 @@ import java.lang.reflect.Method;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
+import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 class MainTest {
+    private static final UUID TIME_SERIES_ID = UUID.fromString("11111111-1111-1111-1111-111111111111");
 
     @TempDir
     Path tmp;
@@ -29,6 +31,7 @@ class MainTest {
                 tstp.address=127.0.0.2
                 tstp.port=8030
                 connector.readDelay=10s
+                timeSeriesId=11111111-1111-1111-1111-111111111111
                 """);
 
         ConnectorOptions options = new TstpConfigServiceImpl(
@@ -41,6 +44,7 @@ class MainTest {
         assertEquals("127.0.0.2", options.tstpAddress());
         assertEquals(8030, options.tstpPort());
         assertEquals(Duration.ofSeconds(10), options.readDelay());
+        assertEquals(TIME_SERIES_ID, options.timeSeriesId());
         assertEquals(tmp.resolve("pegelhub.yaml").toString(), options.propertiesFile());
     }
 

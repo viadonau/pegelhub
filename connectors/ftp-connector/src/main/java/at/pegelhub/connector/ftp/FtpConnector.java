@@ -10,6 +10,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.io.PrintWriter;
+import java.net.URI;
 import java.net.URL;
 import java.time.Duration;
 import java.util.Timer;
@@ -33,15 +34,9 @@ public class FtpConnector implements AutoCloseable {
         ftp.addProtocolCommandListener(new PrintCommandListener(new PrintWriter(new LogOutputStream(LOG))));
         ftp.setDataTimeout(Duration.ofMinutes(15));
         if (conOpt.propertiesFile() != null) {
-            communicator = PegelHubCommunicatorFactory.create(new URL(
-                    String.format("http://%s:%s/",
-                            conOpt.coreAddress().getHostAddress(),
-                            conOpt.corePort())), conOpt.propertiesFile());
+            communicator = PegelHubCommunicatorFactory.create(coreUrl(conOpt), conOpt.propertiesFile());
         } else {
-            communicator = PegelHubCommunicatorFactory.create(new URL(
-                    String.format("http://%s:%s/",
-                            conOpt.coreAddress().getHostAddress(),
-                            conOpt.corePort())));
+            communicator = PegelHubCommunicatorFactory.create(coreUrl(conOpt));
         }
         sleepInterval = new Timer();
         task = new FtpTask(ftp, conOpt, communicator, ParserFactory.getParser(conOpt.parserType()));
@@ -54,5 +49,11 @@ public class FtpConnector implements AutoCloseable {
         sleepInterval.cancel();
         communicator.close();
         ftp.disconnect();
+    }
+
+    private URL coreUrl(ConnectorOptions conOpt) throws IOException {
+        return URI.create(String.format("http://%s:%s/",
+                conOpt.coreAddress().getHostAddress(),
+                conOpt.corePort())).toURL();
     }
 }

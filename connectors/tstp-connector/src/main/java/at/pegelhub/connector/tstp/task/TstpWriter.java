@@ -8,20 +8,21 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.*;
+import java.util.UUID;
 
 public class TstpWriter extends TimerTask {
     private static final Logger LOG = LoggerFactory.getLogger(TstpWriter.class);
     private final TstpCommunicator tstpCommunicator;
     private final PegelHubCommunicator phCommunicator;
     private final String durationToLookBack;
-    private final String stationNumber;
+    private final UUID timeSeriesId;
     private final TstpCatalogService tstpCatalogService;
 
-    public TstpWriter(PegelHubCommunicator phCommunicator, TstpCommunicator tstpCommunicator, String durationToLookBack, String stationNumber, TstpCatalogService tstpCatalogService) {
+    public TstpWriter(PegelHubCommunicator phCommunicator, TstpCommunicator tstpCommunicator, String durationToLookBack, UUID timeSeriesId, TstpCatalogService tstpCatalogService) {
         this.phCommunicator = phCommunicator;
         this.durationToLookBack = durationToLookBack;
         this.tstpCommunicator = tstpCommunicator;
-        this.stationNumber = stationNumber;
+        this.timeSeriesId = timeSeriesId;
         this.tstpCatalogService = tstpCatalogService;
     }
 
@@ -32,7 +33,7 @@ public class TstpWriter extends TimerTask {
     @Override
     public void run() {
         try {
-            List<Measurement> measurements = (List<Measurement>) phCommunicator.getMeasurementsOfStation(stationNumber, durationToLookBack);
+            List<Measurement> measurements = phCommunicator.getMeasurementsOfTimeSeries(timeSeriesId, durationToLookBack).stream().toList();
             String zrid = tstpCatalogService.getZrid();
 
             if (!measurements.isEmpty()) {

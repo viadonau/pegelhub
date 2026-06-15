@@ -1,6 +1,7 @@
 package at.pegelhub.measurement.api;
 
 import at.pegelhub.measurement.application.MeasurementService;
+import at.pegelhub.timeseries.domain.TimeSeriesId;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -8,10 +9,10 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
-import java.sql.Timestamp;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import static at.pegelhub.testsupport.ExampleData.ID;
 import static at.pegelhub.testsupport.ExampleData.MEASUREMENT;
+import static at.pegelhub.testsupport.ExampleData.MEASUREMENT_AVERAGE;
 import static at.pegelhub.testsupport.ExampleData.MEASUREMENTS;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
@@ -27,6 +28,8 @@ import static org.hamcrest.Matchers.containsString;
 @WebMvcTest(HttpMeasurementController.class)
 class HttpMeasurementControllerTest {
 
+    private static final TimeSeriesId TIME_SERIES_ID = MEASUREMENT.timeSeriesId();
+
     @Autowired
     private MockMvc mockMvc;
 
@@ -35,7 +38,7 @@ class HttpMeasurementControllerTest {
 
     @Test
     void writeMeasurementDataDelegatesToService() throws Exception {
-        mockMvc.perform(post("/api/v1/measurement")
+        mockMvc.perform(post("/api/v1/measurements")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(validMeasurementsPayload()))
                 .andExpect(status().isOk())
@@ -47,7 +50,7 @@ class HttpMeasurementControllerTest {
     void writeMeasurementDataMapsServiceExceptionTo500() throws Exception {
         doThrow(new RuntimeException("write failed")).when(measurementService).writeMeasurements(any());
 
-        mockMvc.perform(post("/api/v1/measurement")
+        mockMvc.perform(post("/api/v1/measurements")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(validMeasurementsPayload()))
                 .andExpect(status().isInternalServerError())
@@ -55,59 +58,40 @@ class HttpMeasurementControllerTest {
     }
 
     @Test
-    void findMeasurementInRangeReturnsJsonArray() throws Exception {
-        when(measurementService.getByRange("72h")).thenReturn(MEASUREMENTS);
+    void findMeasurementForTimeSeriesInRangeReturnsJsonArray() throws Exception {
+        when(measurementService.getByTimeSeriesAndRange(TIME_SERIES_ID, "72h")).thenReturn(MEASUREMENTS);
 
-        mockMvc.perform(get("/api/v1/measurement/{range}", "72h"))
+        mockMvc.perform(get("/api/v1/time-series/{timeSeriesId}/measurements/{range}", TIME_SERIES_ID.value(), "72h"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].measurement").value(MEASUREMENT.measurement().toString()));
+                .andExpect(jsonPath("$[0].timeSeriesId.value").value(MEASUREMENT.timeSeriesId().value().toString()));
     }
 
     @Test
-    void findMeasurementForSupplierInRangeReturnsJsonArray() throws Exception {
-        when(measurementService.getBySupplierAndRange("stationNR", "72h")).thenReturn(MEASUREMENTS);
+    void findLatestMeasurementByTimeSeriesReturnsJson() throws Exception {
+        when(measurementService.getLatestByTimeSeries(TIME_SERIES_ID)).thenReturn(MEASUREMENT);
 
-        mockMvc.perform(get("/api/v1/measurement/supplier/{range}", "72h")
-                        .param("stationNumber", "stationNR"))
+        mockMvc.perform(get("/api/v1/time-series/{timeSeriesId}/measurements/latest", TIME_SERIES_ID.value()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].measurement").value(MEASUREMENT.measurement().toString()));
+                .andExpect(jsonPath("$.timeSeriesId.value").value(MEASUREMENT.timeSeriesId().value().toString()));
     }
 
     @Test
-    void findLatestMeasurementBySupplierReturnsJson() throws Exception {
-        when(measurementService.getLatestBySupplier("stationNR")).thenReturn(MEASUREMENT);
+    void findAverageMeasurementForTimeSeriesInRangeReturnsJson() throws Exception {
+        when(measurementService.getAverageByTimeSeriesAndRange(TIME_SERIES_ID, "72h")).thenReturn(MEASUREMENT_AVERAGE);
 
-        mockMvc.perform(get("/api/v1/measurement/supplier/latest")
-                        .param("stationNumber", "stationNR"))
+        mockMvc.perform(get("/api/v1/time-series/{timeSeriesId}/measurements/average/{range}", TIME_SERIES_ID.value(), "72h"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.measurement").value(MEASUREMENT.measurement().toString()));
-    }
-
-    @Test
-    void findAverageMeasurementForSupplierInRangeReturnsJson() throws Exception {
-        when(measurementService.getAverageBySupplierAndRange("stationNR", "72h")).thenReturn(MEASUREMENT);
-
-        mockMvc.perform(get("/api/v1/measurement/supplier/average/{range}", "72h")
-                        .param("stationNumber", "stationNR"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.measurement").value(MEASUREMENT.measurement().toString()));
-    }
-
-    @Test
-    void findMeasurementByIdReturnsJson() throws Exception {
-        when(measurementService.getLastData(ID)).thenReturn(MEASUREMENT);
-
-        mockMvc.perform(get("/api/v1/measurement/last/{uuid}", ID))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.measurement").value(MEASUREMENT.measurement().toString()));
+                .andExpect(jsonPath("$.timeSeriesId.value").value(MEASUREMENT.timeSeriesId().value().toString()))
+                .andExpect(jsonPath("$.value").value(1.0))
+                .andExpect(jsonPath("$.sampleCount").value(1));
     }
 
     @Test
     void getSystemTimeIsPublic() throws Exception {
-        Timestamp ts = Timestamp.valueOf(LocalDateTime.of(2026, 1, 2, 3, 4, 5));
+        Instant ts = Instant.parse("2026-01-02T03:04:05Z");
         when(measurementService.getSystemTime()).thenReturn(ts);
 
-        mockMvc.perform(get("/api/v1/measurement/systemTime"))
+        mockMvc.perform(get("/api/v1/measurements/system-time"))
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("2026-01-02")));
 
@@ -115,19 +99,12 @@ class HttpMeasurementControllerTest {
     }
 
     @Test
-    void averageEndpointRequiresStationNumber() throws Exception {
-        mockMvc.perform(get("/api/v1/measurement/supplier/average/{range}", "72h"))
-                .andExpect(status().isBadRequest());
-    }
-
-    @Test
-    void findMeasurementForSupplierInRangeMapsRuntimeExceptionTo500() throws Exception {
+    void findMeasurementForTimeSeriesInRangeMapsRuntimeExceptionTo500() throws Exception {
         doThrow(new RuntimeException("range parse failed"))
                 .when(measurementService)
-                .getBySupplierAndRange("stationNR", "invalid");
+                .getByTimeSeriesAndRange(TIME_SERIES_ID, "invalid");
 
-        mockMvc.perform(get("/api/v1/measurement/supplier/{range}", "invalid")
-                        .param("stationNumber", "stationNR"))
+        mockMvc.perform(get("/api/v1/time-series/{timeSeriesId}/measurements/{range}", TIME_SERIES_ID.value(), "invalid"))
                 .andExpect(status().isInternalServerError())
                 .andExpect(content().string("range parse failed"));
     }
@@ -137,14 +114,9 @@ class HttpMeasurementControllerTest {
                 {
                   "measurements": [
                     {
-                      "timestamp": "2026-04-25T10:15:30",
-                      "fields": {
-                        "waterLevel": 10.5,
-                        "flow": 20.5
-                      },
-                      "infos": {
-                        "quality": "ok"
-                      }
+                      "timeSeriesId": "8ce8c5b6-f093-4d46-b770-7239cdfa3d76",
+                      "observedAt": "2026-04-25T10:15:30Z",
+                      "value": 10.5
                     }
                   ]
                 }

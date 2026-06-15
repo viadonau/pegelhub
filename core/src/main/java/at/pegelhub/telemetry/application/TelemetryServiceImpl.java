@@ -1,10 +1,10 @@
 package at.pegelhub.telemetry.application;
 
+import at.pegelhub.connector.domain.Connector;
 import at.pegelhub.connector.domain.ConnectorStatus;
+import at.pegelhub.connector.persistence.ConnectorRepository;
 import at.pegelhub.security.CurrentActor;
 import at.pegelhub.shared.error.NotFoundException;
-import at.pegelhub.taker.domain.Taker;
-import at.pegelhub.taker.persistence.TakerRepository;
 import at.pegelhub.telemetry.domain.Telemetry;
 import at.pegelhub.telemetry.persistence.TelemetryRepository;
 import org.springframework.security.access.AccessDeniedException;
@@ -15,42 +15,31 @@ import java.util.UUID;
 
 import static java.util.Objects.requireNonNull;
 
-/**
- * Default implementation for {@code TelemetryService}.
- * Calls the repository-methods for storing and fetching the
- * telemtry data from the time series database
- * (Currently InfluxDB, name of bucket: telemetry=.
- */
 @Service
-public final class TelemetryServiceImpl implements TelemetryService {
+public class TelemetryServiceImpl implements TelemetryService {
 
     private final TelemetryRepository telemetryRepository;
-    private final TakerRepository takerRepository;
+    private final ConnectorRepository connectorRepository;
     private final CurrentActor currentActor;
 
     public TelemetryServiceImpl(
             TelemetryRepository telemetryRepository,
-            TakerRepository takerRepository,
+            ConnectorRepository connectorRepository,
             CurrentActor currentActor) {
         this.telemetryRepository = requireNonNull(telemetryRepository);
-        this.takerRepository = requireNonNull(takerRepository);
+        this.connectorRepository = requireNonNull(connectorRepository);
         this.currentActor = requireNonNull(currentActor);
     }
 
-    /**
-     * calls the {@link TelemetryRepository#saveTelemetry(Telemetry)} method.
-     * @param telemetry telemetry-data to save.
-     * @return the save telemetry-data.
-     */
     @Override
     public Telemetry saveTelemetry(Telemetry telemetry) {
-        Taker taker = takerRepository.findByConnectorKeycloakClientId(currentActor.get().clientId())
+        Connector connector = connectorRepository.findByKeycloakClientId(currentActor.get().clientId())
                 .orElseThrow(() -> new NotFoundException("Connector not registered"));
-        if (taker.getConnector() == null || taker.getConnector().getStatus() != ConnectorStatus.ACTIVE) {
+        if (connector.status() != ConnectorStatus.ACTIVE) {
             throw new AccessDeniedException("Connector is not active");
         }
-        Telemetry telemetryForTaker = new Telemetry(
-                taker.getId().toString(),
+        Telemetry telemetryForConnector = new Telemetry(
+                connector.id().value().toString(),
                 telemetry.stationIPAddressIntern(),
                 telemetry.stationIPAddressExtern(),
                 telemetry.timestamp(),
@@ -62,24 +51,14 @@ public final class TelemetryServiceImpl implements TelemetryService {
                 telemetry.performanceElectricityBattery(),
                 telemetry.performanceElectricitySupply(),
                 telemetry.fieldStrengthTransmission());
-        return telemetryRepository.saveTelemetry(telemetryForTaker);
+        return telemetryRepository.saveTelemetry(telemetryForConnector);
     }
 
-    /**
-     * calls the {@link TelemetryRepository#getByRange(String)}  method.
-     * @param range The {@link String} from which all entries in the speciefed range shall be returned.
-     * @return a {@link List<Telemetry>} from the specified time range.
-     */
     @Override
     public List<Telemetry> getByRange(String range) {
         return telemetryRepository.getByRange(range);
     }
 
-    /**
-     * calls the {@link TelemetryRepository#getLastData(UUID)}  method.
-     * @param uuid The {@link UUID} from which the last entry shall be returned.
-     * @return the last entry from the given {@link UUID}.
-     */
     @Override
     public Telemetry getLastData(UUID uuid) {
         return telemetryRepository.getLastData(uuid);

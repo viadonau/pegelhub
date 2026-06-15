@@ -6,8 +6,7 @@ import at.pegelhub.lib.PegelHubCommunicator;
 import at.pegelhub.lib.model.Measurement;
 import org.junit.jupiter.api.Test;
 
-import java.time.LocalDateTime;
-import java.time.ZoneOffset;
+import java.time.Instant;
 import java.util.*;
 
 import static org.mockito.Mockito.*;
@@ -15,9 +14,7 @@ import static org.mockito.Mockito.*;
 class IecWriteJobTest {
 
     private static Measurement m(double v) {
-        Map<String, Double> fields = new HashMap<>();
-        fields.put("value", v);
-        return new Measurement(LocalDateTime.now(ZoneOffset.UTC), fields, new HashMap<>());
+        return new Measurement(UUID.fromString("395c0232-d110-40fd-bd7f-2bb4a0f2009d"), Instant.now(), v);
     }
 
     @Test
@@ -32,10 +29,12 @@ class IecWriteJobTest {
         when(reg.takerIoas()).thenReturn(Set.of(11, 22, 33));
 
         when(reg.getTaker(11)).thenReturn(Optional.of(c1));
-        when(c1.getLatestMeasurementOfStation()).thenReturn(Optional.of(m(1.1)));
+        when(reg.getTimeSeriesId(11)).thenReturn(Optional.of(UUID.fromString("395c0232-d110-40fd-bd7f-2bb4a0f2009d")));
+        when(c1.getLatestMeasurementOfTimeSeries(UUID.fromString("395c0232-d110-40fd-bd7f-2bb4a0f2009d"))).thenReturn(Optional.of(m(1.1)));
 
         when(reg.getTaker(22)).thenReturn(Optional.of(c2));
-        when(c2.getLatestMeasurementOfStation()).thenReturn(Optional.empty());
+        when(reg.getTimeSeriesId(22)).thenReturn(Optional.of(UUID.fromString("abdc0232-d110-40fd-bd7f-2bb4a0f2009d")));
+        when(c2.getLatestMeasurementOfTimeSeries(UUID.fromString("abdc0232-d110-40fd-bd7f-2bb4a0f2009d"))).thenReturn(Optional.empty());
 
         when(reg.getTaker(33)).thenReturn(Optional.empty());
 

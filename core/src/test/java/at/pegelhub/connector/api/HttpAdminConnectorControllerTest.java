@@ -10,7 +10,6 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import static at.pegelhub.testsupport.ExampleData.CONNECTOR;
-import static java.util.Objects.requireNonNull;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
@@ -29,32 +28,30 @@ class HttpAdminConnectorControllerTest {
     private ConnectorService connectorService;
 
     @Test
-    void registerConnectorStoresKeycloakClientIdAndStatus() throws Exception {
+    void registerStoresKeycloakClientIdAndStatus() throws Exception {
         String keycloakClientId = "local-connector-example";
-        when(connectorService.registerConnector(eq(keycloakClientId), eq(ConnectorStatus.ACTIVE), any()))
-                .thenReturn(CONNECTOR.withExternalAuth(keycloakClientId, ConnectorStatus.ACTIVE));
+        when(connectorService.register(eq(keycloakClientId), eq(ConnectorStatus.ACTIVE), any()))
+                .thenReturn(CONNECTOR);
 
         mockMvc.perform(post("/api/v1/admin/connectors")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(registerConnectorJson(keycloakClientId)))
+                        .content(registerJson(keycloakClientId)))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.id").value(requireNonNull(CONNECTOR.getId()).toString()))
-                .andExpect(jsonPath("$.connectorNumber").value(CONNECTOR.getConnectorNumber()))
-                .andExpect(jsonPath("$.keycloakClientId").value(keycloakClientId))
-                .andExpect(jsonPath("$.status").value("ACTIVE"));
+                .andExpect(jsonPath("$.id").value(CONNECTOR.id().value().toString()))
+                .andExpect(jsonPath("$.connectorNumber").value(CONNECTOR.connectorNumber()));
 
-        verify(connectorService).registerConnector(eq(keycloakClientId), eq(ConnectorStatus.ACTIVE), any());
+        verify(connectorService).register(eq(keycloakClientId), eq(ConnectorStatus.ACTIVE), any());
     }
 
     @Test
-    void registerConnectorRequiresKeycloakClientId() throws Exception {
+    void registerRequiresKeycloakClientId() throws Exception {
         mockMvc.perform(post("/api/v1/admin/connectors")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(registerConnectorJson("")))
+                        .content(registerJson("")))
                 .andExpect(status().isBadRequest());
     }
 
-    private static String registerConnectorJson(String keycloakClientId) {
+    private static String registerJson(String keycloakClientId) {
         return """
                 {
                   "keycloakClientId": "%s",

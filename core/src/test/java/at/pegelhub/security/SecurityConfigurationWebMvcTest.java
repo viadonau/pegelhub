@@ -42,9 +42,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         SecurityFilterAutoConfiguration.class
 })
 @TestPropertySource(properties = {
-        "pegelhub.security.issuer-uri=http://issuer.test/realms/pegelhub",
-        "pegelhub.security.audience=pegelhub-core-api",
-        "pegelhub.security.api-client-id=pegelhub-core-api"
+        "pegelhub.security.issuer-uri=http://issuer.test/realms/pegelhub"
 })
 class SecurityConfigurationWebMvcTest {
 
@@ -64,7 +62,7 @@ class SecurityConfigurationWebMvcTest {
 
     @Test
     void protectedApiReturnsUnauthorizedWhenTokenIsMissing() throws Exception {
-        mockMvc.perform(post("/api/v1/measurement")
+        mockMvc.perform(post("/api/v1/measurements")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(measurementsJson()))
                 .andExpect(status().isUnauthorized());
@@ -77,7 +75,7 @@ class SecurityConfigurationWebMvcTest {
                 "local-operator",
                 List.of(PegelHubAuthority.METADATA_READ.value())));
 
-        mockMvc.perform(post("/api/v1/measurement")
+        mockMvc.perform(post("/api/v1/measurements")
                         .header("Authorization", "Bearer metadata-token")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(measurementsJson()))
@@ -88,7 +86,7 @@ class SecurityConfigurationWebMvcTest {
     void protectedApiReturnsUnauthorizedWhenAudienceIsInvalid() throws Exception {
         when(jwtDecoder.decode("wrong-audience")).thenThrow(validationException("Token audience must contain pegelhub-core-api"));
 
-        mockMvc.perform(post("/api/v1/measurement")
+        mockMvc.perform(post("/api/v1/measurements")
                         .header("Authorization", "Bearer wrong-audience")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(measurementsJson()))
@@ -99,7 +97,7 @@ class SecurityConfigurationWebMvcTest {
     void protectedApiReturnsUnauthorizedWhenIssuerIsInvalid() throws Exception {
         when(jwtDecoder.decode("wrong-issuer")).thenThrow(validationException("Token issuer is invalid"));
 
-        mockMvc.perform(post("/api/v1/measurement")
+        mockMvc.perform(post("/api/v1/measurements")
                         .header("Authorization", "Bearer wrong-issuer")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(measurementsJson()))
@@ -114,7 +112,7 @@ class SecurityConfigurationWebMvcTest {
                         "local-connector-example",
                         List.of(PegelHubAuthority.MEASUREMENT_WRITE.value())));
 
-        mockMvc.perform(post("/api/v1/measurement")
+        mockMvc.perform(post("/api/v1/measurements")
                         .header("Authorization", "Bearer measurement-token")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(measurementsJson()))
@@ -122,8 +120,23 @@ class SecurityConfigurationWebMvcTest {
     }
 
     @Test
+    void systemAdminTokenCannotWriteMeasurementsWithoutMeasurementWriteRole() throws Exception {
+        when(jwtDecoder.decode("operator-measurement-token"))
+                .thenReturn(jwt(
+                        "operator-measurement-token",
+                        "local-operator",
+                        List.of(PegelHubAuthority.SYSTEM_ADMIN.value())));
+
+        mockMvc.perform(post("/api/v1/measurements")
+                        .header("Authorization", "Bearer operator-measurement-token")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(measurementsJson()))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
     void publicSystemTimeDoesNotRequireToken() throws Exception {
-        mockMvc.perform(get("/api/v1/measurement/systemTime"))
+        mockMvc.perform(get("/api/v1/measurements/system-time"))
                 .andExpect(status().isOk());
     }
 
@@ -149,7 +162,7 @@ class SecurityConfigurationWebMvcTest {
                         "operator-token",
                         "local-operator",
                         List.of(PegelHubAuthority.SYSTEM_ADMIN.value())));
-        when(connectorService.registerConnector(anyString(), any(), any()))
+        when(connectorService.register(anyString(), any(), any()))
                 .thenReturn(CONNECTOR.withExternalAuth("local-connector-example", ConnectorStatus.ACTIVE));
 
         mockMvc.perform(post("/api/v1/admin/connectors")
@@ -183,14 +196,9 @@ class SecurityConfigurationWebMvcTest {
                 {
                   "measurements": [
                     {
-                      "timestamp": "2026-04-25T10:15:30",
-                      "fields": {
-                        "waterLevel": 10.5,
-                        "flow": 20.5
-                      },
-                      "infos": {
-                        "quality": "ok"
-                      }
+                      "timeSeriesId": "8ce8c5b6-f093-4d46-b770-7239cdfa3d76",
+                      "observedAt": "2026-04-25T10:15:30Z",
+                      "value": 10.5
                     }
                   ]
                 }
