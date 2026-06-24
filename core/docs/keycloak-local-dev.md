@@ -30,7 +30,36 @@ The compose stack adds:
 
 - `keycloak-db`, a dedicated local Postgres database for Keycloak;
 - `keycloak`, exposed at `http://pegelhub-keycloak.test:8082`;
-- realm import from `core/docker/keycloak/import/pegelhub-realm.json`.
+- realm import from `core/docker/keycloak/import/pegelhub-realm.json`;
+- a bind-mounted local login theme from `core/docker/keycloak/themes` to `/opt/keycloak/themes`.
+
+`PEGELHUB_FRONTEND_URL` defines the frontend origin used by the imported Keycloak
+client for redirects, web origins, and the login error page's **Back to
+Application** link. Set it independently in each environment. Realm import runs
+only when the realm does not already exist, so changing this value does not
+update an existing realm.
+
+## Iterate On The Login Theme
+
+The local Keycloak container runs in `start-dev` mode with theme caches disabled:
+
+```text
+--spi-theme-static-max-age=-1
+--spi-theme-cache-themes=false
+--spi-theme-cache-templates=false
+```
+
+Edit the theme files under:
+
+```text
+core/docker/keycloak/themes/pegelhub/login
+```
+
+Then reload the browser tab that shows the Keycloak login page. You should not need to rebuild the image or restart Keycloak for ordinary CSS and FreeMarker template changes. If you change Docker Compose itself, recreate the Keycloak service once so the new command flags are applied:
+
+```sh
+docker compose -f core/docker-compose.yaml up -d --force-recreate keycloak
+```
 
 Realm import runs only when the realm does not already exist. If you need to recreate the local realm, stop and remove only the Keycloak database volume after explicitly accepting local identity data loss.
 
@@ -98,7 +127,16 @@ Expected local connector token claims:
 - `iss` is `http://pegelhub-keycloak.test:8082/realms/pegelhub`;
 - `aud` contains `pegelhub-core-api`;
 - `azp` is `local-connector-example`;
-- `resource_access.pegelhub-core-api.roles` contains `measurement:write` and `telemetry:write`.
+- `pegelhub_actor_type` is `CLIENT`;
+- `resource_access.pegelhub-core-api.roles` contains exactly `measurement:write` and `telemetry:write`;
+- `realm_access` is absent.
+
+Service clients do not receive user-profile scopes or the custom user-subject mapper.
+
+The browser client receives `pegelhub_actor_type: USER` and exactly
+`metadata:read` plus `measurement:read` under
+`resource_access.pegelhub-core-api.roles`. Every caller linked to the Core
+audience scope receives `aud: pegelhub-core-api`, independent of its roles.
 
 ## Core Configuration
 

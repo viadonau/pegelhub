@@ -74,7 +74,14 @@ services:
   keycloak:
     image: quay.io/keycloak/keycloak:26.2
     restart: unless-stopped
-    command: ["start-dev", "--import-realm"]
+    command:
+      [
+        "start-dev",
+        "--import-realm",
+        "--spi-theme-static-max-age=-1",
+        "--spi-theme-cache-themes=false",
+        "--spi-theme-cache-templates=false"
+      ]
     environment:
       KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN_USER}
       KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
@@ -83,14 +90,26 @@ services:
       KC_DB_USERNAME: keycloak
       KC_DB_PASSWORD: ${KEYCLOAK_DB_PASSWORD}
       KC_HEALTH_ENABLED: "true"
+      KC_METRICS_ENABLED: "true"
       KC_HOSTNAME: http://pegelhub-keycloak.test:8082
       KC_HOSTNAME_STRICT: "false"
       KC_HTTP_PORT: 8082
+      PEGELHUB_FRONTEND_URL: ${PEGELHUB_FRONTEND_URL:?Set PEGELHUB_FRONTEND_URL to the frontend origin}
     volumes:
       - ./docker/keycloak/import:/opt/keycloak/data/import:ro
+      - ./docker/keycloak/themes:/opt/keycloak/themes:ro
     ports:
       - "8082:8082"
-      - "9000:9000"
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "{ printf 'HEAD /health/ready HTTP/1.0\\r\\n\\r\\n' >&0; grep -q 'HTTP/1.1 200\\|HTTP/1.0 200'; } 0<>/dev/tcp/127.0.0.1/9000"
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 24
+      start_period: 15s
     depends_on:
       keycloak-db:
         condition: service_healthy
@@ -123,6 +142,6 @@ services:
       data-db:
         condition: service_healthy
       keycloak:
-        condition: service_started
+        condition: service_healthy
     networks:
       - pegelhub-local
