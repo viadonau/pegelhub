@@ -164,6 +164,10 @@ public class FtpTask extends TimerTask {
     }
 
     private Stream<Measurement> convertEntryToMeasurementStream(Entry e) {
+        if (conOpts.parameter() != null && !conOpts.parameter().equalsIgnoreCase(e.getInfos().get("parameter"))) {
+            return Stream.of();
+        }
+
         return e.getValues().entrySet().stream().map(value -> {
             // TODO the check if the location is correct should be refactored into the parser or something like that
             if (!Util.canParseDouble(value.getValue()) || !Util.canParseDouble(e.getInfos().get("location"))) {

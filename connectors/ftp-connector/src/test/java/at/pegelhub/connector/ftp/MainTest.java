@@ -34,6 +34,7 @@ class MainTest {
                 ftp.password=test-pass
                 ftp.path=/incoming
                 parser.type=zrxp
+                zrxp.parameter=Abfluss
                 read.delay=15m
                 timeSeriesId=11111111-1111-1111-1111-111111111111
                 """);
@@ -48,6 +49,7 @@ class MainTest {
         assertEquals("test-pass", options.password());
         assertEquals("/incoming", options.path());
         assertEquals(ParserType.ZRXP, options.parserType());
+        assertEquals("Abfluss", options.parameter());
         assertEquals(Duration.ofMinutes(15), options.readDelay());
         assertEquals(TIME_SERIES_ID, options.timeSeriesId());
         assertEquals(tmp.resolve("pegelhub.yaml").toString(), options.propertiesFile());

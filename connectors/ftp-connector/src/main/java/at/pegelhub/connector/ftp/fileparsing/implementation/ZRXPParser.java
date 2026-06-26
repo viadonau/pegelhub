@@ -61,6 +61,9 @@ public class ZRXPParser implements Parser {
             assert entry != null;
             entry.values.put(date, value);
         }
+        if (entry != null) {
+            entries.add(entry);
+        }
 
         return entries.stream();
     }

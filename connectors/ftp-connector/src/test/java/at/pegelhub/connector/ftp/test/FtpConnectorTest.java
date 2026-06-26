@@ -35,7 +35,7 @@ public class FtpConnectorTest {
         conOpts = new ConnectorOptions(InetAddress.getByName("127.0.0.1"), 8081,
                 InetAddress.getByName("77.244.244.162"), 21,
                 "web47ftppegelsend", "noHeshEkJernaw7",
-                "/", ParserType.ASC, Duration.ofHours(2), TIME_SERIES_ID, null);
+                "/", ParserType.ASC, Duration.ofHours(2), TIME_SERIES_ID, null, null);
     }
 
     @Test
