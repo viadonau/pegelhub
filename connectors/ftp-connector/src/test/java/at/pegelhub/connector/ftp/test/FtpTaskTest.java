@@ -2,6 +2,7 @@ package at.pegelhub.connector.ftp.test;
 
 import at.pegelhub.connector.ftp.ConnectorOptions;
 import at.pegelhub.connector.ftp.FtpTask;
+import at.pegelhub.connector.ftp.fileparsing.Entry;
 import at.pegelhub.connector.ftp.fileparsing.Parser;
 import at.pegelhub.connector.ftp.fileparsing.ParserFactory;
 import at.pegelhub.connector.ftp.fileparsing.ParserType;
@@ -19,12 +20,16 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.net.InetAddress;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.time.Duration;
+import java.time.Instant;
+import java.util.Date;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
@@ -43,7 +48,7 @@ public class FtpTaskTest {
         client = new FTPClient();
         comm = mock(PegelHubCommunicator.class);
         propertiesFile = createPropertiesFile();
-        conOpts = new ConnectorOptions(InetAddress.getByName("localhost"), 0, InetAddress.getByName("localhost"), 0, "user", "password", "", ParserType.ASC, Duration.ofHours(2), TIME_SERIES_ID, propertiesFile);
+        conOpts = new ConnectorOptions(InetAddress.getByName("localhost"), 0, InetAddress.getByName("localhost"), 0, "user", "password", "", ParserType.ASC, Duration.ofHours(2), TIME_SERIES_ID, null, propertiesFile);
     }
 
     private static String createPropertiesFile() throws IOException {
@@ -87,6 +92,43 @@ public class FtpTaskTest {
         verify(comm, never()).sendMeasurements(any());
     }
 
+    @Test
+    public void onlyConfiguredParameterIsSent() throws IOException {
+        var mockClient = mock(FTPClient.class);
+        var file = new FTPFile();
+        file.setName("values.zrxp");
+        when(mockClient.listFiles(any(), any())).thenReturn(new FTPFile[]{file});
+        when(mockClient.retrieveFileStream(any())).thenReturn(InputStream.nullInputStream());
+        when(mockClient.completePendingCommand()).thenReturn(true);
+        when(mockClient.getReplyCode()).thenReturn(200);
+        when(mockClient.login(any(), any())).thenReturn(true);
+        var parser = mock(Parser.class);
+        var ignoredEntry = entry("10001033", "Abfluss", 118.8);
+        var matchingEntry = entry("10001033", "WasserstandAbs", 157.3);
+        when(parser.parse(any())).thenReturn(List.of(ignoredEntry, matchingEntry).stream());
+        var options = new ConnectorOptions(InetAddress.getByName("localhost"), 0,
+                InetAddress.getByName("localhost"), 0,
+                "user", "password",
+                "", ParserType.ZRXP, Duration.ofHours(2), TIME_SERIES_ID, "WasserstandAbs", propertiesFile);
+
+        new FtpTask(mockClient, options, comm, parser).run();
+
+        verify(comm).sendMeasurements(argThat(measurements -> {
+            assertEquals(1, measurements.size());
+            Measurement measurement = measurements.getFirst();
+            assertEquals(TIME_SERIES_ID, measurement.getTimeSeriesId());
+            assertEquals(157.3, measurement.getValue());
+            return true;
+        }));
+    }
+
+    private static Entry entry(String location, String parameter, double value) {
+        var entry = mock(Entry.class);
+        when(entry.getInfos()).thenReturn(Map.of("location", location, "parameter", parameter));
+        when(entry.getValues()).thenReturn(Map.of(Date.from(Instant.parse("2026-06-25T07:00:00Z")), Double.toString(value)));
+        return entry;
+    }
+
     @Nested
     public class TestWithRunningServer {
         private FakeFtpServer server;
@@ -107,7 +149,7 @@ public class FtpTaskTest {
             var newConOpts = new ConnectorOptions(InetAddress.getByName("localhost"), 0,
                     InetAddress.getByName("localhost"), 1025,
                     "user", "password",
-                    "", ParserType.ASC, Duration.ofHours(2), TIME_SERIES_ID, propertiesFile);
+                    "", ParserType.ASC, Duration.ofHours(2), TIME_SERIES_ID, null, propertiesFile);
             var parser = ParserFactory.getParser(newConOpts.parserType());
             task = new FtpTask(client, newConOpts, comm, parser);
         }

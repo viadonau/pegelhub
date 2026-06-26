@@ -65,6 +65,7 @@ public class Main {
                 parserType,
                 readDelay,
                 UUID.fromString(requiredProperty(props, "timeSeriesId")),
+                optionalProperty(props, "zrxp.parameter"),
                 resolvePegelhubConfigPath(configDir)
         );
     }
@@ -123,5 +124,10 @@ public class Main {
             throw new IllegalArgumentException("Missing or empty property: " + key);
         }
         return value;
+    }
+
+    private static String optionalProperty(Properties props, String key) {
+        String value = props.getProperty(key);
+        return (value == null || value.isBlank()) ? null : value.trim();
     }
 }

@@ -11,4 +11,5 @@ public record ConnectorOptions(InetAddress coreAddress, int corePort,
                                String username, String password,
                                String path, ParserType parserType,
                                Duration readDelay, UUID timeSeriesId,
+                               String parameter,
                                String propertiesFile) {}
