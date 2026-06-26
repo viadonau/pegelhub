@@ -57,6 +57,13 @@ final class AccessGrantServiceImplTest {
             new UnitCode("cm"),
             null,
             null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
             null);
 
     private final InMemoryAccessGrantRepository repository = new InMemoryAccessGrantRepository();
@@ -233,6 +240,13 @@ final class AccessGrantServiceImplTest {
                 STATION_ID,
                 new ObservedPropertyCode("water-level"),
                 new UnitCode("cm"),
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
                 null,
                 null,
                 sourceConnectorId);

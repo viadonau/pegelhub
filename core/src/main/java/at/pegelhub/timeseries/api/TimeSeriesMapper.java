@@ -19,6 +19,13 @@ final class TimeSeriesMapper {
                 new ObservedPropertyCode(request.observedProperty()),
                 new UnitCode(request.unit()),
                 request.referenceLevel(),
+                request.referenceYear(),
+                request.riverKilometer(),
+                request.bank(),
+                request.rnw(),
+                request.hsw(),
+                request.mw(),
+                request.hw100(),
                 toExternalCode(request.externalCode()),
                 toConnectorId(request.sourceConnectorId()));
     }
@@ -30,6 +37,13 @@ final class TimeSeriesMapper {
                 timeSeries.observedProperty().value(),
                 timeSeries.unit().value(),
                 timeSeries.referenceLevel(),
+                timeSeries.referenceYear(),
+                timeSeries.riverKilometer(),
+                timeSeries.bank(),
+                timeSeries.rnw(),
+                timeSeries.hsw(),
+                timeSeries.mw(),
+                timeSeries.hw100(),
                 toExternalCodeValue(timeSeries.externalCode()),
                 toConnectorIdValue(timeSeries.sourceConnectorId()));
     }

@@ -153,7 +153,20 @@ final class FullStackWorkflowIntegrationTest extends FullStackIntegrationTestBas
         ResponseEntity<TimeSeriesResponse> response = rest.exchange(
                 "/api/v1/time-series",
                 HttpMethod.POST,
-                bearerEntity(new CreateTimeSeriesRequest(stationId, observedProperty, unit, null, null, null), operator),
+                bearerEntity(new CreateTimeSeriesRequest(
+                        stationId,
+                        observedProperty,
+                        unit,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null), operator),
                 TimeSeriesResponse.class);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CREATED);
