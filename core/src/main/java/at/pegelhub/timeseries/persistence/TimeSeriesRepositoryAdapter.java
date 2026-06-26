@@ -57,6 +57,13 @@ class TimeSeriesRepositoryAdapter implements TimeSeriesRepository {
                 timeSeries.observedProperty().value(),
                 timeSeries.unit().value(),
                 timeSeries.referenceLevel(),
+                timeSeries.referenceYear(),
+                timeSeries.riverKilometer(),
+                timeSeries.bank(),
+                timeSeries.rnw(),
+                timeSeries.hsw(),
+                timeSeries.mw(),
+                timeSeries.hw100(),
                 toExternalCodeValue(timeSeries.externalCode()),
                 toConnectorIdValue(timeSeries.sourceConnectorId()));
     }
@@ -68,6 +75,13 @@ class TimeSeriesRepositoryAdapter implements TimeSeriesRepository {
                 new ObservedPropertyCode(timeSeries.observedProperty()),
                 new UnitCode(timeSeries.unit()),
                 timeSeries.referenceLevel(),
+                timeSeries.referenceYear(),
+                timeSeries.riverKilometer(),
+                timeSeries.bank(),
+                timeSeries.rnw(),
+                timeSeries.hsw(),
+                timeSeries.mw(),
+                timeSeries.hw100(),
                 toExternalCode(timeSeries.externalCode()),
                 toConnectorId(timeSeries.sourceConnectorId()));
     }

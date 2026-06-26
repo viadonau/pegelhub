@@ -31,6 +31,27 @@ class TimeSeriesEntity {
     @Column
     private Double referenceLevel;
 
+    @Column
+    private Integer referenceYear;
+
+    @Column
+    private Double riverKilometer;
+
+    @Column(length = 40)
+    private String bank;
+
+    @Column
+    private Double rnw;
+
+    @Column
+    private Double hsw;
+
+    @Column
+    private Double mw;
+
+    @Column
+    private Double hw100;
+
     @Column(length = 160)
     private String externalCode;
 
@@ -46,6 +67,13 @@ class TimeSeriesEntity {
             String observedProperty,
             String unit,
             Double referenceLevel,
+            Integer referenceYear,
+            Double riverKilometer,
+            String bank,
+            Double rnw,
+            Double hsw,
+            Double mw,
+            Double hw100,
             String externalCode,
             UUID sourceConnectorId) {
         this.id = id;
@@ -53,6 +81,13 @@ class TimeSeriesEntity {
         this.observedProperty = observedProperty;
         this.unit = unit;
         this.referenceLevel = referenceLevel;
+        this.referenceYear = referenceYear;
+        this.riverKilometer = riverKilometer;
+        this.bank = bank;
+        this.rnw = rnw;
+        this.hsw = hsw;
+        this.mw = mw;
+        this.hw100 = hw100;
         this.externalCode = externalCode;
         this.sourceConnectorId = sourceConnectorId;
     }
@@ -75,6 +110,34 @@ class TimeSeriesEntity {
 
     Double referenceLevel() {
         return referenceLevel;
+    }
+
+    Integer referenceYear() {
+        return referenceYear;
+    }
+
+    Double riverKilometer() {
+        return riverKilometer;
+    }
+
+    String bank() {
+        return bank;
+    }
+
+    Double rnw() {
+        return rnw;
+    }
+
+    Double hsw() {
+        return hsw;
+    }
+
+    Double mw() {
+        return mw;
+    }
+
+    Double hw100() {
+        return hw100;
     }
 
     String externalCode() {

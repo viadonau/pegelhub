@@ -57,6 +57,13 @@ final class TimeSeriesServiceImplTest {
         assertThat(timeSeries.id()).isNotNull();
         assertThat(timeSeries.stationId()).isEqualTo(STATION_ID);
         assertThat(timeSeries.observedProperty()).isEqualTo(new ObservedPropertyCode("water-level"));
+        assertThat(timeSeries.referenceYear()).isEqualTo(2010);
+        assertThat(timeSeries.riverKilometer()).isEqualTo(1921.34);
+        assertThat(timeSeries.bank()).isEqualTo("R");
+        assertThat(timeSeries.rnw()).isEqualTo(162.0);
+        assertThat(timeSeries.hsw()).isEqualTo(480.0);
+        assertThat(timeSeries.mw()).isEqualTo(295.0);
+        assertThat(timeSeries.hw100()).isEqualTo(760.0);
         assertThat(timeSeries.sourceConnectorId()).isEqualTo(SOURCE_CONNECTOR_ID);
         assertThat(repository.saved).containsExactly(timeSeries);
     }
@@ -119,6 +126,13 @@ final class TimeSeriesServiceImplTest {
                 new ObservedPropertyCode("water-level"),
                 new UnitCode("cm"),
                 120.0,
+                2010,
+                1921.34,
+                "R",
+                162.0,
+                480.0,
+                295.0,
+                760.0,
                 new ExternalTimeSeriesCode("main-stage"),
                 SOURCE_CONNECTOR_ID);
     }
@@ -130,6 +144,13 @@ final class TimeSeriesServiceImplTest {
                 new ObservedPropertyCode("water-level"),
                 new UnitCode("cm"),
                 120.0,
+                2010,
+                1921.34,
+                "R",
+                162.0,
+                480.0,
+                295.0,
+                760.0,
                 new ExternalTimeSeriesCode("main-stage"),
                 SOURCE_CONNECTOR_ID);
     }

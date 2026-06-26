@@ -11,6 +11,13 @@ public record CreateTimeSeriesCommand(
         ObservedPropertyCode observedProperty,
         UnitCode unit,
         Double referenceLevel,
+        Integer referenceYear,
+        Double riverKilometer,
+        String bank,
+        Double rnw,
+        Double hsw,
+        Double mw,
+        Double hw100,
         ExternalTimeSeriesCode externalCode,
         ConnectorId sourceConnectorId
 ) {

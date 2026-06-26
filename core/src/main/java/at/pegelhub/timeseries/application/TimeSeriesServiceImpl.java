@@ -38,6 +38,13 @@ class TimeSeriesServiceImpl implements TimeSeriesService {
                 command.observedProperty(),
                 command.unit(),
                 command.referenceLevel(),
+                command.referenceYear(),
+                command.riverKilometer(),
+                command.bank(),
+                command.rnw(),
+                command.hsw(),
+                command.mw(),
+                command.hw100(),
                 command.externalCode(),
                 command.sourceConnectorId()));
     }

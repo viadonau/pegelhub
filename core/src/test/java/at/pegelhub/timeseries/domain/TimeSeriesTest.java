@@ -20,13 +20,69 @@ final class TimeSeriesTest {
     @Test
     void rejectsMissingRequiredValues() {
         assertThrows(NullPointerException.class,
-                () -> new TimeSeries(null, STATION_ID, WATER_LEVEL, CENTIMETER, null, null, null));
+                () -> new TimeSeries(null, STATION_ID, WATER_LEVEL, CENTIMETER, null,
+                        null, null, null, null, null, null, null, null, null));
         assertThrows(NullPointerException.class,
-                () -> new TimeSeries(ID, null, WATER_LEVEL, CENTIMETER, null, null, null));
+                () -> new TimeSeries(ID, null, WATER_LEVEL, CENTIMETER, null,
+                        null, null, null, null, null, null, null, null, null));
         assertThrows(NullPointerException.class,
-                () -> new TimeSeries(ID, STATION_ID, null, CENTIMETER, null, null, null));
+                () -> new TimeSeries(ID, STATION_ID, null, CENTIMETER, null,
+                        null, null, null, null, null, null, null, null, null));
         assertThrows(NullPointerException.class,
-                () -> new TimeSeries(ID, STATION_ID, WATER_LEVEL, null, null, null, null));
+                () -> new TimeSeries(ID, STATION_ID, WATER_LEVEL, null, null,
+                        null, null, null, null, null, null, null, null, null));
+    }
+
+    @Test
+    void normalizesAndValidatesOptionalHydrologyMetadata() {
+        var timeSeries = new TimeSeries(
+                ID,
+                STATION_ID,
+                WATER_LEVEL,
+                CENTIMETER,
+                120.0,
+                2010,
+                1921.34,
+                " R ",
+                162.0,
+                480.0,
+                295.0,
+                760.0,
+                null,
+                null);
+
+        assertThat(timeSeries.bank()).isEqualTo("R");
+        assertThat(timeSeries.referenceYear()).isEqualTo(2010);
+        assertThrows(IllegalArgumentException.class, () -> new TimeSeries(
+                ID,
+                STATION_ID,
+                WATER_LEVEL,
+                CENTIMETER,
+                Double.NaN,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null));
+        assertThrows(IllegalArgumentException.class, () -> new TimeSeries(
+                ID,
+                STATION_ID,
+                WATER_LEVEL,
+                CENTIMETER,
+                null,
+                0,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null));
     }
 
     @Test
@@ -36,6 +92,13 @@ final class TimeSeriesTest {
                 WATER_LEVEL,
                 CENTIMETER,
                 120.0,
+                2010,
+                1921.34,
+                "R",
+                162.0,
+                480.0,
+                295.0,
+                760.0,
                 new ExternalTimeSeriesCode("main-stage"),
                 SOURCE_CONNECTOR_ID);
 
@@ -44,6 +107,13 @@ final class TimeSeriesTest {
         assertThat(timeSeries.stationId()).isEqualTo(STATION_ID);
         assertThat(timeSeries.observedProperty()).isEqualTo(WATER_LEVEL);
         assertThat(timeSeries.unit()).isEqualTo(CENTIMETER);
+        assertThat(timeSeries.referenceYear()).isEqualTo(2010);
+        assertThat(timeSeries.riverKilometer()).isEqualTo(1921.34);
+        assertThat(timeSeries.bank()).isEqualTo("R");
+        assertThat(timeSeries.rnw()).isEqualTo(162.0);
+        assertThat(timeSeries.hsw()).isEqualTo(480.0);
+        assertThat(timeSeries.mw()).isEqualTo(295.0);
+        assertThat(timeSeries.hw100()).isEqualTo(760.0);
         assertThat(timeSeries.sourceConnectorId()).isEqualTo(SOURCE_CONNECTOR_ID);
     }
 }

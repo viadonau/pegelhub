@@ -45,7 +45,15 @@ final class TimeSeriesRepositoryIntegrationTest extends JpaIntegrationTestBase {
         timeSeries.save(other);
 
         assertThat(timeSeries.findById(TIME_SERIES_ID)).contains(matching);
-        assertThat(timeSeries.findById(TIME_SERIES_ID).orElseThrow().sourceConnectorId()).isEqualTo(SOURCE_CONNECTOR_ID);
+        var loaded = timeSeries.findById(TIME_SERIES_ID).orElseThrow();
+        assertThat(loaded.sourceConnectorId()).isEqualTo(SOURCE_CONNECTOR_ID);
+        assertThat(loaded.referenceYear()).isEqualTo(2010);
+        assertThat(loaded.riverKilometer()).isEqualTo(1921.34);
+        assertThat(loaded.bank()).isEqualTo("R");
+        assertThat(loaded.rnw()).isEqualTo(162.0);
+        assertThat(loaded.hsw()).isEqualTo(480.0);
+        assertThat(loaded.mw()).isEqualTo(295.0);
+        assertThat(loaded.hw100()).isEqualTo(760.0);
         assertThat(timeSeries.findAll()).contains(matching, other);
         assertThat(timeSeries.findByStationId(STATION_ID)).containsExactly(matching);
     }
@@ -73,6 +81,13 @@ final class TimeSeriesRepositoryIntegrationTest extends JpaIntegrationTestBase {
                 new ObservedPropertyCode(observedProperty),
                 new UnitCode(unit),
                 120.0,
+                2010,
+                1921.34,
+                "R",
+                162.0,
+                480.0,
+                295.0,
+                760.0,
                 new ExternalTimeSeriesCode("external-" + id.value()),
                 SOURCE_CONNECTOR_ID);
     }

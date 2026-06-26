@@ -40,6 +40,13 @@ class HttpTimeSeriesControllerTest {
             new ObservedPropertyCode("water-level"),
             new UnitCode("cm"),
             120.0,
+            2010,
+            1921.34,
+            "R",
+            162.0,
+            480.0,
+            295.0,
+            760.0,
             new ExternalTimeSeriesCode("main-stage"),
             new ConnectorId(SOURCE_CONNECTOR_ID));
 
@@ -61,6 +68,13 @@ class HttpTimeSeriesControllerTest {
                                   "observedProperty": "water-level",
                                   "unit": "cm",
                                   "referenceLevel": 120.0,
+                                  "referenceYear": 2010,
+                                  "riverKilometer": 1921.34,
+                                  "bank": "R",
+                                  "rnw": 162.0,
+                                  "hsw": 480.0,
+                                  "mw": 295.0,
+                                  "hw100": 760.0,
                                   "externalCode": "main-stage",
                                   "sourceConnectorId": "%s"
                                 }
@@ -71,6 +85,13 @@ class HttpTimeSeriesControllerTest {
                 .andExpect(jsonPath("$.observedProperty").value("water-level"))
                 .andExpect(jsonPath("$.unit").value("cm"))
                 .andExpect(jsonPath("$.referenceLevel").value(120.0))
+                .andExpect(jsonPath("$.referenceYear").value(2010))
+                .andExpect(jsonPath("$.riverKilometer").value(1921.34))
+                .andExpect(jsonPath("$.bank").value("R"))
+                .andExpect(jsonPath("$.rnw").value(162.0))
+                .andExpect(jsonPath("$.hsw").value(480.0))
+                .andExpect(jsonPath("$.mw").value(295.0))
+                .andExpect(jsonPath("$.hw100").value(760.0))
                 .andExpect(jsonPath("$.externalCode").value("main-stage"))
                 .andExpect(jsonPath("$.sourceConnectorId").value(SOURCE_CONNECTOR_ID.toString()));
 
@@ -79,6 +100,13 @@ class HttpTimeSeriesControllerTest {
                 new ObservedPropertyCode("water-level"),
                 new UnitCode("cm"),
                 120.0,
+                2010,
+                1921.34,
+                "R",
+                162.0,
+                480.0,
+                295.0,
+                760.0,
                 new ExternalTimeSeriesCode("main-stage"),
                 new ConnectorId(SOURCE_CONNECTOR_ID))));
     }

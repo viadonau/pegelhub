@@ -8,6 +8,13 @@ public record TimeSeriesResponse(
         String observedProperty,
         String unit,
         Double referenceLevel,
+        Integer referenceYear,
+        Double riverKilometer,
+        String bank,
+        Double rnw,
+        Double hsw,
+        Double mw,
+        Double hw100,
         String externalCode,
         UUID sourceConnectorId
 ) {

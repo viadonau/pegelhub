@@ -43,7 +43,14 @@ erDiagram
         uuid stationId "logical Station reference"
         string observedProperty "e.g. water-level"
         string unit "e.g. cm"
-        double referenceLevel "optional"
+        double referenceLevel "optional PNP in meters over Adria"
+        int referenceYear "optional reference year for RNW/MW/HSW"
+        double riverKilometer "optional V1 gauge location"
+        string bank "optional V1 gauge bank"
+        double rnw "optional water-level reference"
+        double hsw "optional water-level reference"
+        double mw "optional water-level reference"
+        double hw100 "optional water-level reference"
         string externalCode "optional connector mapping"
         uuid sourceConnectorId "optional source Connector"
     }
@@ -129,6 +136,8 @@ flowchart LR
 
     Connector -. "future Flyway cleanup" .-> ContactPoints["Connector-owned contact points by role"]
 ```
+
+PNP, gauge-location, and water-level reference metadata currently lives directly on `TimeSeries` as a V1 simplification. Extract a `MeasuringPoint` between `Station` and `TimeSeries` when multiple series share one bank/kilometer/reference set or when left/right/device identity needs an independent lifecycle.
 
 ## Authorization Cascade
 

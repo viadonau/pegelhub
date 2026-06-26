@@ -265,6 +265,13 @@ final class MeasurementAuthorizationPolicyImplTest {
                 new UnitCode("cm"),
                 null,
                 null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
                 sourceConnectorId);
     }
 }
