@@ -5,6 +5,7 @@ import at.pegelhub.connector.domain.ConnectorStatus;
 import at.pegelhub.connector.persistence.ConnectorRepository;
 import at.pegelhub.security.CurrentActor;
 import at.pegelhub.security.PegelHubActor;
+import at.pegelhub.security.PegelHubActorType;
 import at.pegelhub.shared.error.NotFoundException;
 import at.pegelhub.telemetry.domain.Telemetry;
 import at.pegelhub.telemetry.persistence.TelemetryRepository;
@@ -30,6 +31,7 @@ final class TelemetryServiceImplTest {
     private static final ConnectorRepository CONNECTOR_REPOSITORY = mock(ConnectorRepository.class);
     private static final CurrentActor CURRENT_ACTOR = mock(CurrentActor.class);
     private static final PegelHubActor ACTOR = new PegelHubActor(
+            PegelHubActorType.CLIENT,
             "subject",
             "local-taker-example",
             Set.of());

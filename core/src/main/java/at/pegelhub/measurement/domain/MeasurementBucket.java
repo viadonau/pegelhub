@@ -6,19 +6,19 @@ import java.time.Instant;
 
 import static java.util.Objects.requireNonNull;
 
-public record MeasurementAverage(
+public record MeasurementBucket(
         TimeSeriesId timeSeriesId,
-        Instant rangeStart,
-        Instant rangeEnd,
+        Instant from,
+        Instant to,
         double value,
         long sampleCount) {
 
-    public MeasurementAverage {
+    public MeasurementBucket {
         requireNonNull(timeSeriesId);
-        requireNonNull(rangeStart);
-        requireNonNull(rangeEnd);
-        if (!rangeEnd.isAfter(rangeStart)) {
-            throw new IllegalArgumentException("rangeEnd must be after rangeStart");
+        requireNonNull(from);
+        requireNonNull(to);
+        if (!to.isAfter(from)) {
+            throw new IllegalArgumentException("to must be after from");
         }
         if (!Double.isFinite(value)) {
             throw new IllegalArgumentException("value must be finite");

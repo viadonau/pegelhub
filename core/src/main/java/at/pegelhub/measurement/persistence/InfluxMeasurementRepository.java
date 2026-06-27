@@ -1,29 +1,30 @@
 package at.pegelhub.measurement.persistence;
 
 import com.influxdb.client.InfluxDBClient;
-import com.influxdb.client.QueryApi;
 import com.influxdb.client.domain.WritePrecision;
 import com.influxdb.client.write.Point;
 import com.influxdb.exceptions.InfluxException;
 import com.influxdb.query.FluxRecord;
 import com.influxdb.query.FluxTable;
 import at.pegelhub.connector.domain.ConnectorId;
+import at.pegelhub.measurement.application.MeasurementBucketQuery;
+import at.pegelhub.measurement.application.MeasurementListQuery;
+import at.pegelhub.measurement.application.MeasurementPageRow;
 import at.pegelhub.measurement.domain.Measurement;
-import at.pegelhub.measurement.domain.MeasurementAverage;
-import at.pegelhub.shared.error.NotFoundException;
+import at.pegelhub.measurement.domain.MeasurementBucket;
 import at.pegelhub.shared.influx.DatabaseProperties;
 import at.pegelhub.shared.influx.ConnectionHelper;
 import at.pegelhub.shared.influx.FluxDuration;
 import at.pegelhub.shared.influx.FluxQueries;
-import at.pegelhub.shared.influx.InfluxPoint;
-import at.pegelhub.timeseries.domain.TimeSeriesId;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Repository;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import static java.util.Objects.requireNonNull;
@@ -42,15 +43,12 @@ public class InfluxMeasurementRepository implements MeasurementRepository {
 
     private final InfluxDBClient client;
     private final DatabaseProperties properties;
-    private final FluxDuration latestRange;
 
     public InfluxMeasurementRepository(
             @Qualifier("influxDBClient") InfluxDBClient client,
-            @Qualifier("dataConfiguration") DatabaseProperties properties,
-            @Qualifier("latestRange") FluxDuration latestRange) {
+            @Qualifier("dataConfiguration") DatabaseProperties properties) {
         this.client = requireNonNull(client);
         this.properties = requireNonNull(properties);
-        this.latestRange = requireNonNull(latestRange);
     }
 
     /**
@@ -70,53 +68,73 @@ public class InfluxMeasurementRepository implements MeasurementRepository {
         ConnectionHelper.writePoints(this.client, properties, dataPoints);
     }
 
-    /**
-     * @param timeSeriesId of the TimeSeries.
-     * @param range in which the returned values reside.
-     * @return the value with the specified ID in the specified range
-     */
     @Override
-    public List<Measurement> getByTimeSeriesIdAndRange(TimeSeriesId timeSeriesId, String range) {
-        String query = FluxQueries.measurementRange(properties, timeSeriesId.value(), new FluxDuration(range));
-
-        return toMeasurements(ConnectionHelper.queryData(this.client, properties, query));
+    public List<MeasurementPageRow> findMeasurements(MeasurementListQuery measurementQuery) {
+        String query = FluxQueries.measurementPage(
+                properties,
+                measurementQuery.timeSeriesId().value(),
+                measurementQuery.window().from(),
+                measurementQuery.window().to(),
+                measurementQuery.order(),
+                measurementQuery.limit() + 1,
+                measurementQuery.cursor());
+        return toMeasurementPageRows(client.getQueryApi().query(query, properties.org()));
     }
 
     @Override
-    public Measurement getLatestByTimeSeriesId(TimeSeriesId timeSeriesId) {
-        String query = FluxQueries.latestMeasurement(properties, timeSeriesId.value(), latestRange);
-        List<Measurement> measurements = toMeasurements(ConnectionHelper.queryData(this.client, properties, query));
-        if (measurements.isEmpty()) {
-            throw new NotFoundException("No measurement found");
-        }
-        return measurements.stream()
-                .max(Comparator.comparing(Measurement::observedAt))
-                .orElseThrow(() -> new NotFoundException("No measurement found"));
+    public List<MeasurementBucket> findMeasurementBuckets(MeasurementBucketQuery query) {
+        Duration bucketDuration = query.resolution().bucketWidth().duration();
+        FluxDuration fluxBucket = FluxDuration.from(bucketDuration);
+        Map<BucketKey, Double> means = aggregateValues(FluxQueries.meanMeasurementBuckets(
+                properties,
+                query.timeSeriesId().value(),
+                query.window().from(),
+                query.window().to(),
+                fluxBucket), bucketDuration);
+        Map<BucketKey, Long> counts = aggregateCounts(FluxQueries.countMeasurementBuckets(
+                properties,
+                query.timeSeriesId().value(),
+                query.window().from(),
+                query.window().to(),
+                fluxBucket), bucketDuration);
+
+        return means.entrySet().stream()
+                .filter(entry -> counts.containsKey(entry.getKey()))
+                .sorted(Map.Entry.comparingByKey())
+                .map(entry -> new MeasurementBucket(
+                        query.timeSeriesId(),
+                        entry.getKey().from(),
+                        entry.getKey().to(),
+                        entry.getValue(),
+                        counts.get(entry.getKey())))
+                .toList();
     }
 
-    @Override
-    public MeasurementAverage getAverageByTimeSeriesIdAndRange(TimeSeriesId timeSeriesId, String range) {
-        FluxDuration duration = new FluxDuration(range);
-        FluxRecord mean = singleAggregateRecord(FluxQueries.meanMeasurement(properties, timeSeriesId.value(), duration), timeSeriesId, range);
-        FluxRecord count = singleAggregateRecord(FluxQueries.countMeasurement(properties, timeSeriesId.value(), duration), timeSeriesId, range);
-
-        return new MeasurementAverage(
-                timeSeriesId,
-                aggregateInstant(mean, "_start"),
-                aggregateInstant(mean, "_stop"),
-                aggregateNumber(mean).doubleValue(),
-                aggregateNumber(count).longValue());
-    }
-
-    private FluxRecord singleAggregateRecord(String query, TimeSeriesId timeSeriesId, String range) {
+    private Map<BucketKey, Double> aggregateValues(String query, Duration bucketDuration) {
         List<FluxTable> tables = client.getQueryApi().query(query, properties.org());
-        return tables.stream()
-                .flatMap(table -> table.getRecords().stream())
-                .findFirst()
-                .orElseThrow(() -> new NotFoundException(String.format(
-                        "No data found for TimeSeries %s in the last %s to calculate an average.",
-                        timeSeriesId.value(),
-                        range)));
+        Map<BucketKey, Double> values = new HashMap<>();
+        for (FluxTable table : tables) {
+            for (FluxRecord record : table.getRecords()) {
+                values.put(bucketKey(record, bucketDuration), aggregateNumber(record).doubleValue());
+            }
+        }
+        return values;
+    }
+
+    private Map<BucketKey, Long> aggregateCounts(String query, Duration bucketDuration) {
+        List<FluxTable> tables = client.getQueryApi().query(query, properties.org());
+        Map<BucketKey, Long> counts = new HashMap<>();
+        for (FluxTable table : tables) {
+            for (FluxRecord record : table.getRecords()) {
+                counts.put(bucketKey(record, bucketDuration), aggregateNumber(record).longValue());
+            }
+        }
+        return counts;
+    }
+
+    private BucketKey bucketKey(FluxRecord record, Duration bucketDuration) {
+        Instant from = aggregateInstant(record, "_time");
+        return new BucketKey(from, from.plus(bucketDuration));
     }
 
     private Instant aggregateInstant(FluxRecord record, String column) {
@@ -136,56 +154,63 @@ public class InfluxMeasurementRepository implements MeasurementRepository {
     }
 
     /**
-     * @param data the data to be converted to measurements
-     * @return the converted measurements
+     * @return the converted measurement page rows
      */
-    private List<Measurement> toMeasurements(List<InfluxPoint> data) {
-        List<Measurement> measurements = new ArrayList<>();
-        for (InfluxPoint point : data) {
-            Instant observedAt = point.isAggregate()
-                    ? Instant.now()
-                    : point.timestamp();
-            Instant receivedAt = point.fields().containsKey(RECEIVED_AT_FIELD)
-                    ? Instant.parse(point.fields().get(RECEIVED_AT_FIELD).toString())
-                    : Instant.now();
-
-            measurements.add(new Measurement(
-                    new TimeSeriesId(UUID.fromString(point.measurement())),
-                    observedAt,
-                    receivedAt,
-                    numericField(point, VALUE_FIELD),
-                    new ConnectorId(UUID.fromString(point.tags().get(SUBMITTED_BY_CONNECTOR_ID_TAG))))
-            );
+    private List<MeasurementPageRow> toMeasurementPageRows(List<FluxTable> tables) {
+        List<MeasurementPageRow> measurements = new ArrayList<>();
+        for (FluxTable table : tables) {
+            for (FluxRecord record : table.getRecords()) {
+                measurements.add(new MeasurementPageRow(
+                        requiredInstant(record, "_time"),
+                        requiredNumber(record, VALUE_FIELD).doubleValue(),
+                        new ConnectorId(UUID.fromString(requiredString(record, SUBMITTED_BY_CONNECTOR_ID_TAG))))
+                );
+            }
         }
         return measurements;
     }
 
-    private double numericField(InfluxPoint point, String field) {
-        Object value = point.fields().get(field);
-        if (value instanceof Number number) {
-            return number.doubleValue();
+    private static Instant requiredInstant(FluxRecord record, String column) {
+        Object value = record.getValueByKey(column);
+        if (value instanceof Instant instant) {
+            return instant;
         }
-        throw new InfluxException("Measurement point is missing numeric field " + field);
+        throw new InfluxException("Measurement page row is missing instant column " + column);
+    }
+
+    private static String requiredString(FluxRecord record, String column) {
+        Object value = record.getValueByKey(column);
+        if (value instanceof String text && !text.isBlank()) {
+            return text;
+        }
+        throw new InfluxException("Measurement page row is missing string column " + column);
+    }
+
+    private static Number requiredNumber(FluxRecord record, String column) {
+        Object value = record.getValueByKey(column);
+        if (value instanceof Number number) {
+            return number;
+        }
+        throw new InfluxException("Measurement page row is missing numeric column " + column);
+    }
+
+    private record BucketKey(Instant from, Instant to) implements Comparable<BucketKey> {
+
+        @Override
+        public int compareTo(BucketKey other) {
+            int fromComparison = from.compareTo(other.from);
+            return fromComparison != 0 ? fromComparison : to.compareTo(other.to);
+        }
     }
 
     @Override
     public Instant getSystemTime() {
-        String time = "import \"system\" import \"array\" array.from(rows: [{time: system.time()}])";
-
-        QueryApi queryApi = this.client.getQueryApi();
-        List<FluxTable> tables = queryApi.query(time, properties.org());
-
-        Instant returnResult = null;
-
+        List<FluxTable> tables = client.getQueryApi().query(FluxQueries.systemTime(), properties.org());
         for (FluxTable table : tables) {
-            List<FluxRecord> records = table.getRecords();
-            for (FluxRecord record : records) {
-                returnResult = (Instant) record.getValueByIndex(2);
+            for (FluxRecord record : table.getRecords()) {
+                return requiredInstant(record, "time");
             }
         }
-        if (returnResult == null) {
-            throw new InfluxException("InfluxDB did not return system time");
-        }
-        return returnResult;
+        throw new InfluxException("InfluxDB did not return system time");
     }
 }

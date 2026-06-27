@@ -10,7 +10,6 @@ import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
 
@@ -22,11 +21,7 @@ public class JwtAuthorityMapper {
     }
 
     Collection<GrantedAuthority> authorities(Jwt jwt) {
-        Set<String> authorityNames = new LinkedHashSet<>();
-        authorityNames.addAll(apiClientRoles(jwt));
-        authorityNames.addAll(scopeAuthorities(jwt));
-
-        return authorityNames.stream()
+        return apiClientRoles(jwt).stream()
                 .map(SimpleGrantedAuthority::new)
                 .map(GrantedAuthority.class::cast)
                 .toList();
@@ -55,30 +50,6 @@ public class JwtAuthorityMapper {
             }
         }
         return mappedRoles;
-    }
-
-    private Collection<String> scopeAuthorities(Jwt jwt) {
-        Set<String> authorities = new LinkedHashSet<>();
-
-        Object scope = jwt.getClaim("scope");
-        if (scope instanceof String scopeText) {
-            for (String value : scopeText.split(" ")) {
-                if (!value.isBlank()) {
-                    authorities.add(value);
-                }
-            }
-        }
-
-        Object scp = jwt.getClaim("scp");
-        if (scp instanceof Collection<?> values) {
-            for (Object value : values) {
-                if (value instanceof String authority && !authority.isBlank()) {
-                    authorities.add(authority);
-                }
-            }
-        }
-
-        return authorities;
     }
 
     private String principalName(Jwt jwt) {

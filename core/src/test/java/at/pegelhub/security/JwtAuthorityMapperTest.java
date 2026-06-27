@@ -14,7 +14,7 @@ class JwtAuthorityMapperTest {
     private final JwtAuthorityMapper mapper = new JwtAuthorityMapper();
 
     @Test
-    void mapsApiClientRolesAndScopesToAuthorities() {
+    void mapsOnlyCoreApiClientRolesToAuthorities() {
         Jwt jwt = jwt(Map.of(
                 "resource_access", Map.of(
                         "pegelhub-core-api", Map.of("roles", List.of(
@@ -27,9 +27,7 @@ class JwtAuthorityMapperTest {
                 .extracting(Object::toString)
                 .containsExactly(
                         PegelHubAuthority.MEASUREMENT_WRITE.value(),
-                        PegelHubAuthority.TELEMETRY_WRITE.value(),
-                        PegelHubAuthority.METADATA_READ.value(),
-                        PegelHubAuthority.SYSTEM_ADMIN.value());
+                        PegelHubAuthority.TELEMETRY_WRITE.value());
     }
 
     @Test

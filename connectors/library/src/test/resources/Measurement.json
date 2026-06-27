@@ -1,11 +1,18 @@
 {
-  "timeSeriesId": {
-    "value": "395c0232-d110-40fd-bd7f-2bb4a0f2009d"
+  "timeSeriesId": "395c0232-d110-40fd-bd7f-2bb4a0f2009d",
+  "window": {
+    "from": "2023-04-19T12:27:51.460Z",
+    "to": "2023-04-19T13:27:51.460Z",
+    "requested": "72h"
   },
-  "observedAt": "2023-04-19T13:27:51.460Z",
-  "receivedAt": "2023-04-19T13:27:52.460Z",
-  "value": 0.1,
-  "submittedByConnectorId": {
-    "value": "74bcffac-8fa6-41ac-aa9d-53d082447226"
-  }
+  "order": "desc",
+  "limit": 1,
+  "truncated": false,
+  "nextCursor": null,
+  "measurements": [
+    {
+      "observedAt": "2023-04-19T13:27:51.460Z",
+      "value": 0.1
+    }
+  ]
 }

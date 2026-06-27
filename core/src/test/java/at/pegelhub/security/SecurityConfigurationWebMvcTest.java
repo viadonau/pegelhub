@@ -3,8 +3,12 @@ package at.pegelhub.security;
 import at.pegelhub.connector.api.HttpAdminConnectorController;
 import at.pegelhub.connector.application.ConnectorService;
 import at.pegelhub.connector.domain.ConnectorStatus;
-import at.pegelhub.measurement.api.HttpMeasurementController;
+import at.pegelhub.measurement.api.MeasurementController;
+import at.pegelhub.measurement.api.read.MeasurementReadQueryResolver;
+import at.pegelhub.measurement.application.MeasurementBucketResolutionPolicy;
+import at.pegelhub.measurement.application.MeasurementList;
 import at.pegelhub.measurement.application.MeasurementService;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.ImportAutoConfiguration;
@@ -22,6 +26,7 @@ import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -34,8 +39,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@WebMvcTest({HttpMeasurementController.class, HttpAdminConnectorController.class})
-@Import({SecurityConfiguration.class, JwtAuthorityMapper.class})
+@WebMvcTest({MeasurementController.class, HttpAdminConnectorController.class})
+@Import({SecurityConfiguration.class, JwtAuthorityMapper.class, MeasurementReadQueryResolver.class, MeasurementBucketResolutionPolicy.class})
 @ImportAutoConfiguration({
         SecurityAutoConfiguration.class,
         ServletWebSecurityAutoConfiguration.class,
@@ -59,6 +64,15 @@ class SecurityConfigurationWebMvcTest {
 
     @MockitoBean
     private ConnectorService connectorService;
+
+    @MockitoBean
+    private Clock clock;
+
+    @BeforeEach
+    void prepareMeasurementReads() {
+        when(measurementService.listMeasurements(any())).thenAnswer(invocation ->
+                new MeasurementList(invocation.getArgument(0), false, null, List.of()));
+    }
 
     @Test
     void protectedApiReturnsUnauthorizedWhenTokenIsMissing() throws Exception {
@@ -116,7 +130,7 @@ class SecurityConfigurationWebMvcTest {
                         .header("Authorization", "Bearer measurement-token")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(measurementsJson()))
-                .andExpect(status().isOk());
+                .andExpect(status().isNoContent());
     }
 
     @Test
@@ -131,6 +145,36 @@ class SecurityConfigurationWebMvcTest {
                         .header("Authorization", "Bearer operator-measurement-token")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(measurementsJson()))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void measurementReadTokenCanReadRawMeasurements() throws Exception {
+        when(jwtDecoder.decode("measurement-read-token"))
+                .thenReturn(jwt(
+                        "measurement-read-token",
+                        "local-connector-example",
+                        List.of(PegelHubAuthority.MEASUREMENT_READ.value())));
+
+        mockMvc.perform(get("/api/v1/time-series/{timeSeriesId}/measurements", "8ce8c5b6-f093-4d46-b770-7239cdfa3d76")
+                        .header("Authorization", "Bearer measurement-read-token")
+                        .param("from", "2026-06-17T00:00:00Z")
+                        .param("to", "2026-06-17T01:00:00Z"))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void metadataReadTokenCannotReadRawMeasurements() throws Exception {
+        when(jwtDecoder.decode("metadata-read-token"))
+                .thenReturn(jwt(
+                        "metadata-read-token",
+                        "local-operator",
+                        List.of(PegelHubAuthority.METADATA_READ.value())));
+
+        mockMvc.perform(get("/api/v1/time-series/{timeSeriesId}/measurements", "8ce8c5b6-f093-4d46-b770-7239cdfa3d76")
+                        .header("Authorization", "Bearer metadata-read-token")
+                        .param("from", "2026-06-17T00:00:00Z")
+                        .param("to", "2026-06-17T01:00:00Z"))
                 .andExpect(status().isForbidden());
     }
 

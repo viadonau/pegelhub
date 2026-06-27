@@ -17,6 +17,8 @@ import java.util.stream.Collectors;
 @Component
 public class CurrentActor {
 
+    static final String ACTOR_TYPE_CLAIM = "pegelhub_actor_type";
+
     public PegelHubActor get() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (!(authentication instanceof JwtAuthenticationToken jwtAuthentication)) {
@@ -26,24 +28,45 @@ public class CurrentActor {
     }
 
     PegelHubActor from(Jwt jwt, Collection<? extends GrantedAuthority> authorities) {
+        String subject = clean(jwt.getSubject());
+        String clientId = clientId(jwt);
+        PegelHubActorType type = actorType(jwt);
+        validateIdentity(type, subject, clientId);
         return new PegelHubActor(
-                jwt.getSubject(),
-                clientId(jwt),
+                type,
+                subject,
+                clientId,
                 pegelHubAuthorities(authorities));
     }
 
+    private PegelHubActorType actorType(Jwt jwt) {
+        String claim = clean(jwt.getClaimAsString(ACTOR_TYPE_CLAIM));
+        if (claim == null) {
+            throw new AuthenticationCredentialsNotFoundException("JWT has no " + ACTOR_TYPE_CLAIM + " claim");
+        }
+        try {
+            return PegelHubActorType.valueOf(claim);
+        } catch (IllegalArgumentException exception) {
+            throw new AuthenticationCredentialsNotFoundException("JWT has an unsupported " + ACTOR_TYPE_CLAIM + " claim");
+        }
+    }
+
+    private static void validateIdentity(PegelHubActorType type, String subject, String clientId) {
+        if (type == PegelHubActorType.USER && subject == null) {
+            throw new AuthenticationCredentialsNotFoundException("User JWT has no subject claim");
+        }
+        if (type == PegelHubActorType.CLIENT && clientId == null) {
+            throw new AuthenticationCredentialsNotFoundException("Client JWT has no client id");
+        }
+    }
+
     private String clientId(Jwt jwt) {
-        String authorizedParty = jwt.getClaimAsString("azp");
-        if (authorizedParty != null && !authorizedParty.isBlank()) {
+        String authorizedParty = clean(jwt.getClaimAsString("azp"));
+        if (authorizedParty != null) {
             return authorizedParty;
         }
 
-        String clientId = jwt.getClaimAsString("client_id");
-        if (clientId != null && !clientId.isBlank()) {
-            return clientId;
-        }
-
-        return jwt.getSubject();
+        return clean(jwt.getClaimAsString("client_id"));
     }
 
     private Set<PegelHubAuthority> pegelHubAuthorities(Collection<? extends GrantedAuthority> authorities) {
@@ -53,5 +76,9 @@ public class CurrentActor {
                 .flatMap(Optional::stream)
                 .filter(Objects::nonNull)
                 .collect(Collectors.toUnmodifiableSet());
+    }
+
+    private static String clean(String value) {
+        return value == null || value.isBlank() ? null : value;
     }
 }

@@ -6,26 +6,14 @@ import java.time.Instant;
 import java.util.UUID;
 
 public record MeasurementReceiveDto(
-        IdDto timeSeriesId,
         Instant observedAt,
-        Instant receivedAt,
-        Double value,
-        IdDto submittedByConnectorId) {
+        Double value) {
 
-    public Measurement toMeasurement() {
+    public Measurement toMeasurement(UUID timeSeriesId) {
         Measurement measurement = new Measurement();
-        measurement.setTimeSeriesId(valueOf(timeSeriesId));
+        measurement.setTimeSeriesId(timeSeriesId);
         measurement.setObservedAt(observedAt);
-        measurement.setReceivedAt(receivedAt);
         measurement.setValue(value);
-        measurement.setSubmittedByConnectorId(valueOf(submittedByConnectorId));
         return measurement;
-    }
-
-    private static UUID valueOf(IdDto id) {
-        return id == null ? null : id.value();
-    }
-
-    public record IdDto(UUID value) {
     }
 }

@@ -26,6 +26,7 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.net.URLEncoder;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
@@ -35,6 +36,7 @@ import java.util.stream.Collectors;
 public class HttpPegelHubCommunicator implements PegelHubCommunicator {
 
     private static final Logger LOG = LoggerFactory.getLogger(HttpPegelHubCommunicator.class);
+    private static final String LATEST_MEASUREMENT_WINDOW = "365d";
     private final String measurementRoute;
     private final String contactRoute;
     private final String connectorRoute;
@@ -107,7 +109,7 @@ public class HttpPegelHubCommunicator implements PegelHubCommunicator {
         this.baseUrl = baseUrl;
         this.measurementRoute = "api/v1/measurements";
         this.contactRoute = "api/v1/contact";
-        this.connectorRoute = "api/v1/connector";
+        this.connectorRoute = "api/v1/connectors";
         this.properties = properties;
         requireOAuthConfiguration();
     }
@@ -123,7 +125,7 @@ public class HttpPegelHubCommunicator implements PegelHubCommunicator {
     @Override
     public Collection<Measurement> getMeasurementsOfTimeSeries(UUID timeSeriesId, String timespan) {
         try {
-            final URI uri = baseUrl.toURI().resolve("api/v1/time-series/" + timeSeriesId + "/measurements/" + timespan);
+            final URI uri = measurementsUri(timeSeriesId, "last=" + urlEncode(timespan));
             final var http = new HttpGet(uri);
             authorize(http);
 
@@ -133,12 +135,7 @@ public class HttpPegelHubCommunicator implements PegelHubCommunicator {
                 }
                 var json = EntityUtils.toString(response.getEntity());
                 var gson = gsonWithInstantSupport();
-                var listType = new TypeToken<List<MeasurementReceiveDto>>() {
-                };
-                List<MeasurementReceiveDto> measurements = gson.fromJson(json, listType);
-                return measurements.stream()
-                        .map(MeasurementReceiveDto::toMeasurement)
-                        .toList();
+                return gson.fromJson(json, MeasurementListReceiveDto.class).toMeasurements();
             });
         } catch (NotFoundException nfe) {
             throw new NotFoundException(nfe.getMessage());
@@ -150,7 +147,7 @@ public class HttpPegelHubCommunicator implements PegelHubCommunicator {
     @Override
     public Optional<Measurement> getLatestMeasurementOfTimeSeries(UUID timeSeriesId) {
         try {
-            final URI uri = baseUrl.toURI().resolve("api/v1/time-series/" + timeSeriesId + "/measurements/latest");
+            final URI uri = measurementsUri(timeSeriesId, "last=" + LATEST_MEASUREMENT_WINDOW + "&order=desc&limit=1");
             final var http = new HttpGet(uri);
             authorize(http);
 
@@ -161,7 +158,9 @@ public class HttpPegelHubCommunicator implements PegelHubCommunicator {
 
                 var json = EntityUtils.toString(response.getEntity());
                 var gson = gsonWithInstantSupport();
-                return gson.fromJson(json, MeasurementReceiveDto.class).toMeasurement();
+                return gson.fromJson(json, MeasurementListReceiveDto.class).toMeasurements().stream()
+                        .findFirst()
+                        .orElse(null);
             }));
         } catch (Exception e) {
             throw new RuntimeException(e);
@@ -183,7 +182,7 @@ public class HttpPegelHubCommunicator implements PegelHubCommunicator {
 
             boolean result = client.<Boolean>execute(http, response -> {
                 EntityUtils.consume(response.getEntity());
-                return response.getCode() == HttpStatus.SC_OK;
+                return response.getCode() == HttpStatus.SC_OK || response.getCode() == HttpStatus.SC_NO_CONTENT;
             });
             if (!result) {
                 throw new RuntimeException("Invalid request");
@@ -191,6 +190,14 @@ public class HttpPegelHubCommunicator implements PegelHubCommunicator {
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
+    }
+
+    private URI measurementsUri(UUID timeSeriesId, String query) throws URISyntaxException {
+        return baseUrl.toURI().resolve("api/v1/time-series/" + timeSeriesId + "/measurements?" + query);
+    }
+
+    private static String urlEncode(String value) {
+        return URLEncoder.encode(value, StandardCharsets.UTF_8);
     }
 
     private MeasurementSendDto toMeasurementSendDto(Measurement measurement) {

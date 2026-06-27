@@ -1,9 +1,11 @@
 package at.pegelhub.measurement.persistence;
 
 
+import at.pegelhub.measurement.application.MeasurementBucketQuery;
+import at.pegelhub.measurement.application.MeasurementListQuery;
+import at.pegelhub.measurement.application.MeasurementPageRow;
 import at.pegelhub.measurement.domain.Measurement;
-import at.pegelhub.measurement.domain.MeasurementAverage;
-import at.pegelhub.timeseries.domain.TimeSeriesId;
+import at.pegelhub.measurement.domain.MeasurementBucket;
 
 import java.time.Instant;
 import java.util.List;
@@ -20,31 +22,9 @@ public interface MeasurementRepository {
      */
     void storeMeasurements(List<Measurement> measurements);
 
-    /**
-     * Queries measurements from the repository.
-     *
-     * @param timeSeriesId of the TimeSeries.
-     * @param range in which the returned values reside.
-     * @return the measurements for that TimeSeries in that range.
-     */
-    List<Measurement> getByTimeSeriesIdAndRange(TimeSeriesId timeSeriesId, String range);
+    List<MeasurementPageRow> findMeasurements(MeasurementListQuery query);
 
-    /**
-     * Queries the last measurement from the repository.
-     *
-     * @param timeSeriesId of the TimeSeries.
-     * @return the latest measurement for that TimeSeries.
-     */
-    Measurement getLatestByTimeSeriesId(TimeSeriesId timeSeriesId);
-
-    /**
-     * Calculates the average value for a TimeSeries over a given time range.
-     *
-     * @param timeSeriesId of the TimeSeries.
-     * @param range in which to calculate the average.
-     * @return the aggregate average for that TimeSeries and range.
-     */
-    MeasurementAverage getAverageByTimeSeriesIdAndRange(TimeSeriesId timeSeriesId, String range);
+    List<MeasurementBucket> findMeasurementBuckets(MeasurementBucketQuery query);
 
     Instant getSystemTime();
 }

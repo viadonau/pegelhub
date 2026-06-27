@@ -38,6 +38,7 @@ public class SecurityConfiguration {
                         .requestMatchers("/actuator/health", "/actuator/health/**", "/actuator/info").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/v1/admin/connectors").hasAuthority(SYSTEM_ADMIN.value())
                         .requestMatchers(HttpMethod.POST, "/api/v1/measurements").hasAuthority(MEASUREMENT_WRITE.value())
+                        .requestMatchers(HttpMethod.GET, "/api/v1/time-series/*/measurements").hasAnyAuthority(MEASUREMENT_READ.value(), SYSTEM_ADMIN.value())
                         .requestMatchers(HttpMethod.GET, "/api/v1/time-series/*/measurements/**").hasAnyAuthority(MEASUREMENT_READ.value(), SYSTEM_ADMIN.value())
                         .requestMatchers(HttpMethod.POST, "/api/v1/telemetry").hasAnyAuthority(TELEMETRY_WRITE.value(), SYSTEM_ADMIN.value())
                         .requestMatchers(HttpMethod.GET, "/api/v1/telemetry/**").hasAnyAuthority(TELEMETRY_READ.value(), SYSTEM_ADMIN.value())
