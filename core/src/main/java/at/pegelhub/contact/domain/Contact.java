@@ -55,6 +55,74 @@ public final class Contact {
         this.id = null;
     }
 
+    public UUID getId() {
+        return id;
+    }
+
+    public String getOrganization() {
+        return organization;
+    }
+
+    public String getContactPerson() {
+        return contactPerson;
+    }
+
+    public String getContactStreet() {
+        return contactStreet;
+    }
+
+    public String getContactPlz() {
+        return contactPlz;
+    }
+
+    public String getLocation() {
+        return location;
+    }
+
+    public String getContactCountry() {
+        return contactCountry;
+    }
+
+    public String getEmergencyNumber() {
+        return emergencyNumber;
+    }
+
+    public String getEmergencyNumberTwo() {
+        return emergencyNumberTwo;
+    }
+
+    public String getEmergencyMail() {
+        return emergencyMail;
+    }
+
+    public String getServiceNumber() {
+        return serviceNumber;
+    }
+
+    public String getServiceNumberTwo() {
+        return serviceNumberTwo;
+    }
+
+    public String getServiceMail() {
+        return serviceMail;
+    }
+
+    public String getAdministrationPhoneNumber() {
+        return administrationPhoneNumber;
+    }
+
+    public String getAdministrationPhoneNumberTwo() {
+        return administrationPhoneNumberTwo;
+    }
+
+    public String getAdministrationMail() {
+        return administrationMail;
+    }
+
+    public String getContactNodes() {
+        return contactNodes;
+    }
+
     public Contact withId(UUID uuid) {
         return new Contact(uuid, this.organization, this.contactPerson, this.contactStreet, this.contactPlz,
                 this.location, this.contactCountry, this.emergencyNumber, this.emergencyNumberTwo,

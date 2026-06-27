@@ -230,4 +230,4 @@ mvn -f connectors/icc-connector/pom.xml test
 - TimeSeries may define an optional `sourceConnectorId` during metadata configuration; if present, only that connector can write source Measurements for the TimeSeries.
 - Station-level AccessGrants include future TimeSeries.
 - Technical connector telemetry is separate from hydrological Measurements.
-- Averages are derived aggregates and are returned as `MeasurementAverage`, not as observed Measurements.
+- Chart buckets are derived aggregates and are returned separately from observed Measurements.
