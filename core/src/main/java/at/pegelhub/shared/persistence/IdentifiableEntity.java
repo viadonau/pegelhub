@@ -19,4 +19,12 @@ public abstract class IdentifiableEntity implements Serializable {
     @Id
     @Column(name = "id", nullable = false)
     protected UUID id;
+
+    public UUID getId() {
+        return id;
+    }
+
+    public void setId(UUID id) {
+        this.id = id;
+    }
 }

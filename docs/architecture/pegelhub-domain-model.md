@@ -100,14 +100,6 @@ erDiagram
         uuid submittedByConnectorId
     }
 
-    MeasurementAverage {
-        uuid timeSeriesId
-        instant rangeStart
-        instant rangeEnd
-        double value
-        long sampleCount
-    }
-
     Telemetry {
         string measurement
         string stationIPAddressIntern
@@ -200,9 +192,10 @@ sequenceDiagram
 
 ```mermaid
 flowchart TD
-    A["GET /time-series/{id}/measurements/{range}"] --> MS[MeasurementService]
-    B["GET /time-series/{id}/measurements/latest"] --> MS
-    C["GET /time-series/{id}/measurements/average/{range}"] --> MS
+    A["GET /time-series/{id}/measurements?last=..."] --> MS[MeasurementService]
+    B["GET /time-series/{id}/measurements?from=...&to=..."] --> MS
+    C["GET /time-series/{id}/measurements?last=365d&order=desc&limit=1"] --> MS
+    E["GET /time-series/{id}/measurements/buckets?last=..."] --> MS
     D["GET /measurements/system-time"] --> MR[InfluxMeasurementRepository]
 
     MS --> TS["TimeSeriesService: validate TimeSeries exists"]
@@ -222,9 +215,10 @@ The security column names the effective Spring Security rule. Most metadata rout
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
 | POST | `/api/v1/measurements` | `MEASUREMENT_WRITE` | Write measurements |
-| GET | `/api/v1/time-series/{timeSeriesId}/measurements/{range}` | `MEASUREMENT_READ` or `SYSTEM_ADMIN` | Range query for TimeSeries |
-| GET | `/api/v1/time-series/{timeSeriesId}/measurements/latest` | `MEASUREMENT_READ` or `SYSTEM_ADMIN` | Latest value for TimeSeries |
-| GET | `/api/v1/time-series/{timeSeriesId}/measurements/average/{range}` | `MEASUREMENT_READ` or `SYSTEM_ADMIN` | Derived average over range |
+| GET | `/api/v1/time-series/{timeSeriesId}/measurements?last={duration}` | `MEASUREMENT_READ` or `SYSTEM_ADMIN` | Raw TimeSeries measurements in a relative window |
+| GET | `/api/v1/time-series/{timeSeriesId}/measurements?from={instant}&to={instant}` | `MEASUREMENT_READ` or `SYSTEM_ADMIN` | Raw TimeSeries measurements in an explicit window |
+| GET | `/api/v1/time-series/{timeSeriesId}/measurements?last={duration}&order=desc&limit=1` | `MEASUREMENT_READ` or `SYSTEM_ADMIN` | Latest value for TimeSeries through the paged raw query |
+| GET | `/api/v1/time-series/{timeSeriesId}/measurements/buckets?last={duration}` | `MEASUREMENT_READ` or `SYSTEM_ADMIN` | Average buckets for chart-ready TimeSeries reads |
 | GET | `/api/v1/measurements/system-time` | public | InfluxDB system time |
 | POST | `/api/v1/admin/connectors` | `SYSTEM_ADMIN` | Register connector identity binding |
 | POST | `/api/v1/connectors` | `METADATA_WRITE` or `SYSTEM_ADMIN` | Create connector metadata |
