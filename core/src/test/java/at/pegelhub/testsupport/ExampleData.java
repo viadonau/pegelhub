@@ -3,8 +3,8 @@ package at.pegelhub.testsupport;
 import at.pegelhub.connector.domain.Connector;
 import at.pegelhub.connector.domain.ConnectorId;
 import at.pegelhub.contact.domain.Contact;
+import at.pegelhub.measurement.application.MeasurementPageRow;
 import at.pegelhub.measurement.domain.Measurement;
-import at.pegelhub.measurement.domain.MeasurementAverage;
 import at.pegelhub.telemetry.domain.Telemetry;
 import at.pegelhub.timeseries.domain.TimeSeriesId;
 import org.assertj.core.util.VisibleForTesting;
@@ -37,13 +37,11 @@ public final class ExampleData {
             Instant.parse(TIMESTAMP).plusSeconds(1),
             1.0,
             new ConnectorId(ID));
-    public static final List<Measurement> MEASUREMENTS = List.of(MEASUREMENT);
-    public static final MeasurementAverage MEASUREMENT_AVERAGE = new MeasurementAverage(
-            MEASUREMENT.timeSeriesId(),
-            Instant.parse(TIMESTAMP),
-            Instant.parse(TIMESTAMP).plusSeconds(3600),
-            1.0,
-            1);
+    public static final MeasurementPageRow MEASUREMENT_PAGE_ROW = new MeasurementPageRow(
+            MEASUREMENT.observedAt(),
+            MEASUREMENT.value(),
+            MEASUREMENT.submittedByConnectorId());
+    public static final List<MeasurementPageRow> MEASUREMENT_PAGE_ROWS = List.of(MEASUREMENT_PAGE_ROW);
     public static final Telemetry TELEMETRY = new Telemetry(MEASUREMENT_ID, IP_ADDRESS, IP_ADDRESS,
             Instant.parse(TIMESTAMP), CYCLE_TIME, TEMPERATURE, TEMPERATURE, PERFORMANCE, PERFORMANCE,
             PERFORMANCE, PERFORMANCE, FIELD_STRENGTH);

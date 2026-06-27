@@ -8,9 +8,10 @@ import at.pegelhub.connector.api.CreateConnectorDto;
 import at.pegelhub.connector.api.RegisterConnectorRequest;
 import at.pegelhub.connector.domain.ConnectorStatus;
 import at.pegelhub.contact.api.CreateContactDto;
-import at.pegelhub.measurement.api.WriteMeasurementDto;
-import at.pegelhub.measurement.api.WriteMeasurementsDto;
-import at.pegelhub.measurement.domain.Measurement;
+import at.pegelhub.measurement.api.read.output.MeasurementListResponse;
+import at.pegelhub.measurement.api.read.output.MeasurementPointResponse;
+import at.pegelhub.measurement.api.write.WriteMeasurementRequest;
+import at.pegelhub.measurement.api.write.WriteMeasurementsRequest;
 import at.pegelhub.station.api.CreateStationRequest;
 import at.pegelhub.station.api.StationResponse;
 import at.pegelhub.stationowner.api.CreateStationOwnerRequest;
@@ -19,7 +20,6 @@ import at.pegelhub.testsupport.FullStackIntegrationTestBase;
 import at.pegelhub.timeseries.api.CreateTimeSeriesRequest;
 import at.pegelhub.timeseries.api.TimeSeriesResponse;
 import org.junit.jupiter.api.Test;
-import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
@@ -58,13 +58,14 @@ final class FullStackWorkflowIntegrationTest extends FullStackIntegrationTestBas
         StationResponse station = postStation(operator, owner.id(), "station-" + suffix);
         TimeSeriesResponse timeSeries = postTimeSeries(operator, station.id(), "water-level", "cm");
         grantWriteAccess(operator, connector.id(), timeSeries.id());
+        grantReadAccess(operator, connector.id(), timeSeries.id());
         Instant latestTimestamp = Instant.now().minus(5, ChronoUnit.MINUTES).truncatedTo(ChronoUnit.SECONDS);
-        WriteMeasurementsDto measurements = new WriteMeasurementsDto(List.of(
-                new WriteMeasurementDto(
+        WriteMeasurementsRequest measurements = new WriteMeasurementsRequest(List.of(
+                new WriteMeasurementRequest(
                         timeSeries.id(),
                         latestTimestamp.minus(4, ChronoUnit.HOURS),
                         10.5),
-                new WriteMeasurementDto(
+                new WriteMeasurementRequest(
                         timeSeries.id(),
                         latestTimestamp,
                         11.5)));
@@ -74,33 +75,35 @@ final class FullStackWorkflowIntegrationTest extends FullStackIntegrationTestBas
                 HttpMethod.POST,
                 bearerEntity(measurements, connectorToken),
                 Void.class);
-        ResponseEntity<Measurement> latestResponse = rest.exchange(
-                "/api/v1/time-series/{timeSeriesId}/measurements/latest",
+        ResponseEntity<MeasurementListResponse> latestResponse = rest.exchange(
+                "/api/v1/time-series/{timeSeriesId}/measurements?last=3h&order=desc&limit=1",
                 HttpMethod.GET,
                 bearerEntity(null, connectorToken),
-                Measurement.class,
+                MeasurementListResponse.class,
                 timeSeries.id());
-        ResponseEntity<List<Measurement>> rangeResponse = rest.exchange(
-                "/api/v1/time-series/{timeSeriesId}/measurements/{range}",
+        ResponseEntity<MeasurementListResponse> rangeResponse = rest.exchange(
+                "/api/v1/time-series/{timeSeriesId}/measurements?last=3h",
                 HttpMethod.GET,
                 bearerEntity(null, connectorToken),
-                new ParameterizedTypeReference<>() {
-                },
-                timeSeries.id(),
-                "3h");
+                MeasurementListResponse.class,
+                timeSeries.id());
         ResponseEntity<String> systemTimeResponse = rest.getForEntity(
                 "/api/v1/measurements/system-time",
                 String.class);
 
-        assertThat(writeResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(writeResponse.getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
         assertThat(latestResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertMeasurement(latestResponse.getBody(), timeSeries.id(), latestTimestamp, connector.id(), 11.5);
-        assertThat(rangeResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(rangeResponse.getBody())
-                .isNotNull()
-                .filteredOn(measurement -> timeSeries.id().equals(measurement.timeSeriesId().value()))
+        assertThat(latestResponse.getBody()).isNotNull();
+        assertThat(latestResponse.getBody().timeSeriesId()).isEqualTo(timeSeries.id());
+        assertThat(latestResponse.getBody().measurements())
                 .singleElement()
-                .satisfies(measurement -> assertMeasurement(measurement, timeSeries.id(), latestTimestamp, connector.id(), 11.5));
+                .satisfies(measurement -> assertMeasurement(measurement, latestTimestamp, 11.5));
+        assertThat(rangeResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(rangeResponse.getBody()).isNotNull();
+        assertThat(rangeResponse.getBody().timeSeriesId()).isEqualTo(timeSeries.id());
+        assertThat(rangeResponse.getBody().measurements())
+                .singleElement()
+                .satisfies(measurement -> assertMeasurement(measurement, latestTimestamp, 11.5));
         assertThat(systemTimeResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(systemTimeResponse.getBody()).contains("T");
     }
@@ -159,6 +162,14 @@ final class FullStackWorkflowIntegrationTest extends FullStackIntegrationTestBas
     }
 
     private void grantWriteAccess(AuthToken operator, UUID connectorId, UUID timeSeriesId) {
+        grantAccess(operator, connectorId, timeSeriesId, AccessPermission.WRITE);
+    }
+
+    private void grantReadAccess(AuthToken operator, UUID connectorId, UUID timeSeriesId) {
+        grantAccess(operator, connectorId, timeSeriesId, AccessPermission.READ);
+    }
+
+    private void grantAccess(AuthToken operator, UUID connectorId, UUID timeSeriesId, AccessPermission permission) {
         ResponseEntity<Void> response = rest.exchange(
                 "/api/v1/access-grants",
                 HttpMethod.POST,
@@ -166,7 +177,7 @@ final class FullStackWorkflowIntegrationTest extends FullStackIntegrationTestBas
                         connectorId,
                         AccessResourceType.TIME_SERIES,
                         timeSeriesId,
-                        AccessPermission.WRITE), operator),
+                        permission), operator),
                 Void.class);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CREATED);
@@ -193,15 +204,11 @@ final class FullStackWorkflowIntegrationTest extends FullStackIntegrationTestBas
     }
 
     private static void assertMeasurement(
-            Measurement measurement,
-            UUID expectedTimeSeriesId,
+            MeasurementPointResponse measurement,
             Instant expectedTimestamp,
-            UUID expectedConnectorId,
             double expectedValue) {
         assertThat(measurement).isNotNull();
-        assertThat(measurement.timeSeriesId().value()).isEqualTo(expectedTimeSeriesId);
         assertThat(measurement.observedAt()).isEqualTo(expectedTimestamp);
-        assertThat(measurement.submittedByConnectorId().value()).isEqualTo(expectedConnectorId);
         assertThat(measurement.value()).isEqualTo(expectedValue);
     }
 

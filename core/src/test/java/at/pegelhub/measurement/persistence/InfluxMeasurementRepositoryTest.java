@@ -2,10 +2,17 @@ package at.pegelhub.measurement.persistence;
 
 import com.influxdb.client.InfluxDBClient;
 import at.pegelhub.connector.domain.ConnectorId;
+import at.pegelhub.measurement.application.MeasurementBucketQuery;
+import at.pegelhub.measurement.application.MeasurementBucketResolution;
+import at.pegelhub.measurement.application.MeasurementBucketWidth;
+import at.pegelhub.measurement.application.MeasurementCursor;
+import at.pegelhub.measurement.application.MeasurementListQuery;
+import at.pegelhub.measurement.application.MeasurementOrder;
+import at.pegelhub.measurement.application.MeasurementPageRow;
+import at.pegelhub.measurement.application.MeasurementWindow;
 import at.pegelhub.measurement.domain.Measurement;
-import at.pegelhub.shared.error.NotFoundException;
+import at.pegelhub.measurement.domain.MeasurementBucket;
 import at.pegelhub.shared.influx.DatabaseProperties;
-import at.pegelhub.shared.influx.FluxDuration;
 import at.pegelhub.testsupport.InfluxIntegrationTestBase;
 import at.pegelhub.testsupport.PegelHubInfluxContainer;
 import at.pegelhub.timeseries.domain.TimeSeriesId;
@@ -14,6 +21,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
+import java.time.Duration;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.UUID;
@@ -28,7 +36,6 @@ final class InfluxMeasurementRepositoryTest extends InfluxIntegrationTestBase {
             PegelHubInfluxContainer.ORG,
             PegelHubInfluxContainer.DATA_BUCKET,
             PegelHubInfluxContainer.ADMIN_TOKEN);
-    private static final FluxDuration LATEST_RANGE = new FluxDuration("72h");
 
     private InfluxDBClient client;
     private InfluxMeasurementRepository repository;
@@ -36,7 +43,7 @@ final class InfluxMeasurementRepositoryTest extends InfluxIntegrationTestBase {
     @BeforeEach
     void setUp() {
         client = getInfluxDBDataClient();
-        repository = new InfluxMeasurementRepository(client, PROPERTIES, LATEST_RANGE);
+        repository = new InfluxMeasurementRepository(client, PROPERTIES);
     }
 
     @AfterEach
@@ -46,9 +53,8 @@ final class InfluxMeasurementRepositoryTest extends InfluxIntegrationTestBase {
 
     @Test
     void constructorWithNullArgsThrowsNPE() {
-        assertThrows(NullPointerException.class, () -> new InfluxMeasurementRepository(null, PROPERTIES, LATEST_RANGE));
-        assertThrows(NullPointerException.class, () -> new InfluxMeasurementRepository(client, null, LATEST_RANGE));
-        assertThrows(NullPointerException.class, () -> new InfluxMeasurementRepository(client, PROPERTIES, null));
+        assertThrows(NullPointerException.class, () -> new InfluxMeasurementRepository(null, PROPERTIES));
+        assertThrows(NullPointerException.class, () -> new InfluxMeasurementRepository(client, null));
     }
 
     @Test
@@ -74,8 +80,18 @@ final class InfluxMeasurementRepositoryTest extends InfluxIntegrationTestBase {
 
         repository.storeMeasurements(List.of(oldMeasurement, recentMeasurement));
 
-        assertThat(repository.getByTimeSeriesIdAndRange(timeSeriesId, "3h")).containsExactly(recentMeasurement);
-        assertThat(repository.getLatestByTimeSeriesId(timeSeriesId)).isEqualTo(recentMeasurement);
+        var query = new MeasurementListQuery(
+                timeSeriesId,
+                new MeasurementWindow(recentTimestamp.minus(3, ChronoUnit.HOURS), recentTimestamp.plusSeconds(30), null),
+                MeasurementOrder.ASC,
+                100,
+                null);
+
+        assertThat(repository.findMeasurements(query))
+                .containsExactly(new MeasurementPageRow(
+                        recentMeasurement.observedAt(),
+                        recentMeasurement.value(),
+                        recentMeasurement.submittedByConnectorId()));
     }
 
     @Test
@@ -101,27 +117,124 @@ final class InfluxMeasurementRepositoryTest extends InfluxIntegrationTestBase {
 
         repository.storeMeasurements(List.of(first, second));
 
-        var average = repository.getAverageByTimeSeriesIdAndRange(timeSeriesId, "3h");
+        var buckets = repository.findMeasurementBuckets(new MeasurementBucketQuery(
+                timeSeriesId,
+                new MeasurementWindow(baseTimestamp.minus(10, ChronoUnit.MINUTES), baseTimestamp.plus(10, ChronoUnit.MINUTES), null),
+                MeasurementBucketResolution.explicit(new MeasurementBucketWidth(Duration.ofHours(1)))));
 
-        assertThat(average.timeSeriesId()).isEqualTo(timeSeriesId);
-        assertThat(average.value()).isEqualTo(15.0);
-        assertThat(average.sampleCount()).isEqualTo(2);
-        assertThat(average.rangeEnd()).isAfter(average.rangeStart());
+        assertThat(buckets)
+                .singleElement()
+                .satisfies(bucket -> {
+                    assertThat(bucket.timeSeriesId()).isEqualTo(timeSeriesId);
+                    assertThat(bucket.value()).isEqualTo(15.0);
+                    assertThat(bucket.sampleCount()).isEqualTo(2);
+                    assertThat(bucket.to()).isAfter(bucket.from());
+                });
     }
 
     @Test
-    void invalidRangeThrowsIllegalArgumentException() {
-        TimeSeriesId anyTimeSeries = new TimeSeriesId(UUID.randomUUID());
-        assertThrows(IllegalArgumentException.class, () -> repository.getByTimeSeriesIdAndRange(anyTimeSeries, null));
-        assertThrows(IllegalArgumentException.class, () -> repository.getByTimeSeriesIdAndRange(anyTimeSeries, ""));
-        assertThrows(IllegalArgumentException.class, () -> repository.getByTimeSeriesIdAndRange(anyTimeSeries, "null"));
-        assertThrows(IllegalArgumentException.class, () -> repository.getByTimeSeriesIdAndRange(anyTimeSeries, "-3d"));
+    void returnsSeparateMeasurementBucketsForAggregateWindows() {
+        TimeSeriesId timeSeriesId = new TimeSeriesId(UUID.randomUUID());
+        ConnectorId connectorId = new ConnectorId(UUID.randomUUID());
+        Instant baseTimestamp = Instant.now()
+                .minus(2, ChronoUnit.HOURS)
+                .truncatedTo(ChronoUnit.HOURS);
+        Measurement first = new Measurement(
+                timeSeriesId,
+                baseTimestamp,
+                baseTimestamp.plusSeconds(1),
+                10.0,
+                connectorId);
+        Measurement second = new Measurement(
+                timeSeriesId,
+                baseTimestamp.plus(5, ChronoUnit.MINUTES),
+                baseTimestamp.plus(5, ChronoUnit.MINUTES).plusSeconds(1),
+                20.0,
+                connectorId);
+        Measurement third = new Measurement(
+                timeSeriesId,
+                baseTimestamp.plus(20, ChronoUnit.MINUTES),
+                baseTimestamp.plus(20, ChronoUnit.MINUTES).plusSeconds(1),
+                30.0,
+                connectorId);
+
+        repository.storeMeasurements(List.of(first, second, third));
+
+        var buckets = repository.findMeasurementBuckets(new MeasurementBucketQuery(
+                timeSeriesId,
+                new MeasurementWindow(baseTimestamp.minus(1, ChronoUnit.MINUTES), baseTimestamp.plus(40, ChronoUnit.MINUTES), null),
+                MeasurementBucketResolution.explicit(new MeasurementBucketWidth(Duration.ofMinutes(15)))));
+
+        assertThat(buckets)
+                .hasSize(2)
+                .extracting(MeasurementBucket::value, MeasurementBucket::sampleCount)
+                .containsExactly(
+                        org.assertj.core.groups.Tuple.tuple(15.0, 2L),
+                        org.assertj.core.groups.Tuple.tuple(30.0, 1L));
+        assertThat(buckets)
+                .allSatisfy(bucket -> assertThat(bucket.to()).isEqualTo(bucket.from().plus(15, ChronoUnit.MINUTES)));
     }
 
     @Test
-    void missingLatestMeasurementThrowsNotFoundException() {
-        UUID id = UUID.fromString("e27efad9-b947-48b1-928e-c25663597f1c");
+    void returnsInfluxSystemTime() {
+        Instant before = Instant.now().minus(5, ChronoUnit.SECONDS);
 
-        assertThrows(NotFoundException.class, () -> repository.getLatestByTimeSeriesId(new TimeSeriesId(id)));
+        Instant systemTime = repository.getSystemTime();
+
+        assertThat(systemTime).isBetween(before, Instant.now().plus(5, ChronoUnit.SECONDS));
+    }
+
+    @Test
+    void missingWindowMeasurementsReturnEmptyList() {
+        TimeSeriesId timeSeriesId = new TimeSeriesId(UUID.fromString("e27efad9-b947-48b1-928e-c25663597f1c"));
+        var query = new MeasurementListQuery(
+                timeSeriesId,
+                new MeasurementWindow(Instant.parse("2026-01-01T00:00:00Z"), Instant.parse("2026-01-01T01:00:00Z"), null),
+                MeasurementOrder.ASC,
+                100,
+                null);
+
+        assertThat(repository.findMeasurements(query)).isEmpty();
+    }
+
+    @Test
+    void appliesCompositeCursorOrderingInInflux() {
+        TimeSeriesId timeSeriesId = new TimeSeriesId(UUID.randomUUID());
+        ConnectorId connectorA = new ConnectorId(UUID.fromString("00000000-0000-0000-0000-000000000001"));
+        ConnectorId connectorB = new ConnectorId(UUID.fromString("00000000-0000-0000-0000-000000000002"));
+        Instant sharedTimestamp = Instant.now()
+                .minus(1, ChronoUnit.HOURS)
+                .truncatedTo(ChronoUnit.SECONDS);
+        Measurement first = new Measurement(
+                timeSeriesId,
+                sharedTimestamp,
+                sharedTimestamp.plusSeconds(1),
+                10.0,
+                connectorA);
+        Measurement second = new Measurement(
+                timeSeriesId,
+                sharedTimestamp,
+                sharedTimestamp.plusSeconds(2),
+                11.0,
+                connectorB);
+        Measurement third = new Measurement(
+                timeSeriesId,
+                sharedTimestamp.plusSeconds(60),
+                sharedTimestamp.plusSeconds(61),
+                12.0,
+                connectorA);
+
+        repository.storeMeasurements(List.of(first, second, third));
+
+        var query = new MeasurementListQuery(
+                timeSeriesId,
+                new MeasurementWindow(sharedTimestamp.minus(10, ChronoUnit.MINUTES), sharedTimestamp.plus(10, ChronoUnit.MINUTES), null),
+                MeasurementOrder.ASC,
+                2,
+                new MeasurementCursor(sharedTimestamp, connectorA));
+
+        assertThat(repository.findMeasurements(query))
+                .extracting(MeasurementPageRow::value)
+                .containsExactly(11.0, 12.0);
     }
 }

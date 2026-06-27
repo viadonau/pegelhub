@@ -73,7 +73,7 @@ public class HttpPegelHubCommunicatorTest {
             HttpEntity entity = mock(HttpEntity.class);
             String body = request.getUri().toString().contains("keycloak.local")
                     ? "{\"access_token\":\"local-access-token\",\"expires_in\":300}"
-                    : getResource("EmptyArray.json");
+                    : getResource("MeasurementsEmptyResponse.json");
             when(entity.getContent()).thenReturn(new ByteArrayInputStream(body.getBytes()));
             when(httpResp.getEntity()).thenReturn(entity);
             when(httpResp.getCode()).thenReturn(HttpStatus.SC_OK);
@@ -99,7 +99,7 @@ public class HttpPegelHubCommunicatorTest {
             HttpEntity entity = mock(HttpEntity.class);
             String body = request.getUri().toString().contains("keycloak.local")
                     ? "{\"access_token\":\"local-access-token\",\"expires_in\":300}"
-                    : getResource("EmptyArray.json");
+                    : getResource("MeasurementsEmptyResponse.json");
             when(entity.getContent()).thenReturn(new ByteArrayInputStream(body.getBytes()));
             when(httpResp.getEntity()).thenReturn(entity);
             when(httpResp.getCode()).thenReturn(HttpStatus.SC_OK);
@@ -139,11 +139,12 @@ public class HttpPegelHubCommunicatorTest {
     class ConnectorAPITest {
         @Test
         public void getConnectors_NotEmptyCollectionWhenData() throws IOException {
-            mockSuccessfulResponse(getResource("ConnectorsFilledResponse.json"));
+            List<String> requestUris = mockSuccessfulResponse(getResource("ConnectorsFilledResponse.json"));
 
             Collection<Connector> connectors = phc.getConnectors();
 
             assertFalse(connectors.isEmpty());
+            assertEquals("http://localhost:1111/api/v1/connectors", requestUris.get(1));
         }
 
         @Test
@@ -298,7 +299,7 @@ public class HttpPegelHubCommunicatorTest {
 
             assertFalse(measurements.isEmpty());
             assertEquals(
-                    "http://localhost:1111/api/v1/time-series/395c0232-d110-40fd-bd7f-2bb4a0f2009d/measurements/72h",
+                    "http://localhost:1111/api/v1/time-series/395c0232-d110-40fd-bd7f-2bb4a0f2009d/measurements?last=72h",
                     requestUris.get(1));
         }
 
@@ -327,7 +328,7 @@ public class HttpPegelHubCommunicatorTest {
 
             assertTrue(measurement.isPresent());
             assertEquals(
-                    "http://localhost:1111/api/v1/time-series/395c0232-d110-40fd-bd7f-2bb4a0f2009d/measurements/latest",
+                    "http://localhost:1111/api/v1/time-series/395c0232-d110-40fd-bd7f-2bb4a0f2009d/measurements?last=365d&order=desc&limit=1",
                     requestUris.get(1));
         }
 
@@ -400,9 +401,11 @@ public class HttpPegelHubCommunicatorTest {
         }
     }
 
-    private void mockSuccessfulResponse(String response) throws IOException {
+    private List<String> mockSuccessfulResponse(String response) throws IOException {
+        List<String> requestUris = new ArrayList<>();
         when(httpClient.execute(any(), any(HttpClientResponseHandler.class))).thenAnswer(a -> {
             var request = (org.apache.hc.client5.http.classic.methods.HttpUriRequestBase) a.getRawArguments()[0];
+            requestUris.add(request.getUri().toString());
             var responseCallback = (HttpClientResponseHandler<?>) a.getRawArguments()[1];
             ClassicHttpResponse httpResp = mock(ClassicHttpResponse.class);
             HttpEntity entity = mock(HttpEntity.class);
@@ -414,6 +417,7 @@ public class HttpPegelHubCommunicatorTest {
             when(httpResp.getCode()).thenReturn(HttpStatus.SC_OK);
             return responseCallback.handleResponse(httpResp);
         });
+        return requestUris;
     }
 
     private void mockFailedResponse(int code) throws IOException {
