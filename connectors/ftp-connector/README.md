@@ -47,12 +47,14 @@ Important `connector.properties` keys:
 - `ftp.path`
 - `parser.type`
 - `read.delay`
+- `timeSeriesId`
+- `zrxp.parameter` (optional)
 
 Example:
 
 ```properties
 core.address=127.0.0.1
-core.port=8081
+core.port=8080
 ftp.address=ftp.viadonau.org
 ftp.port=21
 ftp.user=pegelReader
@@ -60,6 +62,7 @@ ftp.password=securePassword123
 ftp.path=/
 parser.type=zrxp
 read.delay=15m
+timeSeriesId=11111111-1111-1111-1111-111111111111
 ```
 
 Checked-in examples live under:
@@ -69,11 +72,10 @@ Checked-in examples live under:
 
 ## Docker
 
-Build the image from the connector directory:
+Build the image from the repository root:
 
 ```sh
-cd connectors/ftp-connector
-docker build -t ftp-connector .
+scripts/build-connector-image.sh ftp-connector
 ```
 
 Run the container with a directory mounted to `/app/config`:
@@ -81,7 +83,7 @@ Run the container with a directory mounted to `/app/config`:
 ```sh
 docker run --rm -d \
   -v "$(pwd)/examples/config:/app/config:ro" \
-  ftp-connector
+  pegelhub-ftp-connector:local
 ```
 
 Use any host directory you want, as long as it contains `connector.properties` and `pegelhub.yaml`.

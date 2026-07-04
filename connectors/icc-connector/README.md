@@ -1,6 +1,6 @@
 # Inter-Cluster-Communication Connector
 
-This connector synchronizes selected supplier data between two Pegelhub clusters.
+This connector synchronizes selected time-series measurements between two Pegelhub clusters.
 
 ## Prerequisites
 
@@ -40,7 +40,7 @@ Important `connector.properties` keys:
 - `Core.Source`
 - `Core.Sink`
 - `Icc.RefreshInterval`
-- `Icc.SourceStationNumber`
+- `Icc.SourceTimeSeriesId`
 
 Important notes:
 
@@ -48,16 +48,16 @@ Important notes:
 - `sink-pegelhub.yaml` is used for the target Pegelhub cluster.
 - Each side needs its own pre-provisioned Keycloak client.
 - `Icc.RefreshInterval` supports `24h`, `20m`, `45s` style values.
+- `Icc.SourceTimeSeriesId` accepts one or more UUIDs separated by commas.
 
 Checked-in examples live under `examples/config/`.
 
 ## Docker
 
-Build the image from the connector directory:
+Build the image from the repository root:
 
 ```sh
-cd connectors/icc-connector
-docker build -t icc-connector .
+scripts/build-connector-image.sh icc-connector
 ```
 
 Run the container with a directory mounted to `/app/config`:
@@ -65,7 +65,7 @@ Run the container with a directory mounted to `/app/config`:
 ```sh
 docker run --rm -d \
   -v "$(pwd)/examples/config:/app/config:ro" \
-  icc-connector
+  pegelhub-icc-connector:local
 ```
 
 Use any host directory you want, as long as it contains the three configuration files.
