@@ -18,7 +18,7 @@ ma-connector/
 │   └── docker/…                  # Compose example
 ├── Dockerfile                    # Multi-stage build (native + runtime)
 └── pom.xml                       # Maven build configuration
-````
+```
 
 ## 3. Architecture Overview
 
@@ -44,7 +44,7 @@ Without an argument it reads from `/app/config/connector.properties`.
 | Key             | Type   | Example             | Notes                                        |
 | --------------- |--------| ------------------- | -------------------------------------------- |
 | `Core.IP`       | String | `192.168.2.29`      | Hostname/IP of Pegelhub Core                 |
-| `Core.Port`     | Int    | `8081`              | Port of Pegelhub Core                        |
+| `Core.Port`     | Int    | `8080`              | Port of Pegelhub Core API                    |
 | `DelayInterval` | String | `30s`, `2m`, `1h`   | Case-insensitive `s/m/h`, whole numbers only |
 | `InputsDir`     | String | `/app/data/inputs`  | Directory containing YAML input files        |
 
@@ -52,17 +52,19 @@ Without an argument it reads from `/app/config/connector.properties`.
 
 ```properties
 Core.IP=192.168.2.29
-Core.Port=8081
+Core.Port=8080
 DelayInterval=30s
 InputsDir=/app/data/inputs
 ```
 
 ### 4.2 Inputs (YAML)
 Each metadata YAML file defines one RevPi input by its variable name from piCtory.
+It also carries the `timeSeriesId` that receives measurements for that input.
 
 ```yaml
 # /app/data/inputs/mA_input_1.yaml
 revInput: "InputValue_1"
+timeSeriesId: "11111111-1111-1111-1111-111111111111"
 keycloak:
   tokenUrl: "http://pegelhub-keycloak.test:8082/realms/pegelhub/protocol/openid-connect/token"
   clientId: "local-ma-connector"
@@ -106,10 +108,12 @@ mvn -pl connectors/ma-connector -am -DskipTests package
 # - connectors/ma-connector/target/lib/*.jar
 # - connectors/ma-connector/target/generated-sources/jni/*.h
 
-# Build the container image from the connector directory
-cd connectors/ma-connector
-docker buildx build --platform linux/arm64/v8 --load -t ma-connector .
-docker save -o ma-connector.tar ma-connector
+# Build the container image from the repository root
+docker buildx build --platform linux/arm64/v8 \
+  -f connectors/ma-connector/Dockerfile \
+  --load \
+  -t pegelhub-ma-connector:local .
+docker save -o ma-connector.tar pegelhub-ma-connector:local
 
 # Transfer to the RevPi (example using scp; a USB stick works too)
 scp ./ma-connector.tar pi@192.168.10.10:/home/pi/
@@ -123,7 +127,7 @@ docker load -i /home/pi/ma-connector.tar
 Create a `docker-compose.yaml` on the RevPi. If you use a published image, set
 `MA_CONNECTOR_IMAGE` to the GHCR image tag, for example
 `ghcr.io/viadonau/pegelhub-ma-connector:sha-<short-sha>`. If you loaded a locally
-built image, set `MA_CONNECTOR_IMAGE=ma-connector`.
+built image, set `MA_CONNECTOR_IMAGE=pegelhub-ma-connector:local`.
 An example file is checked in at `examples/docker/docker-compose.yaml`.
 
 ```yaml
@@ -171,14 +175,14 @@ and `examples/data/inputs/`.
 docker compose up -d
 ```
 
-### 5.5 Stop
+### 5.6 Stop
 
 ```bash
 # Stop
 docker compose down
 ```
 
-### 5.6 Logs
+### 5.7 Logs
 
 ```bash
 docker compose logs -f ma-connector

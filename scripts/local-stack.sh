@@ -2,24 +2,19 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="${PEGELHUB_REPO_ROOT:-$(cd "$SCRIPT_DIR/../../../.." && pwd)}"
+REPO_ROOT="${PEGELHUB_REPO_ROOT:-$(cd "$SCRIPT_DIR/.." && pwd)}"
 CORE_DIR="$REPO_ROOT/core"
 CORE_BASE_URL="${CORE_BASE_URL:-http://localhost:8080}"
 ACTUATOR_BASE_URL="${ACTUATOR_BASE_URL:-http://localhost:8081}"
+COMMAND_NAME="$(basename "$0")"
 
 usage() {
+  printf 'Usage: %s <command> [args]\n' "$COMMAND_NAME"
   cat <<'USAGE'
-Usage: pegelhub-local-dev.sh <command> [args]
 
 Commands:
   status                 Print a compact local runtime summary.
-  doctor                 Inspect prerequisites, local env, compose status, and health.
-  init-env               Create the core module .env from .env.example if missing.
-  env-check              Compare .env keys with .env.example without printing values.
-  test-core              Run core module tests.
-  build-core             Build the core module with tests skipped.
   compose-up             Build and start the local Docker Compose stack.
-  compose-up-deps        Start databases and Keycloak for IDE/Maven app runs.
   compose-config         Validate Docker Compose config without printing resolved env.
   compose-ps             Show Docker Compose service status.
   compose-down           Stop and remove local compose containers; keep volumes.
@@ -49,7 +44,7 @@ require_core_dir() {
 }
 
 require_env_file() {
-  [[ -f "$CORE_DIR/.env" ]] || fail "Missing $CORE_DIR/.env. Run 'init-env' to copy local defaults from .env.example."
+  [[ -f "$CORE_DIR/.env" ]] || fail "Missing $CORE_DIR/.env."
 }
 
 docker_compose() {
@@ -83,66 +78,6 @@ wait_for_http() {
   done
 }
 
-build_core() {
-  require_core_dir
-  mvn -f "$CORE_DIR/pom.xml" -DskipTests package
-}
-
-test_core() {
-  require_core_dir
-  mvn -f "$CORE_DIR/pom.xml" -DfailIfNoTests=false test
-}
-
-init_env() {
-  require_core_dir
-  if [[ -f "$CORE_DIR/.env" ]]; then
-    printf '%s already exists; leaving it unchanged.\n' "$CORE_DIR/.env"
-    return
-  fi
-  [[ -f "$CORE_DIR/.env.example" ]] || fail "Missing $CORE_DIR/.env.example"
-  cp "$CORE_DIR/.env.example" "$CORE_DIR/.env"
-  printf 'Created %s from .env.example.\n' "$CORE_DIR/.env"
-}
-
-env_check() {
-  require_core_dir
-  local example="$CORE_DIR/.env.example"
-  local env_file="$CORE_DIR/.env"
-  local example_keys=""
-  local env_keys=""
-  local missing=""
-  local extra=""
-  [[ -f "$example" ]] || fail "Missing $example"
-  [[ -f "$env_file" ]] || fail "Missing $env_file. Run 'init-env' to copy local defaults from .env.example."
-
-  example_keys="$(mktemp)"
-  env_keys="$(mktemp)"
-  missing="$(mktemp)"
-  extra="$(mktemp)"
-  trap "rm -f -- '$example_keys' '$env_keys' '$missing' '$extra'" RETURN
-
-  sed -n 's/^[[:space:]]*\([A-Za-z_][A-Za-z0-9_]*\)=.*/\1/p' "$example" | sort -u > "$example_keys"
-  sed -n 's/^[[:space:]]*\([A-Za-z_][A-Za-z0-9_]*\)=.*/\1/p' "$env_file" | sort -u > "$env_keys"
-  comm -23 "$example_keys" "$env_keys" > "$missing"
-  comm -13 "$example_keys" "$env_keys" > "$extra"
-
-  printf '.env: present\n'
-  printf 'expected keys: %s\n' "$(wc -l < "$example_keys" | tr -d ' ')"
-  printf 'local keys: %s\n' "$(wc -l < "$env_keys" | tr -d ' ')"
-  if [[ -s "$missing" ]]; then
-    printf 'missing keys:\n'
-    sed 's/^/  - /' "$missing"
-  else
-    printf 'missing keys: none\n'
-  fi
-  if [[ -s "$extra" ]]; then
-    printf 'extra keys:\n'
-    sed 's/^/  - /' "$extra"
-  else
-    printf 'extra keys: none\n'
-  fi
-}
-
 compose_config() {
   run_compose config >/dev/null
   printf 'Docker Compose config OK.\n'
@@ -153,12 +88,6 @@ compose_up() {
   run_compose up --build -d
   run_compose ps
   wait_for_http "$ACTUATOR_BASE_URL/actuator/health" 120
-}
-
-compose_up_deps() {
-  compose_config
-  run_compose up -d meta-db data-db keycloak-db keycloak
-  run_compose ps meta-db data-db keycloak-db keycloak
 }
 
 compose_ps() {
@@ -263,9 +192,6 @@ status() {
   require_core_dir
 
   printf 'repo: %s\n' "$REPO_ROOT"
-  printf 'git changes: '
-  git -C "$REPO_ROOT" status --porcelain 2>/dev/null | wc -l | tr -d ' '
-  printf '\n'
 
   if [[ -f "$CORE_DIR/.env" ]]; then
     printf '.env: present\n'
@@ -297,58 +223,6 @@ status() {
   fi
 }
 
-doctor() {
-  require_core_dir
-
-  printf 'Repository: %s\n' "$REPO_ROOT"
-  printf 'Core: %s\n' "$CORE_DIR"
-
-  printf '\nTools:\n'
-  if command -v java >/dev/null 2>&1; then
-    java -version 2>&1 | head -n 1
-  else
-    printf 'java: missing\n'
-  fi
-  if command -v mvn >/dev/null 2>&1; then
-    mvn -version 2>&1 | head -n 1
-  else
-    printf 'mvn: missing\n'
-  fi
-  if command -v docker >/dev/null 2>&1; then
-    docker --version
-    if docker compose version >/dev/null 2>&1; then
-      docker compose version
-    elif command -v docker-compose >/dev/null 2>&1; then
-      docker-compose --version
-    else
-      printf 'docker compose: missing\n'
-    fi
-  else
-    printf 'docker: missing\n'
-  fi
-
-  printf '\nLocal config:\n'
-  if [[ -f "$CORE_DIR/.env" ]]; then
-    printf '.env: present\n'
-  else
-    printf '.env: missing; run init-env to copy local defaults\n'
-  fi
-
-  printf '\nGit status:\n'
-  git -C "$REPO_ROOT" status --short || true
-
-  if [[ -f "$CORE_DIR/.env" ]] && command -v docker >/dev/null 2>&1; then
-    printf '\nCompose config:\n'
-    compose_config || true
-    printf '\nCompose status:\n'
-    run_compose ps || true
-  fi
-
-  printf '\nActuator health:\n'
-  curl -fsS "$ACTUATOR_BASE_URL/actuator/health" || printf 'unavailable'
-  printf '\n'
-}
-
 main() {
   local command="${1:-}"
   [[ -n "$command" ]] || {
@@ -361,26 +235,8 @@ main() {
     status)
       status "$@"
       ;;
-    doctor)
-      doctor "$@"
-      ;;
-    init-env)
-      init_env "$@"
-      ;;
-    env-check)
-      env_check "$@"
-      ;;
-    test-core)
-      test_core "$@"
-      ;;
-    build-core)
-      build_core "$@"
-      ;;
     compose-up)
       compose_up "$@"
-      ;;
-    compose-up-deps)
-      compose_up_deps "$@"
       ;;
     compose-config)
       compose_config "$@"

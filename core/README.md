@@ -30,8 +30,14 @@ mvn -DskipTests package
 
 Shared IntelliJ run configurations live in the repository-level `.run/` directory.
 
-- `Pegelhub Core: Local Development`: starts the app with the `dev` Spring profile.
-- `Pegelhub Core: Docker Compose`: starts the databases plus app container through `docker-compose.yaml`.
+- `Core: Local Development`: starts Core from the IDE with the `dev` Spring profile.
+- `Image: FTP Connector`: builds `pegelhub-ftp-connector:local`.
+- `Image: ICC Connector`: builds `pegelhub-icc-connector:local`.
+- `Image: IEC Connector`: builds `pegelhub-iec-connector:local`.
+- `Image: mA Connector`: builds `pegelhub-ma-connector:local`.
+- `Image: TSTP Connector`: builds `pegelhub-tstp-connector:local`.
+- `Tests: Core`: runs Core unit tests.
+- `Tests: Connectors`: runs connector unit tests.
 
 ### Docker Compose
 
@@ -43,11 +49,11 @@ The local compose setup starts:
 - `keycloak-db` (Postgres for local identity)
 - `keycloak`
 
-Run:
+Run from the repository root:
 
 ```bash
-bash ../.agents/skills/pegelhub-local-dev/scripts/pegelhub-local-dev.sh init-env
-bash ../.agents/skills/pegelhub-local-dev/scripts/pegelhub-local-dev.sh compose-up
+test -f core/.env || cp core/.env.example core/.env
+scripts/local-stack.sh compose-up
 ```
 
 The app is then reachable on `localhost:8080`, actuator on `localhost:8081`, and local Keycloak on `http://pegelhub-keycloak.test:8082`.
@@ -55,6 +61,15 @@ The app is then reachable on `localhost:8080`, actuator on `localhost:8081`, and
 The token in `.env` is the source of truth for local first-start setup. If your local InfluxDB volume was already initialized with a different token, update `.env` to match it or recreate the local InfluxDB volume intentionally.
 
 InfluxDB setup, environment variables, and migration notes from the old generated-token flow are documented in `docs/influxdb.md`.
+
+Useful local stack commands from the repository root:
+
+```bash
+scripts/local-stack.sh status
+scripts/local-stack.sh logs core-app
+scripts/local-stack.sh smoke
+scripts/local-stack.sh compose-down
+```
 
 Keycloak setup and auth operations are documented in:
 
@@ -67,14 +82,14 @@ The Postman collection for the core HTTP API lives in `docs/api/postman/` and us
 
 ## Manual Dev Profile
 
-For a non-container app run, start local dependencies through the helper, then run the app with the `dev` profile:
+For a non-container app run, start local dependencies from `core/`, then run the app with the `dev` profile:
 
 ```bash
-bash ../.agents/skills/pegelhub-local-dev/scripts/pegelhub-local-dev.sh init-env
-bash ../.agents/skills/pegelhub-local-dev/scripts/pegelhub-local-dev.sh compose-up-deps
+test -f .env || cp .env.example .env
+docker compose --env-file .env up -d meta-db data-db keycloak-db keycloak
 ```
 
-The `dev` profile defaults to the helper's local dependency ports:
+The `dev` profile defaults to the local dependency ports:
 
 - Postgres: `localhost:5444`
 - InfluxDB: `http://localhost:8111/`

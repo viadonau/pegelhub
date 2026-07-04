@@ -1,0 +1,7 @@
+interface:
+  display_name: "Prepare Branch for Merge"
+  short_description: "Final merge history cleanup"
+  default_prompt: "Use $prepare-branch-for-merge to clean this branch into final logical commits before merging."
+
+policy:
+  allow_implicit_invocation: false

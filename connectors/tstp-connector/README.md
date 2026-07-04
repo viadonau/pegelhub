@@ -39,23 +39,23 @@ Important `connector.properties` keys:
 - `tstp.address`
 - `tstp.port`
 - `connector.readDelay`
+- `timeSeriesId`
 
 `pegelhub.yaml` contains the Pegelhub registration data and Keycloak client credentials.
 
 Behavior depends on `isSupplier` in `pegelhub.yaml`:
 
-- `true`: read from TSTP and send to Pegelhub
-- `false`: read from Pegelhub and write to TSTP
+- `true`: read from TSTP and write measurements to Pegelhub for `timeSeriesId`
+- `false`: read measurements for `timeSeriesId` from Pegelhub and write them to TSTP
 
 Checked-in examples live under `examples/config/`.
 
 ## Docker
 
-Build the image from the connector directory:
+Build the image from the repository root:
 
 ```sh
-cd connectors/tstp-connector
-docker build -t tstp-connector:latest .
+scripts/build-connector-image.sh tstp-connector
 ```
 
 Run the container:
@@ -63,7 +63,7 @@ Run the container:
 ```sh
 docker run --rm -d \
   -v "$(pwd)/examples/config:/app/config:ro" \
-  tstp-connector:latest
+  pegelhub-tstp-connector:local
 ```
 
 Make sure the mounted config directory contains both configuration files.

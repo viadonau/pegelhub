@@ -1,0 +1,7 @@
+interface:
+  display_name: "Operate Local Stack"
+  short_description: "Local stack status, logs, and smoke checks"
+  default_prompt: "Use $operate-local-stack to check the local stack status."
+
+policy:
+  allow_implicit_invocation: true

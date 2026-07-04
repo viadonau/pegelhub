@@ -1,11 +1,12 @@
 <component name="ProjectRunConfigurationManager">
-  <configuration default="false" name="Pegelhub Core: Local Development" type="Application" factoryName="Application">
+  <configuration default="false" name="Core: Local Development" type="Application" factoryName="Application">
     <option name="ALTERNATIVE_JRE_PATH" value="21" />
     <envs>
       <env name="SPRING_PROFILES_ACTIVE" value="dev" />
     </envs>
     <option name="MAIN_CLASS_NAME" value="at.pegelhub.CoreAppApplication" />
     <module name="core" />
+    <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/core" />
     <method v="2">
       <option name="Make" enabled="true" />
     </method>

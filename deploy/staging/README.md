@@ -221,8 +221,8 @@ production-unsafe public ports, and any rendered `build:` section.
 
 ## Deploy From GitHub
 
-Run the `Images` workflow manually or push a `v*` tag. After Core and connector
-images are published, GitHub SSHs into the staging host and runs:
+Push to `main`, run the `Images` workflow manually, or push a `v*` tag. After
+Core and connector images are published, GitHub SSHs into the staging host and runs:
 
 ```sh
 deploy/staging/scripts/deploy.sh <published-image-tag>

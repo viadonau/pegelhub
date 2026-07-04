@@ -8,7 +8,6 @@ Create a communicator with:
 
 - `baseUrl`: HTTP(S) base URL of the Pegelhub cluster
 - `propertiesFile`: optional YAML file path, defaults to `pegelhub.yaml`
-- `...Route`: optional route overrides for advanced use
 
 The checked-in sample file lives at `examples/config/pegelhub.yaml`.
 
@@ -25,6 +24,10 @@ The YAML contains the connector identity and authentication data:
 Keycloak clients must be pre-provisioned per connector instance. The `supplier.id` / `taker.id` and connector numbers must also be unique within the target Pegelhub cluster.
 When omitted, `sendMetaDataOnStartup` defaults to `false`, so normal connector credentials only send measurement or telemetry data after an operator has registered the metadata through the Pegelhub admin API. Set it to `true` only for admin-capable credentials that are allowed to create supplier or taker metadata during startup.
 
+Measurements are time-series based. The library sends measurement writes to
+`POST /api/v1/measurements` and reads from
+`GET /api/v1/time-series/{timeSeriesId}/measurements`.
+
 ## Authentication
 
 - Ask the Pegelhub owner for a Keycloak client id and client secret with the required roles.
@@ -40,7 +43,7 @@ Outbound HTTP payloads therefore use ISO-8601 UTC strings such as:
 
 ```json
 {
-  "timestamp": "2026-04-25T10:15:30Z"
+  "observedAt": "2026-04-25T10:15:30Z"
 }
 ```
 

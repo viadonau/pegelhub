@@ -25,7 +25,7 @@ The build produces:
 
 ## Configuration
 
-Prepare a host directory, for example `iec_directory`, with:
+Prepare a host directory, for example `iec_directory`, with files that will be mounted as:
 
 - `/app/config/connector.properties`
 - `/app/config/pegelhub.yaml`
@@ -36,14 +36,18 @@ Without an argument it reads from `/app/config`.
 
 Important `connector.properties` keys include:
 
-- `Connector.IsReadingFromIec`
 - `DataPointsDir`
+- `Core.IP`
+- `Core.Port`
 - `DelayInterval`
+- `Iec.Host.IP`
+- `Iec.Host.Port`
 - `Iec.CommonAddress`
-- `Iec.StartDtRetries`
-- `StationNumbers`
 
-`pegelhub.yaml` contains the Pegelhub supplier/taker registration data and Keycloak client credentials.
+Each datapoint YAML under `DataPointsDir` must contain `iecIOA`, `timeSeriesId`,
+`isSupplier`, Keycloak client credentials, and the legacy supplier/taker metadata
+used by the connector library.
+`pegelhub.yaml` contains shared Pegelhub supplier/taker registration data and Keycloak client credentials.
 Set `DataPointsDir=/app/data/datapoints` for the container layout.
 
 Checked-in examples live under:
@@ -53,11 +57,10 @@ Checked-in examples live under:
 
 ## Docker
 
-Build the image from the connector directory:
+Build the image from the repository root:
 
 ```sh
-cd connectors/iec-connector
-docker build -t iec-connector .
+scripts/build-connector-image.sh iec-connector
 ```
 
 Run the container:
@@ -66,7 +69,7 @@ Run the container:
 docker run --name iec-connector -d \
   -v "$(pwd)/examples/config:/app/config:ro" \
   -v "$(pwd)/examples/data:/app/data:ro" \
-  iec-connector
+  pegelhub-iec-connector:local
 ```
 
 ## Testing
