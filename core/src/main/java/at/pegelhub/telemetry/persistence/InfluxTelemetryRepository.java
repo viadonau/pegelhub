@@ -1,40 +1,40 @@
 package at.pegelhub.telemetry.persistence;
 
-import com.influxdb.client.InfluxDBClient;
 import com.influxdb.client.domain.WritePrecision;
 import com.influxdb.client.write.Point;
 import com.influxdb.exceptions.InfluxException;
+import at.pegelhub.shared.duration.PegelhubDurationLiteral;
 import at.pegelhub.telemetry.domain.Telemetry;
-import at.pegelhub.shared.influx.DatabaseProperties;
-import at.pegelhub.shared.influx.ConnectionHelper;
-import at.pegelhub.shared.influx.FluxDuration;
-import at.pegelhub.shared.influx.FluxQueries;
-import at.pegelhub.shared.influx.InfluxPoint;
+import at.pegelhub.shared.influx.InfluxBucketOperations;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Repository;
 
-import java.time.Instant;
 import java.util.*;
 
 import static java.util.Objects.requireNonNull;
 
 /**
  * Influx implementation for {@code TelemetryRepository}.
+ * Telemetry is still a legacy-shaped slice; keep its Influx mapping isolated until
+ * the connector runtime telemetry model is revisited.
  */
 @Repository
 public class InfluxTelemetryRepository implements TelemetryRepository {
 
-    private final InfluxDBClient client;
-    private final DatabaseProperties properties;
-    private final FluxDuration latestRange;
+    private final InfluxBucketOperations influx;
+    private final PegelhubDurationLiteral latestRange;
+    private final TelemetryFluxRowMapper rowMapper;
+    private final TelemetryFluxQueryBuilder queryBuilder;
 
     public InfluxTelemetryRepository(
-            @Qualifier("influxDBClient") InfluxDBClient client,
-            @Qualifier("telemetryConfiguration") DatabaseProperties properties,
-            @Qualifier("latestRange") FluxDuration latestRange) {
-        this.client = requireNonNull(client);
-        this.properties = requireNonNull(properties);
+            @Qualifier("telemetryInfluxOperations") InfluxBucketOperations influx,
+            @Qualifier("latestRange") PegelhubDurationLiteral latestRange,
+            TelemetryFluxRowMapper rowMapper,
+            TelemetryFluxQueryBuilder queryBuilder) {
+        this.influx = requireNonNull(influx);
         this.latestRange = requireNonNull(latestRange);
+        this.rowMapper = requireNonNull(rowMapper);
+        this.queryBuilder = requireNonNull(queryBuilder);
     }
 
     /**
@@ -77,7 +77,7 @@ public class InfluxTelemetryRepository implements TelemetryRepository {
             telemetryData.addField("fieldStrengthTransmission", telemetry.fieldStrengthTransmission());
         }
 
-        ConnectionHelper.writePoint(this.client, properties, telemetryData);
+        influx.writePoint(telemetryData);
 
         return telemetry;
     }
@@ -88,8 +88,8 @@ public class InfluxTelemetryRepository implements TelemetryRepository {
      */
     @Override
     public List<Telemetry> getByRange(String range) {
-        String query = FluxQueries.range(properties, new FluxDuration(range));
-        return toTelemetries(ConnectionHelper.queryData(this.client, properties, query));
+        String query = queryBuilder.range(new PegelhubDurationLiteral(range));
+        return rowMapper.toTelemetries(influx.query(query));
     }
 
     /**
@@ -98,48 +98,13 @@ public class InfluxTelemetryRepository implements TelemetryRepository {
      */
     @Override
     public Telemetry getLastData(UUID uuid) {
-        String query = FluxQueries.latestMeasurement(properties, uuid, latestRange);
+        String query = queryBuilder.latestTelemetry(uuid, latestRange);
 
-        List<Telemetry> telemetries = toTelemetries(ConnectionHelper.queryData(this.client, properties, query));
+        List<Telemetry> telemetries = rowMapper.toTelemetries(influx.query(query));
         if (telemetries.isEmpty())
             throw new InfluxException("No telemetry found");
         return telemetries.stream()
                 .max(Comparator.comparing(Telemetry::timestamp))
                 .orElseThrow(() -> new InfluxException("No telemetry found"));
-    }
-
-    /**
-     * @param data the data to be converted to telemetry
-     * @return the converted telemetry
-     */
-    private List<Telemetry> toTelemetries(List<InfluxPoint> data) {
-        List<Telemetry> telemetries = new ArrayList<>();
-        for (InfluxPoint point : data) {
-            Instant timestamp = Optional.ofNullable(point.timestamp())
-                    .orElseThrow(() -> new InfluxException("Telemetry query returned a point without a timestamp"));
-            telemetries.add(
-                    new Telemetry(
-                            point.measurement(),
-                            point.tags().get("stationIPAddressIntern"),
-                            point.tags().get("stationIPAddressExtern"),
-                            timestamp,
-                            toInt(point.fields().get("cycleTime")),
-                            toDouble(point.fields().get("temperatureWater")),
-                            toDouble(point.fields().get("temperatureAir")),
-                            toDouble(point.fields().get("performanceVoltageBattery")),
-                            toDouble(point.fields().get("performanceVoltageSupply")),
-                            toDouble(point.fields().get("performanceElectricityBattery")),
-                            toDouble(point.fields().get("performanceElectricitySupply")),
-                            toDouble(point.fields().get("fieldStrengthTransmission"))));
-        }
-        return telemetries;
-    }
-
-    private static Integer toInt(Object value) {
-        return Math.toIntExact(((Number) value).longValue());
-    }
-
-    private static Double toDouble(Object value) {
-        return value instanceof Number number ? number.doubleValue() : null;
     }
 }

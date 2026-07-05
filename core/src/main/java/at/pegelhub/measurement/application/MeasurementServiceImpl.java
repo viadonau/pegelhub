@@ -59,22 +59,14 @@ public class MeasurementServiceImpl implements MeasurementService {
     public MeasurementList listMeasurements(MeasurementListQuery query) {
         requireNonNull(query);
         authorizationPolicy.requireRead(query.timeSeriesId());
-        List<MeasurementPageRow> rows = measurementRepository.findMeasurements(query);
-        boolean truncated = rows.size() > query.limit();
-        List<MeasurementPageRow> visible = truncated
-                ? rows.subList(0, query.limit())
-                : rows;
-        MeasurementCursor nextCursor = truncated
-                ? cursorOf(visible.getLast())
-                : null;
-        return new MeasurementList(query, truncated, nextCursor, visible);
+        return measurementRepository.listMeasurements(query);
     }
 
     @Override
     public MeasurementBucketList listMeasurementBuckets(MeasurementBucketQuery query) {
         requireNonNull(query);
         authorizationPolicy.requireRead(query.timeSeriesId());
-        return new MeasurementBucketList(query, measurementRepository.findMeasurementBuckets(query));
+        return measurementRepository.listMeasurementBuckets(query);
     }
 
     @Override
@@ -82,7 +74,4 @@ public class MeasurementServiceImpl implements MeasurementService {
         return measurementRepository.getSystemTime();
     }
 
-    private static MeasurementCursor cursorOf(MeasurementPageRow measurement) {
-        return new MeasurementCursor(measurement.observedAt(), measurement.submittedByConnectorId());
-    }
 }

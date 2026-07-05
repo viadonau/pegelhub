@@ -1,5 +1,6 @@
 package at.pegelhub.shared.influx;
 
+import at.pegelhub.shared.duration.PegelhubDurationLiteral;
 import jakarta.validation.constraints.NotBlank;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.validation.annotation.Validated;
@@ -25,7 +26,7 @@ public record InfluxProperties(
         return new DatabaseProperties(url, org, telemetryBucket, token);
     }
 
-    public FluxDuration latestRangeDuration() {
-        return new FluxDuration(latestRange);
+    public PegelhubDurationLiteral latestRangeDuration() {
+        return new PegelhubDurationLiteral(latestRange);
     }
 }

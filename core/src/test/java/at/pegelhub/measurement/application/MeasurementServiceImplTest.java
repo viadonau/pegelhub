@@ -14,12 +14,13 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.Mockito.argThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.verify;
@@ -39,23 +40,24 @@ final class MeasurementServiceImplTest {
             Instant.parse("2026-06-16T13:00:00Z"),
             Instant.parse("2026-06-17T13:00:00Z"),
             "24h");
-    private static final MeasurementRepository MEASUREMENT_REPOSITORY = mock(MeasurementRepository.class);
     private static final MeasurementAuthorizationPolicy AUTHORIZATION_POLICY = mock(MeasurementAuthorizationPolicy.class);
+    private FakeMeasurementRepository measurementRepository;
 
     @BeforeEach
     void prepare() {
+        measurementRepository = new FakeMeasurementRepository();
         measurementService = new MeasurementServiceImpl(
-                MEASUREMENT_REPOSITORY,
+                measurementRepository,
                 AUTHORIZATION_POLICY,
                 CLOCK);
-        reset(MEASUREMENT_REPOSITORY, AUTHORIZATION_POLICY);
+        reset(AUTHORIZATION_POLICY);
     }
 
     @Test
     void constructorWithNullArgsThrowsNpe() {
         assertThrows(NullPointerException.class, () -> new MeasurementServiceImpl(null, AUTHORIZATION_POLICY, CLOCK));
-        assertThrows(NullPointerException.class, () -> new MeasurementServiceImpl(MEASUREMENT_REPOSITORY, null, CLOCK));
-        assertThrows(NullPointerException.class, () -> new MeasurementServiceImpl(MEASUREMENT_REPOSITORY, AUTHORIZATION_POLICY, null));
+        assertThrows(NullPointerException.class, () -> new MeasurementServiceImpl(measurementRepository, null, CLOCK));
+        assertThrows(NullPointerException.class, () -> new MeasurementServiceImpl(measurementRepository, AUTHORIZATION_POLICY, null));
     }
 
     @Test
@@ -68,41 +70,40 @@ final class MeasurementServiceImplTest {
                 10.5))));
 
         verify(AUTHORIZATION_POLICY).requireWriteBatch(List.of(TIME_SERIES_ID));
-        verify(MEASUREMENT_REPOSITORY).storeMeasurements(argThat(measurements -> {
-            Measurement stored = measurements.getFirst();
-            return measurements.size() == 1
-                    && TIME_SERIES_ID.equals(stored.timeSeriesId())
-                    && OBSERVED_AT.equals(stored.observedAt())
-                    && stored.value() == 10.5
-                    && new ConnectorId(CONNECTOR_UUID).equals(stored.submittedByConnectorId());
-        }));
+        assertEquals(1, measurementRepository.storedMeasurements.size());
+        Measurement stored = measurementRepository.storedMeasurements.getFirst();
+        assertEquals(TIME_SERIES_ID, stored.timeSeriesId());
+        assertEquals(OBSERVED_AT, stored.observedAt());
+        assertEquals(CLOCK.instant(), stored.receivedAt());
+        assertEquals(10.5, stored.value());
+        assertEquals(new ConnectorId(CONNECTOR_UUID), stored.submittedByConnectorId());
     }
 
     @Test
     void listMeasurementsReturnsAuthorizedWindow() {
         var query = new MeasurementListQuery(TIME_SERIES_ID, WINDOW, MeasurementOrder.ASC, 100, null);
-        when(MEASUREMENT_REPOSITORY.findMeasurements(query)).thenReturn(List.of(PAGE_ROW));
+        MeasurementList repositoryResult = new MeasurementList(query, false, null, List.of(PAGE_ROW));
+        measurementRepository.measurementList = repositoryResult;
 
         MeasurementList result = measurementService.listMeasurements(query);
 
-        assertEquals(1, result.measurements().size());
-        assertEquals(PAGE_ROW, result.measurements().getFirst());
-        assertEquals(false, result.truncated());
+        assertSame(repositoryResult, result);
+        assertEquals(query, measurementRepository.listQuery);
         verify(AUTHORIZATION_POLICY).requireRead(TIME_SERIES_ID);
     }
 
     @Test
-    void listMeasurementsLimitsAndReturnsCompositeCursor() {
-        MeasurementPageRow first = measurementAt("2026-06-17T11:00:00Z");
+    void listMeasurementsDelegatesRepositoryPagingResult() {
         MeasurementPageRow second = measurementAt("2026-06-17T12:00:00Z");
         var query = new MeasurementListQuery(TIME_SERIES_ID, WINDOW, MeasurementOrder.DESC, 1, null);
-        when(MEASUREMENT_REPOSITORY.findMeasurements(query)).thenReturn(List.of(second, first));
+        MeasurementCursor cursor = new MeasurementCursor(second.observedAt(), second.submittedByConnectorId());
+        measurementRepository.measurementList = new MeasurementList(query, true, cursor, List.of(second));
 
         MeasurementList result = measurementService.listMeasurements(query);
 
         assertEquals(List.of(second), result.measurements());
         assertEquals(true, result.truncated());
-        assertEquals(new MeasurementCursor(second.observedAt(), second.submittedByConnectorId()), result.nextCursor());
+        assertEquals(cursor, result.nextCursor());
     }
 
     @Test
@@ -117,18 +118,20 @@ final class MeasurementServiceImplTest {
                 WINDOW.from().plusSeconds(300),
                 1.0,
                 2);
-        when(MEASUREMENT_REPOSITORY.findMeasurementBuckets(query)).thenReturn(List.of(bucket));
+        MeasurementBucketList repositoryResult = new MeasurementBucketList(query, List.of(bucket));
+        measurementRepository.bucketList = repositoryResult;
 
         MeasurementBucketList result = measurementService.listMeasurementBuckets(query);
 
-        assertEquals(List.of(bucket), result.buckets());
+        assertSame(repositoryResult, result);
+        assertEquals(query, measurementRepository.bucketQuery);
         verify(AUTHORIZATION_POLICY).requireRead(TIME_SERIES_ID);
     }
 
     @Test
     void getSystemTimeDelegatesToRepository() {
         Instant ts = Instant.parse("2026-01-02T03:04:05Z");
-        when(MEASUREMENT_REPOSITORY.getSystemTime()).thenReturn(ts);
+        measurementRepository.systemTime = ts;
 
         Instant result = measurementService.getSystemTime();
 
@@ -141,5 +144,37 @@ final class MeasurementServiceImplTest {
                 timestamp,
                 10.5,
                 CONNECTOR_ID);
+    }
+
+    private static final class FakeMeasurementRepository implements MeasurementRepository {
+
+        private final List<Measurement> storedMeasurements = new ArrayList<>();
+        private MeasurementListQuery listQuery;
+        private MeasurementBucketQuery bucketQuery;
+        private MeasurementList measurementList;
+        private MeasurementBucketList bucketList;
+        private Instant systemTime;
+
+        @Override
+        public void storeMeasurements(List<Measurement> measurements) {
+            storedMeasurements.addAll(measurements);
+        }
+
+        @Override
+        public MeasurementList listMeasurements(MeasurementListQuery query) {
+            listQuery = query;
+            return measurementList;
+        }
+
+        @Override
+        public MeasurementBucketList listMeasurementBuckets(MeasurementBucketQuery query) {
+            bucketQuery = query;
+            return bucketList;
+        }
+
+        @Override
+        public Instant getSystemTime() {
+            return systemTime;
+        }
     }
 }

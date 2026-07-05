@@ -26,14 +26,17 @@ Loose project memory for work that should not interrupt the current slice. Keep 
 - AccessGrant persistence and Flyway
   Reshape the AccessGrant DB model and introduce a real Flyway migration/baseline story before staging becomes too stateful.
 
-- Influx persistence improvements
-  Collect concrete query, retention, parsing, and performance issues before doing a broader Influx cleanup.
+- Influx persistence follow-up
+  Collect concrete retention, query performance, and InfluxBucketOperations gateway issues before doing a broader cleanup; the obvious shared Flux query leakage is already reduced.
+
+- Telemetry model shape
+  Investigate the remaining legacy Telemetry slice and decide what connector runtime telemetry should look like before deepening its storage/API path.
 
 - Contact mapping collapse
   Remove shallow Contact service/converter indirection and give Contact mapping one clear home instead of repeating 17-field copies.
 
-- TimeSeriesStore port
-  Introduce a real storage port so Influx query building/parsing lives behind one adapter instead of leaking through measurement, telemetry, and shared code.
+- Measurement cursor pagination
+  Revisit whether Measurement reads need cursor pagination long-term, or whether the GET flow could be simpler with bounded windows and direct limits.
 
 - Connector communicator/runtime cleanup
   Shrink the connector library communicator, delete dead Contact/Connector client methods, and extract shared stamping/config/runtime boilerplate.
