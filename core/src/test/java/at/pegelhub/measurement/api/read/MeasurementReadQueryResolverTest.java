@@ -34,6 +34,7 @@ final class MeasurementReadQueryResolverTest {
 
         assertThat(query.window().from()).isEqualTo(Instant.parse("2026-06-16T13:00:00Z"));
         assertThat(query.window().to()).isEqualTo(Instant.parse("2026-06-17T13:00:00Z"));
+        assertThat(query.window().requested()).isEqualTo("24h");
         assertThat(query.order()).isEqualTo(MeasurementOrder.DESC);
         assertThat(query.limit()).isEqualTo(100);
     }
@@ -54,12 +55,24 @@ final class MeasurementReadQueryResolverTest {
     @Test
     void rejectsAnAutomaticResolutionThatCannotHonorThePointCap() {
         assertThatThrownBy(() -> resolver.resolveBuckets(TIME_SERIES_ID, new MeasurementBucketParameters(
-                "100y",
+                "100w",
                 null,
                 null,
                 null,
                 1)))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("cannot be resolved within maxPoints");
+    }
+
+    @Test
+    void rejectsSubSecondMeasurementReadDurations() {
+        assertThatThrownBy(() -> resolver.resolveBuckets(TIME_SERIES_ID, new MeasurementBucketParameters(
+                "24h",
+                null,
+                null,
+                "500ms",
+                null)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Invalid Pegelhub duration");
     }
 }

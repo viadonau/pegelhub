@@ -1,7 +1,8 @@
 package at.pegelhub.telemetry.persistence;
 
+import at.pegelhub.shared.duration.PegelhubDurationLiteral;
 import at.pegelhub.shared.influx.DatabaseProperties;
-import at.pegelhub.shared.influx.FluxDuration;
+import at.pegelhub.shared.influx.InfluxBucketOperations;
 import at.pegelhub.telemetry.domain.Telemetry;
 import at.pegelhub.testsupport.InfluxIntegrationTestBase;
 import at.pegelhub.testsupport.PegelHubInfluxContainer;
@@ -25,15 +26,21 @@ final class InfluxTelemetryRepositoryTest extends InfluxIntegrationTestBase {
             PegelHubInfluxContainer.ORG,
             PegelHubInfluxContainer.TELEMETRY_BUCKET,
             PegelHubInfluxContainer.ADMIN_TOKEN);
-    private static final FluxDuration LATEST_RANGE = new FluxDuration("72h");
+    private static final PegelhubDurationLiteral LATEST_RANGE = new PegelhubDurationLiteral("72h");
 
     private InfluxDBClient client;
     private InfluxTelemetryRepository repository;
+    private TelemetryFluxQueryBuilder queryBuilder;
 
     @BeforeEach
     void setUp() {
         client = getInfluxDBTelemetryClient();
-        repository = new InfluxTelemetryRepository(client, PROPERTIES, LATEST_RANGE);
+        queryBuilder = new TelemetryFluxQueryBuilder(PROPERTIES);
+        repository = new InfluxTelemetryRepository(
+                new InfluxBucketOperations(client, PROPERTIES),
+                LATEST_RANGE,
+                new TelemetryFluxRowMapper(),
+                queryBuilder);
     }
 
     @AfterEach
@@ -43,9 +50,16 @@ final class InfluxTelemetryRepositoryTest extends InfluxIntegrationTestBase {
 
     @Test
     void constructorWithNullArgsThrowsNPE() {
-        assertThrows(NullPointerException.class, () -> new InfluxTelemetryRepository(null, PROPERTIES, LATEST_RANGE));
-        assertThrows(NullPointerException.class, () -> new InfluxTelemetryRepository(client, null, LATEST_RANGE));
-        assertThrows(NullPointerException.class, () -> new InfluxTelemetryRepository(client, PROPERTIES, null));
+        var influx = new InfluxBucketOperations(client, PROPERTIES);
+        var rowMapper = new TelemetryFluxRowMapper();
+        assertThrows(NullPointerException.class, () ->
+                new InfluxTelemetryRepository(null, LATEST_RANGE, rowMapper, queryBuilder));
+        assertThrows(NullPointerException.class, () ->
+                new InfluxTelemetryRepository(influx, null, rowMapper, queryBuilder));
+        assertThrows(NullPointerException.class, () ->
+                new InfluxTelemetryRepository(influx, LATEST_RANGE, null, queryBuilder));
+        assertThrows(NullPointerException.class, () ->
+                new InfluxTelemetryRepository(influx, LATEST_RANGE, rowMapper, null));
     }
 
     @Test

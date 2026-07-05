@@ -9,7 +9,7 @@ import at.pegelhub.measurement.application.MeasurementOrder;
 import at.pegelhub.measurement.application.MeasurementWindow;
 import at.pegelhub.measurement.api.read.input.MeasurementBucketParameters;
 import at.pegelhub.measurement.api.read.input.MeasurementPageParameters;
-import at.pegelhub.shared.influx.FluxDuration;
+import at.pegelhub.shared.duration.PegelhubDurationLiteral;
 import at.pegelhub.timeseries.domain.TimeSeriesId;
 import org.springframework.stereotype.Component;
 
@@ -59,7 +59,7 @@ public class MeasurementReadQueryResolver {
         }
         MeasurementBucketResolution resolution = bucket == null
                 ? bucketResolutionPolicy.automatic(window, parameters.maxPoints() == null ? DEFAULT_MAX_POINTS : parameters.maxPoints())
-                : MeasurementBucketResolution.explicit(new MeasurementBucketWidth(new FluxDuration(bucket).toDuration()));
+                : MeasurementBucketResolution.explicit(new MeasurementBucketWidth(new PegelhubDurationLiteral(bucket).toDuration()));
         return new MeasurementBucketQuery(new TimeSeriesId(timeSeriesId), window, resolution);
     }
 
@@ -71,7 +71,7 @@ public class MeasurementReadQueryResolver {
             throw new IllegalArgumentException("Provide either last or from/to");
         }
         if (hasLast) {
-            FluxDuration duration = new FluxDuration(relativeWindow);
+            PegelhubDurationLiteral duration = new PegelhubDurationLiteral(relativeWindow);
             Instant resolvedTo = Instant.now(clock);
             return new MeasurementWindow(resolvedTo.minus(duration.toDuration()), resolvedTo, duration.toString());
         }

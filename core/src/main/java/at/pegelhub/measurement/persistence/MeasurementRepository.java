@@ -1,11 +1,10 @@
 package at.pegelhub.measurement.persistence;
 
-
+import at.pegelhub.measurement.application.MeasurementBucketList;
 import at.pegelhub.measurement.application.MeasurementBucketQuery;
+import at.pegelhub.measurement.application.MeasurementList;
 import at.pegelhub.measurement.application.MeasurementListQuery;
-import at.pegelhub.measurement.application.MeasurementPageRow;
 import at.pegelhub.measurement.domain.Measurement;
-import at.pegelhub.measurement.domain.MeasurementBucket;
 
 import java.time.Instant;
 import java.util.List;
@@ -22,9 +21,9 @@ public interface MeasurementRepository {
      */
     void storeMeasurements(List<Measurement> measurements);
 
-    List<MeasurementPageRow> findMeasurements(MeasurementListQuery query);
+    MeasurementList listMeasurements(MeasurementListQuery query);
 
-    List<MeasurementBucket> findMeasurementBuckets(MeasurementBucketQuery query);
+    MeasurementBucketList listMeasurementBuckets(MeasurementBucketQuery query);
 
     Instant getSystemTime();
 }

@@ -1,7 +1,7 @@
 package at.pegelhub.shared.health;
 
 import com.influxdb.client.InfluxDBClient;
-import at.pegelhub.shared.influx.DatabaseProperties;
+import at.pegelhub.shared.influx.InfluxBucketOperations;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.health.contributor.HealthIndicator;
 import org.springframework.context.annotation.Bean;
@@ -19,8 +19,8 @@ public class HealthCheckConfig {
     @Bean
     public HealthIndicator influxDbHealthIndicatorMethod(
             @Qualifier("influxDBClient") InfluxDBClient influxDbClient,
-            @Qualifier("dataConfiguration") DatabaseProperties dataConfiguration,
-            @Qualifier("telemetryConfiguration") DatabaseProperties telemetryConfiguration) {
-        return new InfluxDbHealthIndicator(influxDbClient, List.of(dataConfiguration, telemetryConfiguration));
+            @Qualifier("dataInfluxOperations") InfluxBucketOperations dataInflux,
+            @Qualifier("telemetryInfluxOperations") InfluxBucketOperations telemetryInflux) {
+        return new InfluxDbHealthIndicator(influxDbClient, List.of(dataInflux, telemetryInflux));
     }
 }
