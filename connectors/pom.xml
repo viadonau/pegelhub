@@ -19,6 +19,7 @@
         <module>iec-connector</module>
         <module>ma-connector</module>
         <module>tstp-connector</module>
+        <module>live-test-suite</module>
     </modules>
 
     <properties>

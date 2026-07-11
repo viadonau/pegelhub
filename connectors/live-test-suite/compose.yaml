@@ -1,0 +1,117 @@
+name: pegelhub-live-connectors
+
+networks:
+  live-suite:
+    driver: bridge
+
+services:
+  live-suite:
+    image: pegelhub-live-test-suite:local
+    build:
+      context: ../..
+      dockerfile: connectors/live-test-suite/Dockerfile
+    command: ["server"]
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O - http://localhost:19000/health | grep OK"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+      start_period: 2s
+    networks:
+      - live-suite
+
+  verifier:
+    image: pegelhub-live-test-suite:local
+    command: ["verify", "${LIVE_SCENARIO:-all}"]
+    environment:
+      LIVE_SUITE_ADMIN_URL: "http://live-suite:19000"
+      LIVE_VERIFY_TIMEOUT_SECONDS: "${LIVE_VERIFY_TIMEOUT_SECONDS:-90}"
+    depends_on:
+      live-suite:
+        condition: service_healthy
+    networks:
+      - live-suite
+
+  ftp-asc:
+    profiles: ["ftp"]
+    image: pegelhub-ftp-connector:local
+    build:
+      context: ../..
+      dockerfile: connectors/ftp-connector/Dockerfile
+    volumes:
+      - ./config/ftp-asc:/app/config:ro
+    depends_on:
+      live-suite:
+        condition: service_healthy
+    networks:
+      - live-suite
+
+  ftp-zrxp:
+    profiles: ["ftp"]
+    image: pegelhub-ftp-connector:local
+    build:
+      context: ../..
+      dockerfile: connectors/ftp-connector/Dockerfile
+    volumes:
+      - ./config/ftp-zrxp:/app/config:ro
+    depends_on:
+      live-suite:
+        condition: service_healthy
+    networks:
+      - live-suite
+
+  tstp-reader:
+    profiles: ["tstp"]
+    image: pegelhub-tstp-connector:local
+    build:
+      context: ../..
+      dockerfile: connectors/tstp-connector/Dockerfile
+    volumes:
+      - ./config/tstp-reader:/app/config:ro
+    depends_on:
+      live-suite:
+        condition: service_healthy
+    networks:
+      - live-suite
+
+  tstp-writer:
+    profiles: ["tstp"]
+    image: pegelhub-tstp-connector:local
+    build:
+      context: ../..
+      dockerfile: connectors/tstp-connector/Dockerfile
+    volumes:
+      - ./config/tstp-writer:/app/config:ro
+    depends_on:
+      live-suite:
+        condition: service_healthy
+    networks:
+      - live-suite
+
+  iec-connector:
+    profiles: ["iec"]
+    image: pegelhub-iec-connector:local
+    build:
+      context: ../..
+      dockerfile: connectors/iec-connector/Dockerfile
+    volumes:
+      - ./config/iec:/app/config:ro
+    depends_on:
+      live-suite:
+        condition: service_healthy
+    networks:
+      - live-suite
+
+  icc-connector:
+    profiles: ["icc"]
+    image: pegelhub-icc-connector:local
+    build:
+      context: ../..
+      dockerfile: connectors/icc-connector/Dockerfile
+    volumes:
+      - ./config/icc:/app/config:ro
+    depends_on:
+      live-suite:
+        condition: service_healthy
+    networks:
+      - live-suite

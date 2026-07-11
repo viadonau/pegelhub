@@ -1,0 +1,12 @@
+core:
+  baseUrl: "http://live-suite:18080/"
+keycloak:
+  tokenUrl: "http://live-suite:18082/realms/pegelhub/protocol/openid-connect/token"
+  clientId: "tstp-writer"
+  clientSecret: "secret"
+schedule:
+  delay: "1s"
+mappingsDir: "mappings"
+tstp:
+  address: "live-suite"
+  port: 18030

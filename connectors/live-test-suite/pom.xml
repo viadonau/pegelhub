@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>at.pegelhub</groupId>
+        <artifactId>connectors</artifactId>
+        <version>2.0.0-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>live-test-suite</artifactId>
+    <version>1.0.0-SNAPSHOT</version>
+    <name>Pegelhub Connector Live Test Suite</name>
+    <description>Protocol fake servers and verifier for live connector tests.</description>
+
+    <properties>
+        <openmuc.version>1.5.0</openmuc.version>
+        <mockftp.version>3.1.0</mockftp.version>
+    </properties>
+
+    <dependencies>
+        <dependency>
+            <groupId>com.google.code.gson</groupId>
+            <artifactId>gson</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.mockftpserver</groupId>
+            <artifactId>MockFtpServer</artifactId>
+            <version>${mockftp.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.openmuc</groupId>
+            <artifactId>j60870</artifactId>
+            <version>${openmuc.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>ch.qos.logback</groupId>
+            <artifactId>logback-classic</artifactId>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
+                <configuration>
+                    <archive>
+                        <manifest>
+                            <mainClass>at.pegelhub.connector.livetest.LiveTestSuiteApplication</mainClass>
+                        </manifest>
+                    </archive>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-dependency-plugin</artifactId>
+            </plugin>
+        </plugins>
+    </build>
+</project>

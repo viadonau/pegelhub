@@ -1,0 +1,4 @@
+timeSeriesId: "11111111-1111-1111-1111-111111111102"
+stationId: 10001033
+parameter: "WasserstandAbs"
+direction: "external-to-core"

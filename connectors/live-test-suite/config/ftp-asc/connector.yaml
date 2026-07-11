@@ -1,0 +1,16 @@
+core:
+  baseUrl: "http://live-suite:18080/"
+keycloak:
+  tokenUrl: "http://live-suite:18082/realms/pegelhub/protocol/openid-connect/token"
+  clientId: "ftp-asc"
+  clientSecret: "secret"
+schedule:
+  delay: "1s"
+mappingsDir: "mappings"
+ftp:
+  address: "live-suite"
+  port: 2121
+  user: "user"
+  password: "password"
+  path: "/asc"
+  parserType: "asc"
