@@ -46,7 +46,40 @@ server-local secrets in `deploy/staging/.env`.
 
 Create DNS records for the frontend, API, and Keycloak hostnames from `.env` so
 all three names point to the staging host. Caddy uses those hostnames for
-routing and certificate issuance.
+routing in every ingress mode. Public mode also uses them for ACME certificate
+issuance.
+
+## Ingress TLS Mode
+
+The staging stack has one Caddy template and one Compose file. Select TLS
+behavior with `PEGELHUB_INGRESS_MODE` in `.env`:
+
+```env
+PEGELHUB_INGRESS_MODE=public
+```
+
+`public` is the default. Caddy serves HTTPS for the configured hostnames and
+obtains certificates with ACME/Let's Encrypt, storing them in the `caddy-data`
+volume.
+
+For an internal network with company-managed certificates, set:
+
+```env
+PEGELHUB_INGRESS_MODE=company
+```
+
+Then place the certificate files on the host before restarting the stack:
+
+```sh
+mkdir -p deploy/staging/certs
+cp fullchain.pem deploy/staging/certs/fullchain.pem
+cp privkey.pem deploy/staging/certs/privkey.pem
+chmod 600 deploy/staging/certs/privkey.pem
+```
+
+The `certs/` directory is mounted read-only into Caddy. The same HTTPS
+hostnames, Keycloak issuer, and Core `KEYCLOAK_ISSUER_URI` are used in both
+modes; the mode changes only how TLS is terminated.
 
 If GHCR packages are private, log in once on the host with a token that can read
 packages:
@@ -181,27 +214,6 @@ workflow does not build a frontend image yet, so
 `PEGELHUB_FRONTEND_IMAGE` must point to a separately published image until a
 frontend module is added to the repository.
 
-## Keycloak Theme And Realm
-
-Staging bind-mounts the login theme from
-`core/docker/keycloak/themes` into the Keycloak container. Normal deploys keep
-the existing Keycloak container running unless Docker Compose needs to change
-it. When deploying Keycloak theme or container config changes, refresh Keycloak
-explicitly so production theme caches and mounts are reloaded:
-
-```sh
-deploy/staging/scripts/deploy.sh --refresh-keycloak sha-<short-sha>
-```
-
-Compose passes `PEGELHUB_FRONTEND_URL=https://${PEGELHUB_FRONTEND_HOSTNAME}` to
-Keycloak. Fresh realm imports use that value for the `pegelhub-frontend`
-client's root URL, redirect URIs, and web origins.
-
-Realm import still only creates a missing realm. It does not update existing
-staging realm state. For an existing staging Keycloak database, apply realm,
-client, client-scope, and theme-setting changes deliberately through the
-Keycloak admin UI or `kcadm` after taking the normal staging backup.
-
 ## Validate
 
 Render Compose without changing services:
@@ -221,8 +233,8 @@ production-unsafe public ports, and any rendered `build:` section.
 
 ## Deploy From GitHub
 
-Push to `main`, run the `Images` workflow manually, or push a `v*` tag. After
-Core and connector images are published, GitHub SSHs into the staging host and runs:
+Run the `Images` workflow manually or push a `v*` tag. After Core and connector
+images are published, GitHub SSHs into the staging host and runs:
 
 ```sh
 deploy/staging/scripts/deploy.sh <published-image-tag>
@@ -244,10 +256,9 @@ For a release tag:
 deploy/staging/scripts/deploy.sh v0.1.0
 ```
 
-The script renders Compose, validates it, pulls images, starts the stack,
-records the current and previous image tags under `deploy/staging/state/`, and
-runs the smoke script. Pass `--refresh-keycloak` when the deployment needs to
-force-recreate the Keycloak container.
+The script renders Compose, validates it, pulls images, starts the stack, records
+the current and previous image tags under `deploy/staging/state/`, and runs the
+smoke script.
 
 ## Smoke Checks
 
@@ -296,6 +307,4 @@ backup/restore decision.
 - Keycloak realm import runs on first start for a fresh Keycloak DB. Existing
   Keycloak state should be changed deliberately and backed up before risky
   auth changes.
-- `--refresh-keycloak` recreates the Keycloak container, but does not recreate
-  or wipe the Keycloak database.
 - Rotate any real FTP password that was ever committed or shared in examples.

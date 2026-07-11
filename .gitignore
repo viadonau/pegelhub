@@ -8,6 +8,7 @@ core/.env
 core/.env.local
 core/.datastoreconfig/
 deploy/staging/.env
+deploy/staging/certs/
 deploy/staging/ftp-config/
 deploy/staging/state/
 deploy/staging/*.rendered.yaml

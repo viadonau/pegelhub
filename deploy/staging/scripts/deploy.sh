@@ -11,18 +11,16 @@ RENDERED_FILE="$STATE_DIR/compose.rendered.yaml"
 
 CHECK_ONLY=false
 ROLLBACK=false
-REFRESH_KEYCLOAK=false
 REQUESTED_TAG=""
 
 usage() {
   cat <<USAGE
 Usage:
-  $0 [--check] [--refresh-keycloak] <image-tag>
+  $0 [--check] <image-tag>
   $0 --rollback
 
 Examples:
   $0 --check sha-42bd19b
-  $0 --refresh-keycloak sha-42bd19b
   $0 sha-42bd19b
   $0 v0.1.0
   $0 --rollback
@@ -41,9 +39,6 @@ while [ "$#" -gt 0 ]; do
       ;;
     --rollback)
       ROLLBACK=true
-      ;;
-    --refresh-keycloak)
-      REFRESH_KEYCLOAK=true
       ;;
     -h|--help)
       usage
@@ -194,11 +189,6 @@ fi
 
 printf '%s\n' "Pulling staging images..."
 compose pull
-
-if [ "$REFRESH_KEYCLOAK" = "true" ]; then
-  printf '%s\n' "Refreshing staging Keycloak..."
-  compose up -d --force-recreate keycloak
-fi
 
 printf '%s\n' "Starting staging stack..."
 compose up -d
