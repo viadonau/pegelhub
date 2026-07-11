@@ -1,16 +1,17 @@
 package at.pegelhub.connector.ftp;
 
 import at.pegelhub.connector.ftp.fileparsing.ParserType;
+import at.pegelhub.lib.runtime.ConnectorContext;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
-import java.lang.reflect.Method;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class MainTest {
     private static final UUID TIME_SERIES_ID = UUID.fromString("11111111-1111-1111-1111-111111111111");
@@ -20,31 +21,24 @@ class MainTest {
 
     @Test
     void shouldUseDefaultConfigDirWhenNoArgumentIsProvided() throws Exception {
-        assertEquals("/app/config", invokeStatic("resolveConfigDir", new Class<?>[]{String[].class}, (Object) new String[0]));
+        assertEquals("/app/config", ConnectorContext.fromArgs(new String[0]).configDir().toString());
     }
 
     @Test
     void shouldResolveConnectorOptionsFromExplicitConfigDir() throws Exception {
-        Files.writeString(tmp.resolve("connector.properties"), """
-                core.address=127.0.0.1
-                core.port=8081
-                ftp.address=127.0.0.2
-                ftp.port=21
-                ftp.user=test-user
-                ftp.password=test-pass
-                ftp.path=/incoming
-                parser.type=zrxp
-                zrxp.parameter=Abfluss
-                read.delay=15m
-                timeSeriesId=11111111-1111-1111-1111-111111111111
+        writeConfig("""
+                timeSeriesId: "11111111-1111-1111-1111-111111111111"
+                stationId: 123
+                parameter: "Abfluss"
+                direction: "external-to-core"
                 """);
 
-        ConnectorOptions options = invokeStatic("getConnectorOptions", new Class<?>[]{String.class}, tmp.toString());
+        ConnectorOptions options = new FtpConnectorModule().getConnectorOptions(ConnectorContext.fromArgs(new String[]{tmp.toString()}));
 
-        assertEquals("127.0.0.1", options.coreAddress().getHostAddress());
-        assertEquals(8081, options.corePort());
-        assertEquals("127.0.0.2", options.pegelAddress().getHostAddress());
-        assertEquals(21, options.pegelPort());
+        assertEquals("http://127.0.0.1:8081/", options.coreConnection().baseUrl().toString());
+        assertEquals("connector", options.coreConnection().credentials().clientId());
+        assertEquals("127.0.0.2", options.ftpAddress().getHostAddress());
+        assertEquals(21, options.ftpPort());
         assertEquals("test-user", options.username());
         assertEquals("test-pass", options.password());
         assertEquals("/incoming", options.path());
@@ -52,13 +46,75 @@ class MainTest {
         assertEquals("Abfluss", options.parameter());
         assertEquals(Duration.ofMinutes(15), options.readDelay());
         assertEquals(TIME_SERIES_ID, options.timeSeriesId());
-        assertEquals(tmp.resolve("pegelhub.yaml").toString(), options.propertiesFile());
+        assertEquals(123, options.stationId());
     }
 
-    @SuppressWarnings("unchecked")
-    private static <T> T invokeStatic(String name, Class<?>[] parameterTypes, Object... args) throws Exception {
-        Method method = Main.class.getDeclaredMethod(name, parameterTypes);
-        method.setAccessible(true);
-        return (T) method.invoke(null, args);
+    @Test
+    void shouldRejectZeroOrMultipleMappings() throws Exception {
+        writeConnectorYaml();
+        Files.createDirectories(tmp.resolve("mappings"));
+
+        FtpConnectorModule module = new FtpConnectorModule();
+        ConnectorContext context = ConnectorContext.fromArgs(new String[]{tmp.toString()});
+        assertThrows(IllegalArgumentException.class, () -> module.getConnectorOptions(context));
+
+        Files.writeString(tmp.resolve("mappings/a.yaml"), """
+                timeSeriesId: "11111111-1111-1111-1111-111111111111"
+                stationId: 123
+                direction: "external-to-core"
+                """);
+        Files.writeString(tmp.resolve("mappings/b.yaml"), """
+                timeSeriesId: "22222222-2222-2222-2222-222222222222"
+                stationId: 456
+                direction: "external-to-core"
+                """);
+
+        assertThrows(IllegalArgumentException.class, () -> module.getConnectorOptions(context));
+    }
+
+    @Test
+    void shouldRejectUnknownParserType() throws Exception {
+        writeConnectorYaml("unknown");
+        Files.createDirectories(tmp.resolve("mappings"));
+        Files.writeString(tmp.resolve("mappings/station.yaml"), """
+                timeSeriesId: "11111111-1111-1111-1111-111111111111"
+                stationId: 123
+                direction: "external-to-core"
+                """);
+
+        FtpConnectorModule module = new FtpConnectorModule();
+        ConnectorContext context = ConnectorContext.fromArgs(new String[]{tmp.toString()});
+
+        assertThrows(IllegalArgumentException.class, () -> module.getConnectorOptions(context));
+    }
+
+    private void writeConfig(String mappingYaml) throws Exception {
+        writeConnectorYaml();
+        Files.createDirectories(tmp.resolve("mappings"));
+        Files.writeString(tmp.resolve("mappings/station.yaml"), mappingYaml);
+    }
+
+    private void writeConnectorYaml() throws Exception {
+        writeConnectorYaml("zrxp");
+    }
+
+    private void writeConnectorYaml(String parserType) throws Exception {
+        Files.writeString(tmp.resolve("connector.yaml"), """
+                core:
+                  baseUrl: "http://127.0.0.1:8081/"
+                keycloak:
+                  tokenUrl: "http://keycloak.local/token"
+                  clientId: "connector"
+                  clientSecret: "secret"
+                schedule:
+                  delay: "15m"
+                ftp:
+                  address: "127.0.0.2"
+                  port: 21
+                  user: "test-user"
+                  password: "test-pass"
+                  path: "/incoming"
+                  parserType: "%s"
+                """.formatted(parserType));
     }
 }

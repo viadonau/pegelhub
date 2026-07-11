@@ -6,7 +6,9 @@ import at.pegelhub.connector.ftp.fileparsing.Entry;
 import at.pegelhub.connector.ftp.fileparsing.Parser;
 import at.pegelhub.connector.ftp.fileparsing.ParserFactory;
 import at.pegelhub.connector.ftp.fileparsing.ParserType;
-import at.pegelhub.lib.PegelHubCommunicator;
+import at.pegelhub.lib.ClientCredentials;
+import at.pegelhub.lib.CoreConnection;
+import at.pegelhub.lib.PegelHubClient;
 import at.pegelhub.lib.model.Measurement;
 import org.apache.commons.net.ftp.FTPClient;
 import org.apache.commons.net.ftp.FTPFile;
@@ -22,9 +24,7 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.InetAddress;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
+import java.net.URI;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Date;
@@ -38,29 +38,16 @@ import static org.mockito.Mockito.*;
 
 public class FtpTaskTest {
     private FTPClient client;
-    private PegelHubCommunicator comm;
+    private PegelHubClient comm;
     private ConnectorOptions conOpts;
-    private String propertiesFile;
     private static final UUID TIME_SERIES_ID = UUID.fromString("11111111-1111-1111-1111-111111111111");
+    private static final int STATION_ID = 10001033;
 
     @BeforeEach
-    public void setup() throws IOException {
+    public void setup() throws Exception {
         client = new FTPClient();
-        comm = mock(PegelHubCommunicator.class);
-        propertiesFile = createPropertiesFile();
-        conOpts = new ConnectorOptions(InetAddress.getByName("localhost"), 0, InetAddress.getByName("localhost"), 0, "user", "password", "", ParserType.ASC, Duration.ofHours(2), TIME_SERIES_ID, null, propertiesFile);
-    }
-
-    private static String createPropertiesFile() throws IOException {
-        Path temp = Files.createTempFile("ftp-properties-", ".yaml");
-        try (var source = Utils.getResourceStream("ftp-properties.yaml")) {
-            if (source == null) {
-                throw new IOException("Missing test resource ftp-properties.yaml");
-            }
-            Files.copy(source, temp, StandardCopyOption.REPLACE_EXISTING);
-        }
-        temp.toFile().deleteOnExit();
-        return temp.toString();
+        comm = mock(PegelHubClient.class);
+        conOpts = options(ParserType.ASC, STATION_ID, null, 0);
     }
 
     @Test
@@ -93,7 +80,7 @@ public class FtpTaskTest {
     }
 
     @Test
-    public void onlyConfiguredParameterIsSent() throws IOException {
+    public void onlyConfiguredParameterIsSent() throws Exception {
         var mockClient = mock(FTPClient.class);
         var file = new FTPFile();
         file.setName("values.zrxp");
@@ -106,10 +93,7 @@ public class FtpTaskTest {
         var ignoredEntry = entry("10001033", "Abfluss", 118.8);
         var matchingEntry = entry("10001033", "WasserstandAbs", 157.3);
         when(parser.parse(any())).thenReturn(List.of(ignoredEntry, matchingEntry).stream());
-        var options = new ConnectorOptions(InetAddress.getByName("localhost"), 0,
-                InetAddress.getByName("localhost"), 0,
-                "user", "password",
-                "", ParserType.ZRXP, Duration.ofHours(2), TIME_SERIES_ID, "WasserstandAbs", propertiesFile);
+        var options = options(ParserType.ZRXP, STATION_ID, "WasserstandAbs", 0);
 
         new FtpTask(mockClient, options, comm, parser).run();
 
@@ -137,7 +121,7 @@ public class FtpTaskTest {
         private static final Logger LOG = LoggerFactory.getLogger(TestWithRunningServer.class);
 
         @BeforeEach
-        public void setup(TestInfo t) throws IOException {
+        public void setup(TestInfo t) throws Exception {
             String[] tags = t.getTags().toArray(new String[0]);
             FileSystem fs = new UnixFakeFileSystem();
             fs.add(new FileEntry("/TestFile.asc", Utils.getResource(tags[0])));
@@ -146,10 +130,7 @@ public class FtpTaskTest {
             server.setFileSystem(fs);
             server.setServerControlPort(1025);
             server.start();
-            var newConOpts = new ConnectorOptions(InetAddress.getByName("localhost"), 0,
-                    InetAddress.getByName("localhost"), 1025,
-                    "user", "password",
-                    "", ParserType.ASC, Duration.ofHours(2), TIME_SERIES_ID, null, propertiesFile);
+            var newConOpts = options(ParserType.ASC, STATION_ID, null, 1025);
             var parser = ParserFactory.getParser(newConOpts.parserType());
             task = new FtpTask(client, newConOpts, comm, parser);
         }
@@ -197,5 +178,22 @@ public class FtpTaskTest {
         public void ftpTaskDoesNotThrowOnParseError() {
             assertDoesNotThrow(task::run);
         }
+    }
+
+    private static ConnectorOptions options(ParserType parserType, int stationId, String parameter, int ftpPort) throws Exception {
+        return new ConnectorOptions(
+                new CoreConnection(
+                        URI.create("http://localhost:8080/").toURL(),
+                        new ClientCredentials("http://keycloak.local/token", "connector", "secret")),
+                InetAddress.getByName("localhost"),
+                ftpPort,
+                "user",
+                "password",
+                "",
+                parserType,
+                Duration.ofHours(2),
+                TIME_SERIES_ID,
+                stationId,
+                parameter);
     }
 }

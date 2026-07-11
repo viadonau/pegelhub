@@ -1,5 +1,7 @@
 package at.pegelhub.connector.iec.config;
 
+import at.pegelhub.lib.CoreConnection;
+
 import java.net.InetAddress;
 import java.time.Duration;
 
@@ -8,12 +10,11 @@ import java.time.Duration;
  * ConnectorOptions spec.
  */
 public record ConnectorOptions(
-        String dataPointsDir,
-        String coreAddress,
-        int corePort,
-        InetAddress iec_host,
-        int iec_port,
-        int common_address,
+        CoreConnection coreConnection,
+        String mappingsDir,
+        InetAddress iecHost,
+        int iecPort,
+        int commonAddress,
         Duration delay
 ) {
 }

@@ -1,0 +1,16 @@
+core:
+  baseUrl: "http://localhost:8080/"
+keycloak:
+  tokenUrl: "http://localhost:8082/realms/pegelhub/protocol/openid-connect/token"
+  clientId: "connector"
+  clientSecret: "secret"
+schedule:
+  delay: "15m"
+mappingsDir: "mappings"
+ftp:
+  address: "ftp.viadonau.org"
+  port: 21
+  user: "pegelReader"
+  password: "securePassword123"
+  path: "/"
+  parserType: "zrxp"

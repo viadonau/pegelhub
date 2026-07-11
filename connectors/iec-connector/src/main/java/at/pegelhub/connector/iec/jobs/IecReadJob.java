@@ -19,7 +19,7 @@ public class IecReadJob implements Runnable {
     public void run() {
         try {
             iecClient.drainGroupedMeasurements().forEach((ioa, measurements) ->
-                    dataPointRegistry.getSupplier(ioa).ifPresentOrElse(
+                    dataPointRegistry.getProtocolToCoreClient(ioa).ifPresentOrElse(
                             communicator -> {
                                 try {
                                     UUID timeSeriesId = dataPointRegistry.getTimeSeriesId(ioa)

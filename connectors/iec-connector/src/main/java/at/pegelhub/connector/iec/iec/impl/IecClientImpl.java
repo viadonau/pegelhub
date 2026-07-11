@@ -23,7 +23,7 @@ public class IecClientImpl implements IecClient {
     private final InetAddress host;
     private final int port;
     private final int commonAddress;
-    private final Set<Integer> registeredSupplierIoas;
+    private final Set<Integer> registeredProtocolToCoreIoas;
     private final BlockingQueue<ReceivedMeasurement> measurementQueue = new LinkedBlockingQueue<>();
 
     @Override
@@ -148,8 +148,8 @@ public class IecClientImpl implements IecClient {
         Arrays.stream(aSdu.getInformationObjects()).forEach(io -> {
             int ioa = io.getInformationObjectAddress();
 
-            if (!registeredSupplierIoas.contains(ioa)) {
-                log.debug("Ignoring IOA {} (no supplier registered).", ioa);
+            if (!registeredProtocolToCoreIoas.contains(ioa)) {
+                log.debug("Ignoring IOA {} (no external-to-core mapping registered).", ioa);
                 return;
             }
 

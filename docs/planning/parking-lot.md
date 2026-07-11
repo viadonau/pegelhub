@@ -9,7 +9,7 @@ Loose project memory for work that should not interrupt the current slice. Keep 
   Move environment-specific clients out of realm import; keep realm import as local bootstrap and define a clean staging setup path.
 
 - Connector library cleanup
-  Remove unused/dead client code, or decide whether shared client pieces should be generated from Core OpenAPI instead of hand-maintained.
+  Decide whether the remaining shared client pieces should be generated from Core OpenAPI instead of hand-maintained.
 
 - API response shape cleanup
   Standardize response conventions, especially measurement reads, so the API stops exposing domain-ish wrappers accidentally.
@@ -37,9 +37,6 @@ Loose project memory for work that should not interrupt the current slice. Keep 
 
 - Measurement cursor pagination
   Revisit whether Measurement reads need cursor pagination long-term, or whether the GET flow could be simpler with bounded windows and direct limits.
-
-- Connector communicator/runtime cleanup
-  Shrink the connector library communicator, delete dead Contact/Connector client methods, and extract shared stamping/config/runtime boilerplate.
 
 - MeasuringPoint domain concept
   Revisit whether a MeasuringPoint should sit between Station and TimeSeries once V1 station/detail workflows are stable.

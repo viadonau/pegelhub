@@ -2,7 +2,7 @@ package at.pegelhub.connector.iec.jobs;
 
 import at.pegelhub.connector.iec.datapoints.DataPointRegistry;
 import at.pegelhub.connector.iec.iec.IecClient;
-import at.pegelhub.lib.PegelHubCommunicator;
+import at.pegelhub.lib.PegelHubClient;
 import at.pegelhub.lib.model.Measurement;
 import org.junit.jupiter.api.Test;
 
@@ -23,11 +23,11 @@ class IecReadJobTest {
     }
 
     @Test
-    void shouldSendEachGroupToSupplierAndIgnoreMissingOnes() throws Exception {
+    void shouldSendEachProtocolToCoreGroupAndIgnoreMissingOnes() throws Exception {
         // Given
         IecClient client = mock(IecClient.class);
         DataPointRegistry registry = mock(DataPointRegistry.class);
-        PegelHubCommunicator comm = mock(PegelHubCommunicator.class);
+        PegelHubClient comm = mock(PegelHubClient.class);
 
         Map<Integer, List<Measurement>> grouped = Map.of(
                 42, List.of(m(10), m(11)),
@@ -35,9 +35,9 @@ class IecReadJobTest {
         );
 
         when(client.drainGroupedMeasurements()).thenReturn(grouped);
-        when(registry.getSupplier(42)).thenReturn(Optional.of(comm));
+        when(registry.getProtocolToCoreClient(42)).thenReturn(Optional.of(comm));
         when(registry.getTimeSeriesId(42)).thenReturn(Optional.of(UUID.fromString("395c0232-d110-40fd-bd7f-2bb4a0f2009d")));
-        when(registry.getSupplier(314)).thenReturn(Optional.empty());
+        when(registry.getProtocolToCoreClient(314)).thenReturn(Optional.empty());
 
         IecReadJob job = new IecReadJob(client, registry);
 
@@ -51,12 +51,12 @@ class IecReadJobTest {
     }
 
     @Test
-    void shouldContinueProcessingWhenOneSupplierFails() throws Exception {
+    void shouldContinueProcessingWhenOneProtocolToCoreSendFails() throws Exception {
         // Given
         IecClient client = mock(IecClient.class);
         DataPointRegistry registry = mock(DataPointRegistry.class);
-        PegelHubCommunicator commFailing = mock(PegelHubCommunicator.class);
-        PegelHubCommunicator commOk = mock(PegelHubCommunicator.class);
+        PegelHubClient commFailing = mock(PegelHubClient.class);
+        PegelHubClient commOk = mock(PegelHubClient.class);
 
         Map<Integer, List<Measurement>> grouped = Map.of(
                 10, List.of(m(10)),
@@ -64,8 +64,8 @@ class IecReadJobTest {
         );
 
         when(client.drainGroupedMeasurements()).thenReturn(grouped);
-        when(registry.getSupplier(10)).thenReturn(Optional.of(commFailing));
-        when(registry.getSupplier(20)).thenReturn(Optional.of(commOk));
+        when(registry.getProtocolToCoreClient(10)).thenReturn(Optional.of(commFailing));
+        when(registry.getProtocolToCoreClient(20)).thenReturn(Optional.of(commOk));
         when(registry.getTimeSeriesId(10)).thenReturn(Optional.of(UUID.fromString("395c0232-d110-40fd-bd7f-2bb4a0f2009d")));
         when(registry.getTimeSeriesId(20)).thenReturn(Optional.of(UUID.fromString("abdc0232-d110-40fd-bd7f-2bb4a0f2009d")));
 

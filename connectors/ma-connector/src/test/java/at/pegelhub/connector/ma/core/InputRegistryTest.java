@@ -1,146 +1,123 @@
 package at.pegelhub.connector.ma.core;
 
-import at.pegelhub.lib.PegelHubCommunicator;
-import at.pegelhub.lib.PegelHubCommunicatorFactory;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
-import org.mockito.MockedStatic;
 import at.pegelhub.connector.ma.jni.RevPiReader;
+import at.pegelhub.lib.config.MappingDirection;
+import at.pegelhub.lib.PegelHubClient;
+import org.junit.jupiter.api.Test;
 
-import java.net.URI;
-import java.net.URL;
-import java.nio.file.Files;
-import java.nio.file.Path;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
-import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.*;
-import static org.mockito.Mockito.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 class InputRegistryTest {
     private static final UUID TIME_SERIES_A = UUID.fromString("11111111-1111-1111-1111-111111111111");
     private static final UUID TIME_SERIES_B = UUID.fromString("22222222-2222-2222-2222-222222222222");
 
-    @TempDir
-    Path tmp;
-
-    RevPiReader revPiReader;
-    MockedStatic<PegelHubCommunicatorFactory> factoryMock;
-
-    URL coreUrl;
-
-    @BeforeEach
-    void setUp() throws Exception {
-        revPiReader = mock(RevPiReader.class);
-        coreUrl = URI.create("http://localhost:8080/").toURL();
-        factoryMock = mockStatic(PegelHubCommunicatorFactory.class);
-    }
-
-    @AfterEach
-    void tearDown() {
-        if (factoryMock != null) factoryMock.close();
-    }
-
-    private void writeYaml(String fileName, String content) throws Exception {
-        Path p = tmp.resolve(fileName);
-        Files.writeString(p, content);
-    }
-
     @Test
-    void shouldLoadInputsAndIgnoreNonYamlFiles() throws Exception {
-        writeYaml("a.yaml", "revInput: A\ntimeSeriesId: \"" + TIME_SERIES_A + "\"\n");
-        writeYaml("b.yml",  "revInput: B\ntimeSeriesId: \"" + TIME_SERIES_B + "\"\n");
-        writeYaml("ignore.txt", "revInput: IGNORED\n");
-
+    void shouldLoadInputs() throws Exception {
+        RevPiReader revPiReader = mock(RevPiReader.class);
         when(revPiReader.resolveOffsetByName("A")).thenReturn(10);
         when(revPiReader.resolveOffsetByName("B")).thenReturn(12);
+        PegelHubClient client = mock(PegelHubClient.class);
 
-        PegelHubCommunicator commA = mock(PegelHubCommunicator.class);
-        PegelHubCommunicator commB = mock(PegelHubCommunicator.class);
-
-        factoryMock.when(() -> PegelHubCommunicatorFactory.create(eq(coreUrl), argThat(p -> p.endsWith("a.yaml"))))
-                .thenReturn(commA);
-        factoryMock.when(() -> PegelHubCommunicatorFactory.create(eq(coreUrl), argThat(p -> p.endsWith("b.yml"))))
-                .thenReturn(commB);
-
-        InputRegistry registry = new InputRegistry(revPiReader, tmp.toString(), coreUrl);
+        InputRegistry registry = new InputRegistry(revPiReader, List.of(
+                mapping("A", TIME_SERIES_A),
+                mapping("B", TIME_SERIES_B)), client);
         registry.loadInputs();
 
-        Set<Integer> offsets = registry.supplierOffsets();
+        Set<Integer> offsets = registry.protocolOffsets();
         assertEquals(Set.of(10, 12), offsets);
 
-        Optional<PegelHubCommunicator> s10 = registry.getSupplier(10);
-        assertTrue(s10.isPresent());
-        assertSame(commA, s10.get());
+        Optional<PegelHubClient> offset10 = registry.getProtocolToCoreClient(10);
+        assertTrue(offset10.isPresent());
+        assertSame(client, offset10.get());
         assertEquals(Optional.of(TIME_SERIES_A), registry.getTimeSeriesId(10));
+
+        registry.close();
+        verify(client, times(1)).close();
     }
 
     @Test
-    void shouldSkipDuplicateRevInputsAndKeepFirst() throws Exception {
-        writeYaml("x1.yaml", "revInput: X\ntimeSeriesId: \"" + TIME_SERIES_A + "\"\n");
-        writeYaml("x2.yaml", "revInput: X\ntimeSeriesId: \"" + TIME_SERIES_B + "\"\n");
-
+    void shouldFailOnDuplicateRevInputs() throws Exception {
+        RevPiReader revPiReader = mock(RevPiReader.class);
         when(revPiReader.resolveOffsetByName("X")).thenReturn(5);
-        PegelHubCommunicator comm = mock(PegelHubCommunicator.class);
-        factoryMock.when(() -> PegelHubCommunicatorFactory.create(eq(coreUrl), anyString()))
-                .thenReturn(comm);
 
-        InputRegistry registry = new InputRegistry(revPiReader, tmp.toString(), coreUrl);
-        registry.loadInputs();
+        InputRegistry registry = new InputRegistry(revPiReader, List.of(
+                mapping("X", TIME_SERIES_A),
+                mapping("X", TIME_SERIES_B)), mock(PegelHubClient.class));
 
-        assertEquals(1, registry.supplierOffsets().size());
+        assertThrows(IllegalArgumentException.class, registry::loadInputs);
     }
 
     @Test
-    void shouldSkipDuplicateResolvedOffsetsAndKeepFirst() throws Exception {
-        writeYaml("a.yaml", "revInput: A\ntimeSeriesId: \"" + TIME_SERIES_A + "\"\n");
-        writeYaml("b.yaml", "revInput: B\ntimeSeriesId: \"" + TIME_SERIES_B + "\"\n");
-
+    void shouldFailOnDuplicateResolvedOffsets() throws Exception {
+        RevPiReader revPiReader = mock(RevPiReader.class);
         when(revPiReader.resolveOffsetByName("A")).thenReturn(7);
-        when(revPiReader.resolveOffsetByName("B")).thenReturn(7); // same resolved offset
+        when(revPiReader.resolveOffsetByName("B")).thenReturn(7);
 
-        PegelHubCommunicator comm = mock(PegelHubCommunicator.class);
-        factoryMock.when(() -> PegelHubCommunicatorFactory.create(eq(coreUrl), anyString()))
-                .thenReturn(comm);
+        InputRegistry registry = new InputRegistry(revPiReader, List.of(
+                mapping("A", TIME_SERIES_A),
+                mapping("B", TIME_SERIES_B)), mock(PegelHubClient.class));
 
-        InputRegistry registry = new InputRegistry(revPiReader, tmp.toString(), coreUrl);
-        registry.loadInputs();
-
-        assertEquals(Set.of(7), registry.supplierOffsets());
+        assertThrows(IllegalArgumentException.class, registry::loadInputs);
     }
 
     @Test
-    void shouldSkipFilesMissingRevInput() throws Exception {
-        writeYaml("bad.yaml", "keycloak: {}\n"); // no revInput
+    void shouldFailOnMissingDirection() {
+        assertThrows(NullPointerException.class, () ->
+                new InputMapping("A", TIME_SERIES_A, null));
+    }
 
-        InputRegistry registry = new InputRegistry(revPiReader, tmp.toString(), coreUrl);
-        registry.loadInputs();
+    @Test
+    void shouldFailOnUnsupportedDirection() throws Exception {
+        InputRegistry registry = new InputRegistry(mock(RevPiReader.class), List.of(
+                new InputMapping("A", TIME_SERIES_A, MappingDirection.CORE_TO_EXTERNAL)), mock(PegelHubClient.class));
 
-        assertTrue(registry.supplierOffsets().isEmpty());
+        assertThrows(IllegalArgumentException.class, registry::loadInputs);
+    }
+
+    @Test
+    void shouldCloseClientWhenLoadInputsFailsBeforeRegistration() throws Exception {
+        PegelHubClient client = mock(PegelHubClient.class);
+        InputRegistry registry = new InputRegistry(mock(RevPiReader.class), List.of(
+                new InputMapping("A", TIME_SERIES_A, MappingDirection.CORE_TO_EXTERNAL)), client);
+
+        assertThrows(IllegalArgumentException.class, registry::loadInputs);
+
+        registry.close();
+        verify(client, times(1)).close();
     }
 
     @Test
     void shouldExposeUnmodifiableOffsetsView() throws Exception {
-        writeYaml("a.yaml", "revInput: A\ntimeSeriesId: \"" + TIME_SERIES_A + "\"\n");
+        RevPiReader revPiReader = mock(RevPiReader.class);
         when(revPiReader.resolveOffsetByName("A")).thenReturn(3);
-        PegelHubCommunicator comm = mock(PegelHubCommunicator.class);
-        factoryMock.when(() -> PegelHubCommunicatorFactory.create(eq(coreUrl), anyString())).thenReturn(comm);
 
-        InputRegistry registry = new InputRegistry(revPiReader, tmp.toString(), coreUrl);
+        InputRegistry registry = new InputRegistry(revPiReader, List.of(mapping("A", TIME_SERIES_A)), mock(PegelHubClient.class));
         registry.loadInputs();
 
-        Set<Integer> view = registry.supplierOffsets();
+        Set<Integer> view = registry.protocolOffsets();
         assertThrows(UnsupportedOperationException.class, () -> view.add(99));
     }
 
     @Test
-    void shouldReturnEmptyWhenSupplierUnknown() {
-        InputRegistry registry = new InputRegistry(revPiReader, tmp.toString(), coreUrl);
-        assertTrue(registry.getSupplier(42).isEmpty());
+    void shouldReturnEmptyWhenOffsetUnknown() {
+        InputRegistry registry = new InputRegistry(mock(RevPiReader.class), List.of(), mock(PegelHubClient.class));
+        assertTrue(registry.getProtocolToCoreClient(42).isEmpty());
         assertTrue(registry.getTimeSeriesId(42).isEmpty());
+    }
+
+    private static InputMapping mapping(String revInput, UUID timeSeriesId) {
+        return new InputMapping(revInput, timeSeriesId, MappingDirection.EXTERNAL_TO_CORE);
     }
 }

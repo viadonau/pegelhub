@@ -1,108 +1,82 @@
 package at.pegelhub.connector.iec.datapoints;
 
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
-import at.pegelhub.lib.PegelHubCommunicator;
-import at.pegelhub.lib.PegelHubCommunicatorFactory;
+import at.pegelhub.lib.PegelHubClient;
+import at.pegelhub.lib.config.MappingDirection;
 import lombok.extern.slf4j.Slf4j;
 
-import java.net.URL;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.*;
-import java.util.stream.Stream;
 
 @Slf4j
-public class DataPointRegistry {
+public class DataPointRegistry implements AutoCloseable {
 
-    private static final ObjectMapper YAML = new ObjectMapper(new YAMLFactory());
-
-    private final Map<Integer, PegelHubCommunicator> suppliers = new HashMap<>();
-    private final Map<Integer, PegelHubCommunicator> takers = new HashMap<>();
+    private final Map<Integer, PegelHubClient> protocolToCore = new HashMap<>();
+    private final Map<Integer, PegelHubClient> coreToProtocol = new HashMap<>();
     private final Map<Integer, UUID> timeSeriesIds = new HashMap<>();
+    private final PegelHubClient client;
 
-    public DataPointRegistry(String dataPointsDir, URL coreBaseUrl) throws Exception {
-        Objects.requireNonNull(dataPointsDir, "dataPointsDir");
-        Path dir = Paths.get(dataPointsDir);
-        if (!Files.isDirectory(dir)) {
-            throw new IllegalArgumentException("DataPointsDir is not a directory: " + dir.toAbsolutePath());
-        }
-        loadDataPoints(dir, coreBaseUrl);
-        log.info("Loaded datapoints from {} → suppliers={}, takers={}", dir.toAbsolutePath(), suppliers.size(), takers.size());
+    public DataPointRegistry(List<DataPointMapping> mappings, PegelHubClient client) {
+        Objects.requireNonNull(mappings, "mappings");
+        this.client = Objects.requireNonNull(client, "client");
+        loadDataPoints(mappings, client);
+        log.info("Loaded datapoints -> protocolToCore={}, coreToProtocol={}",
+                protocolToCore.size(), coreToProtocol.size());
     }
 
-    public Optional<PegelHubCommunicator> getSupplier(int ioa) {
-        return Optional.ofNullable(suppliers.get(ioa));
+    public Optional<PegelHubClient> getProtocolToCoreClient(int ioa) {
+        return Optional.ofNullable(protocolToCore.get(ioa));
     }
 
-    public Optional<PegelHubCommunicator> getTaker(int ioa) {
-        return Optional.ofNullable(takers.get(ioa));
+    public Optional<PegelHubClient> getCoreToProtocolClient(int ioa) {
+        return Optional.ofNullable(coreToProtocol.get(ioa));
     }
 
     public Optional<UUID> getTimeSeriesId(int ioa) {
         return Optional.ofNullable(timeSeriesIds.get(ioa));
     }
 
-    public Set<Integer> supplierIoas() {
-        return Collections.unmodifiableSet(suppliers.keySet());
+    public Set<Integer> protocolToCoreIoas() {
+        return Collections.unmodifiableSet(protocolToCore.keySet());
     }
 
-    public Set<Integer> takerIoas() {
-        return Collections.unmodifiableSet(takers.keySet());
+    public Set<Integer> coreToProtocolIoas() {
+        return Collections.unmodifiableSet(coreToProtocol.keySet());
     }
 
-    private void loadDataPoints(Path dir, URL coreBaseUrl) throws Exception {
+    private void loadDataPoints(List<DataPointMapping> mappings, PegelHubClient client) {
         Set<Integer> seen = new HashSet<>();
-        try (Stream<Path> files = Files.list(dir)) {
-            files.filter(Files::isRegularFile)
-                    .filter(DataPointRegistry::isYaml)
-                    .forEach(p -> {
-                        try {
-                            Raw raw = YAML.readValue(p.toFile(), Raw.class);
+        for (DataPointMapping mapping : mappings) {
+            int ioa = mapping.iecIoa();
+            if (!seen.add(ioa)) {
+                throw new IllegalArgumentException("Duplicate IOA " + ioa);
+            }
 
-                            if (raw.iecIoa == null || raw.isSupplier == null || raw.timeSeriesId == null) {
-                                throw new IllegalArgumentException("Missing fields in " + p.getFileName());
-                            }
+            if (mapping.direction() == MappingDirection.EXTERNAL_TO_CORE) {
+                protocolToCore.put(ioa, client);
+            } else {
+                coreToProtocol.put(ioa, client);
+            }
+            timeSeriesIds.put(ioa, mapping.timeSeriesId());
 
-                            int ioa = raw.iecIoa;
-
-                            if (!seen.add(ioa)) {
-                                throw new IllegalStateException("Duplicate IOA " + ioa + " in " + p.getFileName());
-                            }
-
-                            PegelHubCommunicator comm = PegelHubCommunicatorFactory.create(coreBaseUrl, p.toString());
-
-                            if (raw.isSupplier) {
-                                suppliers.put(ioa, comm);
-                            } else {
-                                takers.put(ioa, comm);
-                            }
-                            timeSeriesIds.put(ioa, raw.timeSeriesId);
-
-                            log.debug("Loaded datapoint: IOA={}, timeSeriesId={}, isSupplier={}, file={}",
-                                    ioa, raw.timeSeriesId, raw.isSupplier, p.getFileName());
-                        } catch (Exception ex) {
-                            log.warn("Skipping {}: {}", p.getFileName(), ex.getMessage());
-                        }
-                    });
+            log.debug("Loaded datapoint: IOA={}, timeSeriesId={}, direction={}",
+                    ioa, mapping.timeSeriesId(), mapping.direction());
         }
     }
 
-    private static boolean isYaml(Path p) {
-        String n = p.getFileName().toString().toLowerCase();
-        return n.endsWith(".yaml") || n.endsWith(".yml");
+    @Override
+    public void close() {
+        Set<PegelHubClient> clients = Collections.newSetFromMap(new IdentityHashMap<>());
+        clients.add(client);
+        clients.addAll(protocolToCore.values());
+        clients.addAll(coreToProtocol.values());
+        clients.forEach(this::closeClient);
     }
 
-    @JsonIgnoreProperties(ignoreUnknown = true)
-    private static final class Raw {
-        @JsonProperty("iecIOA")
-        Integer iecIoa;
-        @JsonProperty("isSupplier")
-        Boolean isSupplier;
-        @JsonProperty("timeSeriesId")
-        UUID timeSeriesId;
+    private void closeClient(PegelHubClient client) {
+        try {
+            client.close();
+        } catch (Exception e) {
+            log.warn("Failed closing PegelHub client", e);
+        }
     }
+
 }

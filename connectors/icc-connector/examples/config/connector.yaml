@@ -1,0 +1,16 @@
+core:
+  baseUrl: "http://core.local:8080/"
+keycloak:
+  tokenUrl: "http://keycloak.local:8082/realms/pegelhub/protocol/openid-connect/token"
+  clientId: "icc-core"
+  clientSecret: "secret"
+externalCore:
+  core:
+    baseUrl: "http://external-core.local:8080/"
+  keycloak:
+    tokenUrl: "http://external-keycloak.local:8082/realms/pegelhub/protocol/openid-connect/token"
+    clientId: "icc-external"
+    clientSecret: "secret"
+schedule:
+  delay: "1h"
+mappingsDir: "mappings"

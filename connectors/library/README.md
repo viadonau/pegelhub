@@ -1,45 +1,48 @@
-# Library
+# Connector Library
 
-This module provides the plain Java API client used by the connectors.
+This module provides the shared Pegelhub HTTP client and connector runtime seam used by protocol connectors.
 
-## Usage
+## Client Creation
 
-Create a communicator with:
+Create Core clients from explicit connection data:
 
-- `baseUrl`: HTTP(S) base URL of the Pegelhub cluster
-- `propertiesFile`: optional YAML file path, defaults to `pegelhub.yaml`
+```java
+PegelHubClient client = PegelHubClientFactory.create(
+        new CoreConnection(
+                URI.create("http://localhost:8080/").toURL(),
+                new ClientCredentials(
+                        "http://localhost:8082/realms/pegelhub/protocol/openid-connect/token",
+                        "connector",
+                        "secret")));
+```
 
-The checked-in sample file lives at `examples/config/pegelhub.yaml`.
+The client obtains short-lived Keycloak tokens with `client_credentials`, caches them, and sends Core requests with a bearer token.
 
-The YAML contains the connector identity and authentication data:
+## Connector Runtime
 
-- `keycloak.tokenUrl`
-- `keycloak.clientId`
-- `keycloak.clientSecret`
-- `sendMetaDataOnStartup`
-- `isSupplier`
-- `supplier`
-- `taker`
+Connector entrypoints should call:
 
-Keycloak clients must be pre-provisioned per connector instance. The `supplier.id` / `taker.id` and connector numbers must also be unique within the target Pegelhub cluster.
-When omitted, `sendMetaDataOnStartup` defaults to `false`, so normal connector credentials only send measurement or telemetry data after an operator has registered the metadata through the Pegelhub admin API. Set it to `true` only for admin-capable credentials that are allowed to create supplier or taker metadata during startup.
+```java
+ConnectorApplication.run(args, new MyConnectorModule());
+```
 
-Measurements are time-series based. The library sends measurement writes to
-`POST /api/v1/measurements` and reads from
-`GET /api/v1/time-series/{timeSeriesId}/measurements`.
+Connector modules implement `ConnectorModule` and return a `ConnectorPlan`. The plan describes startup hooks, fixed-delay tasks, close hooks, thread count, and shutdown timeout. `ConnectorRuntime` remains the low-level scheduler behind the plan and should not be built directly by connector entrypoints.
 
-## Authentication
+## Configuration Helpers
 
-- Ask the Pegelhub owner for a Keycloak client id and client secret with the required roles.
-- Configure `keycloak.tokenUrl`, `keycloak.clientId`, and `keycloak.clientSecret` in `pegelhub.yaml`.
-- The library obtains a short-lived access token with `client_credentials`, caches it, and sends `Authorization: Bearer <token>`.
+`ConnectorContext` resolves the config directory from the first CLI argument, defaulting to `/app/config`. It also provides:
 
-The library does not write access tokens or secrets back to the YAML file.
+- `resolve(...)` for config-relative paths
+- `loadYaml(...)` for typed YAML loading
+- `listYamlFiles(...)` for sorted mapping files
+- `parseDuration(...)` for `30s`, `15m`, and `1h` style values
+- `coreClient(...)` for creating a `PegelHubClient` from a `CoreConnection`
+
+Protocol-specific config parsing stays inside connector modules.
 
 ## Time Handling
 
-Measurement and telemetry timestamps are represented as `Instant` in the connector library.
-Outbound HTTP payloads therefore use ISO-8601 UTC strings such as:
+Measurement timestamps use `Instant`. Outbound HTTP payloads use ISO-8601 UTC strings such as:
 
 ```json
 {
@@ -48,5 +51,3 @@ Outbound HTTP payloads therefore use ISO-8601 UTC strings such as:
 ```
 
 Connectors that receive protocol timestamps without an explicit offset must choose the timezone at the parsing boundary.
-For Pegelhub's current connectors, offset-free protocol timestamps are treated as UTC before they are stored in the shared `Measurement` model.
-The HTTP client expects timestamp values from Core to use the same instant format.

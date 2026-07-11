@@ -6,6 +6,7 @@ import java.net.http.HttpResponse;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 import at.pegelhub.connector.tstp.service.TstpXmlService;
 import at.pegelhub.connector.tstp.service.model.XmlQueryResponse;
@@ -83,22 +84,22 @@ class TstpCommunicatorImplTest {
 		when(httpResponse.body()).thenReturn(responseBody);
 		when(tstpXmlService.parseXmlCatalog(responseBody)).thenReturn(xmlQueryResponse);
 
-		XmlQueryResponse result = tstpCommunicator.getCatalog(dbms);
+		Optional<XmlQueryResponse> result = tstpCommunicator.getCatalog(dbms);
 
-		assertEquals(xmlQueryResponse, result);
+		assertEquals(Optional.of(xmlQueryResponse), result);
 		verify(httpClient, times(1)).send(any(HttpRequest.class), eq(HttpResponse.BodyHandlers.ofString()));
 		verify(tstpXmlService, times(1)).parseXmlCatalog(responseBody);
 	}
 
 	@Test
-	public void testGetCatalog_catalogIsNull_returnNull() throws Exception {
+	public void testGetCatalog_catalogRequestFails_returnsEmpty() throws Exception {
 		int dbms = 1;
 
 		when(httpClient.send(any(HttpRequest.class), eq(HttpResponse.BodyHandlers.ofString()))).thenThrow(new RuntimeException());
 
-		XmlQueryResponse result = tstpCommunicator.getCatalog(dbms);
+		Optional<XmlQueryResponse> result = tstpCommunicator.getCatalog(dbms);
 
-		assertNull(result);
+		assertTrue(result.isEmpty());
 		verify(httpClient, times(1)).send(any(HttpRequest.class), eq(HttpResponse.BodyHandlers.ofString()));
 		verify(tstpXmlService, never()).parseXmlCatalog(anyString());
 	}

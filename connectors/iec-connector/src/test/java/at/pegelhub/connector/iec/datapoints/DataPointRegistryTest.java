@@ -1,83 +1,61 @@
 package at.pegelhub.connector.iec.datapoints;
 
-import at.pegelhub.lib.PegelHubCommunicator;
-import at.pegelhub.lib.PegelHubCommunicatorFactory;
+import at.pegelhub.lib.PegelHubClient;
+import at.pegelhub.lib.config.MappingDirection;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
-import org.mockito.MockedStatic;
 
-import java.net.URL;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.Set;
+import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.*;
-import static org.mockito.Mockito.*;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 
 class DataPointRegistryTest {
 
-    @TempDir
-    Path dir;
+    @Test
+    void shouldLoadProtocolToCoreAndCoreToProtocolMappings() throws Exception {
+        PegelHubClient client = mock(PegelHubClient.class);
 
-    private void writeYaml(Path file, int ioa, boolean isSupplier) throws Exception {
-        Files.writeString(file, """
-                iecIOA: %d
-                timeSeriesId: "395c0232-d110-40fd-bd7f-2bb4a0f2009d"
-                isSupplier: %s
-                """.formatted(ioa, isSupplier));
+        DataPointRegistry reg = new DataPointRegistry(List.of(
+                mapping(1001, MappingDirection.EXTERNAL_TO_CORE),
+                mapping(2002, MappingDirection.CORE_TO_EXTERNAL)), client);
+
+        assertThat(reg.protocolToCoreIoas()).containsExactly(1001);
+        assertThat(reg.coreToProtocolIoas()).containsExactly(2002);
+        assertThat(reg.getProtocolToCoreClient(1001)).contains(client);
+        assertThat(reg.getCoreToProtocolClient(2002)).contains(client);
+        assertThat(reg.getTimeSeriesId(1001)).contains(UUID.fromString("395c0232-d110-40fd-bd7f-2bb4a0f2009d"));
+        assertThat(reg.getProtocolToCoreClient(9999)).isEmpty();
+
+        reg.close();
+        verify(client, times(1)).close();
     }
 
     @Test
-    void shouldLoadSuppliersAndTakersAndIgnoreNonYamlFiles() throws Exception {
-        // Given
-        writeYaml(dir.resolve("s1.yaml"), 1001, true);
-        writeYaml(dir.resolve("t1.yml"), 2002, false);
-        Files.writeString(dir.resolve("readme.txt"), "ignore me");
-
-        PegelHubCommunicator mockComm = mock(PegelHubCommunicator.class);
-
-        try (MockedStatic<PegelHubCommunicatorFactory> mf =
-                     mockStatic(PegelHubCommunicatorFactory.class)) {
-            mf.when(() -> PegelHubCommunicatorFactory.create(any(URL.class), anyString()))
-                    .thenReturn(mockComm);
-
-            // When
-            DataPointRegistry reg = new DataPointRegistry(
-                    dir.toString(), new URL("http", "core.local", 8080, "/"));
-
-            // Then
-            assertThat(reg.supplierIoas()).containsExactly(1001);
-            assertThat(reg.takerIoas()).containsExactly(2002);
-
-            assertThat(reg.getSupplier(1001)).isPresent();
-            assertThat(reg.getTaker(2002)).isPresent();
-            assertThat(reg.getTimeSeriesId(1001)).contains(UUID.fromString("395c0232-d110-40fd-bd7f-2bb4a0f2009d"));
-            assertThat(reg.getSupplier(9999)).isEmpty();
-        }
+    void shouldFailOnDuplicateIoas() throws Exception {
+        assertThatThrownBy(() -> new DataPointRegistry(List.of(
+                mapping(1234, MappingDirection.EXTERNAL_TO_CORE),
+                mapping(1234, MappingDirection.CORE_TO_EXTERNAL)), mock(PegelHubClient.class)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Duplicate IOA 1234");
     }
 
     @Test
-    void shouldSkipDuplicateIoasAndKeepFirstEntry() throws Exception {
-        // Given
-        writeYaml(dir.resolve("a.yaml"), 1234, true);
-        writeYaml(dir.resolve("b.yaml"), 1234, true); // duplicate
+    void shouldFailOnMissingRequiredFields() {
+        assertThatThrownBy(() -> new DataPointMapping(null,
+                UUID.fromString("395c0232-d110-40fd-bd7f-2bb4a0f2009d"),
+                MappingDirection.EXTERNAL_TO_CORE))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessageContaining("iecIoa");
+    }
 
-        PegelHubCommunicator mockComm = mock(PegelHubCommunicator.class);
-
-        try (MockedStatic<PegelHubCommunicatorFactory> mf =
-                     mockStatic(PegelHubCommunicatorFactory.class)) {
-            mf.when(() -> PegelHubCommunicatorFactory.create(any(URL.class), anyString()))
-                    .thenReturn(mockComm);
-
-            // When
-            DataPointRegistry reg = new DataPointRegistry(
-                    dir.toString(), new URL("http", "core.local", 8080, "/"));
-
-            // Then
-            Set<Integer> suppliers = reg.supplierIoas();
-            assertThat(suppliers).containsExactly(1234);
-        }
+    private DataPointMapping mapping(int ioa, MappingDirection direction) {
+        return new DataPointMapping(
+                ioa,
+                UUID.fromString("395c0232-d110-40fd-bd7f-2bb4a0f2009d"),
+                direction);
     }
 }

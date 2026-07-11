@@ -1,6 +1,6 @@
 package at.pegelhub.connector.ma.core;
 
-import at.pegelhub.lib.PegelHubCommunicator;
+import at.pegelhub.lib.PegelHubClient;
 import at.pegelhub.lib.model.Measurement;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -25,7 +25,7 @@ public final class MaReadJob implements Runnable {
     public void run() {
         Instant now = Instant.now();
 
-        inputRegistry.supplierOffsets().forEach(offset -> {
+        inputRegistry.protocolOffsets().forEach(offset -> {
             try {
                 int inputValue = revPiReader.readFromOffset(offset);
                 log.debug("Value from RevPi: {}", inputValue);
@@ -36,18 +36,16 @@ public final class MaReadJob implements Runnable {
                     return;
                 }
 
-                inputRegistry.getSupplier(offset).ifPresentOrElse(
+                inputRegistry.getProtocolToCoreClient(offset).ifPresentOrElse(
                         communicator -> sendMeasurement(communicator, timeSeriesId.get(), now, inputValue, offset),
                         () -> log.error("Missing communicator for offset {} at send time (unexpected).", offset));
             } catch (Exception e) {
                 log.error("An error occurred while trying to read from offset {}. Skipping offset.", offset, e);
             }
         });
-
-        revPiReader.close();
     }
 
-    private void sendMeasurement(PegelHubCommunicator communicator, UUID timeSeriesId, Instant observedAt, int inputValue, int offset) {
+    private void sendMeasurement(PegelHubClient communicator, UUID timeSeriesId, Instant observedAt, int inputValue, int offset) {
         try {
             Measurement measurement = new Measurement(timeSeriesId, observedAt, inputValue);
             communicator.sendMeasurements(Collections.singletonList(measurement));

@@ -1,31 +1,20 @@
 package at.pegelhub.connector.ma.core;
 
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
-import at.pegelhub.lib.PegelHubCommunicator;
-import at.pegelhub.lib.PegelHubCommunicatorFactory;
+import at.pegelhub.lib.PegelHubClient;
+import at.pegelhub.lib.config.MappingDirection;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import at.pegelhub.connector.ma.jni.RevPiReader;
 
-import java.net.URL;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.*;
-import java.util.stream.Stream;
 
 @Slf4j
 @RequiredArgsConstructor
-public class InputRegistry {
-    private static final ObjectMapper YAML = new ObjectMapper(new YAMLFactory());
-
+public class InputRegistry implements AutoCloseable {
     private final Map<Integer, InputRegistration> inputs = new HashMap<>();
     private final RevPiReader revPiReader;
-    private final String inputsDir;
-    private final URL coreBaseUrl;
+    private final List<InputMapping> mappings;
+    private final PegelHubClient client;
 
 
     /**
@@ -35,43 +24,35 @@ public class InputRegistry {
      */
     public void loadInputs() throws Exception {
         Set<String> seen = new HashSet<>();
-        try (Stream<Path> files = Files.list(Paths.get(this.inputsDir))) {
-            files.filter(Files::isRegularFile)
-                    .filter(InputRegistry::isYaml)
-                    .forEach(p -> {
-                        try {
-                            Raw raw = YAML.readValue(p.toFile(), Raw.class);
+        for (InputMapping mapping : mappings) {
+            try {
+                if (mapping.direction() != MappingDirection.EXTERNAL_TO_CORE) {
+                    throw new IllegalArgumentException("mA mappings only support direction: external-to-core");
+                }
 
-                            if (raw.revInput == null || raw.timeSeriesId == null) {
-                                throw new IllegalArgumentException("Missing fields in " + p.getFileName());
-                            }
+                String revInput = mapping.revInput();
+                UUID timeSeriesId = mapping.timeSeriesId();
 
-                            String revInput = raw.revInput;
-                            UUID timeSeriesId = raw.timeSeriesId;
+                if (!seen.add(revInput)) {
+                    throw new IllegalStateException("Duplicate Input " + revInput);
+                }
 
-                            if (!seen.add(revInput)) {
-                                throw new IllegalStateException("Duplicate Input " + revInput + " in " + p.getFileName());
-                            }
+                int inputOffset = this.revPiReader.resolveOffsetByName(revInput);
 
-                            int inputOffset = this.revPiReader.resolveOffsetByName(revInput);
+                if (inputs.containsKey(inputOffset)) {
+                    throw new IllegalStateException("Duplicate resolved offset " + inputOffset);
+                }
 
-                            if (inputs.containsKey(inputOffset)) {
-                                throw new IllegalStateException("Duplicate resolved offset " + inputOffset +
-                                        " for file " + p.getFileName());
-                            }
+                inputs.put(inputOffset, new InputRegistration(client, timeSeriesId));
 
-                            PegelHubCommunicator comm = PegelHubCommunicatorFactory.create(this.coreBaseUrl, p.toString());
-                            inputs.put(inputOffset, new InputRegistration(comm, timeSeriesId));
-
-                            log.debug("Loaded input: InputName={}, ResolvedOffset={}, TimeSeriesId={}, file={}",
-                                    revInput, inputOffset, timeSeriesId, p.getFileName());
-                        } catch (Exception ex) {
-                            log.warn("Skipping {}: {}", p.getFileName(), ex.getMessage());
-                        }
-                    });
+                log.debug("Loaded input: InputName={}, ResolvedOffset={}, TimeSeriesId={}",
+                        revInput, inputOffset, timeSeriesId);
+            } catch (Exception ex) {
+                throw new IllegalArgumentException("Invalid mapping for " + mapping.revInput() + ": " + ex.getMessage(), ex);
+            }
         }
 
-        log.info("Loaded inputs from {} -> inputs={}", this.inputsDir, this.inputs.size());
+        log.info("Loaded inputs -> inputs={}", this.inputs.size());
     }
 
     /**
@@ -80,7 +61,7 @@ public class InputRegistry {
      * @param offset resolved RevPi input offset
      * @return optional communicator for the offset
      */
-    public Optional<PegelHubCommunicator> getSupplier(int offset) {
+    public Optional<PegelHubClient> getProtocolToCoreClient(int offset) {
         return Optional.ofNullable(inputs.get(offset)).map(InputRegistration::communicator);
     }
 
@@ -93,24 +74,28 @@ public class InputRegistry {
      *
      * @return unmodifiable set of offsets
      */
-    public Set<Integer> supplierOffsets() {
+    public Set<Integer> protocolOffsets() {
         return Collections.unmodifiableSet(inputs.keySet());
     }
 
-    private static boolean isYaml(Path p) {
-        String n = p.getFileName().toString().toLowerCase();
-        return n.endsWith(".yaml") || n.endsWith(".yml");
+    @Override
+    public void close() {
+        Set<PegelHubClient> clients = Collections.newSetFromMap(new IdentityHashMap<>());
+        clients.add(client);
+        inputs.values().stream()
+                .map(InputRegistration::communicator)
+                .forEach(clients::add);
+        clients.forEach(this::closeClient);
     }
 
-    @JsonIgnoreProperties(ignoreUnknown = true)
-    private static final class Raw {
-        @JsonProperty("revInput")
-        String revInput;
-
-        @JsonProperty("timeSeriesId")
-        UUID timeSeriesId;
+    private void closeClient(PegelHubClient client) {
+        try {
+            client.close();
+        } catch (Exception e) {
+            log.warn("Failed closing PegelHub client", e);
+        }
     }
 
-    private record InputRegistration(PegelHubCommunicator communicator, UUID timeSeriesId) {
+    private record InputRegistration(PegelHubClient communicator, UUID timeSeriesId) {
     }
 }

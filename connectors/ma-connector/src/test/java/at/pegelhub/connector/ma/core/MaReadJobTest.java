@@ -1,6 +1,6 @@
 package at.pegelhub.connector.ma.core;
 
-import at.pegelhub.lib.PegelHubCommunicator;
+import at.pegelhub.lib.PegelHubClient;
 import at.pegelhub.lib.model.Measurement;
 import org.junit.jupiter.api.Test;
 import at.pegelhub.connector.ma.jni.RevPiReader;
@@ -18,15 +18,15 @@ class MaReadJobTest {
     private static final UUID TIME_SERIES_ID = UUID.fromString("11111111-1111-1111-1111-111111111111");
 
     @Test
-    void shouldSendMeasurementPerOffsetAndCloseReader() {
+    void shouldSendMeasurementPerOffset() {
         InputRegistry registry = mock(InputRegistry.class);
         RevPiReader reader = mock(RevPiReader.class);
-        PegelHubCommunicator communicator = mock(PegelHubCommunicator.class);
+        PegelHubClient communicator = mock(PegelHubClient.class);
 
-        when(registry.supplierOffsets()).thenReturn(Set.of(10));
+        when(registry.protocolOffsets()).thenReturn(Set.of(10));
         when(reader.readFromOffset(10)).thenReturn(42);
         when(registry.getTimeSeriesId(10)).thenReturn(Optional.of(TIME_SERIES_ID));
-        when(registry.getSupplier(10)).thenReturn(Optional.of(communicator));
+        when(registry.getProtocolToCoreClient(10)).thenReturn(Optional.of(communicator));
 
         MaReadJob job = new MaReadJob(registry, reader);
         job.run();
@@ -42,23 +42,23 @@ class MaReadJobTest {
         assertEquals(42.0, measurement.getValue());
         assertNotNull(measurement.getObservedAt());
 
-        verify(reader, times(1)).close();
+        verify(reader, never()).close();
     }
 
     @Test
-    void shouldSkipWhenSupplierMissingAndContinue() {
+    void shouldSkipWhenClientMissingAndContinue() {
         InputRegistry registry = mock(InputRegistry.class);
         RevPiReader reader = mock(RevPiReader.class);
 
-        when(registry.supplierOffsets()).thenReturn(Set.of(5));
+        when(registry.protocolOffsets()).thenReturn(Set.of(5));
         when(reader.readFromOffset(5)).thenReturn(13);
         when(registry.getTimeSeriesId(5)).thenReturn(Optional.of(TIME_SERIES_ID));
-        when(registry.getSupplier(5)).thenReturn(Optional.empty());
+        when(registry.getProtocolToCoreClient(5)).thenReturn(Optional.empty());
 
         MaReadJob job = new MaReadJob(registry, reader);
         job.run();
 
-        verify(reader, times(1)).close();
+        verify(reader, never()).close();
         // No communicator interactions expected
     }
 
@@ -67,15 +67,15 @@ class MaReadJobTest {
         InputRegistry registry = mock(InputRegistry.class);
         RevPiReader reader = mock(RevPiReader.class);
 
-        when(registry.supplierOffsets()).thenReturn(Set.of(5));
+        when(registry.protocolOffsets()).thenReturn(Set.of(5));
         when(reader.readFromOffset(5)).thenReturn(13);
         when(registry.getTimeSeriesId(5)).thenReturn(Optional.empty());
 
         MaReadJob job = new MaReadJob(registry, reader);
         job.run();
 
-        verify(registry, never()).getSupplier(5);
-        verify(reader, times(1)).close();
+        verify(registry, never()).getProtocolToCoreClient(5);
+        verify(reader, never()).close();
     }
 
     @Test
@@ -83,13 +83,13 @@ class MaReadJobTest {
         InputRegistry registry = mock(InputRegistry.class);
         RevPiReader reader = mock(RevPiReader.class);
 
-        when(registry.supplierOffsets()).thenReturn(Set.of(9));
+        when(registry.protocolOffsets()).thenReturn(Set.of(9));
         when(reader.readFromOffset(9)).thenThrow(new RuntimeException("boom"));
 
         MaReadJob job = new MaReadJob(registry, reader);
         job.run();
 
-        verify(reader, times(1)).close();
+        verify(reader, never()).close();
         // No communicator interactions expected
     }
 }

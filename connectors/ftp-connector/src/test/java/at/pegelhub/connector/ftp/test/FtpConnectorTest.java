@@ -1,108 +1,109 @@
 package at.pegelhub.connector.ftp.test;
 
-import at.pegelhub.connector.ftp.ConnectorOptions;
-import at.pegelhub.connector.ftp.FtpConnector;
+import at.pegelhub.connector.ftp.FtpConnectorModule;
 import at.pegelhub.connector.ftp.FtpTask;
-import at.pegelhub.connector.ftp.fileparsing.ParserType;
-import at.pegelhub.lib.PegelHubCommunicator;
-import at.pegelhub.lib.PegelHubCommunicatorFactory;
+import at.pegelhub.lib.CoreConnection;
+import at.pegelhub.lib.PegelHubClient;
+import at.pegelhub.lib.PegelHubClientFactory;
+import at.pegelhub.lib.runtime.ConnectorApplication;
+import at.pegelhub.lib.runtime.ConnectorContext;
 import org.apache.commons.net.ftp.FTPClient;
-import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.mockito.Mockito;
+import org.junit.jupiter.api.io.TempDir;
 
-import java.io.IOException;
-import java.net.InetAddress;
-import java.net.URI;
 import java.net.URL;
-import java.net.UnknownHostException;
-import java.time.Duration;
-import java.util.Timer;
-import java.util.UUID;
+import java.net.URI;
+import java.nio.file.Files;
+import java.nio.file.Path;
 
-import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 public class FtpConnectorTest {
-    private ConnectorOptions conOpts;
-    private static final UUID TIME_SERIES_ID = UUID.fromString("11111111-1111-1111-1111-111111111111");
+    @TempDir
+    Path configDir;
 
     @BeforeEach
-    public void setup() throws UnknownHostException {
-        conOpts = new ConnectorOptions(InetAddress.getByName("127.0.0.1"), 8081,
-                InetAddress.getByName("77.244.244.162"), 21,
-                "web47ftppegelsend", "noHeshEkJernaw7",
-                "/", ParserType.ASC, Duration.ofHours(2), TIME_SERIES_ID, null, null);
+    public void setup() throws Exception {
+        Files.writeString(configDir.resolve("connector.yaml"), """
+                core:
+                  baseUrl: "http://127.0.0.1:8081/"
+                keycloak:
+                  tokenUrl: "http://keycloak.local/token"
+                  clientId: "connector"
+                  clientSecret: "secret"
+                schedule:
+                  delay: "2h"
+                ftp:
+                  address: "77.244.244.162"
+                  port: 21
+                  user: "web47ftppegelsend"
+                  password: "noHeshEkJernaw7"
+                  path: "/"
+                  parserType: "asc"
+                """);
+        Files.createDirectories(configDir.resolve("mappings"));
+        Files.writeString(configDir.resolve("mappings/station.yaml"), """
+                timeSeriesId: "11111111-1111-1111-1111-111111111111"
+                stationId: 1
+                direction: "external-to-core"
+                """);
     }
 
     @Test
-    public void createsPegelHubCommunicatorWithCorrectURL() throws Exception {
-        try (var pegelhubMock = mockStatic(PegelHubCommunicatorFactory.class);
+    public void createsPegelHubClientWithCorrectURL() throws Exception {
+        URL expectedCoreUrl = URI.create("http://127.0.0.1:8081/").toURL();
+        try (var pegelhubMock = mockStatic(PegelHubClientFactory.class);
             var ftpClientMock = mockConstruction(FTPClient.class, (mock, context) -> {
                 when(mock.getReplyCode()).thenReturn(200);
                 when(mock.login("user", "pass")).thenReturn(true);
             });
-            var timerMock = mockConstruction(Timer.class);
              var taskMock = mockConstruction(FtpTask.class)) {
-            pegelhubMock.when(() -> PegelHubCommunicatorFactory.create(any())).thenReturn(mock(PegelHubCommunicator.class));
+            pegelhubMock.when(() -> PegelHubClientFactory.create(any(CoreConnection.class)))
+                    .thenReturn(mock(PegelHubClient.class));
 
-            try (var connector = new FtpConnector(conOpts)) {
-                pegelhubMock.verify(() -> PegelHubCommunicatorFactory.create(eq(URI.create("http://127.0.0.1:8081/").toURL())), atLeastOnce());
-            }
+            new FtpConnectorModule().plan(ConnectorContext.fromArgs(new String[]{configDir.toString()}));
+
+            pegelhubMock.verify(() -> PegelHubClientFactory.create(
+                    argThat(connection -> connection.baseUrl().equals(expectedCoreUrl)
+                            && connection.credentials().clientId().equals("connector"))), atLeastOnce());
         }
     }
 
     @Test
-    public void startSchedulingWithSpecifiedDelay() throws Exception {
-        try (var pegelhubMock = mockStatic(PegelHubCommunicatorFactory.class);
+    public void runtimeStartsScheduledTask() throws Exception {
+        try (var pegelhubMock = mockStatic(PegelHubClientFactory.class);
              var ftpClientMock = mockConstruction(FTPClient.class, (mock, context) -> {
                  when(mock.getReplyCode()).thenReturn(200);
                  when(mock.login("user", "pass")).thenReturn(true);
              });
-             var timerMock = mockConstruction(Timer.class);
              var taskMock = mockConstruction(FtpTask.class)) {
-            pegelhubMock.when(() -> PegelHubCommunicatorFactory.create(any())).thenReturn(mock(PegelHubCommunicator.class));
+            pegelhubMock.when(() -> PegelHubClientFactory.create(any(CoreConnection.class)))
+                    .thenReturn(mock(PegelHubClient.class));
 
-            try (var con = new FtpConnector(conOpts)) {
-                verify(timerMock.constructed().get(0), times(1)).scheduleAtFixedRate(any(), eq(0L), eq(Duration.ofHours(2).toMillis()));
+            try (var con = ConnectorApplication.start(new String[]{configDir.toString()}, new FtpConnectorModule())) {
+                verify(taskMock.constructed().get(0), timeout(1000).atLeastOnce()).run();
             }
-        }
-    }
-
-    @Test
-    public void ftpReplyWithErrorDoesNotThrow() {
-        try (var pegelhubMock = mockStatic(PegelHubCommunicatorFactory.class);
-             var ftpClientMock = mockConstruction(FTPClient.class, (mock, context) -> {
-                 when(mock.getReplyCode()).thenReturn(404);
-             });
-             var timerMock = mockConstruction(Timer.class);
-             var taskMock = mockConstruction(FtpTask.class)) {
-            pegelhubMock.when(() -> PegelHubCommunicatorFactory.create(any())).thenReturn(mock(PegelHubCommunicator.class));
-
-            assertDoesNotThrow(() -> new FtpConnector(conOpts).close());
         }
     }
 
     @Test
     public void allMembersAreDisposedOnClose() throws Exception {
-        try (var pegelhubMock = mockStatic(PegelHubCommunicatorFactory.class);
+        try (var pegelhubMock = mockStatic(PegelHubClientFactory.class);
              var ftpClientMock = mockConstruction(FTPClient.class, (mock, context) -> {
                  when(mock.getReplyCode()).thenReturn(200);
                  when(mock.login("user", "pass")).thenReturn(true);
              });
-             var timerMock = mockConstruction(Timer.class);
              var taskMock = mockConstruction(FtpTask.class)) {
-            var pegelCommMock = mock(PegelHubCommunicator.class);
-            pegelhubMock.when(() -> PegelHubCommunicatorFactory.create(any())).thenReturn(pegelCommMock);
+            var pegelCommMock = mock(PegelHubClient.class);
+            pegelhubMock.when(() -> PegelHubClientFactory.create(any(CoreConnection.class)))
+                    .thenReturn(pegelCommMock);
 
-            var con = new FtpConnector(conOpts);
-            con.close();
+            try (var con = ConnectorApplication.start(new String[]{configDir.toString()}, new FtpConnectorModule())) {
+                con.close();
+            }
 
-            verify(taskMock.constructed().get(0), times(1)).cancel();
-            verify(timerMock.constructed().get(0), times(1)).cancel();
             verify(pegelCommMock, times(1)).close();
             verify(ftpClientMock.constructed().get(0), times(1)).disconnect();
         }

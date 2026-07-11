@@ -14,8 +14,8 @@ public class IecWriteJob implements Runnable {
     @Override
     public void run() {
         try {
-            dataPointRegistry.takerIoas().forEach(ioa ->
-                    dataPointRegistry.getTaker(ioa).ifPresentOrElse(
+            dataPointRegistry.coreToProtocolIoas().forEach(ioa ->
+                    dataPointRegistry.getCoreToProtocolClient(ioa).ifPresentOrElse(
                             communicator -> dataPointRegistry.getTimeSeriesId(ioa).ifPresentOrElse(
                                     timeSeriesId -> communicator.getLatestMeasurementOfTimeSeries(timeSeriesId)
                                             .ifPresentOrElse(

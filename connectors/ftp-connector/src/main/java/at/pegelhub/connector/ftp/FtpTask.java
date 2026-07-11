@@ -2,9 +2,7 @@ package at.pegelhub.connector.ftp;
 
 import at.pegelhub.connector.ftp.fileparsing.Entry;
 import at.pegelhub.connector.ftp.fileparsing.Parser;
-import at.pegelhub.lib.PegelHubCommunicator;
-import at.pegelhub.lib.internal.ApplicationProperties;
-import at.pegelhub.lib.internal.ApplicationPropertiesImpl;
+import at.pegelhub.lib.PegelHubClient;
 import at.pegelhub.lib.model.Measurement;
 import org.apache.commons.net.ftp.*;
 import org.slf4j.Logger;
@@ -17,23 +15,20 @@ import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-public class FtpTask extends TimerTask {
+public class FtpTask implements Runnable {
     private static final Logger LOG = LoggerFactory.getLogger(FtpTask.class);
     private final HashSet<String> processedFiles = new HashSet<>();
     private final Duration durationToLookBack;
     private final FTPClient ftp;
     private final ConnectorOptions conOpts;
-    private final PegelHubCommunicator communicator;
+    private final PegelHubClient communicator;
     private final Parser parser;
 
-    private final ApplicationProperties properties;
-
-    public FtpTask(FTPClient ftp, ConnectorOptions conOpts, PegelHubCommunicator communicator, Parser parser) {
+    public FtpTask(FTPClient ftp, ConnectorOptions conOpts, PegelHubClient communicator, Parser parser) {
         this.ftp = ftp;
         this.conOpts = conOpts;
         this.communicator = communicator;
         this.parser = parser;
-        this.properties = new ApplicationPropertiesImpl(conOpts.propertiesFile());
         this.durationToLookBack = conOpts.readDelay();
     }
 
@@ -44,7 +39,7 @@ public class FtpTask extends TimerTask {
     @Override
     public void run(){
         try {
-            ftp.connect(conOpts.pegelAddress().getHostAddress(), conOpts.pegelPort());
+            ftp.connect(conOpts.ftpAddress().getHostAddress(), conOpts.ftpPort());
             FTPClientConfig conf = new FTPClientConfig(FTPClientConfig.SYST_UNIX);
             conf.setUnparseableEntries(true);
             ftp.configure(conf);
@@ -174,7 +169,7 @@ public class FtpTask extends TimerTask {
                 return null;
             }
 
-            if(Integer.parseInt(e.getInfos().get("location")) != properties.getStationId()){
+            if (conOpts.stationId() >= 0 && Integer.parseInt(e.getInfos().get("location")) != conOpts.stationId()) {
                 return null;
             }
 

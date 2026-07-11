@@ -11,6 +11,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -30,7 +31,7 @@ class TstpCatalogServiceImplTest {
         XmlQueryResponse response = new XmlQueryResponse();
         response.setDef(List.of(attr));
 
-        when(communicator.getCatalog(dbms)).thenReturn(response);
+        when(communicator.getCatalog(dbms)).thenReturn(Optional.of(response));
 
         tstpCatalogService = new TstpCatalogServiceImpl(communicator, dbms);
 
@@ -40,11 +41,24 @@ class TstpCatalogServiceImplTest {
     }
 
     @Test
-    void testGetZrid_catalogIsNull_returnsEmptyString() {
+    void testGetZrid_catalogIsUnavailable_throws() {
+        when(communicator.getCatalog(dbms)).thenReturn(Optional.empty());
         tstpCatalogService = new TstpCatalogServiceImpl(communicator, dbms);
 
-        String zrid = tstpCatalogService.getZrid();
-        assertEquals("", zrid);
+        assertThrows(IllegalStateException.class, () -> tstpCatalogService.getZrid());
+    }
+
+    @Test
+    void testGetZrid_catalogHasBlankZrid_throws() {
+        XmlQueryTsAttribut attr = new XmlQueryTsAttribut();
+        attr.setZrid(" ");
+        XmlQueryResponse response = new XmlQueryResponse();
+        response.setDef(List.of(attr));
+
+        when(communicator.getCatalog(dbms)).thenReturn(Optional.of(response));
+        tstpCatalogService = new TstpCatalogServiceImpl(communicator, dbms);
+
+        assertThrows(IllegalStateException.class, () -> tstpCatalogService.getZrid());
     }
 
     @Test
@@ -54,7 +68,7 @@ class TstpCatalogServiceImplTest {
         XmlQueryResponse response = new XmlQueryResponse();
         response.setDef(List.of(attr));
 
-        when(communicator.getCatalog(dbms)).thenReturn(response);
+        when(communicator.getCatalog(dbms)).thenReturn(Optional.of(response));
 
         tstpCatalogService = new TstpCatalogServiceImpl(communicator, dbms);
 
@@ -63,10 +77,10 @@ class TstpCatalogServiceImplTest {
     }
 
     @Test
-    void testGetMaxFocusEnd_catalogIsNull_returnsNull() {
+    void testGetMaxFocusEnd_catalogIsUnavailable_throws() {
+        when(communicator.getCatalog(dbms)).thenReturn(Optional.empty());
         tstpCatalogService = new TstpCatalogServiceImpl(communicator, dbms);
 
-        Instant maxFocusEnd = tstpCatalogService.getMaxFocusEnd();
-        assertNull(maxFocusEnd);
+        assertThrows(IllegalStateException.class, () -> tstpCatalogService.getMaxFocusEnd());
     }
 }
