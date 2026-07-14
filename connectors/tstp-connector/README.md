@@ -12,7 +12,9 @@ mvn -pl connectors/tstp-connector -am -DskipTests package
 
 The connector accepts an optional first CLI argument pointing to the config directory. Without an argument it reads from `/app/config`.
 
-The config directory must contain `connector.yaml` and a `mappings/` directory. Phase 2 requires exactly one mapping file.
+The config directory must contain `connector.yaml` and a `mappings/` directory with at least one mapping.
+Mapping files are loaded in filename order. One connector process may combine inbound and outbound mappings;
+the endpoint, Core client, catalog cache, scheduler, and shutdown lifecycle are shared for the whole process.
 
 `connector.yaml`:
 
@@ -31,7 +33,7 @@ tstp:
   port: 8030
 ```
 
-`mappings/station.yaml`:
+`mappings/10-inbound.yaml`:
 
 ```yaml
 timeSeriesId: "11111111-1111-1111-1111-111111111111"
@@ -40,6 +42,20 @@ direction: "external-to-core"
 ```
 
 Use `direction: "external-to-core"` to read from TSTP into Core. Use `direction: "core-to-external"` to write Core measurements to TSTP.
+
+An outbound mapping may request an immediate read-back check:
+
+```yaml
+timeSeriesId: "22222222-2222-2222-2222-222222222222"
+stationId: 456
+direction: "core-to-external"
+verifyRoundTrip: true
+```
+
+`verifyRoundTrip` defaults to `false` and is rejected for inbound mappings. The connector continues processing
+other mappings after an individual failure, logs a cycle summary, and reports the collected failures after the
+cycle. Duplicate outbound station targets, duplicate inbound Core targets, exact duplicates, and same-pair
+opposite-direction feedback loops are rejected during startup.
 
 ## Docker
 

@@ -64,7 +64,7 @@
                 <configuration>
                     <archive>
                         <manifest>
-                            <mainClass>at.pegelhub.connector.ftp.Main</mainClass>
+                            <mainClass>at.pegelhub.connector.ftp.FtpConnectorApplication</mainClass>
                         </manifest>
                     </archive>
                 </configuration>
@@ -73,7 +73,7 @@
                 <groupId>org.codehaus.mojo</groupId>
                 <artifactId>exec-maven-plugin</artifactId>
                 <configuration>
-                    <mainClass>at.pegelhub.connector.ftp.Main</mainClass>
+                    <mainClass>at.pegelhub.connector.ftp.FtpConnectorApplication</mainClass>
                 </configuration>
             </plugin>
             <plugin>

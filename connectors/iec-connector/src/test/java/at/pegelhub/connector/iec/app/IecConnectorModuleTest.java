@@ -1,9 +1,9 @@
 package at.pegelhub.connector.iec.app;
 
-import at.pegelhub.connector.iec.config.ConnectorOptions;
+import at.pegelhub.connector.iec.config.IecConnectorSettings;
 import at.pegelhub.connector.iec.datapoints.DataPointMapping;
 import at.pegelhub.lib.config.MappingDirection;
-import at.pegelhub.lib.runtime.ConnectorContext;
+import at.pegelhub.lib.runtime.ConnectorBootstrap;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -25,27 +25,27 @@ class IecConnectorModuleTest {
     void shouldLoadAllConfigFieldsFromConnectorYaml() throws Exception {
         writeConnectorYaml("15s", "mappings");
 
-        ConnectorOptions opt = new IecConnectorModule()
-                .getConnectorOptions(ConnectorContext.fromArgs(new String[]{tmp.toString()}));
+        IecConnectorSettings opt = new IecConnectorModule()
+                .getConnectorSettings(ConnectorBootstrap.fromArgs(new String[]{tmp.toString()}));
 
         assertEquals("http://core.local:8080/", opt.coreConnection().baseUrl().toString());
         assertEquals("iec-client", opt.coreConnection().credentials().clientId());
-        assertEquals("mappings", opt.mappingsDir());
+        assertEquals("mappings", opt.mappingsDirectory());
         assertEquals("127.0.0.1", opt.iecHost().getHostAddress());
         assertEquals(2404, opt.iecPort());
         assertEquals(1, opt.commonAddress());
-        assertEquals(Duration.ofSeconds(15), opt.delay());
+        assertEquals(Duration.ofSeconds(15), opt.pollInterval());
     }
 
     @Test
     void shouldDefaultMappingsDirFromSharedConfigHelper() throws Exception {
         writeConnectorYaml("2M", null);
 
-        ConnectorOptions opt = new IecConnectorModule()
-                .getConnectorOptions(ConnectorContext.fromArgs(new String[]{tmp.toString()}));
+        IecConnectorSettings opt = new IecConnectorModule()
+                .getConnectorSettings(ConnectorBootstrap.fromArgs(new String[]{tmp.toString()}));
 
-        assertEquals("mappings", opt.mappingsDir());
-        assertEquals(Duration.ofMinutes(2), opt.delay());
+        assertEquals("mappings", opt.mappingsDirectory());
+        assertEquals(Duration.ofMinutes(2), opt.pollInterval());
     }
 
     @Test
@@ -62,7 +62,7 @@ class IecConnectorModuleTest {
                 """);
 
         Exception ex = assertThrows(Exception.class, () -> new IecConnectorModule()
-                .getConnectorOptions(ConnectorContext.fromArgs(new String[]{tmp.toString()})));
+                .getConnectorSettings(ConnectorBootstrap.fromArgs(new String[]{tmp.toString()})));
         assertTrue(ex.getMessage().contains("iec"));
     }
 
@@ -71,7 +71,7 @@ class IecConnectorModuleTest {
         writeConnectorYaml("15s", "mappings", 70000, 1);
 
         Exception ex = assertThrows(Exception.class, () -> new IecConnectorModule()
-                .getConnectorOptions(ConnectorContext.fromArgs(new String[]{tmp.toString()})));
+                .getConnectorSettings(ConnectorBootstrap.fromArgs(new String[]{tmp.toString()})));
         assertTrue(ex.getMessage().contains("iec.port"));
     }
 
@@ -80,19 +80,19 @@ class IecConnectorModuleTest {
         writeConnectorYaml("15s", "mappings", 2404, 0);
 
         Exception ex = assertThrows(Exception.class, () -> new IecConnectorModule()
-                .getConnectorOptions(ConnectorContext.fromArgs(new String[]{tmp.toString()})));
+                .getConnectorSettings(ConnectorBootstrap.fromArgs(new String[]{tmp.toString()})));
         assertTrue(ex.getMessage().contains("iec.commonAddress"));
     }
 
     @Test
-    void shouldLoadMappingsThroughConnectorContextInSortedOrder() throws Exception {
+    void shouldLoadMappingsThroughConnectorBootstrapInSortedOrder() throws Exception {
         Files.createDirectories(tmp.resolve("mappings"));
         writeMapping("b.yaml", 2, "core-to-external");
         writeMapping("a.yaml", 1, "external-to-core");
         Files.writeString(tmp.resolve("mappings/readme.txt"), "ignored");
 
         List<DataPointMapping> mappings = new IecConnectorModule()
-                .loadMappings(ConnectorContext.fromArgs(new String[]{tmp.toString()}), "mappings");
+                .loadMappings(ConnectorBootstrap.fromArgs(new String[]{tmp.toString()}), "mappings");
 
         assertEquals(1, mappings.getFirst().iecIoa());
         assertEquals(MappingDirection.EXTERNAL_TO_CORE, mappings.getFirst().direction());
@@ -106,7 +106,7 @@ class IecConnectorModuleTest {
         writeMapping("bad.yaml", 1, "sideways");
 
         assertThrows(IllegalArgumentException.class, () -> new IecConnectorModule()
-                .loadMappings(ConnectorContext.fromArgs(new String[]{tmp.toString()}), "mappings"));
+                .loadMappings(ConnectorBootstrap.fromArgs(new String[]{tmp.toString()}), "mappings"));
     }
 
     @Test
@@ -114,7 +114,7 @@ class IecConnectorModuleTest {
         Files.createDirectories(tmp.resolve("mappings"));
 
         assertThrows(IllegalArgumentException.class, () -> new IecConnectorModule()
-                .loadMappings(ConnectorContext.fromArgs(new String[]{tmp.toString()}), "mappings"));
+                .loadMappings(ConnectorBootstrap.fromArgs(new String[]{tmp.toString()}), "mappings"));
     }
 
     private void writeMapping(String fileName, int ioa, String direction) throws Exception {

@@ -12,7 +12,8 @@ mvn -pl connectors/ftp-connector -am -DskipTests package
 
 The connector accepts an optional first CLI argument pointing to the config directory. Without an argument it reads from `/app/config`.
 
-The config directory must contain `connector.yaml` and a `mappings/` directory. Phase 2 requires exactly one mapping file.
+The config directory must contain `connector.yaml` and a `mappings/` directory. The FTP connector currently
+requires exactly one `external-to-core` mapping file.
 
 `connector.yaml`:
 

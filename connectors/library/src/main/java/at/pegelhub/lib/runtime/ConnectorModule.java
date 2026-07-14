@@ -3,5 +3,5 @@ package at.pegelhub.lib.runtime;
 public interface ConnectorModule {
     String name();
 
-    ConnectorPlan plan(ConnectorContext context) throws Exception;
+    ConnectorRuntimeDefinition define(ConnectorBootstrap bootstrap) throws Exception;
 }

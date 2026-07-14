@@ -10,12 +10,12 @@ import at.pegelhub.lib.config.KeycloakConfig;
 import at.pegelhub.lib.config.MappingDirection;
 import at.pegelhub.lib.config.ScheduleConfig;
 import at.pegelhub.lib.config.StandardConnectorConfig;
-import at.pegelhub.lib.runtime.ConnectorConfigs;
-import at.pegelhub.lib.runtime.ConnectorContext;
-import at.pegelhub.lib.runtime.ConnectorMappings;
+import at.pegelhub.lib.runtime.ConnectorBootstrap;
+import at.pegelhub.lib.runtime.ConnectorMappingLoader;
+import at.pegelhub.lib.runtime.LoadedMapping;
 import at.pegelhub.lib.runtime.ConnectorModule;
-import at.pegelhub.lib.runtime.ConnectorPlan;
-import at.pegelhub.lib.runtime.ConnectorResources;
+import at.pegelhub.lib.runtime.ConnectorRuntimeAssembly;
+import at.pegelhub.lib.runtime.ConnectorRuntimeDefinition;
 import org.apache.commons.net.PrintCommandListener;
 import org.apache.commons.net.ftp.FTPClient;
 import org.slf4j.Logger;
@@ -37,48 +37,48 @@ public final class FtpConnectorModule implements ConnectorModule {
     }
 
     @Override
-    public ConnectorPlan plan(ConnectorContext context) throws Exception {
-        ConnectorOptions conOpt = getConnectorOptions(context);
-        try (ConnectorResources resources = ConnectorResources.create()) {
+    public ConnectorRuntimeDefinition define(ConnectorBootstrap bootstrap) throws Exception {
+        FtpConnectorSettings settings = getConnectorSettings(bootstrap);
+        try (ConnectorRuntimeAssembly runtime = ConnectorRuntimeAssembly.begin(name())) {
             FTPClient ftp = new FTPClient();
-            resources.closeOnStop(ftp::disconnect);
+            runtime.own(ftp::disconnect);
             ftp.setControlKeepAliveTimeout(Duration.ofMinutes(15));
             ftp.addProtocolCommandListener(new PrintCommandListener(new PrintWriter(new LogOutputStream(LOG))));
             ftp.setDataTimeout(Duration.ofMinutes(15));
 
-            PegelHubClient client = resources.add(context.coreClient(conOpt.coreConnection()));
+            PegelHubClient client = runtime.own(bootstrap.openCoreClient(settings.coreConnection()));
 
-            ConnectorPlan.Builder builder = ConnectorPlan.builder(name())
-                    .fixedDelayTask("ftp-poll", new FtpTask(
+            runtime.fixedDelayTask("ftp-poll", new FtpImportJob(
                             ftp,
-                            conOpt,
+                            settings,
                             client,
-                            ParserFactory.getParser(conOpt.parserType())), conOpt.readDelay());
-            resources.transferTo(builder);
-            return builder.build();
+                            ParserFactory.getParser(settings.parserType())), settings.pollInterval());
+            return runtime.complete();
         }
     }
 
-    ConnectorOptions getConnectorOptions(ConnectorContext context) throws IOException {
-        ConnectorConfig config = context.loadYaml(ConnectorConfigs.CONNECTOR_CONFIG_FILE, ConnectorConfig.class);
-        FtpMapping mapping = ConnectorMappings.loadExactlyOne(
-                context,
+    FtpConnectorSettings getConnectorSettings(ConnectorBootstrap bootstrap) throws IOException {
+        FtpConfigFile config = bootstrap.loadYaml("connector.yaml", FtpConfigFile.class);
+        LoadedMapping<FtpMapping> loadedMapping = ConnectorMappingLoader.loadExactlyOne(
+                bootstrap,
                 name(),
-                ConnectorConfigs.mappingsDir(config),
+                config.mappingsDirectory(),
                 FtpMapping.class);
-        ConnectorMappings.requireDirections(name(), List.of(mapping), MappingDirection.EXTERNAL_TO_CORE);
+        ConnectorMappingLoader.requireDirections(
+                name(), List.of(loadedMapping), MappingDirection.EXTERNAL_TO_CORE);
+        FtpMapping mapping = loadedMapping.value();
 
         ParserType parserType = requireParserType(config.ftp().parserType());
 
-        return new ConnectorOptions(
-                ConnectorConfigs.coreConnection(config),
+        return new FtpConnectorSettings(
+                config.coreConnection(),
                 java.net.InetAddress.getByName(config.ftp().address()),
                 config.ftp().port(),
                 config.ftp().user(),
                 config.ftp().password(),
                 config.ftp().path(),
                 parserType,
-                ConnectorConfigs.delay(context, config),
+                config.scheduleInterval(),
                 mapping.timeSeriesId(),
                 mapping.stationId(),
                 mapping.parameter()
@@ -93,13 +93,13 @@ public final class FtpConnectorModule implements ConnectorModule {
         return parserType;
     }
 
-    private record ConnectorConfig(
+    private record FtpConfigFile(
             CoreConfig core,
             KeycloakConfig keycloak,
             ScheduleConfig schedule,
             String mappingsDir,
-            FtpConfig ftp) implements StandardConnectorConfig {
-        private ConnectorConfig {
+            FtpEndpointConfig ftp) implements StandardConnectorConfig {
+        private FtpConfigFile {
             Objects.requireNonNull(core, "core");
             Objects.requireNonNull(keycloak, "keycloak");
             Objects.requireNonNull(schedule, "schedule");
@@ -107,8 +107,9 @@ public final class FtpConnectorModule implements ConnectorModule {
         }
     }
 
-    private record FtpConfig(String address, int port, String user, String password, String path, String parserType) {
-        private FtpConfig {
+    private record FtpEndpointConfig(
+            String address, int port, String user, String password, String path, String parserType) {
+        private FtpEndpointConfig {
             address = ConfigValidation.requireText(address, "ftp.address");
             port = ConfigValidation.requireTcpPort(port, "ftp.port");
             user = ConfigValidation.requireText(user, "ftp.user");

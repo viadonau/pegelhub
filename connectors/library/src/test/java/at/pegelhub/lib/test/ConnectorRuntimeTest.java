@@ -2,6 +2,8 @@ package at.pegelhub.lib.runtime;
 import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -18,15 +20,15 @@ class ConnectorRuntimeTest {
         AtomicInteger runs = new AtomicInteger();
         AtomicBoolean closed = new AtomicBoolean(false);
 
-        ConnectorRuntime runtime = ConnectorRuntime.builder("test connector")
-                .fixedDelayTask("poll", () -> {
+        ConnectorRuntimeAssembly assembly = ConnectorRuntimeAssembly.begin("test connector");
+        assembly.fixedDelayTask("poll", () -> {
                     runs.incrementAndGet();
                     ran.countDown();
-                }, Duration.ofMillis(10))
-                .closeOnStop(() -> closed.set(true))
-                .build();
+                }, Duration.ofMillis(10));
+        assembly.own((AutoCloseable) () -> closed.set(true));
+        ConnectorRuntimeDefinition definition = assembly.complete();
 
-        runtime.start();
+        ConnectorRuntime runtime = ConnectorRuntime.start(definition);
 
         assertTrue(ran.await(2, TimeUnit.SECONDS));
         runtime.stop();
@@ -41,14 +43,14 @@ class ConnectorRuntimeTest {
         AtomicBoolean started = new AtomicBoolean(false);
         AtomicBoolean taskSawStart = new AtomicBoolean(false);
 
-        try (ConnectorRuntime runtime = ConnectorRuntime.builder("ordered connector")
+        ConnectorRuntimeDefinition definition = ConnectorRuntimeAssembly.begin("ordered connector")
                 .onStart(() -> started.set(true))
                 .fixedDelayTask("poll", () -> {
                     taskSawStart.set(started.get());
                     ran.countDown();
                 }, Duration.ofMillis(10))
-                .build()) {
-            runtime.start();
+                .complete();
+        try (ConnectorRuntime runtime = ConnectorRuntime.start(definition)) {
             assertTrue(ran.await(2, TimeUnit.SECONDS));
         }
 
@@ -59,12 +61,10 @@ class ConnectorRuntimeTest {
     void startAndStopAreIdempotent() {
         AtomicInteger closes = new AtomicInteger();
 
-        ConnectorRuntime runtime = ConnectorRuntime.builder("idempotent connector")
-                .closeOnStop(closes::incrementAndGet)
-                .build();
+        ConnectorRuntimeAssembly assembly = ConnectorRuntimeAssembly.begin("idempotent connector");
+        assembly.own((AutoCloseable) closes::incrementAndGet);
+        ConnectorRuntime runtime = ConnectorRuntime.start(assembly.complete());
 
-        runtime.start();
-        runtime.start();
         runtime.stop();
         runtime.stop();
 
@@ -75,16 +75,28 @@ class ConnectorRuntimeTest {
     void startupFailureClosesRegisteredResources() {
         AtomicInteger closes = new AtomicInteger();
 
-        ConnectorRuntime runtime = ConnectorRuntime.builder("failing connector")
-                .closeOnStop(closes::incrementAndGet)
-                .onStart(() -> {
+        ConnectorRuntimeAssembly assembly = ConnectorRuntimeAssembly.begin("failing connector");
+        assembly.own((AutoCloseable) closes::incrementAndGet);
+        ConnectorRuntimeDefinition definition = assembly.onStart(() -> {
                     throw new IllegalStateException("boom");
                 })
-                .build();
+                .complete();
 
-        assertThrows(RuntimeException.class, runtime::start);
-        runtime.stop();
+        assertThrows(RuntimeException.class, () -> ConnectorRuntime.start(definition));
 
         assertEquals(1, closes.get());
+    }
+
+    @Test
+    void closesResourcesInReverseAcquisitionOrder() {
+        List<String> closed = new ArrayList<>();
+        ConnectorRuntimeAssembly assembly = ConnectorRuntimeAssembly.begin("ordered close connector");
+        assembly.own((AutoCloseable) () -> closed.add("first"));
+        assembly.own((AutoCloseable) () -> closed.add("second"));
+
+        ConnectorRuntime runtime = ConnectorRuntime.start(assembly.complete());
+        runtime.close();
+
+        assertEquals(List.of("second", "first"), closed);
     }
 }

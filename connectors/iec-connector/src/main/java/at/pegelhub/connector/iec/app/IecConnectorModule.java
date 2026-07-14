@@ -1,12 +1,12 @@
 package at.pegelhub.connector.iec.app;
 
-import at.pegelhub.connector.iec.config.ConnectorOptions;
+import at.pegelhub.connector.iec.config.IecConnectorSettings;
 import at.pegelhub.connector.iec.datapoints.DataPointMapping;
-import at.pegelhub.connector.iec.datapoints.DataPointRegistry;
+import at.pegelhub.connector.iec.datapoints.IecMappingIndex;
 import at.pegelhub.connector.iec.iec.IecClient;
 import at.pegelhub.connector.iec.iec.impl.IecClientImpl;
-import at.pegelhub.connector.iec.jobs.IecReadJob;
-import at.pegelhub.connector.iec.jobs.IecWriteJob;
+import at.pegelhub.connector.iec.jobs.IecToCoreJob;
+import at.pegelhub.connector.iec.jobs.CoreToIecJob;
 import at.pegelhub.lib.PegelHubClient;
 import at.pegelhub.lib.config.ConfigValidation;
 import at.pegelhub.lib.config.CoreConfig;
@@ -14,12 +14,12 @@ import at.pegelhub.lib.config.KeycloakConfig;
 import at.pegelhub.lib.config.MappingDirection;
 import at.pegelhub.lib.config.ScheduleConfig;
 import at.pegelhub.lib.config.StandardConnectorConfig;
-import at.pegelhub.lib.runtime.ConnectorConfigs;
-import at.pegelhub.lib.runtime.ConnectorContext;
-import at.pegelhub.lib.runtime.ConnectorMappings;
+import at.pegelhub.lib.runtime.ConnectorBootstrap;
+import at.pegelhub.lib.runtime.ConnectorMappingLoader;
+import at.pegelhub.lib.runtime.LoadedMapping;
 import at.pegelhub.lib.runtime.ConnectorModule;
-import at.pegelhub.lib.runtime.ConnectorPlan;
-import at.pegelhub.lib.runtime.ConnectorResources;
+import at.pegelhub.lib.runtime.ConnectorRuntimeAssembly;
+import at.pegelhub.lib.runtime.ConnectorRuntimeDefinition;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -34,67 +34,66 @@ public final class IecConnectorModule implements ConnectorModule {
     }
 
     @Override
-    public ConnectorPlan plan(ConnectorContext context) throws Exception {
-        ConnectorOptions config = getConnectorOptions(context);
-        List<DataPointMapping> mappings = loadMappings(context, config.mappingsDir());
+    public ConnectorRuntimeDefinition define(ConnectorBootstrap bootstrap) throws Exception {
+        IecConnectorSettings settings = getConnectorSettings(bootstrap);
+        List<DataPointMapping> mappings = loadMappings(bootstrap, settings.mappingsDirectory());
+        IecMappingIndex mappingIndex = new IecMappingIndex(mappings);
 
-        try (ConnectorResources resources = ConnectorResources.create()) {
-            PegelHubClient client = resources.add(context.coreClient(config.coreConnection()));
-            DataPointRegistry dataPointRegistry = new DataPointRegistry(mappings, client);
-            resources.release(client);
-            resources.add(dataPointRegistry);
+        try (ConnectorRuntimeAssembly runtime = ConnectorRuntimeAssembly.begin(name())) {
+            PegelHubClient client = runtime.own(bootstrap.openCoreClient(settings.coreConnection()));
 
             IecClient iecClient = new IecClientImpl(
-                    config.iecHost(),
-                    config.iecPort(),
-                    config.commonAddress(),
-                    dataPointRegistry.protocolToCoreIoas());
-            resources.closeOnStop(iecClient::disconnect);
+                    settings.iecHost(),
+                    settings.iecPort(),
+                    settings.commonAddress(),
+                    mappingIndex.protocolToCoreIoas());
+            runtime.own(iecClient::disconnect);
 
-            ConnectorPlan.Builder builder = ConnectorPlan.builder(name())
+            runtime
                     .threadCount(2)
                     .onStart(iecClient::connect)
-                    .fixedDelayTask("iec-read", new IecReadJob(iecClient, dataPointRegistry), Duration.ofSeconds(1), config.delay())
-                    .fixedDelayTask("iec-write", new IecWriteJob(iecClient, dataPointRegistry), Duration.ofSeconds(1), config.delay());
-            resources.transferTo(builder);
-            return builder.build();
+                    .fixedDelayTask("iec-to-core", new IecToCoreJob(iecClient, mappingIndex, client),
+                            Duration.ofSeconds(1), settings.pollInterval())
+                    .fixedDelayTask("core-to-iec", new CoreToIecJob(iecClient, mappingIndex, client),
+                            Duration.ofSeconds(1), settings.pollInterval());
+            return runtime.complete();
         }
     }
 
-    List<DataPointMapping> loadMappings(ConnectorContext context, String mappingsDir) throws IOException {
-        List<DataPointMapping> mappings = ConnectorMappings.loadRequired(
-                context,
+    List<DataPointMapping> loadMappings(ConnectorBootstrap bootstrap, String mappingsDirectory) throws IOException {
+        List<LoadedMapping<DataPointMapping>> loaded = ConnectorMappingLoader.loadRequired(
+                bootstrap,
                 name(),
-                mappingsDir,
+                mappingsDirectory,
                 DataPointMapping.class);
-        ConnectorMappings.requireDirections(
+        ConnectorMappingLoader.requireDirections(
                 name(),
-                mappings,
+                loaded,
                 MappingDirection.EXTERNAL_TO_CORE,
                 MappingDirection.CORE_TO_EXTERNAL);
-        return mappings;
+        return loaded.stream().map(LoadedMapping::value).toList();
     }
 
-    ConnectorOptions getConnectorOptions(ConnectorContext context) throws IOException {
-        ConnectorConfig config = context.loadYaml(ConnectorConfigs.CONNECTOR_CONFIG_FILE, ConnectorConfig.class);
+    IecConnectorSettings getConnectorSettings(ConnectorBootstrap bootstrap) throws IOException {
+        IecConfigFile config = bootstrap.loadYaml("connector.yaml", IecConfigFile.class);
 
-        return new ConnectorOptions(
-                ConnectorConfigs.coreConnection(config),
-                ConnectorConfigs.mappingsDir(config),
+        return new IecConnectorSettings(
+                config.coreConnection(),
+                config.mappingsDirectory(),
                 InetAddress.getByName(config.iec().address()),
                 config.iec().port(),
                 config.iec().commonAddress(),
-                ConnectorConfigs.delay(context, config)
+                config.scheduleInterval()
         );
     }
 
-    private record ConnectorConfig(
+    private record IecConfigFile(
             CoreConfig core,
             KeycloakConfig keycloak,
             ScheduleConfig schedule,
             String mappingsDir,
-            IecConfig iec) implements StandardConnectorConfig {
-        private ConnectorConfig {
+            IecEndpointConfig iec) implements StandardConnectorConfig {
+        private IecConfigFile {
             Objects.requireNonNull(core, "core");
             Objects.requireNonNull(keycloak, "keycloak");
             Objects.requireNonNull(schedule, "schedule");
@@ -102,8 +101,8 @@ public final class IecConnectorModule implements ConnectorModule {
         }
     }
 
-    private record IecConfig(String address, int port, int commonAddress) {
-        private IecConfig {
+    private record IecEndpointConfig(String address, int port, int commonAddress) {
+        private IecEndpointConfig {
             address = ConfigValidation.requireText(address, "iec.address");
             port = ConfigValidation.requireTcpPort(port, "iec.port");
             commonAddress = ConfigValidation.requirePositive(commonAddress, "iec.commonAddress");

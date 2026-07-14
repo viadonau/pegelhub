@@ -26,7 +26,7 @@ class PegelHubClientFactoryTest {
                     URI.create("http://localhost:8080/").toURL(),
                     new ClientCredentials("http://keycloak.local/token", "connector", "secret"));
 
-            PegelHubClient client = PegelHubClientFactory.create(connection);
+            PegelHubClient client = PegelHubClientFactory.http().create(connection);
 
             assertNotNull(client);
             client.close();
@@ -35,13 +35,8 @@ class PegelHubClientFactoryTest {
     }
 
     @Test
-    void rejectsInvalidCredentialsBeforeAllocatingHttpClient() throws Exception {
-        try (var httpClients = mockStatic(HttpClients.class)) {
-            assertThrows(IllegalArgumentException.class, () -> PegelHubClientFactory.create(
-                    URI.create("http://localhost:8080/").toURL(),
-                    new ClientCredentials(" ", "connector", "secret")));
-
-            httpClients.verifyNoInteractions();
-        }
+    void rejectsInvalidCredentialsBeforeAllocatingHttpClient() {
+        assertThrows(IllegalArgumentException.class,
+                () -> new ClientCredentials(" ", "connector", "secret"));
     }
 }

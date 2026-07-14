@@ -7,12 +7,12 @@ import at.pegelhub.lib.config.KeycloakConfig;
 import at.pegelhub.lib.config.MappingDirection;
 import at.pegelhub.lib.config.ScheduleConfig;
 import at.pegelhub.lib.config.StandardConnectorConfig;
-import at.pegelhub.lib.runtime.ConnectorConfigs;
-import at.pegelhub.lib.runtime.ConnectorContext;
-import at.pegelhub.lib.runtime.ConnectorMappings;
+import at.pegelhub.lib.runtime.ConnectorBootstrap;
+import at.pegelhub.lib.runtime.ConnectorMappingLoader;
+import at.pegelhub.lib.runtime.LoadedMapping;
 import at.pegelhub.lib.runtime.ConnectorModule;
-import at.pegelhub.lib.runtime.ConnectorPlan;
-import at.pegelhub.lib.runtime.ConnectorResources;
+import at.pegelhub.lib.runtime.ConnectorRuntimeAssembly;
+import at.pegelhub.lib.runtime.ConnectorRuntimeDefinition;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -29,61 +29,57 @@ public final class IccConnectorModule implements ConnectorModule {
     }
 
     @Override
-    public ConnectorPlan plan(ConnectorContext context) throws Exception {
-        IccConnectorOptions options = getConnectorOptions(context);
+    public ConnectorRuntimeDefinition define(ConnectorBootstrap bootstrap) throws Exception {
+        IccConnectorSettings settings = getConnectorSettings(bootstrap);
 
-        LOG.info("CoreUrl: {}", options.coreConnection().baseUrl());
-        LOG.info("ExternalCoreUrl: {}", options.externalConnection().baseUrl());
-        LOG.info("Mappings: {}", options.mappings());
-        LOG.info("Interval: {}", options.delay());
+        LOG.info("CoreUrl: {}", settings.coreConnection().baseUrl());
+        LOG.info("ExternalCoreUrl: {}", settings.externalConnection().baseUrl());
+        LOG.info("Mappings: {}", settings.mappings());
+        LOG.info("Interval: {}", settings.pollInterval());
 
-        try (ConnectorResources resources = ConnectorResources.create()) {
-            PegelHubClient coreClient = resources.add(context.coreClient(options.coreConnection()));
-            PegelHubClient externalClient = resources.add(context.coreClient(options.externalConnection()));
+        try (ConnectorRuntimeAssembly runtime = ConnectorRuntimeAssembly.begin(name())) {
+            PegelHubClient coreClient = runtime.own(bootstrap.openCoreClient(settings.coreConnection()));
+            PegelHubClient externalClient = runtime.own(bootstrap.openCoreClient(settings.externalConnection()));
 
-            ConnectorPlan.Builder builder = ConnectorPlan.builder(name())
-                    .fixedDelayTask(
-                            "icc-sync",
-                            new IccTask(coreClient, externalClient, options.mappings(), options.lookbackWindow()),
-                            options.delay());
-            resources.transferTo(builder);
-            return builder.build();
+            runtime.fixedDelayTask(
+                    "icc-sync",
+                    new IccSynchronizer(coreClient, externalClient, settings.mappings(), settings.pollInterval()),
+                    settings.pollInterval());
+            return runtime.complete();
         }
     }
 
-    IccConnectorOptions getConnectorOptions(ConnectorContext context) throws IOException {
-        ConnectorConfig config = context.loadYaml(ConnectorConfigs.CONNECTOR_CONFIG_FILE, ConnectorConfig.class);
-        List<IccMapping> mappings = loadMappings(context, ConnectorConfigs.mappingsDir(config));
-        String lookbackWindow = config.schedule().delay();
-        return new IccConnectorOptions(
-                ConnectorConfigs.coreConnection(config),
-                ConnectorConfigs.coreConnection(config.externalCore()),
-                ConnectorConfigs.delay(context, config),
-                lookbackWindow,
+    IccConnectorSettings getConnectorSettings(ConnectorBootstrap bootstrap) throws IOException {
+        IccConfigFile config = bootstrap.loadYaml("connector.yaml", IccConfigFile.class);
+        List<IccMapping> mappings = loadMappings(bootstrap, config.mappingsDirectory());
+        return new IccConnectorSettings(
+                config.coreConnection(),
+                config.externalCore().connection(),
+                config.scheduleInterval(),
                 mappings);
     }
 
-    List<IccMapping> loadMappings(ConnectorContext context, String mappingsDir) throws IOException {
-        List<IccMapping> mappings = ConnectorMappings.loadRequired(
-                context,
+    List<IccMapping> loadMappings(ConnectorBootstrap bootstrap, String mappingsDirectory) throws IOException {
+        List<LoadedMapping<IccMapping>> loaded = ConnectorMappingLoader.loadRequired(
+                bootstrap,
                 name(),
-                mappingsDir,
+                mappingsDirectory,
                 IccMapping.class);
-        ConnectorMappings.requireDirections(
+        ConnectorMappingLoader.requireDirections(
                 name(),
-                mappings,
+                loaded,
                 MappingDirection.EXTERNAL_TO_CORE,
                 MappingDirection.CORE_TO_EXTERNAL);
-        return mappings;
+        return loaded.stream().map(LoadedMapping::value).toList();
     }
 
-    private record ConnectorConfig(
+    private record IccConfigFile(
             CoreConfig core,
             KeycloakConfig keycloak,
             CoreEndpointConfig externalCore,
             ScheduleConfig schedule,
             String mappingsDir) implements StandardConnectorConfig {
-        private ConnectorConfig {
+        private IccConfigFile {
             Objects.requireNonNull(core, "core");
             Objects.requireNonNull(keycloak, "keycloak");
             Objects.requireNonNull(externalCore, "externalCore");

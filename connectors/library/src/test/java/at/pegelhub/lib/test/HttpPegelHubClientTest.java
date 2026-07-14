@@ -14,6 +14,7 @@ import org.junit.jupiter.api.*;
 import java.io.*;
 import java.net.MalformedURLException;
 import java.net.URI;
+import java.time.Duration;
 import java.net.URL;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -70,7 +71,7 @@ public class HttpPegelHubClientTest {
             return responseCallback.handleResponse(httpResp);
         });
 
-        phc.getMeasurementsOfTimeSeries(uuid, "72h");
+        phc.getMeasurementsOfTimeSeries(uuid, Duration.ofHours(72));
 
         assertEquals("http://keycloak.local/token", requestUris.get(0));
         assertEquals("Bearer local-access-token", authorizationHeaders.get(1));
@@ -95,7 +96,7 @@ public class HttpPegelHubClientTest {
             return responseCallback.handleResponse(httpResp);
         });
 
-        phc.getMeasurementsOfTimeSeries(uuid, "72h");
+        phc.getMeasurementsOfTimeSeries(uuid, Duration.ofHours(72));
 
         assertFalse(requestUris.getFirst().contains("apiKey"));
     }
@@ -138,11 +139,11 @@ public class HttpPegelHubClientTest {
 
             UUID timeSeriesId = UUID.fromString("395c0232-d110-40fd-bd7f-2bb4a0f2009d");
 
-            Collection<Measurement> measurements = phc.getMeasurementsOfTimeSeries(timeSeriesId, "72h");
+            Collection<Measurement> measurements = phc.getMeasurementsOfTimeSeries(timeSeriesId, Duration.ofHours(72));
 
             assertFalse(measurements.isEmpty());
             assertEquals(
-                    "http://localhost:1111/api/v1/time-series/395c0232-d110-40fd-bd7f-2bb4a0f2009d/measurements?last=72h",
+                    "http://localhost:1111/api/v1/time-series/395c0232-d110-40fd-bd7f-2bb4a0f2009d/measurements?last=259200s",
                     requestUris.get(1));
         }
 
@@ -150,7 +151,7 @@ public class HttpPegelHubClientTest {
         public void getMeasurementsOfTimeSeries_MapsCurrentCoreMeasurementEnvelope() throws IOException {
             mockSuccessfulResponse(getResource("CoreMeasurementListResponse.json"));
 
-            Collection<Measurement> measurements = phc.getMeasurementsOfTimeSeries(uuid, "24h");
+            Collection<Measurement> measurements = phc.getMeasurementsOfTimeSeries(uuid, Duration.ofHours(24));
 
             assertEquals(1, measurements.size());
             Measurement measurement = measurements.iterator().next();

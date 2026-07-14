@@ -2,10 +2,11 @@ package at.pegelhub.lib.test;
 
 import at.pegelhub.lib.config.ScheduleConfig;
 import at.pegelhub.lib.runtime.ConnectorApplication;
-import at.pegelhub.lib.runtime.ConnectorContext;
+import at.pegelhub.lib.runtime.ConnectorBootstrap;
 import at.pegelhub.lib.runtime.ConnectorModule;
-import at.pegelhub.lib.runtime.ConnectorPlan;
-import at.pegelhub.lib.runtime.ConnectorApplicationHandle;
+import at.pegelhub.lib.runtime.ConnectorRuntime;
+import at.pegelhub.lib.runtime.ConnectorRuntimeAssembly;
+import at.pegelhub.lib.runtime.ConnectorRuntimeDefinition;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -37,15 +38,15 @@ class ConnectorApplicationTest {
             }
 
             @Override
-            public ConnectorPlan plan(ConnectorContext context) {
-                seenConfigDir.set(context.configDir());
-                return ConnectorPlan.builder(name())
-                        .fixedDelayTask("poll", ran::countDown, Duration.ofMillis(10))
-                        .build();
+            public ConnectorRuntimeDefinition define(ConnectorBootstrap bootstrap) {
+                seenConfigDir.set(bootstrap.configDirectory());
+                try (ConnectorRuntimeAssembly assembly = ConnectorRuntimeAssembly.begin(name())) {
+                    return assembly.fixedDelayTask("poll", ran::countDown, Duration.ofMillis(10)).complete();
+                }
             }
         };
 
-        try (ConnectorApplicationHandle runtime = ConnectorApplication.start(new String[]{configDir.toString()}, module)) {
+        try (ConnectorRuntime runtime = ConnectorApplication.start(new String[]{configDir.toString()}, module)) {
             assertTrue(ran.await(2, TimeUnit.SECONDS));
         }
 
@@ -62,13 +63,14 @@ class ConnectorApplicationTest {
             }
 
             @Override
-            public ConnectorPlan plan(ConnectorContext context) {
-                return ConnectorPlan.builder(name())
-                        .onStart(() -> {
+            public ConnectorRuntimeDefinition define(ConnectorBootstrap bootstrap) {
+                try (ConnectorRuntimeAssembly assembly = ConnectorRuntimeAssembly.begin(name())) {
+                    assembly.onStart(() -> {
                             throw new IllegalStateException("boom");
-                        })
-                        .closeOnStop(() -> closed.set(true))
-                        .build();
+                        });
+                    assembly.own((AutoCloseable) () -> closed.set(true));
+                    return assembly.complete();
+                }
             }
         };
 
@@ -82,7 +84,7 @@ class ConnectorApplicationTest {
                 delay: "42s"
                 """);
 
-        ConnectorContext context = ConnectorContext.fromArgs(new String[]{configDir.toString()});
+        ConnectorBootstrap context = ConnectorBootstrap.fromArgs(new String[]{configDir.toString()});
 
         ScheduleConfig yaml = context.loadYaml("connector.yaml", ScheduleConfig.class);
 

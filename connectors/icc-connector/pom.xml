@@ -48,7 +48,7 @@
                 <configuration>
                     <archive>
                         <manifest>
-                            <mainClass>at.pegelhub.connector.icc.Main</mainClass>
+                            <mainClass>at.pegelhub.connector.icc.IccConnectorApplication</mainClass>
                         </manifest>
                     </archive>
                 </configuration>

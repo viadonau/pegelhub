@@ -16,4 +16,4 @@ COPY --from=build /workspace/connectors/icc-connector/target/icc-connector.jar /
 COPY --from=build /workspace/connectors/icc-connector/target/lib/ /app/lib/
 RUN mkdir -p /app/config
 
-ENTRYPOINT ["java","-cp","/app/connector.jar:/app/lib/*","at.pegelhub.connector.icc.Main"]
+ENTRYPOINT ["java","-cp","/app/connector.jar:/app/lib/*","at.pegelhub.connector.icc.IccConnectorApplication"]

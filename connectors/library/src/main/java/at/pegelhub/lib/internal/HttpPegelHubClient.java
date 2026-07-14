@@ -27,6 +27,7 @@ import java.net.URLEncoder;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.time.Duration;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -117,9 +118,9 @@ public class HttpPegelHubClient implements PegelHubClient {
     }
 
     @Override
-    public Collection<Measurement> getMeasurementsOfTimeSeries(UUID timeSeriesId, String timespan) {
+    public Collection<Measurement> getMeasurementsOfTimeSeries(UUID timeSeriesId, Duration lookback) {
         try {
-            final URI uri = measurementsUri(timeSeriesId, "last=" + urlEncode(timespan));
+            final URI uri = measurementsUri(timeSeriesId, "last=" + urlEncode(durationLiteral(lookback)));
             final var http = new HttpGet(uri);
             authorize(http);
 
@@ -136,6 +137,13 @@ public class HttpPegelHubClient implements PegelHubClient {
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
+    }
+
+    private static String durationLiteral(Duration duration) {
+        if (duration == null || duration.isZero() || duration.isNegative()) {
+            throw new IllegalArgumentException("lookback must be positive");
+        }
+        return duration.toSeconds() + "s";
     }
 
     @Override

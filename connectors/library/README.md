@@ -7,7 +7,7 @@ This module provides the shared Pegelhub HTTP client and connector runtime seam 
 Create Core clients from explicit connection data:
 
 ```java
-PegelHubClient client = PegelHubClientFactory.create(
+PegelHubClient client = PegelHubClientFactory.http().create(
         new CoreConnection(
                 URI.create("http://localhost:8080/").toURL(),
                 new ClientCredentials(
@@ -26,17 +26,36 @@ Connector entrypoints should call:
 ConnectorApplication.run(args, new MyConnectorModule());
 ```
 
-Connector modules implement `ConnectorModule` and return a `ConnectorPlan`. The plan describes startup hooks, fixed-delay tasks, close hooks, thread count, and shutdown timeout. `ConnectorRuntime` remains the low-level scheduler behind the plan and should not be built directly by connector entrypoints.
+Connector modules implement `ConnectorModule` and create a `ConnectorRuntimeDefinition` through
+`ConnectorRuntimeAssembly`. The assembly owns startup hooks, fixed-delay tasks, resources, thread count,
+and shutdown timeout. Its `AutoCloseable` scope unwinds acquired resources if definition construction fails;
+after `complete()`, ownership transfers to `ConnectorRuntime`.
+
+```java
+@Override
+public ConnectorRuntimeDefinition define(ConnectorBootstrap bootstrap) throws Exception {
+    try (ConnectorRuntimeAssembly runtime = ConnectorRuntimeAssembly.begin(name())) {
+        PegelHubClient core = runtime.own(bootstrap.openCoreClient(config.coreConnection()));
+        runtime.fixedDelayTask("protocol-sync", new ProtocolSynchronizer(core), config.scheduleInterval());
+        return runtime.complete();
+    }
+}
+```
+
+`ConnectorRuntime` remains the low-level scheduler and lifecycle owner. Connector entrypoints should not
+construct it directly.
 
 ## Configuration Helpers
 
-`ConnectorContext` resolves the config directory from the first CLI argument, defaulting to `/app/config`. It also provides:
+`ConnectorBootstrap` resolves the config directory from the first CLI argument, defaulting to `/app/config`. It also provides:
 
 - `resolve(...)` for config-relative paths
 - `loadYaml(...)` for typed YAML loading
 - `listYamlFiles(...)` for sorted mapping files
-- `parseDuration(...)` for `30s`, `15m`, and `1h` style values
-- `coreClient(...)` for creating a `PegelHubClient` from a `CoreConnection`
+- `openCoreClient(...)` for creating a `PegelHubClient` from a `CoreConnection`
+
+Shared `ScheduleConfig.interval()` parses `30s`, `15m`, and `1h` style values. `ConnectorMappingLoader`
+loads mapping files in deterministic filename order and enforces required cardinality and directions.
 
 Protocol-specific config parsing stays inside connector modules.
 

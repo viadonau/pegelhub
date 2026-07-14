@@ -67,7 +67,7 @@
                 <configuration>
                     <archive>
                         <manifest>
-                            <mainClass>at.pegelhub.connector.tstp.Main</mainClass>
+                            <mainClass>at.pegelhub.connector.tstp.TstpConnectorApplication</mainClass>
                         </manifest>
                     </archive>
                 </configuration>
@@ -76,7 +76,7 @@
                 <groupId>org.codehaus.mojo</groupId>
                 <artifactId>exec-maven-plugin</artifactId>
                 <configuration>
-                    <mainClass>at.pegelhub.connector.tstp.Main</mainClass>
+                    <mainClass>at.pegelhub.connector.tstp.TstpConnectorApplication</mainClass>
                 </configuration>
             </plugin>
             <plugin>

@@ -6,12 +6,13 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.time.Duration;
 
 /**
  * Client used by connectors to exchange measurements with PegelHub Core.
  */
 public interface PegelHubClient extends AutoCloseable {
-    Collection<Measurement> getMeasurementsOfTimeSeries(UUID timeSeriesId, String timespan);
+    Collection<Measurement> getMeasurementsOfTimeSeries(UUID timeSeriesId, Duration lookback);
 
     Optional<Measurement> getLatestMeasurementOfTimeSeries(UUID timeSeriesId);
 
