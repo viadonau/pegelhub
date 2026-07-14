@@ -147,6 +147,19 @@ public class HttpPegelHubClientTest {
         }
 
         @Test
+        public void getMeasurementsOfTimeSeries_MapsCurrentCoreMeasurementEnvelope() throws IOException {
+            mockSuccessfulResponse(getResource("CoreMeasurementListResponse.json"));
+
+            Collection<Measurement> measurements = phc.getMeasurementsOfTimeSeries(uuid, "24h");
+
+            assertEquals(1, measurements.size());
+            Measurement measurement = measurements.iterator().next();
+            assertEquals(UUID.fromString("395c0232-d110-40fd-bd7f-2bb4a0f2009d"), measurement.getTimeSeriesId());
+            assertEquals(Instant.parse("2026-06-17T12:00:00Z"), measurement.getObservedAt());
+            assertEquals(2.73, measurement.getValue());
+        }
+
+        @Test
         public void getLatestMeasurementOfTimeSeries_UsesTimeSeriesRoute() throws IOException {
             List<String> requestUris = new ArrayList<>();
             when(httpClient.execute(any(), any(HttpClientResponseHandler.class))).thenAnswer(a -> {

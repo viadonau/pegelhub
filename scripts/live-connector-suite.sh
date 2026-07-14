@@ -14,6 +14,9 @@ Runs the PegelHub live connector server suite through Docker Compose.
 Environment:
   LIVE_VERIFY_TIMEOUT_SECONDS  Verifier timeout in seconds. Default: 90
   KEEP_LIVE_SUITE             Set to 1 to leave containers running after failure.
+  LIVE_SUITE_NO_BUILD         Set to 1 to skip image builds and reuse local images.
+  LIVE_SUITE_VERBOSE          Set to 1 to stream all service logs during the run.
+  LIVE_SUITE_PROJECT_NAME     Override the Docker Compose project name.
 USAGE
 }
 
@@ -30,6 +33,10 @@ compose_cmd() {
   else
     fail "Docker Compose is not available"
   fi
+}
+
+compose_supports_up_flag() {
+  compose_cmd up --help 2>/dev/null | grep -q -- "$1"
 }
 
 scenario="${1:-all}"
@@ -50,24 +57,49 @@ case "$scenario" in
     ;;
 esac
 
+[[ -f "$COMPOSE_FILE" ]] || fail "Compose file not found: $COMPOSE_FILE"
+command -v docker >/dev/null 2>&1 || fail "Docker is not available"
+docker info >/dev/null 2>&1 || fail "Docker daemon is not reachable"
+
 profile_args=()
 for profile in "${profiles[@]}"; do
   profile_args+=(--profile "$profile")
 done
 
-project_name="pegelhub-live-${scenario}"
+project_name="${LIVE_SUITE_PROJECT_NAME:-pegelhub-live-${scenario}}"
 compose_base=(-f "$COMPOSE_FILE" --project-name "$project_name")
+should_cleanup=0
 
 export LIVE_SCENARIO="$scenario"
 
-printf 'Building live connector suite images for scenario: %s\n' "$scenario"
-compose_cmd "${compose_base[@]}" "${profile_args[@]}" build
+cleanup() {
+  if [[ "$should_cleanup" == "1" && "${KEEP_LIVE_SUITE:-0}" != "1" ]]; then
+    compose_cmd "${compose_base[@]}" "${profile_args[@]}" down --volumes --remove-orphans >/dev/null || true
+  fi
+}
+trap cleanup EXIT
+
+if [[ "${LIVE_SUITE_NO_BUILD:-0}" == "1" ]]; then
+  printf 'Skipping image build for scenario: %s\n' "$scenario"
+else
+  printf 'Building live connector suite images for scenario: %s\n' "$scenario"
+  compose_cmd "${compose_base[@]}" "${profile_args[@]}" build
+fi
+
+up_args=(
+  up
+  --abort-on-container-exit
+  --exit-code-from verifier
+  --renew-anon-volumes
+)
+
+if [[ "${LIVE_SUITE_VERBOSE:-0}" != "1" ]] && compose_supports_up_flag "--attach"; then
+  up_args+=(--attach verifier)
+fi
 
 set +e
-compose_cmd "${compose_base[@]}" "${profile_args[@]}" up \
-  --abort-on-container-exit \
-  --exit-code-from verifier \
-  --renew-anon-volumes
+should_cleanup=1
+compose_cmd "${compose_base[@]}" "${profile_args[@]}" "${up_args[@]}"
 status=$?
 set -e
 
@@ -76,8 +108,8 @@ if [[ "$status" -ne 0 ]]; then
   compose_cmd "${compose_base[@]}" "${profile_args[@]}" logs --no-color >&2 || true
 fi
 
-if [[ "${KEEP_LIVE_SUITE:-0}" != "1" ]]; then
-  compose_cmd "${compose_base[@]}" "${profile_args[@]}" down --volumes --remove-orphans >/dev/null || true
+if [[ "$status" -ne 0 && "${KEEP_LIVE_SUITE:-0}" == "1" ]]; then
+  printf 'Leaving Compose project %s running for inspection.\n' "$project_name" >&2
 fi
 
 exit "$status"

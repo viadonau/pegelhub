@@ -15,7 +15,11 @@ final class LiveHarness implements AutoCloseable {
         start(new FakeKeycloakServer("external-keycloak", SuiteConstants.EXTERNAL_KEYCLOAK_PORT, state));
         start(new FakeCoreServer(SuiteConstants.LOCAL_CORE_PORT, state.localCore));
         start(new FakeCoreServer(SuiteConstants.EXTERNAL_CORE_PORT, state.externalCore));
-        start(new FakeFtpService(fixturesDir()));
+        Path fixtures = fixturesDir();
+        if (!Files.isDirectory(fixtures)) {
+            throw new IllegalStateException("Live suite fixture directory not found: " + fixtures.toAbsolutePath());
+        }
+        start(new FakeFtpService(fixtures));
         start(new FakeTstpServer(state));
         start(new FakeIecServer(state));
         start(new AdminServer(state));

@@ -2,6 +2,7 @@ package at.pegelhub.lib.runtime;
 
 import at.pegelhub.lib.CoreConnection;
 import at.pegelhub.lib.config.CoreConfig;
+import at.pegelhub.lib.config.CoreEndpointConfig;
 import at.pegelhub.lib.config.KeycloakConfig;
 import at.pegelhub.lib.config.StandardConnectorConfig;
 
@@ -15,11 +16,15 @@ public final class ConnectorConfigs {
     }
 
     public static CoreConnection coreConnection(StandardConnectorConfig config) {
-        return coreConnection(config.core(), config.keycloak());
+        return coreConnection(config.coreEndpoint());
+    }
+
+    public static CoreConnection coreConnection(CoreEndpointConfig endpoint) {
+        return endpoint.connection();
     }
 
     public static CoreConnection coreConnection(CoreConfig core, KeycloakConfig keycloak) {
-        return new CoreConnection(core.baseUrl(), keycloak.credentials());
+        return coreConnection(new CoreEndpointConfig(core, keycloak));
     }
 
     public static Duration delay(ConnectorContext context, StandardConnectorConfig config) {

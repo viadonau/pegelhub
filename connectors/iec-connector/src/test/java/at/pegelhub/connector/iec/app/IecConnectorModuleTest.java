@@ -67,6 +67,24 @@ class IecConnectorModuleTest {
     }
 
     @Test
+    void shouldFailWhenProtocolPortIsInvalid() throws Exception {
+        writeConnectorYaml("15s", "mappings", 70000, 1);
+
+        Exception ex = assertThrows(Exception.class, () -> new IecConnectorModule()
+                .getConnectorOptions(ConnectorContext.fromArgs(new String[]{tmp.toString()})));
+        assertTrue(ex.getMessage().contains("iec.port"));
+    }
+
+    @Test
+    void shouldFailWhenCommonAddressIsInvalid() throws Exception {
+        writeConnectorYaml("15s", "mappings", 2404, 0);
+
+        Exception ex = assertThrows(Exception.class, () -> new IecConnectorModule()
+                .getConnectorOptions(ConnectorContext.fromArgs(new String[]{tmp.toString()})));
+        assertTrue(ex.getMessage().contains("iec.commonAddress"));
+    }
+
+    @Test
     void shouldLoadMappingsThroughConnectorContextInSortedOrder() throws Exception {
         Files.createDirectories(tmp.resolve("mappings"));
         writeMapping("b.yaml", 2, "core-to-external");
@@ -108,6 +126,10 @@ class IecConnectorModuleTest {
     }
 
     private void writeConnectorYaml(String delay, String mappingsDir) throws Exception {
+        writeConnectorYaml(delay, mappingsDir, 2404, 1);
+    }
+
+    private void writeConnectorYaml(String delay, String mappingsDir, int port, int commonAddress) throws Exception {
         Files.writeString(tmp.resolve("connector.yaml"), """
                 core:
                   baseUrl: "http://core.local:8080/"
@@ -119,8 +141,8 @@ class IecConnectorModuleTest {
                   delay: "%s"
                 %siec:
                   address: "127.0.0.1"
-                  port: 2404
-                  commonAddress: 1
-                """.formatted(delay, mappingsDir == null ? "" : "mappingsDir: \"" + mappingsDir + "\"\n"));
+                  port: %d
+                  commonAddress: %d
+                """.formatted(delay, mappingsDir == null ? "" : "mappingsDir: \"" + mappingsDir + "\"\n", port, commonAddress));
     }
 }

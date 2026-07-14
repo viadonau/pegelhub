@@ -1,0 +1,24 @@
+{
+  "timeSeriesId": "395c0232-d110-40fd-bd7f-2bb4a0f2009d",
+  "window": {
+    "from": "2026-06-16T13:00:00Z",
+    "to": "2026-06-17T13:00:00Z",
+    "requested": "24h"
+  },
+  "order": "asc",
+  "limit": 1000,
+  "truncated": true,
+  "next": {
+    "from": "2026-06-16T13:00:00Z",
+    "to": "2026-06-17T13:00:00Z",
+    "order": "asc",
+    "limit": 1000,
+    "cursor": "MjAyNi0wNi0xN1QxMjowMDowMFp8MGQ5YTNjODctYjQxYS00NjYzLWFmMGEtZjZlYzVlNmE5MWNm"
+  },
+  "measurements": [
+    {
+      "observedAt": "2026-06-17T12:00:00Z",
+      "value": 2.73
+    }
+  ]
+}

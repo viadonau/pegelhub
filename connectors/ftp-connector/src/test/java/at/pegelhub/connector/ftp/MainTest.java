@@ -12,6 +12,7 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class MainTest {
     private static final UUID TIME_SERIES_ID = UUID.fromString("11111111-1111-1111-1111-111111111111");
@@ -88,6 +89,17 @@ class MainTest {
         assertThrows(IllegalArgumentException.class, () -> module.getConnectorOptions(context));
     }
 
+    @Test
+    void shouldRejectInvalidProtocolPort() throws Exception {
+        writeConnectorYaml("zrxp", 0);
+
+        FtpConnectorModule module = new FtpConnectorModule();
+        ConnectorContext context = ConnectorContext.fromArgs(new String[]{tmp.toString()});
+
+        Exception ex = assertThrows(Exception.class, () -> module.getConnectorOptions(context));
+        assertTrue(ex.getMessage().contains("ftp.port"));
+    }
+
     private void writeConfig(String mappingYaml) throws Exception {
         writeConnectorYaml();
         Files.createDirectories(tmp.resolve("mappings"));
@@ -99,6 +111,10 @@ class MainTest {
     }
 
     private void writeConnectorYaml(String parserType) throws Exception {
+        writeConnectorYaml(parserType, 21);
+    }
+
+    private void writeConnectorYaml(String parserType, int port) throws Exception {
         Files.writeString(tmp.resolve("connector.yaml"), """
                 core:
                   baseUrl: "http://127.0.0.1:8081/"
@@ -110,11 +126,11 @@ class MainTest {
                   delay: "15m"
                 ftp:
                   address: "127.0.0.2"
-                  port: 21
+                  port: %d
                   user: "test-user"
                   password: "test-pass"
                   path: "/incoming"
                   parserType: "%s"
-                """.formatted(parserType));
+                """.formatted(port, parserType));
     }
 }

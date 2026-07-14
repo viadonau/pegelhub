@@ -8,6 +8,7 @@ import at.pegelhub.connector.iec.iec.impl.IecClientImpl;
 import at.pegelhub.connector.iec.jobs.IecReadJob;
 import at.pegelhub.connector.iec.jobs.IecWriteJob;
 import at.pegelhub.lib.PegelHubClient;
+import at.pegelhub.lib.config.ConfigValidation;
 import at.pegelhub.lib.config.CoreConfig;
 import at.pegelhub.lib.config.KeycloakConfig;
 import at.pegelhub.lib.config.MappingDirection;
@@ -102,5 +103,10 @@ public final class IecConnectorModule implements ConnectorModule {
     }
 
     private record IecConfig(String address, int port, int commonAddress) {
+        private IecConfig {
+            address = ConfigValidation.requireText(address, "iec.address");
+            port = ConfigValidation.requireTcpPort(port, "iec.port");
+            commonAddress = ConfigValidation.requirePositive(commonAddress, "iec.commonAddress");
+        }
     }
 }

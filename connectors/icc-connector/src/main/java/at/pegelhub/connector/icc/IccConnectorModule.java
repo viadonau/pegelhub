@@ -2,6 +2,7 @@ package at.pegelhub.connector.icc;
 
 import at.pegelhub.lib.PegelHubClient;
 import at.pegelhub.lib.config.CoreConfig;
+import at.pegelhub.lib.config.CoreEndpointConfig;
 import at.pegelhub.lib.config.KeycloakConfig;
 import at.pegelhub.lib.config.MappingDirection;
 import at.pegelhub.lib.config.ScheduleConfig;
@@ -56,7 +57,7 @@ public final class IccConnectorModule implements ConnectorModule {
         String lookbackWindow = config.schedule().delay();
         return new IccConnectorOptions(
                 ConnectorConfigs.coreConnection(config),
-                ConnectorConfigs.coreConnection(config.externalCore().core(), config.externalCore().keycloak()),
+                ConnectorConfigs.coreConnection(config.externalCore()),
                 ConnectorConfigs.delay(context, config),
                 lookbackWindow,
                 mappings);
@@ -79,7 +80,7 @@ public final class IccConnectorModule implements ConnectorModule {
     private record ConnectorConfig(
             CoreConfig core,
             KeycloakConfig keycloak,
-            EndpointConfig externalCore,
+            CoreEndpointConfig externalCore,
             ScheduleConfig schedule,
             String mappingsDir) implements StandardConnectorConfig {
         private ConnectorConfig {
@@ -87,13 +88,6 @@ public final class IccConnectorModule implements ConnectorModule {
             Objects.requireNonNull(keycloak, "keycloak");
             Objects.requireNonNull(externalCore, "externalCore");
             Objects.requireNonNull(schedule, "schedule");
-        }
-    }
-
-    private record EndpointConfig(CoreConfig core, KeycloakConfig keycloak) {
-        private EndpointConfig {
-            Objects.requireNonNull(core, "core");
-            Objects.requireNonNull(keycloak, "keycloak");
         }
     }
 }

@@ -3,6 +3,7 @@ package at.pegelhub.connector.tstp;
 import at.pegelhub.connector.tstp.task.TstpRuntimeTask;
 import at.pegelhub.connector.tstp.task.TstpTaskFactory;
 import at.pegelhub.lib.PegelHubClient;
+import at.pegelhub.lib.config.ConfigValidation;
 import at.pegelhub.lib.config.CoreConfig;
 import at.pegelhub.lib.config.DirectedMapping;
 import at.pegelhub.lib.config.KeycloakConfig;
@@ -86,6 +87,10 @@ public final class TstpConnectorModule implements ConnectorModule {
     }
 
     private record TstpConfig(String address, int port) {
+        private TstpConfig {
+            address = ConfigValidation.requireText(address, "tstp.address");
+            port = ConfigValidation.requireTcpPort(port, "tstp.port");
+        }
     }
 
     private record TstpMapping(UUID timeSeriesId, Integer stationId, MappingDirection direction)

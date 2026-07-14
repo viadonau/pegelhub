@@ -16,8 +16,12 @@ final class AdminServer implements AutoCloseable {
         this.server.createContext("/state", exchange -> HttpSupport.respondText(exchange, 200, Verifier.summary(state) + "\n"));
         this.server.createContext("/verify", exchange -> {
             String scenario = HttpSupport.query(exchange.getRequestURI().getRawQuery()).getOrDefault("scenario", "all");
-            VerificationResult result = Verifier.verify(state, Scenario.parse(scenario));
-            HttpSupport.respondText(exchange, result.success() ? 200 : 500, result.message() + "\n");
+            try {
+                VerificationResult result = Verifier.verify(state, Scenario.parse(scenario));
+                HttpSupport.respondText(exchange, result.success() ? 200 : 500, result.message() + "\n");
+            } catch (IllegalArgumentException e) {
+                HttpSupport.respondText(exchange, 400, e.getMessage() + "\n");
+            }
         });
     }
 

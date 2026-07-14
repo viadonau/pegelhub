@@ -12,6 +12,7 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class MainTest {
     private static final UUID TIME_SERIES_ID = UUID.fromString("11111111-1111-1111-1111-111111111111");
@@ -67,6 +68,16 @@ class MainTest {
         assertThrows(IllegalArgumentException.class, () -> new TstpConnectorModule().getConnectorOptions(context));
     }
 
+    @Test
+    void failsWhenProtocolPortIsInvalid() throws Exception {
+        writeConnectorYaml(0);
+
+        ConnectorContext context = ConnectorContext.fromArgs(new String[]{tmp.toString()});
+
+        Exception ex = assertThrows(Exception.class, () -> new TstpConnectorModule().getConnectorOptions(context));
+        assertTrue(ex.getMessage().contains("tstp.port"));
+    }
+
     private void writeConfig(String direction) throws Exception {
         writeConnectorYaml();
         Files.createDirectories(tmp.resolve("mappings"));
@@ -78,6 +89,10 @@ class MainTest {
     }
 
     private void writeConnectorYaml() throws Exception {
+        writeConnectorYaml(8030);
+    }
+
+    private void writeConnectorYaml(int port) throws Exception {
         Files.writeString(tmp.resolve("connector.yaml"), """
                 core:
                   baseUrl: "http://127.0.0.1:8081/"
@@ -89,7 +104,7 @@ class MainTest {
                   delay: "10s"
                 tstp:
                   address: "127.0.0.2"
-                  port: 8030
-                """);
+                  port: %d
+                """.formatted(port));
     }
 }

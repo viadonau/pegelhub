@@ -1,16 +1,11 @@
 package at.pegelhub.lib;
 
+import at.pegelhub.lib.config.ConfigValidation;
+
 public record ClientCredentials(String tokenUrl, String clientId, String clientSecret) {
     public ClientCredentials {
-        tokenUrl = requireText(tokenUrl, "tokenUrl");
-        clientId = requireText(clientId, "clientId");
-        clientSecret = requireText(clientSecret, "clientSecret");
-    }
-
-    private static String requireText(String value, String name) {
-        if (value == null || value.isBlank()) {
-            throw new IllegalArgumentException(name + " must not be blank");
-        }
-        return value;
+        tokenUrl = ConfigValidation.requireText(tokenUrl, "tokenUrl");
+        clientId = ConfigValidation.requireText(clientId, "clientId");
+        clientSecret = ConfigValidation.requireText(clientSecret, "clientSecret");
     }
 }

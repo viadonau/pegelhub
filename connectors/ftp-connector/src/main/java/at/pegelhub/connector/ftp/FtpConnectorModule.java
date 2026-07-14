@@ -3,6 +3,7 @@ package at.pegelhub.connector.ftp;
 import at.pegelhub.connector.ftp.fileparsing.ParserFactory;
 import at.pegelhub.connector.ftp.fileparsing.ParserType;
 import at.pegelhub.lib.PegelHubClient;
+import at.pegelhub.lib.config.ConfigValidation;
 import at.pegelhub.lib.config.CoreConfig;
 import at.pegelhub.lib.config.DirectedMapping;
 import at.pegelhub.lib.config.KeycloakConfig;
@@ -107,6 +108,14 @@ public final class FtpConnectorModule implements ConnectorModule {
     }
 
     private record FtpConfig(String address, int port, String user, String password, String path, String parserType) {
+        private FtpConfig {
+            address = ConfigValidation.requireText(address, "ftp.address");
+            port = ConfigValidation.requireTcpPort(port, "ftp.port");
+            user = ConfigValidation.requireText(user, "ftp.user");
+            password = ConfigValidation.requireText(password, "ftp.password");
+            path = ConfigValidation.requireText(path, "ftp.path");
+            parserType = ConfigValidation.requireText(parserType, "ftp.parserType");
+        }
     }
 
     private record FtpMapping(UUID timeSeriesId, Integer stationId, String parameter, MappingDirection direction)
