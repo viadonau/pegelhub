@@ -1,48 +1,43 @@
 package at.pegelhub.connector.tstp.task;
 
+import at.pegelhub.connector.tstp.TstpMapping;
 import at.pegelhub.connector.tstp.communication.TstpCommunicator;
 import at.pegelhub.connector.tstp.communication.impl.TstpCommunicatorImpl;
-import at.pegelhub.connector.tstp.ConnectorOptions;
+import at.pegelhub.connector.tstp.config.TstpConnectorConfig;
 import at.pegelhub.connector.tstp.service.impl.TstpBinaryServiceImpl;
 import at.pegelhub.connector.tstp.service.impl.TstpXmlServiceImpl;
 import at.pegelhub.connector.tstp.service.impl.TstpCatalogServiceImpl;
-import at.pegelhub.lib.PegelHubCommunicator;
-import at.pegelhub.lib.PegelHubCommunicatorFactory;
-import at.pegelhub.lib.internal.ApplicationProperties;
-import at.pegelhub.lib.internal.ApplicationPropertiesFactory;
+import at.pegelhub.lib.config.MappingDirection;
+import at.pegelhub.lib.PegelHubClient;
 
-import java.net.MalformedURLException;
-import java.net.URI;
-import java.net.URL;
 import java.net.http.HttpClient;
-import java.util.TimerTask;
 
 public class TstpTaskFactory {
-    public static TimerTask getTstpTask(ConnectorOptions conOpt) throws MalformedURLException {
-        PegelHubCommunicator phCommunicator = PegelHubCommunicatorFactory.create(URI.create(String.format("http://%s:%s/",
-                conOpt.coreAddress(),
-                conOpt.corePort())).toURL(), conOpt.propertiesFile());
-        ApplicationProperties properties = ApplicationPropertiesFactory.create(conOpt.propertiesFile());
+    public static TstpRuntimeTask getTstpTask(TstpConnectorConfig config, PegelHubClient coreClient) {
         TstpCommunicator tstpCommunicator = new TstpCommunicatorImpl(
-                conOpt.tstpAddress(),
-                conOpt.tstpPort(),
+                config.server().host(),
+                config.server().port(),
                 HttpClient.newHttpClient(),
                 new TstpXmlServiceImpl(new TstpBinaryServiceImpl()));
+        TstpMapping mapping = config.mapping();
+        TstpCatalogServiceImpl catalog = new TstpCatalogServiceImpl(tstpCommunicator, mapping.stationId());
 
-        int stationId = properties.getStationId();
-
-        if (properties.isSupplier()) {
-            return new TstpReader(phCommunicator,
+        if (mapping.direction() == MappingDirection.EXTERNAL_TO_CORE) {
+            var reader = new TstpReader(
+                    coreClient,
                     tstpCommunicator,
-                    conOpt.readDelay(),
-                    conOpt.timeSeriesId(),
-                    new TstpCatalogServiceImpl(tstpCommunicator, stationId));
-        } else {
-            return new TstpWriter(phCommunicator,
-                    tstpCommunicator,
-                    conOpt.readDelay().toSeconds()+"s",
-                    conOpt.timeSeriesId(),
-                    new TstpCatalogServiceImpl(tstpCommunicator, stationId));
+                    config.pollInterval(),
+                    mapping.timeSeriesId(),
+                    catalog);
+            return new TstpRuntimeTask(reader, reader);
         }
+
+        var writer = new TstpWriter(
+                coreClient,
+                tstpCommunicator,
+                config.pollInterval(),
+                mapping.timeSeriesId(),
+                catalog);
+        return new TstpRuntimeTask(writer, writer);
     }
 }

@@ -6,6 +6,7 @@ import java.net.http.HttpResponse;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 import at.pegelhub.connector.tstp.service.TstpXmlService;
 import at.pegelhub.connector.tstp.service.model.XmlQueryResponse;
@@ -83,22 +84,22 @@ class TstpCommunicatorImplTest {
 		when(httpResponse.body()).thenReturn(responseBody);
 		when(tstpXmlService.parseXmlCatalog(responseBody)).thenReturn(xmlQueryResponse);
 
-		XmlQueryResponse result = tstpCommunicator.getCatalog(dbms);
+		Optional<XmlQueryResponse> result = tstpCommunicator.getCatalog(dbms);
 
-		assertEquals(xmlQueryResponse, result);
+		assertEquals(Optional.of(xmlQueryResponse), result);
 		verify(httpClient, times(1)).send(any(HttpRequest.class), eq(HttpResponse.BodyHandlers.ofString()));
 		verify(tstpXmlService, times(1)).parseXmlCatalog(responseBody);
 	}
 
 	@Test
-	public void testGetCatalog_catalogIsNull_returnNull() throws Exception {
+	public void testGetCatalog_catalogRequestFails_returnsEmpty() throws Exception {
 		int dbms = 1;
 
 		when(httpClient.send(any(HttpRequest.class), eq(HttpResponse.BodyHandlers.ofString()))).thenThrow(new RuntimeException());
 
-		XmlQueryResponse result = tstpCommunicator.getCatalog(dbms);
+		Optional<XmlQueryResponse> result = tstpCommunicator.getCatalog(dbms);
 
-		assertNull(result);
+		assertTrue(result.isEmpty());
 		verify(httpClient, times(1)).send(any(HttpRequest.class), eq(HttpResponse.BodyHandlers.ofString()));
 		verify(tstpXmlService, never()).parseXmlCatalog(anyString());
 	}
@@ -138,4 +139,24 @@ class TstpCommunicatorImplTest {
 		verify(httpClient, times(1)).send(any(HttpRequest.class), eq(HttpResponse.BodyHandlers.ofString()));
 		verify(tstpXmlService, times(1)).parseXmlPutRequest(measurements);
 		verify(tstpXmlService, never()).parseXmlPutResponse(anyString());
-	}}
+	}
+
+	@Test
+	void sendMeasurementsAcceptsImmutableInputAndSortsACopy() throws Exception {
+		Measurement later = new Measurement(null, Instant.parse("2026-06-07T11:00:00Z"), 2.0);
+		Measurement earlier = new Measurement(null, Instant.parse("2026-06-07T10:00:00Z"), 1.0);
+		List<Measurement> immutableMeasurements = List.of(later, earlier);
+		XmlTsResponse response = new XmlTsResponse();
+		response.setMessage("confirm");
+
+		when(tstpXmlService.parseXmlPutRequest(List.of(earlier, later))).thenReturn("request");
+		when(httpClient.send(any(HttpRequest.class), eq(HttpResponse.BodyHandlers.ofString()))).thenReturn(httpResponse);
+		when(httpResponse.body()).thenReturn("response");
+		when(tstpXmlService.parseXmlPutResponse("response")).thenReturn(response);
+
+		assertDoesNotThrow(() -> tstpCommunicator.sendMeasurements("123", immutableMeasurements));
+
+		assertEquals(List.of(later, earlier), immutableMeasurements);
+		verify(tstpXmlService).parseXmlPutRequest(List.of(earlier, later));
+	}
+}

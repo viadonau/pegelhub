@@ -19,6 +19,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Optional;
 
 @NoArgsConstructor
 public class TstpCommunicatorImpl implements TstpCommunicator {
@@ -57,7 +58,7 @@ public class TstpCommunicatorImpl implements TstpCommunicator {
     }
 
 
-    public XmlQueryResponse getCatalog(int dbms) {
+    public Optional<XmlQueryResponse> getCatalog(int dbms) {
         URI uri = URI.create(String.format(baseURI+"Query&ORT=%d&Parameter=Wasserstand&Hauptreihe=true", dbms));
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(uri)
@@ -65,18 +66,19 @@ public class TstpCommunicatorImpl implements TstpCommunicator {
 
         try {
             String responseBody = httpClient.send(request, HttpResponse.BodyHandlers.ofString()).body();
-            return tstpXmlService.parseXmlCatalog(responseBody);
+            return Optional.ofNullable(tstpXmlService.parseXmlCatalog(responseBody));
         } catch (Exception e) {
             LOG.info("Could not get a response from the TSTP-Server");
-            return null;
+            return Optional.empty();
         }
     }
 
     @Override
     public void sendMeasurements(String zrid, List<Measurement> measurements) {
         URI uri = URI.create(String.format(baseURI+"PUT&ZRID=%s",zrid));
-        measurements.sort(Comparator.comparing(Measurement::getObservedAt));
-        String requestBody = tstpXmlService.parseXmlPutRequest(measurements);
+        List<Measurement> sortedMeasurements = new ArrayList<>(measurements);
+        sortedMeasurements.sort(Comparator.comparing(Measurement::getObservedAt));
+        String requestBody = tstpXmlService.parseXmlPutRequest(sortedMeasurements);
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(uri)
                 .POST(HttpRequest.BodyPublishers.ofString(requestBody))

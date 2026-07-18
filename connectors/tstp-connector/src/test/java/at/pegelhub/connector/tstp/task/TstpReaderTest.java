@@ -2,7 +2,7 @@ package at.pegelhub.connector.tstp.task;
 
 import at.pegelhub.connector.tstp.communication.TstpCommunicator;
 import at.pegelhub.connector.tstp.service.TstpCatalogService;
-import at.pegelhub.lib.PegelHubCommunicator;
+import at.pegelhub.lib.PegelHubClient;
 import at.pegelhub.lib.model.Measurement;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -25,7 +25,7 @@ class TstpReaderTest {
     @Mock
     private TstpCommunicator tstpCommunicator;
     @Mock
-    private PegelHubCommunicator phCommunicator;
+    private PegelHubClient coreClient;
     @Mock
     private TstpCatalogService tstpCatalogService;
     @InjectMocks
@@ -35,7 +35,7 @@ class TstpReaderTest {
 
     @BeforeEach
     void setUp() {
-        tstpReader = new TstpReader(phCommunicator, tstpCommunicator, durationToLookBack, timeSeriesId, tstpCatalogService);
+        tstpReader = new TstpReader(coreClient, tstpCommunicator, durationToLookBack, timeSeriesId, tstpCatalogService);
     }
 
     @Test
@@ -50,7 +50,7 @@ class TstpReaderTest {
 
         verify(tstpCatalogService, times(1)).getZrid();
         verify(tstpCommunicator, times(1)).getMeasurements(eq(zrid), any(Instant.class), any(Instant.class));
-        verify(phCommunicator, times(1)).sendMeasurements(argThat(measurements -> {
+        verify(coreClient, times(1)).sendMeasurements(argThat(measurements -> {
             Measurement sent = measurements.iterator().next();
             assertEquals(timeSeriesId, sent.getTimeSeriesId());
             assertEquals(42.0, sent.getValue());
@@ -70,13 +70,23 @@ class TstpReaderTest {
 
         verify(tstpCatalogService, times(1)).getZrid();
         verify(tstpCommunicator, times(1)).getMeasurements(eq(zrid), any(Instant.class), any(Instant.class));
-        verify(phCommunicator, times(0)).sendMeasurements(anyList());
+        verify(coreClient, times(0)).sendMeasurements(anyList());
     }
 
+    @Test
+    void testRun_catalogLookupFails_doesNotCallTstpOrCore() {
+        when(tstpCatalogService.getZrid()).thenThrow(new IllegalStateException("Catalog unavailable"));
+
+        tstpReader.run();
+
+        verify(tstpCatalogService, times(1)).getZrid();
+        verify(tstpCommunicator, never()).getMeasurements(anyString(), any(Instant.class), any(Instant.class));
+        verify(coreClient, never()).sendMeasurements(anyList());
+    }
 
     @Test
-    void testCancel_closesCommunicator() throws Exception {
-        tstpReader.cancel();
-        verify(phCommunicator, times(1)).close();
+    void testClose_closesCommunicator() throws Exception {
+        tstpReader.close();
+        verify(coreClient, times(1)).close();
     }
 }

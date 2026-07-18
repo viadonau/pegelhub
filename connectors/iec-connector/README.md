@@ -2,82 +2,57 @@
 
 The IEC connector exchanges telemetry and measurement data via IEC 60870-5-104.
 
-## Prerequisites
-
-- Java 21+
-- Maven 3.9+
-- Docker
-- A reachable Pegelhub Core
-- A reachable IEC 60870-5-104 endpoint
-
 ## Build
-
-Build from the repository root:
 
 ```sh
 mvn -pl connectors/iec-connector -am -DskipTests package
 ```
 
-The build produces:
-
-- `target/iec-connector.jar`
-- `target/lib/*.jar`
-
 ## Configuration
 
-Prepare a host directory, for example `iec_directory`, with files that will be mounted as:
+The connector accepts an optional first CLI argument pointing to the config directory. Without an argument it reads from `/app/config`.
 
-- `/app/config/connector.properties`
-- `/app/config/pegelhub.yaml`
-- `/app/data/datapoints/*.yaml`
+The config directory must contain `connector.yaml` and a `mappings/` directory.
 
-The connector accepts an optional first CLI argument pointing to the config directory.
-Without an argument it reads from `/app/config`.
+`connector.yaml`:
 
-Important `connector.properties` keys include:
+```yaml
+core:
+  baseUrl: "http://localhost:8080/"
+  authentication:
+    tokenUrl: "http://localhost:8082/realms/pegelhub/protocol/openid-connect/token"
+    clientId: "connector"
+    clientSecret: "secret"
+polling:
+  interval: "30s"
+mappings:
+  directory: "mappings"
+iec:
+  server:
+    host: "127.0.0.1"
+    port: 2404
+    commonAddress: 1
+```
 
-- `DataPointsDir`
-- `Core.IP`
-- `Core.Port`
-- `DelayInterval`
-- `Iec.Host.IP`
-- `Iec.Host.Port`
-- `Iec.CommonAddress`
+Mapping files are read in sorted filename order:
 
-Each datapoint YAML under `DataPointsDir` must contain `iecIOA`, `timeSeriesId`,
-`isSupplier`, Keycloak client credentials, and the legacy supplier/taker metadata
-used by the connector library.
-`pegelhub.yaml` contains shared Pegelhub supplier/taker registration data and Keycloak client credentials.
-Set `DataPointsDir=/app/data/datapoints` for the container layout.
+```yaml
+iecIoa: 66049
+timeSeriesId: "11111111-1111-1111-1111-111111111111"
+direction: "external-to-core"
+```
 
-Checked-in examples live under:
-
-- `examples/config/`
-- `examples/data/datapoints/`
+Use `direction: "external-to-core"` for IEC values sent to Core and `direction: "core-to-external"` for Core measurements written to IEC.
 
 ## Docker
 
-Build the image from the repository root:
-
 ```sh
 scripts/build-connector-image.sh iec-connector
-```
 
-Run the container:
-
-```sh
-docker run --name iec-connector -d \
+docker run --rm -d \
   -v "$(pwd)/examples/config:/app/config:ro" \
-  -v "$(pwd)/examples/data:/app/data:ro" \
   pegelhub-iec-connector:local
 ```
-
-## Testing
-
-`at/pegelhub/connector/iec/sample/SampleServer.java` is the local IEC sample server used during development and testing.
-
-There is also an external test server project from FreyrSCADA:
-https://github.com/FreyrSCADA/IEC-60870-5-104
 
 ## References
 

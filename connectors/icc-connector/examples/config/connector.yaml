@@ -1,0 +1,16 @@
+localCore:
+  baseUrl: "http://core.local:8080/"
+  authentication:
+    tokenUrl: "http://keycloak.local:8082/realms/pegelhub/protocol/openid-connect/token"
+    clientId: "icc-core"
+    clientSecret: "secret"
+remoteCore:
+  baseUrl: "http://external-core.local:8080/"
+  authentication:
+    tokenUrl: "http://external-keycloak.local:8082/realms/pegelhub/protocol/openid-connect/token"
+    clientId: "icc-external"
+    clientSecret: "secret"
+polling:
+  interval: "1h"
+mappings:
+  directory: "mappings"

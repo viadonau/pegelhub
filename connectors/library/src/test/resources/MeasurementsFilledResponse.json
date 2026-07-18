@@ -8,7 +8,6 @@
   "order": "asc",
   "limit": 1000,
   "truncated": false,
-  "nextCursor": null,
   "measurements": [
     {
       "observedAt": "2023-04-19T13:27:51.460Z",

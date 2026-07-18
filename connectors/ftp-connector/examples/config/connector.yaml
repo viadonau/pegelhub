@@ -1,0 +1,20 @@
+core:
+  baseUrl: "http://localhost:8080/"
+  authentication:
+    tokenUrl: "http://localhost:8082/realms/pegelhub/protocol/openid-connect/token"
+    clientId: "connector"
+    clientSecret: "secret"
+polling:
+  interval: "15m"
+mappings:
+  directory: "mappings"
+ftp:
+  server:
+    host: "ftp.viadonau.org"
+    port: 21
+    authentication:
+      username: "pegelReader"
+      password: "securePassword123"
+  source:
+    directory: "/"
+    parserType: "zrxp"

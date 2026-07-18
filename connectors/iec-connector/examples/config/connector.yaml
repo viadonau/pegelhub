@@ -1,0 +1,15 @@
+core:
+  baseUrl: "http://localhost:8080/"
+  authentication:
+    tokenUrl: "http://localhost:8082/realms/pegelhub/protocol/openid-connect/token"
+    clientId: "connector"
+    clientSecret: "secret"
+polling:
+  interval: "30s"
+mappings:
+  directory: "mappings"
+iec:
+  server:
+    host: "127.0.0.1"
+    port: 2404
+    commonAddress: 1

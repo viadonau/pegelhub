@@ -8,6 +8,5 @@
   "order": "asc",
   "limit": 1000,
   "truncated": false,
-  "nextCursor": null,
   "measurements": []
 }
