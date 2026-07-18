@@ -124,10 +124,18 @@ final class TelemetryServiceImplTest {
 
     @Test
     public void getLastData() {
-        when(REPOSITORY.getLastData(any())).thenReturn(TELEMETRY);
+        when(REPOSITORY.getLastData(any())).thenReturn(java.util.Optional.of(TELEMETRY));
 
         Object result = telemetryService.getLastData(UUID.randomUUID());
         assertEquals(TELEMETRY, result);
         verify(REPOSITORY, times(1)).getLastData(any());
+    }
+
+    @Test
+    void getLastDataThrowsNotFoundWhenNoTelemetryExists() {
+        UUID id = UUID.randomUUID();
+        when(REPOSITORY.getLastData(id)).thenReturn(java.util.Optional.empty());
+
+        assertThrows(NotFoundException.class, () -> telemetryService.getLastData(id));
     }
 }

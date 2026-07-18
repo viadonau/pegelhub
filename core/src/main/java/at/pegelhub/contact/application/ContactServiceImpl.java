@@ -2,6 +2,7 @@ package at.pegelhub.contact.application;
 
 import at.pegelhub.contact.domain.Contact;
 import at.pegelhub.contact.persistence.ContactRepository;
+import at.pegelhub.shared.error.NotFoundException;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -36,7 +37,12 @@ public class ContactServiceImpl implements ContactService {
      */
     @Override
     public Contact getContactById(UUID uuid) {
-        return contactRepository.getById(uuid);
+        requireNonNull(uuid);
+        Contact contact = contactRepository.getById(uuid);
+        if (contact == null) {
+            throw new NotFoundException("Contact not found: " + uuid);
+        }
+        return contact;
     }
 
     /**
@@ -52,7 +58,7 @@ public class ContactServiceImpl implements ContactService {
      */
     @Override
     public void deleteContact(UUID uuid) {
+        getContactById(uuid);
         contactRepository.deleteContact(uuid);
-
     }
 }

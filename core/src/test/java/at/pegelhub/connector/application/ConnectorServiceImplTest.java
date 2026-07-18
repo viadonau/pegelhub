@@ -115,6 +115,26 @@ final class ConnectorServiceImplTest {
         verify(REPOSITORY, times(1)).findAll();
     }
 
+    @Test
+    void deleteThrowsNotFoundWithoutDeletingWhenConnectorIsMissing() {
+        ConnectorId id = new ConnectorId(UUID.randomUUID());
+        when(REPOSITORY.findById(id)).thenReturn(Optional.empty());
+
+        assertThrows(NotFoundException.class, () -> connectorService.delete(id));
+
+        verify(REPOSITORY, never()).delete(id);
+    }
+
+    @Test
+    void deleteExistingConnector() {
+        ConnectorId id = CONNECTOR.id();
+        when(REPOSITORY.findById(id)).thenReturn(Optional.of(CONNECTOR));
+
+        connectorService.delete(id);
+
+        verify(REPOSITORY).delete(id);
+    }
+
     private static CreateConnectorCommand connectorCommand() {
         return new CreateConnectorCommand(
                 CONNECTOR_NUMBER,

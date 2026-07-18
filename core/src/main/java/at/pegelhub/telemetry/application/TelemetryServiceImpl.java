@@ -61,6 +61,8 @@ public class TelemetryServiceImpl implements TelemetryService {
 
     @Override
     public Telemetry getLastData(UUID uuid) {
-        return telemetryRepository.getLastData(uuid);
+        requireNonNull(uuid);
+        return telemetryRepository.getLastData(uuid)
+                .orElseThrow(() -> new NotFoundException("No telemetry found for: " + uuid));
     }
 }

@@ -66,6 +66,8 @@ class ConnectorServiceImpl implements ConnectorService {
     @Transactional
     public void delete(ConnectorId id) {
         requireNonNull(id);
+        connectorRepository.findById(id)
+                .orElseThrow(() -> new NotFoundException("Connector not found: " + id.value()));
         connectorRepository.delete(id);
     }
 

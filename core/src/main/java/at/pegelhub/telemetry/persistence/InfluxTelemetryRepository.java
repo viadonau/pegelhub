@@ -2,7 +2,6 @@ package at.pegelhub.telemetry.persistence;
 
 import com.influxdb.client.domain.WritePrecision;
 import com.influxdb.client.write.Point;
-import com.influxdb.exceptions.InfluxException;
 import at.pegelhub.shared.duration.PegelhubDurationLiteral;
 import at.pegelhub.telemetry.domain.Telemetry;
 import at.pegelhub.shared.influx.InfluxBucketOperations;
@@ -97,14 +96,11 @@ public class InfluxTelemetryRepository implements TelemetryRepository {
      * @return the corresponding {@link Telemetry} to the specified {@link UUID}
      */
     @Override
-    public Telemetry getLastData(UUID uuid) {
+    public Optional<Telemetry> getLastData(UUID uuid) {
         String query = queryBuilder.latestTelemetry(uuid, latestRange);
 
         List<Telemetry> telemetries = rowMapper.toTelemetries(influx.query(query));
-        if (telemetries.isEmpty())
-            throw new InfluxException("No telemetry found");
         return telemetries.stream()
-                .max(Comparator.comparing(Telemetry::timestamp))
-                .orElseThrow(() -> new InfluxException("No telemetry found"));
+                .max(Comparator.comparing(Telemetry::timestamp));
     }
 }

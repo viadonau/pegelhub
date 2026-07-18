@@ -114,4 +114,15 @@ class HttpConnectorControllerTest {
         mockMvc.perform(get("/api/v1/connectors/{uuid}", "not-a-uuid"))
                 .andExpect(status().isBadRequest());
     }
+
+    @Test
+    void deleteMapsNotFoundTo404() throws Exception {
+        UUID id = UUID.randomUUID();
+        ConnectorId connectorId = new ConnectorId(id);
+        doThrow(new NotFoundException("connector missing")).when(connectorService).delete(connectorId);
+
+        mockMvc.perform(delete("/api/v1/connectors/{uuid}", id))
+                .andExpect(status().isNotFound())
+                .andExpect(content().string("connector missing"));
+    }
 }
