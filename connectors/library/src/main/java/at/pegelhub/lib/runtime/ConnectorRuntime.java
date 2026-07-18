@@ -91,6 +91,9 @@ final class ConnectorRuntime implements ConnectorApplicationHandle {
         try {
             if (!scheduler.awaitTermination(shutdownTimeout.toMillis(), TimeUnit.MILLISECONDS)) {
                 scheduler.shutdownNow();
+                if (!scheduler.awaitTermination(shutdownTimeout.toMillis(), TimeUnit.MILLISECONDS)) {
+                    LOG.warn("{} runtime tasks did not stop within the shutdown timeout.", name);
+                }
             }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();

@@ -42,19 +42,6 @@ final class SuiteConstants {
             new MeasurementRecord(FTP_ASC_TS, Instant.parse("2026-06-25T07:00:00Z"), 289.0);
     static final MeasurementRecord FTP_ZRXP_MEASUREMENT =
             new MeasurementRecord(FTP_ZRXP_TS, Instant.parse("2026-06-25T07:15:00Z"), 157.3);
-    static final MeasurementRecord TSTP_READER_MEASUREMENT =
-            new MeasurementRecord(TSTP_READER_TS, Instant.parse("2010-08-03T13:30:00Z"), 664.7);
-    static final MeasurementRecord TSTP_WRITER_FIRST =
-            new MeasurementRecord(TSTP_WRITER_TS, Instant.parse("2026-06-25T08:00:00Z"), 301.1);
-    static final MeasurementRecord TSTP_WRITER_SECOND =
-            new MeasurementRecord(TSTP_WRITER_TS, Instant.parse("2026-06-25T08:15:00Z"), 302.2);
-    static final MeasurementRecord IEC_CORE_TO_EXTERNAL_MEASUREMENT =
-            new MeasurementRecord(IEC_CORE_TO_EXTERNAL_TS, Instant.parse("2026-06-25T09:00:00Z"), 512.25);
-    static final MeasurementRecord ICC_LOCAL_SOURCE_MEASUREMENT =
-            new MeasurementRecord(ICC_LOCAL_SOURCE_TS, Instant.parse("2026-06-25T10:00:00Z"), 51.2);
-    static final MeasurementRecord ICC_EXTERNAL_SOURCE_MEASUREMENT =
-            new MeasurementRecord(ICC_EXTERNAL_SOURCE_TS, Instant.parse("2026-06-25T10:15:00Z"), 61.2);
-
     static final Set<UUID> FTP_WRITE_IDS = Set.of(FTP_ASC_TS, FTP_ZRXP_TS);
     static final Set<UUID> TSTP_WRITE_IDS = Set.of(TSTP_READER_TS);
     static final Set<UUID> IEC_WRITE_IDS = Set.of(IEC_EXTERNAL_TO_CORE_TS);

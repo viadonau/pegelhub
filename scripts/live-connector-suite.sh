@@ -73,11 +73,19 @@ should_cleanup=0
 export LIVE_SCENARIO="$scenario"
 
 cleanup() {
-  if [[ "$should_cleanup" == "1" && "${KEEP_LIVE_SUITE:-0}" != "1" ]]; then
+  status=$?
+  trap - EXIT INT TERM
+  if [[ "$should_cleanup" == "1" && "$status" -ne 0 && "${KEEP_LIVE_SUITE:-0}" == "1" ]]; then
+    printf 'Leaving failed Compose project %s running for inspection.\n' "$project_name" >&2
+  elif [[ "$should_cleanup" == "1" ]]; then
     compose_cmd "${compose_base[@]}" "${profile_args[@]}" down --volumes --remove-orphans >/dev/null || true
   fi
+  exit "$status"
 }
+
 trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 if [[ "${LIVE_SUITE_NO_BUILD:-0}" == "1" ]]; then
   printf 'Skipping image build for scenario: %s\n' "$scenario"
@@ -106,10 +114,6 @@ set -e
 if [[ "$status" -ne 0 ]]; then
   printf '\nLive connector suite failed. Logs follow:\n' >&2
   compose_cmd "${compose_base[@]}" "${profile_args[@]}" logs --no-color >&2 || true
-fi
-
-if [[ "$status" -ne 0 && "${KEEP_LIVE_SUITE:-0}" == "1" ]]; then
-  printf 'Leaving Compose project %s running for inspection.\n' "$project_name" >&2
 fi
 
 exit "$status"

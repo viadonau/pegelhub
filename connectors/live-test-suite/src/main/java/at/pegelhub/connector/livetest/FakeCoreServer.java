@@ -6,6 +6,7 @@ import com.sun.net.httpserver.HttpServer;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.time.Instant;
+import java.time.Duration;
 import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
@@ -72,7 +73,13 @@ final class FakeCoreServer implements AutoCloseable {
         String id = path.substring(prefix.length(), path.length() - "/measurements".length());
         UUID timeSeriesId = UUID.fromString(id);
         var params = HttpSupport.query(query);
-        List<MeasurementRecord> measurements = state.seeded(timeSeriesId);
+        List<MeasurementRecord> measurements;
+        try {
+            measurements = filterWindow(state.seeded(timeSeriesId), params);
+        } catch (IllegalArgumentException e) {
+            HttpSupport.respond(exchange, 400, "{\"error\":\"invalid_window\"}");
+            return;
+        }
         if ("desc".equalsIgnoreCase(params.get("order"))) {
             measurements = measurements.stream()
                     .sorted(Comparator.comparing(MeasurementRecord::observedAt).reversed())
@@ -86,7 +93,41 @@ final class FakeCoreServer implements AutoCloseable {
         if (limit < measurements.size()) {
             measurements = measurements.subList(0, limit);
         }
-        HttpSupport.respond(exchange, 200, measurementListJson(timeSeriesId, measurements));
+        HttpSupport.respond(exchange, 200, measurementListJson(timeSeriesId, measurements, params.get("order")));
+    }
+
+    private static List<MeasurementRecord> filterWindow(
+            List<MeasurementRecord> measurements,
+            java.util.Map<String, String> params) {
+        Instant now = Instant.now();
+        Instant from = params.containsKey("from") ? Instant.parse(params.get("from")) : null;
+        Instant to = params.containsKey("to") ? Instant.parse(params.get("to")) : now;
+        if (params.containsKey("last")) {
+            from = now.minus(parseDuration(params.get("last")));
+        }
+        Instant resolvedFrom = from;
+        Instant resolvedTo = to;
+        return measurements.stream()
+                .filter(measurement -> resolvedFrom == null || !measurement.observedAt().isBefore(resolvedFrom))
+                .filter(measurement -> resolvedTo == null || !measurement.observedAt().isAfter(resolvedTo))
+                .toList();
+    }
+
+    private static Duration parseDuration(String raw) {
+        if (raw == null || raw.length() < 2) {
+            throw new IllegalArgumentException("invalid duration");
+        }
+        long amount = Long.parseLong(raw.substring(0, raw.length() - 1));
+        if (amount <= 0) {
+            throw new IllegalArgumentException("invalid duration");
+        }
+        return switch (raw.charAt(raw.length() - 1)) {
+            case 's' -> Duration.ofSeconds(amount);
+            case 'm' -> Duration.ofMinutes(amount);
+            case 'h' -> Duration.ofHours(amount);
+            case 'd' -> Duration.ofDays(amount);
+            default -> throw new IllegalArgumentException("invalid duration");
+        };
     }
 
     private static int parseLimit(String raw, int fallback) {
@@ -96,10 +137,15 @@ final class FakeCoreServer implements AutoCloseable {
         return Math.max(0, Integer.parseInt(raw));
     }
 
-    private static String measurementListJson(UUID timeSeriesId, List<MeasurementRecord> measurements) {
+    private static String measurementListJson(
+            UUID timeSeriesId,
+            List<MeasurementRecord> measurements,
+            String requestedOrder) {
+        String order = "desc".equalsIgnoreCase(requestedOrder) ? "DESC" : "ASC";
         StringBuilder json = new StringBuilder();
         json.append("{\"timeSeriesId\":\"").append(timeSeriesId).append("\",");
-        json.append("\"window\":null,\"order\":\"ASC\",\"limit\":1000,\"truncated\":false,\"next\":null,");
+        json.append("\"window\":null,\"order\":\"").append(order)
+                .append("\",\"limit\":1000,\"truncated\":false,\"next\":null,");
         json.append("\"measurements\":[");
         for (int i = 0; i < measurements.size(); i++) {
             MeasurementRecord measurement = measurements.get(i);

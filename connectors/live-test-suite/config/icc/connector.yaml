@@ -12,5 +12,5 @@ externalCore:
     clientId: "icc-external"
     clientSecret: "secret"
 schedule:
-  delay: "1s"
+  delay: "1m"
 mappingsDir: "mappings"

@@ -21,13 +21,33 @@ final class FakeKeycloakServer implements AutoCloseable {
                 return;
             }
             var form = HttpSupport.query(HttpSupport.readBody(exchange));
-            state.tokenRequests.add(new TokenRequest(name, form.getOrDefault("client_id", ""), Instant.now()));
+            String clientId = form.getOrDefault("client_id", "");
+            state.tokenRequests.add(new TokenRequest(name, clientId, Instant.now()));
+            if (!"client_credentials".equals(form.get("grant_type"))
+                    || !"secret".equals(form.get("client_secret"))
+                    || !acceptsClient(clientId)) {
+                HttpSupport.respond(exchange, 401, "{\"error\":\"invalid_client\"}");
+                return;
+            }
             HttpSupport.respond(exchange, 200, "{\"access_token\":\"" + SuiteConstants.TOKEN + "\",\"expires_in\":300}");
         });
     }
 
     void start() {
         server.start();
+    }
+
+    private boolean acceptsClient(String clientId) {
+        if ("external-keycloak".equals(name)) {
+            return "icc-external".equals(clientId);
+        }
+        return java.util.Set.of(
+                "ftp-asc",
+                "ftp-zrxp",
+                "tstp-reader",
+                "tstp-writer",
+                "iec",
+                "icc-core").contains(clientId);
     }
 
     @Override

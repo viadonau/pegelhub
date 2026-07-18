@@ -197,6 +197,6 @@
           - "Review {{ pegelhub_staging_repo_dir }}/deploy/staging/.env and fill hostnames, URLs, and image values."
           - "Missing keys from .env.example are appended without overwriting existing values."
           - "Server-local database and Keycloak secrets are initialized automatically when placeholders are present."
-          - "Create connector.properties and pegelhub.yaml under {{ pegelhub_staging_repo_dir }}/deploy/staging/ftp-config."
+          - "Create connector.yaml and mappings/*.yaml under {{ pegelhub_staging_repo_dir }}/deploy/staging/ftp-config."
           - "Log in to GHCR on the staging host if packages are private."
           - "Run {{ pegelhub_staging_repo_dir }}/deploy/staging/scripts/deploy.sh --check sha-<short-sha> as {{ pegelhub_staging_deploy_user }}."
