@@ -3,6 +3,7 @@ package at.pegelhub.telemetry.persistence;
 import at.pegelhub.telemetry.domain.Telemetry;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -30,8 +31,7 @@ public interface TelemetryRepository {
      * Queries the last telemetry from the repository.
      *
      * @param uuid of the telemetry.
-     * @return the last telemetry with that uuid.
+     * @return the last telemetry with that uuid, or empty when none exists.
      */
-    Telemetry getLastData(UUID uuid);
+    Optional<Telemetry> getLastData(UUID uuid);
 }
-

@@ -2,6 +2,7 @@ package at.pegelhub.contact.application;
 
 import at.pegelhub.contact.domain.Contact;
 import at.pegelhub.contact.persistence.ContactRepository;
+import at.pegelhub.shared.error.NotFoundException;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -10,6 +11,7 @@ import java.util.List;
 import java.util.UUID;
 
 import static at.pegelhub.testsupport.ExampleData.CONTACT;
+import static java.util.Objects.requireNonNull;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
@@ -47,6 +49,34 @@ final class ContactServiceImplTest {
         Contact result = contactService.getContactById(UUID.randomUUID());
         assertEquals(CONTACT, result);
         verify(REPOSITORY, times(1)).getById(any());
+    }
+
+    @Test
+    void getByIdThrowsNotFoundWhenContactIsMissing() {
+        UUID id = UUID.randomUUID();
+        when(REPOSITORY.getById(id)).thenReturn(null);
+
+        assertThrows(NotFoundException.class, () -> contactService.getContactById(id));
+    }
+
+    @Test
+    void deleteThrowsNotFoundWithoutDeletingWhenContactIsMissing() {
+        UUID id = UUID.randomUUID();
+        when(REPOSITORY.getById(id)).thenReturn(null);
+
+        assertThrows(NotFoundException.class, () -> contactService.deleteContact(id));
+
+        verify(REPOSITORY, never()).deleteContact(id);
+    }
+
+    @Test
+    void deleteExistingContact() {
+        UUID id = requireNonNull(CONTACT.getId());
+        when(REPOSITORY.getById(id)).thenReturn(CONTACT);
+
+        contactService.deleteContact(id);
+
+        verify(REPOSITORY).deleteContact(id);
     }
 
 

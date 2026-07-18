@@ -7,7 +7,6 @@ import at.pegelhub.telemetry.domain.Telemetry;
 import at.pegelhub.testsupport.InfluxIntegrationTestBase;
 import at.pegelhub.testsupport.PegelHubInfluxContainer;
 import com.influxdb.client.InfluxDBClient;
-import com.influxdb.exceptions.InfluxException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -77,7 +76,7 @@ final class InfluxTelemetryRepositoryTest extends InfluxIntegrationTestBase {
         assertThat(repository.getByRange("3h"))
                 .filteredOn(telemetry -> id.equals(telemetry.measurement()))
                 .containsExactly(recentTelemetry);
-        assertThat(repository.getLastData(UUID.fromString(id))).isEqualTo(recentTelemetry);
+        assertThat(repository.getLastData(UUID.fromString(id))).contains(recentTelemetry);
     }
 
     @Test
@@ -89,10 +88,10 @@ final class InfluxTelemetryRepositoryTest extends InfluxIntegrationTestBase {
     }
 
     @Test
-    void missingLatestTelemetryThrowsInfluxException() {
+    void missingLatestTelemetryReturnsEmpty() {
         UUID id = UUID.fromString("e27efad9-b947-48b1-928e-c25663597f1c");
 
-        assertThrows(InfluxException.class, () -> repository.getLastData(id));
+        assertThat(repository.getLastData(id)).isEmpty();
     }
 
     private static Telemetry telemetry(String id, Instant timestamp, int cycleTime, double temperatureWater) {

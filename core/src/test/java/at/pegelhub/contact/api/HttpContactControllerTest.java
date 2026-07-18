@@ -102,4 +102,14 @@ class HttpContactControllerTest {
                 .andExpect(status().isNotFound())
                 .andExpect(content().string("contact missing"));
     }
+
+    @Test
+    void deleteContactMapsNotFoundTo404() throws Exception {
+        UUID id = UUID.randomUUID();
+        doThrow(new NotFoundException("contact missing")).when(contactService).deleteContact(id);
+
+        mockMvc.perform(delete("/api/v1/contact/{uuid}", id))
+                .andExpect(status().isNotFound())
+                .andExpect(content().string("contact missing"));
+    }
 }
