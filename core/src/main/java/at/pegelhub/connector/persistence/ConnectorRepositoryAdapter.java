@@ -2,12 +2,12 @@ package at.pegelhub.connector.persistence;
 
 import at.pegelhub.connector.domain.Connector;
 import at.pegelhub.connector.domain.ConnectorId;
-import at.pegelhub.contact.domain.Contact;
-import at.pegelhub.contact.persistence.ContactEntity;
+import at.pegelhub.contact.persistence.ContactEntityMapper;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 @Repository
 class ConnectorRepositoryAdapter implements ConnectorRepository {
@@ -48,18 +48,23 @@ class ConnectorRepositoryAdapter implements ConnectorRepository {
         return connectors.findFirstByKeycloakClientId(keycloakClientId).map(this::toDomain);
     }
 
+    @Override
+    public boolean existsReferencingContact(UUID contactId) {
+        return connectors.existsReferencingContact(contactId);
+    }
+
     private ConnectorEntity toEntity(Connector connector) {
         return new ConnectorEntity(
                 connector.id().value(),
                 connector.connectorNumber(),
-                toContactEntity(connector.manufacturer()),
+                ContactEntityMapper.toEntity(connector.manufacturer()),
                 connector.typeDescription(),
                 connector.softwareVersion(),
                 connector.worksFromDataVersion(),
                 connector.dataDefinition(),
-                toContactEntity(connector.softwareManufacturer()),
-                toContactEntity(connector.technicallyResponsible()),
-                toContactEntity(connector.operationCompany()),
+                ContactEntityMapper.toEntity(connector.softwareManufacturer()),
+                ContactEntityMapper.toEntity(connector.technicallyResponsible()),
+                ContactEntityMapper.toEntity(connector.operationCompany()),
                 connector.notes(),
                 connector.keycloakClientId(),
                 connector.status());
@@ -69,38 +74,17 @@ class ConnectorRepositoryAdapter implements ConnectorRepository {
         return new Connector(
                 new ConnectorId(entity.getId()),
                 entity.getConnectorNumber(),
-                toDomainContact(entity.getManufacturer()),
+                ContactEntityMapper.toDomain(entity.getManufacturer()),
                 entity.getTypeDescription(),
                 entity.getSoftwareVersion(),
                 entity.getWorksFromDataVersion(),
                 entity.getDataDefinition(),
-                toDomainContact(entity.getSoftwareManufacturer()),
-                toDomainContact(entity.getTechnicallyResponsible()),
-                toDomainContact(entity.getOperatingCompany()),
+                ContactEntityMapper.toDomain(entity.getSoftwareManufacturer()),
+                ContactEntityMapper.toDomain(entity.getTechnicallyResponsible()),
+                ContactEntityMapper.toDomain(entity.getOperatingCompany()),
                 entity.getNodes() != null ? entity.getNodes() : "",
                 entity.getKeycloakClientId(),
                 entity.getStatus());
     }
 
-    private ContactEntity toContactEntity(Contact contact) {
-        return new ContactEntity(
-                contact.getId(), contact.getOrganization(), contact.getContactPerson(),
-                contact.getContactStreet(), contact.getContactPlz(), contact.getLocation(),
-                contact.getContactCountry(), contact.getEmergencyNumber(), contact.getEmergencyNumberTwo(),
-                contact.getEmergencyMail(), contact.getServiceNumber(), contact.getServiceNumberTwo(),
-                contact.getServiceMail(), contact.getAdministrationPhoneNumber(),
-                contact.getAdministrationPhoneNumberTwo(), contact.getAdministrationMail(),
-                contact.getContactNodes());
-    }
-
-    private Contact toDomainContact(ContactEntity entity) {
-        return new Contact(
-                entity.getId(), entity.getOrganization(), entity.getContactPerson(),
-                entity.getContactStreet(), entity.getContactPlz(), entity.getLocation(),
-                entity.getContactCountry(), entity.getEmergencyNumber(), entity.getEmergencyNumberTwo(),
-                entity.getEmergencyMail(), entity.getServiceNumber(), entity.getServiceNumberTwo(),
-                entity.getServiceMail(), entity.getAdministrationPhoneNumber(),
-                entity.getAdministrationPhoneNumberTwo(), entity.getAdministrationMail(),
-                entity.getContactNodes());
-    }
 }

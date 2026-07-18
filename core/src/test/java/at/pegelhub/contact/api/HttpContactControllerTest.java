@@ -1,6 +1,7 @@
 package at.pegelhub.contact.api;
 
 import at.pegelhub.contact.application.ContactService;
+import at.pegelhub.shared.error.ConflictException;
 import at.pegelhub.shared.error.NotFoundException;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -66,6 +67,21 @@ class HttpContactControllerTest {
     }
 
     @Test
+    void saveContactWithTooLongFieldReturnsValidationProblem() throws Exception {
+        mockMvc.perform(post("/api/v1/contact")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "organization": "%s"
+                                }
+                                """.formatted("x".repeat(151))))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+                .andExpect(jsonPath("$.errors[0].field").value("organization"));
+    }
+
+    @Test
     void getContactByIdReturnsDtoJson() throws Exception {
         when(contactService.getContactById(CONTACT.getId())).thenReturn(CONTACT);
 
@@ -94,13 +110,30 @@ class HttpContactControllerTest {
     }
 
     @Test
+    void deleteContactMapsConflictTo409() throws Exception {
+        UUID id = UUID.randomUUID();
+        doThrow(new ConflictException("Contact is still referenced by a connector."))
+                .when(contactService).deleteContact(id);
+
+        mockMvc.perform(delete("/api/v1/contact/{uuid}", id))
+                .andExpect(status().isConflict())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.code").value("CONFLICT"))
+                .andExpect(jsonPath("$.status").value(409))
+                .andExpect(jsonPath("$.detail").value("Contact is still referenced by a connector."));
+    }
+
+    @Test
     void getContactByIdMapsNotFoundTo404() throws Exception {
         UUID id = UUID.randomUUID();
         doThrow(new NotFoundException("contact missing")).when(contactService).getContactById(id);
 
         mockMvc.perform(get("/api/v1/contact/{uuid}", id))
                 .andExpect(status().isNotFound())
-                .andExpect(content().string("contact missing"));
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.code").value("NOT_FOUND"))
+                .andExpect(jsonPath("$.status").value(404))
+                .andExpect(jsonPath("$.detail").value("contact missing"));
     }
 
     @Test
@@ -110,6 +143,9 @@ class HttpContactControllerTest {
 
         mockMvc.perform(delete("/api/v1/contact/{uuid}", id))
                 .andExpect(status().isNotFound())
-                .andExpect(content().string("contact missing"));
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.code").value("NOT_FOUND"))
+                .andExpect(jsonPath("$.status").value(404))
+                .andExpect(jsonPath("$.detail").value("contact missing"));
     }
 }

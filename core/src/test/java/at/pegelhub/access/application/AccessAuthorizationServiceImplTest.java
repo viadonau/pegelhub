@@ -149,9 +149,26 @@ final class AccessAuthorizationServiceImplTest {
         }
 
         @Override
+        public AccessGrant saveOrFindByAssignment(AccessGrant accessGrant) {
+            return save(accessGrant);
+        }
+
+        @Override
         public Optional<AccessGrant> findById(AccessGrantId id) {
             return saved.stream()
                     .filter(grant -> grant.id().equals(id))
+                    .findFirst();
+        }
+
+        @Override
+        public Optional<AccessGrant> findByAssignment(
+                ConnectorId connectorId,
+                AccessResourceRef resource,
+                AccessPermission permission) {
+            return saved.stream()
+                    .filter(grant -> grant.connectorId().equals(connectorId))
+                    .filter(grant -> grant.resource().equals(resource))
+                    .filter(grant -> grant.permission() == permission)
                     .findFirst();
         }
 

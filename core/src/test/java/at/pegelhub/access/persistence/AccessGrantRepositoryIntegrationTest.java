@@ -48,8 +48,25 @@ final class AccessGrantRepositoryIntegrationTest extends JpaIntegrationTestBase 
         accessGrants.save(other);
 
         assertThat(accessGrants.findById(GRANT_ID)).contains(matching);
+        assertThat(accessGrants.findByAssignment(
+                CONNECTOR_ID,
+                AccessResourceRef.station(STATION_ID),
+                AccessPermission.READ)).contains(matching);
         assertThat(accessGrants.findAll()).contains(matching, other);
         assertThat(accessGrants.findByConnectorId(CONNECTOR_ID)).containsExactly(matching);
+    }
+
+    @Test
+    void saveOrFindByAssignmentReturnsExistingGrantForDuplicateAssignment() {
+        var existing = grant(GRANT_ID, CONNECTOR_ID);
+        var duplicate = grant(
+                new AccessGrantId(UUID.fromString("d8440189-090b-4db0-ad93-8cb6d140a67a")),
+                CONNECTOR_ID);
+
+        accessGrants.save(existing);
+
+        assertThat(accessGrants.saveOrFindByAssignment(duplicate)).isEqualTo(existing);
+        assertThat(accessGrants.findAll()).containsExactly(existing);
     }
 
     private static AccessGrant grant(AccessGrantId id, ConnectorId connectorId) {

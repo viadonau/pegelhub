@@ -33,7 +33,7 @@ final class TelemetryServiceImplTest {
     private static final PegelHubActor ACTOR = new PegelHubActor(
             PegelHubActorType.CLIENT,
             "subject",
-            "local-taker-example",
+            "local-connector-example",
             Set.of());
     private static final WriteTelemetryCommand WRITE_COMMAND = new WriteTelemetryCommand(
             TELEMETRY.stationIPAddressIntern(),
@@ -70,8 +70,8 @@ final class TelemetryServiceImplTest {
                 TELEMETRY.stationIPAddressExtern(),
                 TELEMETRY.timestamp(),
                 TELEMETRY.cycleTime(),
-                TELEMETRY.temperatureWater(),
-                TELEMETRY.temperatureAir(),
+                TELEMETRY.legacyTemperatureWater(),
+                TELEMETRY.legacyTemperatureAir(),
                 TELEMETRY.performanceVoltageBattery(),
                 TELEMETRY.performanceVoltageSupply(),
                 TELEMETRY.performanceElectricityBattery(),
@@ -104,7 +104,7 @@ final class TelemetryServiceImplTest {
                 CONNECTOR.softwareVersion(), CONNECTOR.worksFromDataVersion(),
                 CONNECTOR.dataDefinition(), CONNECTOR.softwareManufacturer(),
                 CONNECTOR.technicallyResponsible(), CONNECTOR.operationCompany(),
-                CONNECTOR.notes(), "local-taker-example", ConnectorStatus.SUSPENDED);
+                CONNECTOR.notes(), "local-connector-example", ConnectorStatus.SUSPENDED);
         when(CONNECTOR_REPOSITORY.findByKeycloakClientId(ACTOR.clientId()))
                 .thenReturn(java.util.Optional.of(inactiveConnector));
 

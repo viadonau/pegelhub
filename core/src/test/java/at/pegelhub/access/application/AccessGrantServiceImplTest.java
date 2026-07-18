@@ -88,6 +88,38 @@ final class AccessGrantServiceImplTest {
     }
 
     @Test
+    void returnsExistingGrantForDuplicateAssignment() {
+        connectors.connectorIds.add(CONNECTOR_ID);
+        stations.stations.add(STATION);
+        var existing = grant(GRANT_ID, CONNECTOR_ID);
+        repository.saved.add(existing);
+
+        var grant = service.create(new CreateAccessGrantCommand(
+                CONNECTOR_ID,
+                AccessResourceRef.station(STATION_ID),
+                AccessPermission.READ));
+
+        assertThat(grant).isEqualTo(existing);
+        assertThat(repository.saved).containsExactly(existing);
+    }
+
+    @Test
+    void returnsExistingGrantWhenDuplicateAssignmentIsInsertedConcurrently() {
+        connectors.connectorIds.add(CONNECTOR_ID);
+        stations.stations.add(STATION);
+        var existing = grant(GRANT_ID, CONNECTOR_ID);
+        repository.concurrentDuplicate = existing;
+
+        var grant = service.create(new CreateAccessGrantCommand(
+                CONNECTOR_ID,
+                AccessResourceRef.station(STATION_ID),
+                AccessPermission.READ));
+
+        assertThat(grant).isEqualTo(existing);
+        assertThat(repository.saved).containsExactly(existing);
+    }
+
+    @Test
     void refusesWriteGrantForStation() {
         connectors.connectorIds.add(CONNECTOR_ID);
         stations.stations.add(STATION);
@@ -255,6 +287,7 @@ final class AccessGrantServiceImplTest {
     private static final class InMemoryAccessGrantRepository implements AccessGrantRepository {
 
         private final List<AccessGrant> saved = new ArrayList<>();
+        private AccessGrant concurrentDuplicate;
 
         @Override
         public AccessGrant save(AccessGrant accessGrant) {
@@ -263,9 +296,36 @@ final class AccessGrantServiceImplTest {
         }
 
         @Override
+        public AccessGrant saveOrFindByAssignment(AccessGrant accessGrant) {
+            if (concurrentDuplicate != null) {
+                saved.add(concurrentDuplicate);
+                concurrentDuplicate = null;
+                return findByAssignment(
+                                accessGrant.connectorId(),
+                                accessGrant.resource(),
+                                accessGrant.permission())
+                        .orElseThrow();
+            }
+
+            return save(accessGrant);
+        }
+
+        @Override
         public Optional<AccessGrant> findById(AccessGrantId id) {
             return saved.stream()
                     .filter(grant -> grant.id().equals(id))
+                    .findFirst();
+        }
+
+        @Override
+        public Optional<AccessGrant> findByAssignment(
+                ConnectorId connectorId,
+                AccessResourceRef resource,
+                AccessPermission permission) {
+            return saved.stream()
+                    .filter(grant -> grant.connectorId().equals(connectorId))
+                    .filter(grant -> grant.resource().equals(resource))
+                    .filter(grant -> grant.permission() == permission)
                     .findFirst();
         }
 

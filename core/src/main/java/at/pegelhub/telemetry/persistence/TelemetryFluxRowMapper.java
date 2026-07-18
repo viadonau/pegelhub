@@ -25,8 +25,8 @@ final class TelemetryFluxRowMapper {
     private static final String STATION_IP_ADDRESS_INTERN = "stationIPAddressIntern";
     private static final String STATION_IP_ADDRESS_EXTERN = "stationIPAddressExtern";
     private static final String CYCLE_TIME = "cycleTime";
-    private static final String TEMPERATURE_WATER = "temperatureWater";
-    private static final String TEMPERATURE_AIR = "temperatureAir";
+    private static final String LEGACY_TEMPERATURE_WATER = "temperatureWater";
+    private static final String LEGACY_TEMPERATURE_AIR = "temperatureAir";
     private static final String PERFORMANCE_VOLTAGE_BATTERY = "performanceVoltageBattery";
     private static final String PERFORMANCE_VOLTAGE_SUPPLY = "performanceVoltageSupply";
     private static final String PERFORMANCE_ELECTRICITY_BATTERY = "performanceElectricityBattery";
@@ -133,8 +133,8 @@ final class TelemetryFluxRowMapper {
                     tags.get(STATION_IP_ADDRESS_EXTERN),
                     timestamp,
                     toInt(fields.get(CYCLE_TIME)),
-                    toDouble(fields.get(TEMPERATURE_WATER)),
-                    toDouble(fields.get(TEMPERATURE_AIR)),
+                    toDouble(fields.get(LEGACY_TEMPERATURE_WATER)),
+                    toDouble(fields.get(LEGACY_TEMPERATURE_AIR)),
                     toDouble(fields.get(PERFORMANCE_VOLTAGE_BATTERY)),
                     toDouble(fields.get(PERFORMANCE_VOLTAGE_SUPPLY)),
                     toDouble(fields.get(PERFORMANCE_ELECTRICITY_BATTERY)),

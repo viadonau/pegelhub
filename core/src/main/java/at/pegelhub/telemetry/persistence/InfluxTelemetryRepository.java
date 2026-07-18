@@ -48,12 +48,12 @@ public class InfluxTelemetryRepository implements TelemetryRepository {
         telemetryData.addTag("stationIPAddressExtern", telemetry.stationIPAddressExtern());
         telemetryData.addField("cycleTime", telemetry.cycleTime());
 
-        if (telemetry.temperatureWater() != null) {
-            telemetryData.addField("temperatureWater", telemetry.temperatureWater());
+        if (telemetry.legacyTemperatureWater() != null) {
+            telemetryData.addField("temperatureWater", telemetry.legacyTemperatureWater());
         }
 
-        if (telemetry.temperatureAir() != null) {
-            telemetryData.addField("temperatureAir", telemetry.temperatureAir());
+        if (telemetry.legacyTemperatureAir() != null) {
+            telemetryData.addField("temperatureAir", telemetry.legacyTemperatureAir());
         }
 
         if (telemetry.performanceVoltageBattery() != null) {

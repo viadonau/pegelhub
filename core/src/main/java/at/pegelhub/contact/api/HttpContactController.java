@@ -1,9 +1,5 @@
 package at.pegelhub.contact.api;
 
-import at.pegelhub.shared.web.DomainToDtoConverter;
-import at.pegelhub.shared.web.DtoToDomainConverter;
-import at.pegelhub.shared.web.*;
-
 import at.pegelhub.contact.application.ContactService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -14,6 +10,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -48,8 +45,8 @@ public class HttpContactController {
             @ApiResponse(responseCode = "400", description = "The contact payload is invalid.", content = @Content)
     })
     @PostMapping
-    public ContactDto saveContact(@RequestBody CreateContactDto contact) {
-        return DomainToDtoConverter.convert(contactService.createContact(DtoToDomainConverter.convert(contact)));
+    public ContactDto saveContact(@Valid @RequestBody CreateContactDto contact) {
+        return ContactMapper.toResponse(contactService.createContact(ContactMapper.toDomain(contact)));
     }
 
     @Operation(
@@ -65,7 +62,7 @@ public class HttpContactController {
     })
     @GetMapping("/{uuid}")
     public ContactDto getContactById(@Parameter(description = "Contact identifier.", required = true) @PathVariable UUID uuid) {
-        return DomainToDtoConverter.convert(contactService.getContactById(uuid));
+        return ContactMapper.toResponse(contactService.getContactById(uuid));
     }
 
     @Operation(
@@ -77,7 +74,7 @@ public class HttpContactController {
             content = @Content(array = @ArraySchema(schema = @Schema(implementation = ContactDto.class))))
     @GetMapping
     public List<ContactDto> getAllContacts() {
-        return DomainToDtoConverter.convert(contactService.getAllContacts());
+        return ContactMapper.toResponses(contactService.getAllContacts());
     }
 
     @Operation(

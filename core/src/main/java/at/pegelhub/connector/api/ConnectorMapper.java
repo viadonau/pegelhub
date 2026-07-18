@@ -2,8 +2,7 @@ package at.pegelhub.connector.api;
 
 import at.pegelhub.connector.application.CreateConnectorCommand;
 import at.pegelhub.connector.domain.Connector;
-import at.pegelhub.contact.api.ContactDto;
-import at.pegelhub.contact.domain.Contact;
+import at.pegelhub.contact.api.ContactMapper;
 
 final class ConnectorMapper {
 
@@ -14,17 +13,17 @@ final class ConnectorMapper {
         return new ConnectorDto(
                 connector.id().value(),
                 connector.connectorNumber(),
-                toContactDto(connector.manufacturer()),
+                ContactMapper.toResponse(connector.manufacturer()),
                 connector.typeDescription(),
                 connector.softwareVersion(),
                 connector.worksFromDataVersion(),
                 connector.dataDefinition(),
-                toContactDto(connector.softwareManufacturer()),
-                toContactDto(connector.technicallyResponsible()),
-                toContactDto(connector.operationCompany()),
+                ContactMapper.toResponse(connector.softwareManufacturer()),
+                ContactMapper.toResponse(connector.technicallyResponsible()),
+                ContactMapper.toResponse(connector.operationCompany()),
                 connector.notes(),
                 connector.keycloakClientId(),
-                connector.status());
+                ConnectorStatusDto.fromDomain(connector.status()));
     }
 
     static CreateConnectorCommand toCommand(CreateConnectorDto dto) {
@@ -39,26 +38,5 @@ final class ConnectorMapper {
                 dto.technicallyResponsible(),
                 dto.operationCompany(),
                 dto.notes());
-    }
-
-    private static ContactDto toContactDto(Contact contact) {
-        return new ContactDto(
-                contact.getId(),
-                contact.getOrganization(),
-                contact.getContactPerson(),
-                contact.getContactStreet(),
-                contact.getContactPlz(),
-                contact.getLocation(),
-                contact.getContactCountry(),
-                contact.getEmergencyNumber(),
-                contact.getEmergencyNumberTwo(),
-                contact.getEmergencyMail(),
-                contact.getServiceNumber(),
-                contact.getServiceNumberTwo(),
-                contact.getServiceMail(),
-                contact.getAdministrationPhoneNumber(),
-                contact.getAdministrationPhoneNumberTwo(),
-                contact.getAdministrationMail(),
-                contact.getContactNodes());
     }
 }

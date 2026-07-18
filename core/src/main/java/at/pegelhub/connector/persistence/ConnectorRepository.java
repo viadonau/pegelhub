@@ -5,6 +5,7 @@ import at.pegelhub.connector.domain.ConnectorId;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 public interface ConnectorRepository {
 
@@ -19,4 +20,6 @@ public interface ConnectorRepository {
     Optional<Connector> findByConnectorNumber(String connectorNumber);
 
     Optional<Connector> findByKeycloakClientId(String keycloakClientId);
+
+    boolean existsReferencingContact(UUID contactId);
 }

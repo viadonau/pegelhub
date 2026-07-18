@@ -11,11 +11,11 @@ public record RegisterConnectorRequest(
         @Schema(description = "Keycloak client id used by the connector to authenticate.", example = "local-connector-example")
         @NotBlank String keycloakClientId,
         @Schema(description = "Initial connector status. Defaults to ACTIVE when omitted.", example = "ACTIVE", nullable = true)
-        ConnectorStatus status,
+        ConnectorStatusDto status,
         @Schema(description = "Connector metadata to create and bind.")
         @Valid @NotNull CreateConnectorDto connector
 ) {
     public ConnectorStatus resolvedStatus() {
-        return status == null ? ConnectorStatus.ACTIVE : status;
+        return status == null ? ConnectorStatus.ACTIVE : status.toDomain();
     }
 }

@@ -79,7 +79,10 @@ class MeasurementControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(validMeasurementsPayload()))
                 .andExpect(status().isInternalServerError())
-                .andExpect(content().string("write failed"));
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.code").value("INTERNAL_SERVER_ERROR"))
+                .andExpect(jsonPath("$.status").value(500))
+                .andExpect(jsonPath("$.detail").value("An unexpected error occurred."));
     }
 
     @Test
@@ -171,7 +174,10 @@ class MeasurementControllerTest {
                 .andExpect(jsonPath("$.points[0].from").value("2010-10-12T08:00:00Z"))
                 .andExpect(jsonPath("$.points[0].to").value("2010-10-12T08:05:00Z"))
                 .andExpect(jsonPath("$.points[0].value").value(1.0))
-                .andExpect(jsonPath("$.points[0].sampleCount").value(3));
+                .andExpect(jsonPath("$.points[0].sampleCount").value(3))
+                .andExpect(jsonPath("$.points[0].timeSeriesId").doesNotExist())
+                .andExpect(jsonPath("$.points[0].observedAt").doesNotExist())
+                .andExpect(jsonPath("$.points[0].submittedByConnectorId").doesNotExist());
     }
 
     @Test
@@ -201,14 +207,18 @@ class MeasurementControllerTest {
                         .param("bucket", "5m")
                         .param("maxPoints", "240"))
                 .andExpect(status().isBadRequest())
-                .andExpect(content().string(containsString("Provide either bucket or maxPoints")));
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.code").value("BAD_REQUEST"))
+                .andExpect(jsonPath("$.detail").value(containsString("Provide either bucket or maxPoints")));
     }
 
     @Test
     void listMeasurementsRejectsMissingWindow() throws Exception {
         mockMvc.perform(get("/api/v1/time-series/{timeSeriesId}/measurements", TIME_SERIES_ID.value()))
                 .andExpect(status().isBadRequest())
-                .andExpect(content().string(containsString("Provide either last or from/to")));
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.code").value("BAD_REQUEST"))
+                .andExpect(jsonPath("$.detail").value(containsString("Provide either last or from/to")));
     }
 
     @Test

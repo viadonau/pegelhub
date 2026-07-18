@@ -2,6 +2,7 @@ package at.pegelhub.contact.application;
 
 import at.pegelhub.contact.domain.Contact;
 import at.pegelhub.contact.persistence.ContactRepository;
+import at.pegelhub.shared.error.ConflictException;
 import at.pegelhub.shared.error.NotFoundException;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
@@ -21,16 +22,19 @@ final class ContactServiceImplTest {
 
     private ContactServiceImpl contactService;
     private static final ContactRepository REPOSITORY = mock(ContactRepository.class);
+    private static final ContactDeletionGuard DELETION_GUARD = mock(ContactDeletionGuard.class);
 
     @BeforeEach
     public void prepare() {
-        contactService = new ContactServiceImpl(REPOSITORY);
+        contactService = new ContactServiceImpl(REPOSITORY, List.of(DELETION_GUARD));
         reset(REPOSITORY);
+        reset(DELETION_GUARD);
     }
 
     @Test
     public void constructorWithNullArgsThrowsNPE() {
-        assertThrows(NullPointerException.class, () -> new ContactServiceImpl(null));
+        assertThrows(NullPointerException.class, () -> new ContactServiceImpl(null, List.of()));
+        assertThrows(NullPointerException.class, () -> new ContactServiceImpl(REPOSITORY, null));
     }
 
     @Test
@@ -66,6 +70,7 @@ final class ContactServiceImplTest {
 
         assertThrows(NotFoundException.class, () -> contactService.deleteContact(id));
 
+        verifyNoInteractions(DELETION_GUARD);
         verify(REPOSITORY, never()).deleteContact(id);
     }
 
@@ -76,6 +81,7 @@ final class ContactServiceImplTest {
 
         contactService.deleteContact(id);
 
+        verify(DELETION_GUARD).assertCanDelete(id);
         verify(REPOSITORY).deleteContact(id);
     }
 
@@ -88,5 +94,17 @@ final class ContactServiceImplTest {
         assertEquals(1, result.size());
         Assertions.assertThat(result).containsOnly(CONTACT);
         verify(REPOSITORY, times(1)).getAllContacts();
+    }
+    @Test
+    public void deleteContactStopsWhenGuardRejectsDeletion() {
+        UUID contactId = UUID.randomUUID();
+        when(REPOSITORY.getById(contactId)).thenReturn(CONTACT);
+        doThrow(new ConflictException("Contact is still referenced by a connector."))
+                .when(DELETION_GUARD).assertCanDelete(contactId);
+
+        assertThrows(ConflictException.class, () -> contactService.deleteContact(contactId));
+
+        verify(DELETION_GUARD).assertCanDelete(contactId);
+        verify(REPOSITORY, never()).deleteContact(any());
     }
 }

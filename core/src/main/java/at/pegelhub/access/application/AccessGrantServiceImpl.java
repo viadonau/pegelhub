@@ -43,7 +43,15 @@ class AccessGrantServiceImpl implements AccessGrantService {
         requireNonNull(command);
         connectors.get(command.connectorId());
         ensureResourceAllowsGrant(command);
-        return accessGrants.save(AccessGrant.create(
+        return accessGrants.findByAssignment(
+                        command.connectorId(),
+                        command.resource(),
+                        command.permission())
+                .orElseGet(() -> createGrant(command));
+    }
+
+    private AccessGrant createGrant(CreateAccessGrantCommand command) {
+        return accessGrants.saveOrFindByAssignment(AccessGrant.create(
                 command.connectorId(),
                 command.resource(),
                 command.permission()));

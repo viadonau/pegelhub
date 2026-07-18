@@ -1,16 +1,19 @@
 package at.pegelhub.telemetry.api;
 
 import at.pegelhub.telemetry.application.TelemetryService;
+import at.pegelhub.telemetry.application.WriteTelemetryCommand;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.http.MediaType;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import static at.pegelhub.testsupport.ExampleData.ID;
 import static at.pegelhub.testsupport.ExampleData.TELEMETRIES;
 import static at.pegelhub.testsupport.ExampleData.TELEMETRY;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
@@ -53,7 +56,14 @@ class HttpTelemetryControllerTest {
                                 """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.measurement").value(TELEMETRY.measurement()))
-                .andExpect(jsonPath("$.cycleTime").value(TELEMETRY.cycleTime()));
+                .andExpect(jsonPath("$.cycleTime").value(TELEMETRY.cycleTime()))
+                .andExpect(jsonPath("$.temperatureWater").value(TELEMETRY.legacyTemperatureWater()))
+                .andExpect(jsonPath("$.temperatureAir").value(TELEMETRY.legacyTemperatureAir()));
+
+        ArgumentCaptor<WriteTelemetryCommand> command = ArgumentCaptor.forClass(WriteTelemetryCommand.class);
+        verify(telemetryService).saveTelemetry(command.capture());
+        assertThat(command.getValue().temperatureWater()).isEqualTo(-2.0);
+        assertThat(command.getValue().temperatureAir()).isEqualTo(-2.0);
     }
 
     @Test
@@ -62,7 +72,8 @@ class HttpTelemetryControllerTest {
 
         mockMvc.perform(get("/api/v1/telemetry/{range}", "72h"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].measurement").value(TELEMETRY.measurement()));
+                .andExpect(jsonPath("$[0].measurement").value(TELEMETRY.measurement()))
+                .andExpect(jsonPath("$[0].temperatureWater").value(TELEMETRY.legacyTemperatureWater()));
     }
 
     @Test
@@ -71,7 +82,8 @@ class HttpTelemetryControllerTest {
 
         mockMvc.perform(get("/api/v1/telemetry/last/{uuid}", ID))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.measurement").value(TELEMETRY.measurement()));
+                .andExpect(jsonPath("$.measurement").value(TELEMETRY.measurement()))
+                .andExpect(jsonPath("$.temperatureWater").value(TELEMETRY.legacyTemperatureWater()));
     }
 
     @Test
@@ -80,7 +92,10 @@ class HttpTelemetryControllerTest {
 
         mockMvc.perform(get("/api/v1/telemetry/{range}", "72h"))
                 .andExpect(status().isInternalServerError())
-                .andExpect(content().string("influx down"));
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.code").value("INTERNAL_SERVER_ERROR"))
+                .andExpect(jsonPath("$.status").value(500))
+                .andExpect(jsonPath("$.detail").value("An unexpected error occurred."));
 
         verify(telemetryService).getByRange("72h");
     }
