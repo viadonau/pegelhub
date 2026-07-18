@@ -139,4 +139,24 @@ class TstpCommunicatorImplTest {
 		verify(httpClient, times(1)).send(any(HttpRequest.class), eq(HttpResponse.BodyHandlers.ofString()));
 		verify(tstpXmlService, times(1)).parseXmlPutRequest(measurements);
 		verify(tstpXmlService, never()).parseXmlPutResponse(anyString());
-	}}
+	}
+
+	@Test
+	void sendMeasurementsAcceptsImmutableInputAndSortsACopy() throws Exception {
+		Measurement later = new Measurement(null, Instant.parse("2026-06-07T11:00:00Z"), 2.0);
+		Measurement earlier = new Measurement(null, Instant.parse("2026-06-07T10:00:00Z"), 1.0);
+		List<Measurement> immutableMeasurements = List.of(later, earlier);
+		XmlTsResponse response = new XmlTsResponse();
+		response.setMessage("confirm");
+
+		when(tstpXmlService.parseXmlPutRequest(List.of(earlier, later))).thenReturn("request");
+		when(httpClient.send(any(HttpRequest.class), eq(HttpResponse.BodyHandlers.ofString()))).thenReturn(httpResponse);
+		when(httpResponse.body()).thenReturn("response");
+		when(tstpXmlService.parseXmlPutResponse("response")).thenReturn(response);
+
+		assertDoesNotThrow(() -> tstpCommunicator.sendMeasurements("123", immutableMeasurements));
+
+		assertEquals(List.of(later, earlier), immutableMeasurements);
+		verify(tstpXmlService).parseXmlPutRequest(List.of(earlier, later));
+	}
+}

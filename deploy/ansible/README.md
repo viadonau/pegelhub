@@ -65,8 +65,8 @@ After the playbook:
    are generated automatically when placeholders are present.
 3. Fill the staging hostnames, image values, and optional frontend values
    in `/opt/pegelhub/deploy/staging/.env`.
-4. Create `/opt/pegelhub/deploy/staging/ftp-config/connector.properties`.
-5. Create `/opt/pegelhub/deploy/staging/ftp-config/pegelhub.yaml`.
+4. Create `/opt/pegelhub/deploy/staging/ftp-config/connector.yaml`.
+5. Create at least one mapping under `/opt/pegelhub/deploy/staging/ftp-config/mappings/`.
 6. Log in to GHCR on the staging host if images are private.
 7. Run `/opt/pegelhub/deploy/staging/scripts/deploy.sh --check sha-<short-sha>`.
 

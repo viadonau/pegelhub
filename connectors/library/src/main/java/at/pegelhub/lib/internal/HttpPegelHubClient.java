@@ -125,8 +125,10 @@ public class HttpPegelHubClient implements PegelHubClient {
 
             return client.execute(http, response -> {
                 if (response.getCode() == 404) {
+                    EntityUtils.consume(response.getEntity());
                     throw new NotFoundException("time series does not exist");
                 }
+                requireOk(response.getCode(), response.getEntity());
                 var json = EntityUtils.toString(response.getEntity());
                 var gson = gsonWithInstantSupport();
                 return gson.fromJson(json, MeasurementListReceiveDto.class).toMeasurements();
@@ -146,9 +148,11 @@ public class HttpPegelHubClient implements PegelHubClient {
             authorize(http);
 
             return Optional.ofNullable(client.execute(http, response -> {
-                if (response.getCode() != HttpStatus.SC_OK) {
-                    return null;
+                if (response.getCode() == 404) {
+                    EntityUtils.consume(response.getEntity());
+                    throw new NotFoundException("time series does not exist");
                 }
+                requireOk(response.getCode(), response.getEntity());
 
                 var json = EntityUtils.toString(response.getEntity());
                 var gson = gsonWithInstantSupport();
@@ -156,6 +160,8 @@ public class HttpPegelHubClient implements PegelHubClient {
                         .findFirst()
                         .orElse(null);
             }));
+        } catch (NotFoundException nfe) {
+            throw nfe;
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
@@ -192,6 +198,13 @@ public class HttpPegelHubClient implements PegelHubClient {
 
     private static String urlEncode(String value) {
         return URLEncoder.encode(value, StandardCharsets.UTF_8);
+    }
+
+    private static void requireOk(int statusCode, org.apache.hc.core5.http.HttpEntity entity) throws IOException {
+        if (statusCode != HttpStatus.SC_OK) {
+            EntityUtils.consume(entity);
+            throw new IOException("Core request failed with status: " + statusCode);
+        }
     }
 
     private MeasurementSendDto toMeasurementSendDto(Measurement measurement) {

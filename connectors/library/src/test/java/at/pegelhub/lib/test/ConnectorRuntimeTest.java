@@ -8,6 +8,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -86,5 +87,38 @@ class ConnectorRuntimeTest {
         runtime.stop();
 
         assertEquals(1, closes.get());
+    }
+
+    @Test
+    void forcedShutdownWaitsForInterruptedTaskBeforeClosingResources() throws Exception {
+        CountDownLatch taskStarted = new CountDownLatch(1);
+        CountDownLatch taskStopped = new CountDownLatch(1);
+        AtomicBoolean taskIsRunning = new AtomicBoolean();
+        AtomicBoolean resourceClosedWhileTaskRunning = new AtomicBoolean();
+
+        ConnectorRuntime runtime = ConnectorRuntime.builder("blocking connector")
+                .shutdownTimeout(Duration.ofMillis(20))
+                .fixedDelayTask("poll", () -> {
+                    taskIsRunning.set(true);
+                    taskStarted.countDown();
+                    try {
+                        Thread.sleep(10_000);
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                    } finally {
+                        taskIsRunning.set(false);
+                        taskStopped.countDown();
+                    }
+                }, Duration.ofMillis(10))
+                .closeOnStop(() -> resourceClosedWhileTaskRunning.set(taskIsRunning.get()))
+                .build();
+
+        runtime.start();
+        assertTrue(taskStarted.await(2, TimeUnit.SECONDS));
+
+        runtime.stop();
+
+        assertTrue(taskStopped.await(2, TimeUnit.SECONDS));
+        assertFalse(resourceClosedWhileTaskRunning.get());
     }
 }

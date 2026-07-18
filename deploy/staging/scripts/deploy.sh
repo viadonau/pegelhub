@@ -110,8 +110,8 @@ validate_environment() {
   [ -n "$ftp_config_dir" ] || ftp_config_dir="./ftp-config"
   ftp_config_dir=$(resolve_path "$ftp_config_dir")
   [ -d "$ftp_config_dir" ] || fail "FTP config directory does not exist: $ftp_config_dir"
-  [ -f "$ftp_config_dir/connector.properties" ] || fail "Missing FTP connector.properties in $ftp_config_dir"
-  [ -f "$ftp_config_dir/pegelhub.yaml" ] || fail "Missing FTP pegelhub.yaml in $ftp_config_dir"
+  [ -f "$ftp_config_dir/connector.yaml" ] || fail "Missing FTP connector.yaml in $ftp_config_dir"
+  [ -d "$ftp_config_dir/mappings" ] || fail "Missing FTP mappings directory in $ftp_config_dir"
 
   compose_profiles=$(env_value COMPOSE_PROFILES)
   if printf '%s' "$compose_profiles" | grep -Eq '(^|.*,)[[:space:]]*frontend[[:space:]]*(,.*|$)'; then
