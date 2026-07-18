@@ -2,7 +2,7 @@ package at.pegelhub.connector.tstp.task;
 
 import at.pegelhub.connector.tstp.communication.TstpCommunicator;
 import at.pegelhub.connector.tstp.service.TstpCatalogService;
-import at.pegelhub.lib.PegelHubCommunicator;
+import at.pegelhub.lib.PegelHubClient;
 import at.pegelhub.lib.model.Measurement;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -10,18 +10,17 @@ import org.slf4j.LoggerFactory;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.*;
-import java.util.UUID;
 
-public class TstpReader extends TimerTask {
+public class TstpReader implements Runnable, AutoCloseable {
     private static final Logger LOG = LoggerFactory.getLogger(TstpReader.class);
     private final TstpCommunicator tstpCommunicator;
-    private final PegelHubCommunicator phCommunicator;
+    private final PegelHubClient coreClient;
     private final Duration durationToLookBack;
     private final UUID timeSeriesId;
     private final TstpCatalogService tstpCatalogService;
 
-    public TstpReader(PegelHubCommunicator phCommunicator, TstpCommunicator tstpCommunicator, Duration durationToLookBack, UUID timeSeriesId, TstpCatalogService tstpCatalogService) {
-        this.phCommunicator = phCommunicator;
+    public TstpReader(PegelHubClient coreClient, TstpCommunicator tstpCommunicator, Duration durationToLookBack, UUID timeSeriesId, TstpCatalogService tstpCatalogService) {
+        this.coreClient = coreClient;
         this.durationToLookBack = durationToLookBack;
         this.timeSeriesId = timeSeriesId;
         this.tstpCommunicator = tstpCommunicator;
@@ -41,7 +40,7 @@ public class TstpReader extends TimerTask {
             List<Measurement> measurements = tstpCommunicator.getMeasurements(zrid, getLookBackTimestamp(), Instant.now());
             LOG.info("Read in measurements from tstp server");
             if (!measurements.isEmpty()) {
-                phCommunicator.sendMeasurements(measurements.stream()
+                coreClient.sendMeasurements(measurements.stream()
                         .map(this::withTimeSeriesId)
                         .toList());
                 LOG.info("Sent measurements to core");
@@ -54,13 +53,8 @@ public class TstpReader extends TimerTask {
     }
 
     @Override
-    public boolean cancel() {
-        try {
-            phCommunicator.close();
-            return super.cancel();
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
+    public void close() throws Exception {
+        coreClient.close();
     }
 
     private Instant getLookBackTimestamp() {

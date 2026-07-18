@@ -154,24 +154,37 @@ chmod 700 deploy/staging/ftp-config
 
 The directory must contain:
 
-- `connector.properties`
-- `pegelhub.yaml`
+- `connector.yaml`
+- `mappings/` with exactly one FTP mapping YAML file
 
 Use staging secrets in those files. Do not commit them. A typical in-stack
 configuration uses:
 
-```properties
-core.address=core-app
-core.port=8080
-```
-
-For Keycloak, use the public issuer hostname from `.env` so the token issuer
-matches what Core validates:
-
 ```yaml
-keycloak:
-  tokenUrl: "https://auth-pegelhub-staging.example.com/realms/pegelhub/protocol/openid-connect/token"
+core:
+  baseUrl: "http://core-app:8080/"
+  authentication:
+    tokenUrl: "https://auth-pegelhub-staging.example.com/realms/pegelhub/protocol/openid-connect/token"
+    clientId: "connector"
+    clientSecret: "replace-with-staging-secret"
+polling:
+  interval: "15m"
+mappings:
+  directory: "mappings"
+ftp:
+  server:
+    host: "ftp.example.com"
+    port: 21
+    authentication:
+      username: "pegelReader"
+      password: "replace-with-staging-secret"
+  source:
+    directory: "/"
+    parserType: "zrxp"
 ```
+
+Use the public Keycloak issuer hostname from `.env` so the token issuer matches
+what Core validates. See the FTP connector README for the mapping file shape.
 
 The FTP credentials also belong in this mounted config, not in Git and not in
 the Docker image.

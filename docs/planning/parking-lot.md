@@ -9,7 +9,7 @@ Loose project memory for work that should not interrupt the current slice. Keep 
   Move environment-specific clients out of realm import; keep realm import as local bootstrap and define a clean staging setup path.
 
 - Connector library cleanup
-  Remove unused/dead client code, or decide whether shared client pieces should be generated from Core OpenAPI instead of hand-maintained.
+  Decide whether the remaining shared client pieces should be generated from Core OpenAPI instead of hand-maintained.
 
 - API response shape cleanup
   Standardize response conventions, especially measurement reads, so the API stops exposing domain-ish wrappers accidentally.
@@ -19,6 +19,9 @@ Loose project memory for work that should not interrupt the current slice. Keep 
 
 - Connector configuration model
   Merge duplicated/legacy config concepts and align connector runtime config with the new Core domain and auth model.
+
+- Connector mapping execution and diagnostics
+  Standardize startup validation, semantic mapping identity, per-mapping failure isolation, cycle summaries, and runtime error reporting across FTP, ICC, IEC, mA, and TSTP. Decide whether configuration source names remain available at runtime before introducing a shared mapping wrapper.
 
 - Caddy/frontend/backend deployment docs
   Tighten wording around deployment modes, env vars, and how frontend, Core, Keycloak, and Caddy fit together.
@@ -37,9 +40,6 @@ Loose project memory for work that should not interrupt the current slice. Keep 
 
 - Contact mapping collapse
   Remove shallow Contact service/converter indirection and give Contact mapping one clear home instead of repeating 17-field copies.
-
-- Connector communicator/runtime cleanup
-  Shrink the connector library communicator, delete dead Contact/Connector client methods, and extract shared stamping/config/runtime boilerplate.
 
 - MeasuringPoint domain concept
   Revisit whether a MeasuringPoint should sit between Station and TimeSeries once V1 station/detail workflows are stable.

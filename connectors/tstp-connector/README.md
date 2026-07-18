@@ -1,79 +1,54 @@
-# Time-Series-Transfer-Protocol Connector
+# TSTP Connector
 
-This connector reads from or writes to a TSTP server and exchanges the data with Pegelhub Core.
-
-## Prerequisites
-
-- Java 21+
-- Maven 3.9+
-- Docker
-- Access to a Pegelhub Core and a TSTP server
+This connector reads from or writes to a TSTP server and exchanges measurements with Pegelhub Core.
 
 ## Build
-
-Build from the repository root:
 
 ```sh
 mvn -pl connectors/tstp-connector -am -DskipTests package
 ```
 
-The build produces:
-
-- `target/tstp-connector.jar`
-- `target/lib/*.jar`
-
 ## Configuration
 
-The connector accepts an optional first CLI argument pointing to the config directory.
-Without an argument it reads from `/app/config`.
+The connector accepts an optional first CLI argument pointing to the config directory. Without an argument it reads from `/app/config`.
 
-The config directory must contain:
+The config directory must contain `connector.yaml` and a `mappings/` directory. Phase 2 requires exactly one mapping file.
 
-- `connector.properties`
-- `pegelhub.yaml`
+`connector.yaml`:
 
-Important `connector.properties` keys:
+```yaml
+core:
+  baseUrl: "http://localhost:8080/"
+  authentication:
+    tokenUrl: "http://localhost:8082/realms/pegelhub/protocol/openid-connect/token"
+    clientId: "connector"
+    clientSecret: "secret"
+polling:
+  interval: "30s"
+mappings:
+  directory: "mappings"
+tstp:
+  server:
+    host: "127.0.0.1"
+    port: 8030
+```
 
-- `core.address`
-- `core.port`
-- `tstp.address`
-- `tstp.port`
-- `connector.readDelay`
-- `timeSeriesId`
+`mappings/station.yaml`:
 
-`pegelhub.yaml` contains the Pegelhub registration data and Keycloak client credentials.
+```yaml
+timeSeriesId: "11111111-1111-1111-1111-111111111111"
+stationId: 123
+direction: "external-to-core"
+```
 
-Behavior depends on `isSupplier` in `pegelhub.yaml`:
-
-- `true`: read from TSTP and write measurements to Pegelhub for `timeSeriesId`
-- `false`: read measurements for `timeSeriesId` from Pegelhub and write them to TSTP
-
-Checked-in examples live under `examples/config/`.
+Use `direction: "external-to-core"` to read from TSTP into Core. Use `direction: "core-to-external"` to write Core measurements to TSTP.
 
 ## Docker
 
-Build the image from the repository root:
-
 ```sh
 scripts/build-connector-image.sh tstp-connector
-```
 
-Run the container:
-
-```sh
 docker run --rm -d \
   -v "$(pwd)/examples/config:/app/config:ro" \
   pegelhub-tstp-connector:local
-```
-
-Make sure the mounted config directory contains both configuration files.
-
-## Notes
-
-- `connector.readDelay` uses the format `number[s/m/h]`.
-- For local debugging outside Docker, you can run the thin jar with the packaged dependency directory:
-
-```sh
-java -cp "target/tstp-connector.jar:target/lib/*" \
-  at.pegelhub.connector.tstp.Main /path/to/config-dir
 ```

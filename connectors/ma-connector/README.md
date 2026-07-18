@@ -1,208 +1,71 @@
 # mA Connector
-## 1. Summary
-The Pegelhub mA Connector reads milliampere-based input signals from a Revolution Pi (RevPi), 
-converts them into Pegelhub measurements, and forwards them to Pegelhub Core over HTTP.
-It runs as a Docker container that periodically polls the configured RevPi inputs and 
-sends the latest measurements.
 
-## 2. Folder Structure
-```
-ma-connector/
-├── src/
-│   ├── main/java/…               # Java sources
-│   ├── main/native/…             # C++ JNI binding + headers
-│   └── main/resources/…          # Runtime resources
-├── examples/
-│   ├── config/…                  # Sample connector.properties
-│   ├── data/inputs/…             # Sample input YAMLs
-│   └── docker/…                  # Compose example
-├── Dockerfile                    # Multi-stage build (native + runtime)
-└── pom.xml                       # Maven build configuration
+The mA connector reads milliampere-based input signals from a Revolution Pi, converts them into Pegelhub measurements, and forwards them to Pegelhub Core.
+
+## Build
+
+```sh
+mvn -pl connectors/ma-connector -am -DskipTests package
 ```
 
-## 3. Architecture Overview
+The build also generates the JNI headers used by the native RevPi binding.
 
-- **MaConnectorApplication**  
-  Bootstraps the connector: loads config, initializes JNI, loads inputs, and starts the scheduler.
-- **MaConfigLoader / MaConnectorOptions**  
-  Parses `connector.properties`, validates required fields, and exposes runtime options (core target, delay, inputs directory).
-- **InputRegistry**  
-  Scans the `InputsDir` for YAML files, reads the `revInput` name, resolves it to a RevPi process image offset, and creates a PegelHubCommunicator per input.
-- **RevPiReader (JNI)**  
-  Native C++ implementation reads from `/dev/piControl0`. Exposed to Java via `RevPiReaderImpl`.
-- **MaReadJob**  
-  Reads values for each registered input, creates a `Measurement`, and sends it via the mapped `PegelHubCommunicator`.
-- **MaConnectorScheduler**  
-  Triggers `MaReadJob` with a fixed delay.
+## Configuration
 
-## 4. Configuration
-### 4.1 `connector.properties`
+The connector accepts an optional first CLI argument pointing to the config directory. Without an argument it reads from `/app/config`.
 
-The connector accepts an optional first CLI argument pointing to the config directory.
-Without an argument it reads from `/app/config/connector.properties`.
+The config directory must contain `connector.yaml` and a `mappings/` directory.
 
-| Key             | Type   | Example             | Notes                                        |
-| --------------- |--------| ------------------- | -------------------------------------------- |
-| `Core.IP`       | String | `192.168.2.29`      | Hostname/IP of Pegelhub Core                 |
-| `Core.Port`     | Int    | `8080`              | Port of Pegelhub Core API                    |
-| `DelayInterval` | String | `30s`, `2m`, `1h`   | Case-insensitive `s/m/h`, whole numbers only |
-| `InputsDir`     | String | `/app/data/inputs`  | Directory containing YAML input files        |
-
-**Sample:**
-
-```properties
-Core.IP=192.168.2.29
-Core.Port=8080
-DelayInterval=30s
-InputsDir=/app/data/inputs
-```
-
-### 4.2 Inputs (YAML)
-Each metadata YAML file defines one RevPi input by its variable name from piCtory.
-It also carries the `timeSeriesId` that receives measurements for that input.
+`connector.yaml`:
 
 ```yaml
-# /app/data/inputs/mA_input_1.yaml
+core:
+  baseUrl: "http://localhost:8080/"
+  authentication:
+    tokenUrl: "http://localhost:8082/realms/pegelhub/protocol/openid-connect/token"
+    clientId: "connector"
+    clientSecret: "secret"
+polling:
+  interval: "30s"
+mappings:
+  directory: "mappings"
+```
+
+Each mapping file defines one RevPi input by its piCtory variable name:
+
+```yaml
 revInput: "InputValue_1"
 timeSeriesId: "11111111-1111-1111-1111-111111111111"
-keycloak:
-  tokenUrl: "http://pegelhub-keycloak.test:8082/realms/pegelhub/protocol/openid-connect/token"
-  clientId: "local-ma-connector"
-  clientSecret: "local-dev-ma-connector-secret-change-me"
-sendMetaDataOnStartup: false
-isSupplier: true
-supplier:
-  id: 30
-  name: "IecConnector30"
-...
+direction: "external-to-core"
 ```
 
-## 5. Deployment
-### 5.1 Prerequisites
+mA mappings only support `external-to-core`.
 
-* docker and docker-compose installed
-* RevPi equipped with an AIO (Analog I/O) module and connected sensor(s)
-* PiCtory configured for the sensor’s AIO input: set the correct multiplier, divisor, and input offset so values are converted correctly
-* Device access to `/dev/piControl0` for the container
-* Network connectivity to the Pegelhub Core
+## Docker Compose
 
-### 5.2 Get the image
-Option A - use a published GHCR image from the Images workflow:
-
-```bash
-docker pull ghcr.io/viadonau/pegelhub-ma-connector:sha-<short-sha>
-```
-
-Manual image workflow runs from a branch publish `sha-<short-sha>` and
-`ci-<run-number>` tags. Git tag runs also publish the matching tag, for example
-`v0.1.0`.
-
-Option B - build from source and load on the RevPi:
-
-```bash
-# From the repository root on your build machine
-mvn -pl connectors/ma-connector -am -DskipTests package
-
-# The Java build produces:
-# - connectors/ma-connector/target/ma-connector.jar
-# - connectors/ma-connector/target/lib/*.jar
-# - connectors/ma-connector/target/generated-sources/jni/*.h
-
-# Build the container image from the repository root
-docker buildx build --platform linux/arm64/v8 \
-  -f connectors/ma-connector/Dockerfile \
-  --load \
-  -t pegelhub-ma-connector:local .
-docker save -o ma-connector.tar pegelhub-ma-connector:local
-
-# Transfer to the RevPi (example using scp; a USB stick works too)
-scp ./ma-connector.tar pi@192.168.10.10:/home/pi/
-
-# On the RevPi
-docker load -i /home/pi/ma-connector.tar
-```
-
-### 5.3 Docker Compose
-
-Create a `docker-compose.yaml` on the RevPi. If you use a published image, set
-`MA_CONNECTOR_IMAGE` to the GHCR image tag, for example
-`ghcr.io/viadonau/pegelhub-ma-connector:sha-<short-sha>`. If you loaded a locally
-built image, set `MA_CONNECTOR_IMAGE=pegelhub-ma-connector:local`.
-An example file is checked in at `examples/docker/docker-compose.yaml`.
+An example compose file is checked in at `examples/docker/docker-compose.yaml`.
 
 ```yaml
 services:
   ma-connector:
-    image: ${MA_CONNECTOR_IMAGE:?Set MA_CONNECTOR_IMAGE to a GHCR ma connector image tag}
+    image: ${MA_CONNECTOR_IMAGE:?Set MA_CONNECTOR_IMAGE}
     restart: unless-stopped
-    extra_hosts:
-      - "pegelhub-keycloak.test:${PEGELHUB_HOST_IP}"
     devices:
       - "/dev/piControl0:/dev/piControl0"
     volumes:
       - ./config:/app/config:ro
-      - ./data:/app/data:ro
     environment:
       JAVA_TOOL_OPTIONS: "-DLOG_LEVEL=INFO"
 ```
 
-When the RevPi talks to Core and Keycloak running on another machine in the same LAN,
-set `PEGELHUB_HOST_IP` to that machine's LAN IP, for example the Mac IP `10.0.0.2`.
-Do not set it to the RevPi's own IP. The connector requests tokens from
-`pegelhub-keycloak.test`, so the container needs this host mapping when Keycloak is not
-running in the same Docker network.
+When Core and Keycloak run on another machine in the same LAN, add a host mapping for the Keycloak hostname used by `connector.yaml`.
 
-### 5.4 Configure files
-
-Prepare the connector config and input YAML files on the host (same directory as your `docker-compose.yaml`):
-
-```bash
-mkdir -p config data/inputs
-cp ./your-connector.properties config/connector.properties
-cp ./your-inputs/*.yaml      data/inputs/
-```
-
-`connector.properties` contains connector runtime settings such as `Core.IP`, `Core.Port`,
-`DelayInterval`, and `InputsDir`. Each input YAML contains the RevPi variable name
-(`revInput`) plus the PegelHub/Keycloak client settings used by that input. The mA connector
-does not use a separate `pegelhub.yaml`; checked-in examples live under `examples/config/`
-and `examples/data/inputs/`.
-
-### 5.5 Start
-
-```bash
-# Start in the background
-docker compose up -d
-```
-
-### 5.6 Stop
-
-```bash
-# Stop
-docker compose down
-```
-
-### 5.7 Logs
-
-```bash
-docker compose logs -f ma-connector
-```
-
-Logging is handled by Logback and printed to the container’s console. Adjust the level using:
-
-```bash
-# Example: set DEBUG
-JAVA_TOOL_OPTIONS="-DLOG_LEVEL=DEBUG"
-```
-
-
-## 6 Possible Problems
+## Common Problems
 
 | Problem                         | Likely Cause                            | Action                                                                               |
 |---------------------------------| --------------------------------------- | ------------------------------------------------------------------------------------ |
-| `open(/dev/piControl0) failed`  | Device not mapped / permissions         | Map device in Docker; check `ls -l /dev/piControl0`; run with appropriate privileges |
-| `Short read: expected 2 bytes`  | RevPi process image not available/ready | Verify piControl driver, RevPi config, power-cycle if needed                         |
-| `Duplicate Input <name>`        | Same `revInput` in multiple files       | Keep one; remove/rename duplicates                                                   |
-| `Duplicate resolved offset <n>` | Two names map to same offset            | Keep one; reconcile piCtory variable names                                           |
-| `Unknown unit: x`               | Bad `DelayInterval`                     | Use `Xs`, `Xm`, `Xh` with integers                                                   |
-| No measurements arrive at Core  | Core unreachable or wrong IP/Port       | Verify `Core.IP`/`Core.Port`; network routing/firewall                               |
+| `open(/dev/piControl0) failed`  | Device not mapped or permissions        | Map device in Docker and check `ls -l /dev/piControl0`                               |
+| `Short read: expected 2 bytes`  | RevPi process image not available       | Verify piControl driver and RevPi config                                             |
+| `Duplicate Input <name>`        | Same `revInput` in multiple files       | Keep one mapping per input                                                           |
+| `Duplicate resolved offset <n>` | Two names map to same offset            | Reconcile piCtory variable names                                                     |
+| No measurements arrive at Core  | Core unreachable or authentication invalid | Verify `core.baseUrl`, Core authentication, and network routing                   |

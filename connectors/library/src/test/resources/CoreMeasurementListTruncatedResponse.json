@@ -1,0 +1,17 @@
+{
+  "timeSeriesId": "74bcffac-8fa6-41ac-aa9d-53d082447226",
+  "window": {
+    "from": "2026-06-16T13:00:00Z",
+    "to": "2026-06-17T13:00:00Z",
+    "requested": "24h"
+  },
+  "order": "asc",
+  "limit": 1,
+  "truncated": true,
+  "measurements": [
+    {
+      "observedAt": "2026-06-17T12:00:00Z",
+      "value": 2.73
+    }
+  ]
+}

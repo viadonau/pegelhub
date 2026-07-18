@@ -5,6 +5,7 @@ import at.pegelhub.lib.model.Measurement;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * Handles the communication with the TSTP-Server
@@ -26,7 +27,7 @@ public interface TstpCommunicator {
      * @param dbms the DBMS Number from the location
      * @return the catalog returned from the TSTP-Server
      */
-    XmlQueryResponse getCatalog(int dbms);
+    Optional<XmlQueryResponse> getCatalog(int dbms);
 
     /**
      * Send a list of measurements to the TSTP-Server
