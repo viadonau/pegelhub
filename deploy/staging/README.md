@@ -77,6 +77,18 @@ it changes services. The init script does not overwrite existing real secret
 values and does not print generated secrets. The sync script appends missing
 keys from `.env.example` but preserves the values already present in `.env`.
 
+## Metadata Schema Rollout
+
+Core owns the metadata schema through Flyway. The staging env template keeps
+`FLYWAY_BASELINE_ON_MIGRATE=false`, and the sync script appends that setting to
+older host `.env` files without changing existing values.
+
+Before the first deployment against an existing Hibernate-created database,
+follow the complete [Flyway rollout procedure](../../core/docs/flyway.md). It
+requires a backup and schema/orphan preflight, enables the baseline setting for
+the first Flyway startup only, verifies the version 1 baseline and version 2
+migration history, and then disables the setting again.
+
 ## GitHub Staging Deploy Setup
 
 The `Images` workflow has a `Deploy Staging` job. It runs only after all images
@@ -284,9 +296,8 @@ deploy/staging/scripts/deploy.sh sha-<previous-short-sha>
 ```
 
 Rollback changes image tags and restarts services. It does not delete volumes,
-prune images, or attempt database rollback. Core currently relies on Hibernate
-`ddl-auto=update`, so destructive schema rollback must remain a manual
-backup/restore decision.
+prune images, or undo Flyway migrations. Database rollback remains a deliberate
+backup/restore or forward-migration decision.
 
 ## Operational Notes
 

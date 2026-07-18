@@ -4,10 +4,12 @@ import at.pegelhub.station.domain.Station;
 import at.pegelhub.station.domain.StationId;
 import at.pegelhub.stationowner.domain.StationOwnerId;
 import at.pegelhub.testsupport.JpaIntegrationTestBase;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Import;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.jdbc.core.JdbcTemplate;
 
 import java.util.UUID;
 
@@ -27,6 +29,14 @@ final class StationRepositoryIntegrationTest extends JpaIntegrationTestBase {
 
     @Autowired
     private SpringDataStationRepository springDataStations;
+
+    @Autowired
+    private JdbcTemplate jdbc;
+
+    @BeforeEach
+    void insertStationOwner() {
+        jdbc.update("insert into station_owner (id, name) values (?, ?)", OWNER_ID.value(), "Hydro Org");
+    }
 
     @Test
     void savesAndLoadsStation() {

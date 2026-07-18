@@ -45,7 +45,7 @@ public abstract class FullStackIntegrationTestBase {
     @BeforeEach
     protected void resetPostgres() {
         List<String> tableNames = jdbcTemplate.queryForList(
-                "select tablename from pg_tables where schemaname = 'public'",
+                "select tablename from pg_tables where schemaname = 'public' and tablename <> 'flyway_schema_history'",
                 String.class);
         if (tableNames.isEmpty()) {
             return;

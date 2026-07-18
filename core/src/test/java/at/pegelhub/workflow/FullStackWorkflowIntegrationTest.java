@@ -12,6 +12,7 @@ import at.pegelhub.measurement.api.read.output.MeasurementListResponse;
 import at.pegelhub.measurement.api.read.output.MeasurementPointResponse;
 import at.pegelhub.measurement.api.write.WriteMeasurementRequest;
 import at.pegelhub.measurement.api.write.WriteMeasurementsRequest;
+import at.pegelhub.security.PegelHubActorType;
 import at.pegelhub.station.api.CreateStationRequest;
 import at.pegelhub.station.api.StationResponse;
 import at.pegelhub.stationowner.api.CreateStationOwnerRequest;
@@ -48,15 +49,15 @@ final class FullStackWorkflowIntegrationTest extends FullStackIntegrationTestBas
     @Test
     void timeSeriesMeasurementWorkflowWritesAndReadsInfluxDataThroughHttp() {
         String suffix = compactId(UUID.randomUUID());
-        AuthToken operator = token("operator-" + suffix, "local-operator", List.of("metadata:write", "system:admin"));
-        AuthToken connectorToken = token(
+        AuthToken operator = userToken("operator-" + suffix, "local-operator", List.of("metadata:write", "system:admin"));
+        AuthToken connectorToken = clientToken(
                 "measurement-" + suffix,
                 "supplier-client-" + suffix,
                 List.of("measurement:write", "measurement:read"));
         ConnectorDto connector = registerConnector(operator, connectorToken.clientId(), "mc-" + compactId(connectorToken.clientId()));
         StationOwnerResponse owner = postStationOwner(operator, "Owner " + suffix);
         StationResponse station = postStation(operator, owner.id(), "station-" + suffix);
-        TimeSeriesResponse timeSeries = postTimeSeries(operator, station.id(), "water-level", "cm");
+        TimeSeriesResponse timeSeries = postTimeSeries(operator, station.id(), "water-level", "cm", connector.id());
         grantWriteAccess(operator, connector.id(), timeSeries.id());
         grantReadAccess(operator, connector.id(), timeSeries.id());
         Instant latestTimestamp = Instant.now().minus(5, ChronoUnit.MINUTES).truncatedTo(ChronoUnit.SECONDS);
@@ -149,7 +150,12 @@ final class FullStackWorkflowIntegrationTest extends FullStackIntegrationTestBas
         return response.getBody();
     }
 
-    private TimeSeriesResponse postTimeSeries(AuthToken operator, UUID stationId, String observedProperty, String unit) {
+    private TimeSeriesResponse postTimeSeries(
+            AuthToken operator,
+            UUID stationId,
+            String observedProperty,
+            String unit,
+            UUID sourceConnectorId) {
         ResponseEntity<TimeSeriesResponse> response = rest.exchange(
                 "/api/v1/time-series",
                 HttpMethod.POST,
@@ -166,7 +172,7 @@ final class FullStackWorkflowIntegrationTest extends FullStackIntegrationTestBas
                         null,
                         null,
                         null,
-                        null), operator),
+                        sourceConnectorId), operator),
                 TimeSeriesResponse.class);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CREATED);
@@ -196,7 +202,15 @@ final class FullStackWorkflowIntegrationTest extends FullStackIntegrationTestBas
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CREATED);
     }
 
-    private AuthToken token(String tokenValue, String clientId, List<String> roles) {
+    private AuthToken userToken(String tokenValue, String clientId, List<String> roles) {
+        return token(tokenValue, clientId, roles, PegelHubActorType.USER);
+    }
+
+    private AuthToken clientToken(String tokenValue, String clientId, List<String> roles) {
+        return token(tokenValue, clientId, roles, PegelHubActorType.CLIENT);
+    }
+
+    private AuthToken token(String tokenValue, String clientId, List<String> roles, PegelHubActorType actorType) {
         when(jwtDecoder.decode(tokenValue)).thenReturn(Jwt.withTokenValue(tokenValue)
                 .header("alg", "none")
                 .issuer(ISSUER)
@@ -205,6 +219,7 @@ final class FullStackWorkflowIntegrationTest extends FullStackIntegrationTestBas
                 .issuedAt(Instant.now())
                 .expiresAt(Instant.now().plusSeconds(600))
                 .claim("azp", clientId)
+                .claim("pegelhub_actor_type", actorType.name())
                 .claim("resource_access", Map.of("pegelhub-core-api", Map.of("roles", roles)))
                 .build());
         return new AuthToken(tokenValue, clientId);
