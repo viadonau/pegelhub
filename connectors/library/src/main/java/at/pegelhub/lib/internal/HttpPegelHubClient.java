@@ -131,7 +131,12 @@ public class HttpPegelHubClient implements PegelHubClient {
                 requireOk(response.getCode(), response.getEntity());
                 var json = EntityUtils.toString(response.getEntity());
                 var gson = gsonWithInstantSupport();
-                return gson.fromJson(json, MeasurementListReceiveDto.class).toMeasurements();
+                var result = gson.fromJson(json, MeasurementListReceiveDto.class);
+                if (result.truncated()) {
+                    throw new IllegalStateException(
+                            "Core truncated the measurement lookback for time series " + timeSeriesId);
+                }
+                return result.toMeasurements(timeSeriesId);
             });
         } catch (NotFoundException nfe) {
             throw new NotFoundException(nfe.getMessage());
@@ -156,7 +161,7 @@ public class HttpPegelHubClient implements PegelHubClient {
 
                 var json = EntityUtils.toString(response.getEntity());
                 var gson = gsonWithInstantSupport();
-                return gson.fromJson(json, MeasurementListReceiveDto.class).toMeasurements().stream()
+                return gson.fromJson(json, MeasurementListReceiveDto.class).toMeasurements(timeSeriesId).stream()
                         .findFirst()
                         .orElse(null);
             }));

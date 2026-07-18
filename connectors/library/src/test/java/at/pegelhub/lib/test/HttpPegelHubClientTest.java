@@ -70,7 +70,8 @@ public class HttpPegelHubClientTest {
             return responseCallback.handleResponse(httpResp);
         });
 
-        phc.getMeasurementsOfTimeSeries(uuid, "72h");
+        phc.getMeasurementsOfTimeSeries(
+                UUID.fromString("395c0232-d110-40fd-bd7f-2bb4a0f2009d"), "72h");
 
         assertEquals("http://keycloak.local/token", requestUris.get(0));
         assertEquals("Bearer local-access-token", authorizationHeaders.get(1));
@@ -95,7 +96,8 @@ public class HttpPegelHubClientTest {
             return responseCallback.handleResponse(httpResp);
         });
 
-        phc.getMeasurementsOfTimeSeries(uuid, "72h");
+        phc.getMeasurementsOfTimeSeries(
+                UUID.fromString("395c0232-d110-40fd-bd7f-2bb4a0f2009d"), "72h");
 
         assertFalse(requestUris.getFirst().contains("apiKey"));
     }
@@ -150,13 +152,46 @@ public class HttpPegelHubClientTest {
         public void getMeasurementsOfTimeSeries_MapsCurrentCoreMeasurementEnvelope() throws IOException {
             mockSuccessfulResponse(getResource("CoreMeasurementListResponse.json"));
 
-            Collection<Measurement> measurements = phc.getMeasurementsOfTimeSeries(uuid, "24h");
+            UUID timeSeriesId = UUID.fromString("395c0232-d110-40fd-bd7f-2bb4a0f2009d");
+            Collection<Measurement> measurements = phc.getMeasurementsOfTimeSeries(timeSeriesId, "24h");
 
             assertEquals(1, measurements.size());
             Measurement measurement = measurements.iterator().next();
             assertEquals(UUID.fromString("395c0232-d110-40fd-bd7f-2bb4a0f2009d"), measurement.getTimeSeriesId());
             assertEquals(Instant.parse("2026-06-17T12:00:00Z"), measurement.getObservedAt());
             assertEquals(2.73, measurement.getValue());
+        }
+
+        @Test
+        void getMeasurementsRejectsTruncatedLookbacks() throws IOException {
+            mockSuccessfulResponse(getResource("CoreMeasurementListTruncatedResponse.json"));
+
+            RuntimeException error = assertThrows(RuntimeException.class,
+                    () -> phc.getMeasurementsOfTimeSeries(uuid, "24h"));
+
+            assertInstanceOf(IllegalStateException.class, error.getCause());
+            assertTrue(error.getCause().getMessage().contains("truncated"));
+        }
+
+        @Test
+        void getMeasurementsRejectsMismatchedTimeSeries() throws IOException {
+            mockSuccessfulResponse(getResource("CoreMeasurementListResponse.json"));
+
+            RuntimeException error = assertThrows(RuntimeException.class,
+                    () -> phc.getMeasurementsOfTimeSeries(uuid, "24h"));
+
+            assertInstanceOf(IllegalStateException.class, error.getCause());
+            assertTrue(error.getCause().getMessage().contains(uuid.toString()));
+        }
+
+        @Test
+        void getLatestMeasurementAcceptsTruncationBecauseItRequestsOnlyOneValue() throws IOException {
+            mockSuccessfulResponse(getResource("CoreMeasurementListTruncatedResponse.json"));
+
+            Optional<Measurement> measurement = phc.getLatestMeasurementOfTimeSeries(uuid);
+
+            assertTrue(measurement.isPresent());
+            assertEquals(uuid, measurement.orElseThrow().getTimeSeriesId());
         }
 
         @Test
