@@ -8,8 +8,15 @@ import at.pegelhub.measurement.api.read.MeasurementReadQueryResolver;
 import at.pegelhub.measurement.application.MeasurementBucketResolutionPolicy;
 import at.pegelhub.measurement.application.MeasurementList;
 import at.pegelhub.measurement.application.MeasurementService;
+import at.pegelhub.shared.web.OpenApiConfiguration;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springdoc.core.configuration.SpringDocConfiguration;
+import org.springdoc.core.properties.SpringDocConfigProperties;
+import org.springdoc.core.properties.SwaggerUiConfigProperties;
+import org.springdoc.core.properties.SwaggerUiOAuthProperties;
+import org.springdoc.webmvc.core.configuration.SpringDocWebMvcConfiguration;
+import org.springdoc.webmvc.ui.SwaggerConfig;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.ImportAutoConfiguration;
 import org.springframework.boot.security.autoconfigure.SecurityAutoConfiguration;
@@ -31,6 +38,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static at.pegelhub.testsupport.ExampleData.CONNECTOR;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -40,11 +48,23 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest({MeasurementController.class, HttpAdminConnectorController.class})
-@Import({SecurityConfiguration.class, JwtAuthorityMapper.class, MeasurementReadQueryResolver.class, MeasurementBucketResolutionPolicy.class})
 @ImportAutoConfiguration({
+        SpringDocConfiguration.class,
+        SpringDocConfigProperties.class,
+        SpringDocWebMvcConfiguration.class,
+        SwaggerConfig.class,
+        SwaggerUiConfigProperties.class,
+        SwaggerUiOAuthProperties.class,
         SecurityAutoConfiguration.class,
         ServletWebSecurityAutoConfiguration.class,
         SecurityFilterAutoConfiguration.class
+})
+@Import({
+        SecurityConfiguration.class,
+        JwtAuthorityMapper.class,
+        OpenApiConfiguration.class,
+        MeasurementReadQueryResolver.class,
+        MeasurementBucketResolutionPolicy.class
 })
 @TestPropertySource(properties = {
         "pegelhub.security.issuer-uri=http://issuer.test/realms/pegelhub"
@@ -182,6 +202,21 @@ class SecurityConfigurationWebMvcTest {
     void publicSystemTimeDoesNotRequireToken() throws Exception {
         mockMvc.perform(get("/api/v1/measurements/system-time"))
                 .andExpect(status().isOk());
+    }
+
+    @Test
+    void openApiDocsDoNotRequireToken() throws Exception {
+        mockMvc.perform(get("/v3/api-docs"))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/v3/api-docs.yaml"))
+                .andExpect(status().isOk());
+
+        int swaggerStatus = mockMvc.perform(get("/swagger-ui.html"))
+                .andReturn()
+                .getResponse()
+                .getStatus();
+        assertThat(swaggerStatus).isIn(200, 301, 302, 303, 307, 308);
     }
 
     @Test

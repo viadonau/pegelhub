@@ -32,7 +32,7 @@ public class TelemetryServiceImpl implements TelemetryService {
     }
 
     @Override
-    public Telemetry saveTelemetry(Telemetry telemetry) {
+    public Telemetry saveTelemetry(WriteTelemetryCommand command) {
         Connector connector = connectorRepository.findByKeycloakClientId(currentActor.get().clientId())
                 .orElseThrow(() -> new NotFoundException("Connector not registered"));
         if (connector.status() != ConnectorStatus.ACTIVE) {
@@ -40,17 +40,17 @@ public class TelemetryServiceImpl implements TelemetryService {
         }
         Telemetry telemetryForConnector = new Telemetry(
                 connector.id().value().toString(),
-                telemetry.stationIPAddressIntern(),
-                telemetry.stationIPAddressExtern(),
-                telemetry.timestamp(),
-                telemetry.cycleTime(),
-                telemetry.temperatureWater(),
-                telemetry.temperatureAir(),
-                telemetry.performanceVoltageBattery(),
-                telemetry.performanceVoltageSupply(),
-                telemetry.performanceElectricityBattery(),
-                telemetry.performanceElectricitySupply(),
-                telemetry.fieldStrengthTransmission());
+                command.stationIPAddressIntern(),
+                command.stationIPAddressExtern(),
+                command.timestamp(),
+                command.cycleTime(),
+                command.temperatureWater(),
+                command.temperatureAir(),
+                command.performanceVoltageBattery(),
+                command.performanceVoltageSupply(),
+                command.performanceElectricityBattery(),
+                command.performanceElectricitySupply(),
+                command.fieldStrengthTransmission());
         return telemetryRepository.saveTelemetry(telemetryForConnector);
     }
 

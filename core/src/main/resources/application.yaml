@@ -41,3 +41,14 @@ management:
     web:
       exposure:
         include: health,info
+
+springdoc:
+  api-docs:
+    enabled: true
+  paths-to-match: /api/v1/**
+  swagger-ui:
+    enabled: true
+    path: /swagger-ui.html
+    filter: true
+    operations-sorter: alpha
+    tags-sorter: alpha

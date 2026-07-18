@@ -1,7 +1,9 @@
 package at.pegelhub.measurement.api.read.output;
 
 import com.fasterxml.jackson.annotation.JsonValue;
+import io.swagger.v3.oas.annotations.media.Schema;
 
+@Schema(description = "Aggregation used for measurement buckets.", enumAsRef = true)
 public enum MeasurementAggregation {
     AVERAGE("average");
 

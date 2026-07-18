@@ -78,7 +78,15 @@ Keycloak setup and auth operations are documented in:
 
 ## API Client Docs
 
-The Postman collection for the core HTTP API lives in `docs/api/postman/` and uses Bearer tokens from Keycloak.
+OpenAPI documentation is served by the running Core app:
+
+- Swagger UI: `http://localhost:8080/swagger-ui.html`
+- OpenAPI JSON: `http://localhost:8080/v3/api-docs`
+- OpenAPI YAML: `http://localhost:8080/v3/api-docs.yaml`
+
+Swagger UI is public, but protected API calls still require a Keycloak access token. Use the Authorize button with a Bearer JWT for the required PegelHub role, such as `METADATA_READ`, `METADATA_WRITE`, `MEASUREMENT_READ`, `MEASUREMENT_WRITE`, `TELEMETRY_READ`, `TELEMETRY_WRITE`, or `SYSTEM_ADMIN`.
+
+The legacy Postman collection for the core HTTP API lives in `docs/api/postman/` and also uses Bearer tokens from Keycloak.
 
 ## Manual Dev Profile
 

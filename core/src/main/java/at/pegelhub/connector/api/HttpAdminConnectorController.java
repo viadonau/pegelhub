@@ -2,6 +2,12 @@ package at.pegelhub.connector.api;
 
 import at.pegelhub.connector.application.ConnectorService;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -14,6 +20,8 @@ import static java.util.Objects.requireNonNull;
 
 @RestController
 @RequestMapping("/api/v1/admin/connectors")
+@Tag(name = "Connector Admin", description = "Administrative connector identity binding endpoints.")
+@SecurityRequirement(name = "bearerAuth")
 public final class HttpAdminConnectorController {
 
     private final ConnectorService connectorService;
@@ -22,7 +30,16 @@ public final class HttpAdminConnectorController {
         this.connectorService = requireNonNull(connectorService);
     }
 
-    @Operation(summary = "Registers a connector identity binding")
+    @Operation(
+            summary = "Registers a connector identity binding",
+            description = "Creates connector metadata and binds it to a Keycloak client id. Requires SYSTEM_ADMIN.")
+    @ApiResponses(value = {
+            @ApiResponse(
+                    responseCode = "201",
+                    description = "Returns the registered connector.",
+                    content = @Content(schema = @Schema(implementation = ConnectorDto.class))),
+            @ApiResponse(responseCode = "400", description = "The registration payload is invalid.", content = @Content)
+    })
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public ConnectorDto register(@Valid @RequestBody RegisterConnectorRequest request) {
