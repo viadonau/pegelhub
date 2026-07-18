@@ -1,10 +1,8 @@
 package at.pegelhub.measurement.persistence;
 
-import at.pegelhub.connector.domain.ConnectorId;
 import at.pegelhub.measurement.application.MeasurementBucketQuery;
 import at.pegelhub.measurement.application.MeasurementBucketResolution;
 import at.pegelhub.measurement.application.MeasurementBucketWidth;
-import at.pegelhub.measurement.application.MeasurementCursor;
 import at.pegelhub.measurement.application.MeasurementListQuery;
 import at.pegelhub.measurement.application.MeasurementOrder;
 import at.pegelhub.measurement.application.MeasurementWindow;
@@ -31,29 +29,21 @@ final class MeasurementFluxQueryBuilderTest {
     private final MeasurementFluxQueryBuilder queryBuilder = new MeasurementFluxQueryBuilder(DATABASE);
 
     @Test
-    void buildsMeasurementPageQuery() {
-        MeasurementCursor cursor = new MeasurementCursor(
-                Instant.parse("2026-06-17T12:00:00Z"),
-                new ConnectorId(UUID.fromString("0d9a3c87-b41a-4663-af0a-f6ec5e6a91cf")));
-        MeasurementListQuery pageQuery = new MeasurementListQuery(
+    void buildsBoundedMeasurementReadQuery() {
+        MeasurementListQuery readQuery = new MeasurementListQuery(
                 TIME_SERIES_ID,
                 new MeasurementWindow(
                         Instant.parse("2026-06-17T00:00:00Z"),
                         Instant.parse("2026-06-18T00:00:00Z"),
                         null),
                 MeasurementOrder.ASC,
-                500,
-                cursor);
+                500);
 
-        String query = queryBuilder.page(pageQuery, 501);
+        String query = queryBuilder.rawMeasurements(readQuery, 501);
 
         assertThat(query)
                 .contains("from(bucket: \"data\\\"bucket\")")
                 .contains("|> filter(fn: (r) => r._measurement == \"e27efad9-b947-48b1-928e-c25663597f1c\")")
-                .contains(
-                        "|> filter(fn: (r) => r._time > time(v: \"2026-06-17T12:00:00Z\")"
-                                + " or (r._time == time(v: \"2026-06-17T12:00:00Z\")"
-                                + " and r.submittedByConnectorId > \"0d9a3c87-b41a-4663-af0a-f6ec5e6a91cf\"))")
                 .contains("|> sort(columns: [\"_time\", \"submittedByConnectorId\"], desc: false)")
                 .contains("|> limit(n: 501)")
                 .doesNotContain("receivedAtRows")

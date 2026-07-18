@@ -15,10 +15,8 @@ public record MeasurementListResponse(
         MeasurementSortOrder order,
         @Schema(description = "Requested maximum number of raw points.", example = "1000")
         int limit,
-        @Schema(description = "Whether more points exist after the returned measurements.", example = "false")
+        @Schema(description = "Whether more points exist in the requested window than were returned.", example = "false")
         boolean truncated,
-        @Schema(description = "Fixed query parameters for the next page. Null when truncated is false.", nullable = true)
-        MeasurementNextPageResponse next,
         @Schema(description = "Raw measurement points.")
         List<MeasurementPointResponse> measurements) {
 }

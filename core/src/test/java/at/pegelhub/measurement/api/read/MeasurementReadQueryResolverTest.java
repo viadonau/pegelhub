@@ -3,7 +3,7 @@ package at.pegelhub.measurement.api.read;
 import at.pegelhub.measurement.application.MeasurementBucketResolutionPolicy;
 import at.pegelhub.measurement.application.MeasurementOrder;
 import at.pegelhub.measurement.api.read.input.MeasurementBucketParameters;
-import at.pegelhub.measurement.api.read.input.MeasurementPageParameters;
+import at.pegelhub.measurement.api.read.input.MeasurementReadParameters;
 import org.junit.jupiter.api.Test;
 
 import java.time.Clock;
@@ -23,14 +23,13 @@ final class MeasurementReadQueryResolverTest {
             new MeasurementBucketResolutionPolicy());
 
     @Test
-    void resolvesRawPageParametersIntoAStableWindow() {
-        var query = resolver.resolvePage(TIME_SERIES_ID, new MeasurementPageParameters(
+    void resolvesRawReadParametersIntoAStableWindow() {
+        var query = resolver.resolveList(TIME_SERIES_ID, new MeasurementReadParameters(
                 "24h",
                 null,
                 null,
                 "desc",
-                100,
-                null));
+                100));
 
         assertThat(query.window().from()).isEqualTo(Instant.parse("2026-06-16T13:00:00Z"));
         assertThat(query.window().to()).isEqualTo(Instant.parse("2026-06-17T13:00:00Z"));

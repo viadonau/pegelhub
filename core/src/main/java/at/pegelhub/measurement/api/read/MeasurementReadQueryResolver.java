@@ -8,7 +8,7 @@ import at.pegelhub.measurement.application.MeasurementListQuery;
 import at.pegelhub.measurement.application.MeasurementOrder;
 import at.pegelhub.measurement.application.MeasurementWindow;
 import at.pegelhub.measurement.api.read.input.MeasurementBucketParameters;
-import at.pegelhub.measurement.api.read.input.MeasurementPageParameters;
+import at.pegelhub.measurement.api.read.input.MeasurementReadParameters;
 import at.pegelhub.shared.duration.PegelhubDurationLiteral;
 import at.pegelhub.timeseries.domain.TimeSeriesId;
 import org.springframework.stereotype.Component;
@@ -30,23 +30,20 @@ public class MeasurementReadQueryResolver {
 
     private final Clock clock;
     private final MeasurementBucketResolutionPolicy bucketResolutionPolicy;
-    private final MeasurementCursorCodec cursorCodec;
 
     public MeasurementReadQueryResolver(Clock clock, MeasurementBucketResolutionPolicy bucketResolutionPolicy) {
         this.clock = requireNonNull(clock);
         this.bucketResolutionPolicy = requireNonNull(bucketResolutionPolicy);
-        this.cursorCodec = new MeasurementCursorCodec();
     }
 
-    public MeasurementListQuery resolvePage(UUID timeSeriesId, MeasurementPageParameters parameters) {
+    public MeasurementListQuery resolveList(UUID timeSeriesId, MeasurementReadParameters parameters) {
         requireNonNull(timeSeriesId);
         requireNonNull(parameters);
         return new MeasurementListQuery(
                 new TimeSeriesId(timeSeriesId),
                 window(parameters.last(), parameters.from(), parameters.to()),
                 order(parameters.order()),
-                parameters.limit() == null ? DEFAULT_LIMIT : parameters.limit(),
-                cursorCodec.decode(parameters.cursor()));
+                parameters.limit() == null ? DEFAULT_LIMIT : parameters.limit());
     }
 
     public MeasurementBucketQuery resolveBuckets(UUID timeSeriesId, MeasurementBucketParameters parameters) {

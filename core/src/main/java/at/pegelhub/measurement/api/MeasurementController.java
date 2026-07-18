@@ -3,7 +3,7 @@ package at.pegelhub.measurement.api;
 import at.pegelhub.measurement.api.read.MeasurementReadQueryResolver;
 import at.pegelhub.measurement.api.read.MeasurementReadResponseMapper;
 import at.pegelhub.measurement.api.read.input.MeasurementBucketParameters;
-import at.pegelhub.measurement.api.read.input.MeasurementPageParameters;
+import at.pegelhub.measurement.api.read.input.MeasurementReadParameters;
 import at.pegelhub.measurement.api.read.output.MeasurementBucketListResponse;
 import at.pegelhub.measurement.api.read.output.MeasurementListResponse;
 import at.pegelhub.measurement.api.write.MeasurementWriteRequestMapper;
@@ -35,9 +35,9 @@ public class MeasurementController implements MeasurementApi {
     @Override
     public MeasurementListResponse listMeasurements(
             UUID timeSeriesId,
-            MeasurementPageParameters parameters) {
+            MeasurementReadParameters parameters) {
         return MeasurementReadResponseMapper.toResponse(measurementService.listMeasurements(
-                queryResolver.resolvePage(timeSeriesId, parameters)));
+                queryResolver.resolveList(timeSeriesId, parameters)));
     }
 
     @Override

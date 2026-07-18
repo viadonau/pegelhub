@@ -6,12 +6,12 @@ import java.time.Instant;
 
 import static java.util.Objects.requireNonNull;
 
-public record MeasurementPageRow(
+public record MeasurementReadRow(
         Instant observedAt,
         double value,
         ConnectorId submittedByConnectorId) {
 
-    public MeasurementPageRow {
+    public MeasurementReadRow {
         requireNonNull(observedAt);
         requireNonNull(submittedByConnectorId);
         if (!Double.isFinite(value)) {

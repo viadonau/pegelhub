@@ -8,8 +8,7 @@ public record MeasurementListQuery(
         TimeSeriesId timeSeriesId,
         MeasurementWindow window,
         MeasurementOrder order,
-        int limit,
-        MeasurementCursor cursor) {
+        int limit) {
 
     public MeasurementListQuery {
         requireNonNull(timeSeriesId);

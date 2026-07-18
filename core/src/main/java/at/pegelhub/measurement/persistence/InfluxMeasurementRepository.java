@@ -4,10 +4,9 @@ import com.influxdb.client.write.Point;
 import com.influxdb.query.FluxTable;
 import at.pegelhub.measurement.application.MeasurementBucketList;
 import at.pegelhub.measurement.application.MeasurementBucketQuery;
-import at.pegelhub.measurement.application.MeasurementCursor;
 import at.pegelhub.measurement.application.MeasurementList;
 import at.pegelhub.measurement.application.MeasurementListQuery;
-import at.pegelhub.measurement.application.MeasurementPageRow;
+import at.pegelhub.measurement.application.MeasurementReadRow;
 import at.pegelhub.measurement.domain.Measurement;
 import at.pegelhub.measurement.domain.MeasurementBucket;
 import at.pegelhub.shared.influx.InfluxBucketOperations;
@@ -56,16 +55,13 @@ public class InfluxMeasurementRepository implements MeasurementRepository {
 
     @Override
     public MeasurementList listMeasurements(MeasurementListQuery measurementQuery) {
-        String query = queryBuilder.page(measurementQuery, measurementQuery.limit() + 1);
-        List<MeasurementPageRow> rows = rowMapper.pageRows(influx.query(query));
+        String query = queryBuilder.rawMeasurements(measurementQuery, measurementQuery.limit() + 1);
+        List<MeasurementReadRow> rows = rowMapper.rawMeasurementRows(influx.query(query));
         boolean truncated = rows.size() > measurementQuery.limit();
-        List<MeasurementPageRow> visible = truncated
+        List<MeasurementReadRow> visible = truncated
                 ? rows.subList(0, measurementQuery.limit())
                 : rows;
-        MeasurementCursor nextCursor = truncated
-                ? cursorOf(visible.getLast())
-                : null;
-        return new MeasurementList(measurementQuery, truncated, nextCursor, visible);
+        return new MeasurementList(measurementQuery, truncated, visible);
     }
 
     @Override
@@ -91,10 +87,6 @@ public class InfluxMeasurementRepository implements MeasurementRepository {
                         counts.get(entry.getKey())))
                 .toList();
         return new MeasurementBucketList(bucketQuery, buckets);
-    }
-
-    private static MeasurementCursor cursorOf(MeasurementPageRow measurement) {
-        return new MeasurementCursor(measurement.observedAt(), measurement.submittedByConnectorId());
     }
 
     @Override

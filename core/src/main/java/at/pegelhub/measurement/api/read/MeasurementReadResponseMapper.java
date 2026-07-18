@@ -4,7 +4,6 @@ import at.pegelhub.measurement.api.read.output.MeasurementAggregation;
 import at.pegelhub.measurement.api.read.output.MeasurementBucketListResponse;
 import at.pegelhub.measurement.api.read.output.MeasurementBucketPointResponse;
 import at.pegelhub.measurement.api.read.output.MeasurementListResponse;
-import at.pegelhub.measurement.api.read.output.MeasurementNextPageResponse;
 import at.pegelhub.measurement.api.read.output.MeasurementPointResponse;
 import at.pegelhub.measurement.api.read.output.MeasurementResolutionResponse;
 import at.pegelhub.measurement.api.read.output.MeasurementSortOrder;
@@ -12,14 +11,12 @@ import at.pegelhub.measurement.api.read.output.MeasurementWindowResponse;
 import at.pegelhub.measurement.application.MeasurementBucketList;
 import at.pegelhub.measurement.application.MeasurementList;
 import at.pegelhub.measurement.application.MeasurementOrder;
-import at.pegelhub.measurement.application.MeasurementPageRow;
+import at.pegelhub.measurement.application.MeasurementReadRow;
 import at.pegelhub.measurement.domain.MeasurementBucket;
 
 import java.time.Instant;
 
 public final class MeasurementReadResponseMapper {
-
-    private static final MeasurementCursorCodec CURSOR_CODEC = new MeasurementCursorCodec();
 
     private MeasurementReadResponseMapper() {
     }
@@ -31,7 +28,6 @@ public final class MeasurementReadResponseMapper {
                 toResponseOrder(list.query().order()),
                 list.query().limit(),
                 list.truncated(),
-                nextPage(list),
                 list.measurements().stream()
                         .map(MeasurementReadResponseMapper::toPointResponse)
                         .toList());
@@ -54,7 +50,7 @@ public final class MeasurementReadResponseMapper {
         return new MeasurementWindowResponse(window.from(), window.to(), window.requested());
     }
 
-    private static MeasurementPointResponse toPointResponse(MeasurementPageRow measurement) {
+    private static MeasurementPointResponse toPointResponse(MeasurementReadRow measurement) {
         return new MeasurementPointResponse(
                 measurement.observedAt(),
                 measurement.value());
@@ -73,18 +69,6 @@ public final class MeasurementReadResponseMapper {
             case ASC -> MeasurementSortOrder.ASC;
             case DESC -> MeasurementSortOrder.DESC;
         };
-    }
-
-    private static MeasurementNextPageResponse nextPage(MeasurementList list) {
-        if (list.nextCursor() == null) {
-            return null;
-        }
-        return new MeasurementNextPageResponse(
-                list.query().window().from(),
-                list.query().window().to(),
-                toResponseOrder(list.query().order()),
-                list.query().limit(),
-                CURSOR_CODEC.encode(list.nextCursor()));
     }
 
 }

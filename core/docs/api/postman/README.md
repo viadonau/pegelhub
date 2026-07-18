@@ -48,6 +48,7 @@ Some requests require values for database objects that already exist in your loc
 
 - Metadata reads by id require the UUID of the target resource.
 - Measurement reads require a `timeSeriesId` and either `last` or `from` plus `to`.
+- Raw measurement reads accept `order` and a bounded `limit` (maximum `10000`). When `truncated` is true, the requested window contains more raw points than were returned, so narrow the time window and read again.
 - Measurement writes require an authenticated connector with `MEASUREMENT_WRITE`
   and access to the submitted time series.
 

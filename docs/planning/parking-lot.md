@@ -38,9 +38,6 @@ Loose project memory for work that should not interrupt the current slice. Keep 
 - Contact mapping collapse
   Remove shallow Contact service/converter indirection and give Contact mapping one clear home instead of repeating 17-field copies.
 
-- Measurement cursor pagination
-  Revisit whether Measurement reads need cursor pagination long-term, or whether the GET flow could be simpler with bounded windows and direct limits.
-
 - Connector communicator/runtime cleanup
   Shrink the connector library communicator, delete dead Contact/Connector client methods, and extract shared stamping/config/runtime boilerplate.
 

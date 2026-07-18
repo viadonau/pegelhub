@@ -199,6 +199,8 @@ sequenceDiagram
 
 ## Measurement Read Path
 
+Raw reads always use a bounded relative or explicit time window, deterministic ordering, and a limit of at most 10,000 points. When the response sets `truncated`, the requested window contains additional points and callers should narrow that time window. Chart reads use the bucket endpoint instead.
+
 ```mermaid
 flowchart TD
     A["GET /time-series/{id}/measurements?last=..."] --> MS[MeasurementService]
@@ -226,7 +228,7 @@ The security column names the effective Spring Security rule. Most metadata rout
 | POST | `/api/v1/measurements` | `MEASUREMENT_WRITE` | Write measurements |
 | GET | `/api/v1/time-series/{timeSeriesId}/measurements?last={duration}` | `MEASUREMENT_READ` or `SYSTEM_ADMIN` | Raw TimeSeries measurements in a relative window |
 | GET | `/api/v1/time-series/{timeSeriesId}/measurements?from={instant}&to={instant}` | `MEASUREMENT_READ` or `SYSTEM_ADMIN` | Raw TimeSeries measurements in an explicit window |
-| GET | `/api/v1/time-series/{timeSeriesId}/measurements?last={duration}&order=desc&limit=1` | `MEASUREMENT_READ` or `SYSTEM_ADMIN` | Latest value for TimeSeries through the paged raw query |
+| GET | `/api/v1/time-series/{timeSeriesId}/measurements?last={duration}&order=desc&limit=1` | `MEASUREMENT_READ` or `SYSTEM_ADMIN` | Latest value for TimeSeries through the bounded raw query |
 | GET | `/api/v1/time-series/{timeSeriesId}/measurements/buckets?last={duration}` | `MEASUREMENT_READ` or `SYSTEM_ADMIN` | Average buckets for chart-ready TimeSeries reads |
 | GET | `/api/v1/measurements/system-time` | public | InfluxDB system time |
 | POST | `/api/v1/admin/connectors` | `SYSTEM_ADMIN` | Register connector identity binding |

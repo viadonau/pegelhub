@@ -1,10 +1,8 @@
 package at.pegelhub.measurement.api;
 
-import at.pegelhub.connector.domain.ConnectorId;
 import at.pegelhub.measurement.api.read.MeasurementReadQueryResolver;
 import at.pegelhub.measurement.application.MeasurementBucketList;
 import at.pegelhub.measurement.application.MeasurementBucketResolutionPolicy;
-import at.pegelhub.measurement.application.MeasurementCursor;
 import at.pegelhub.measurement.application.MeasurementList;
 import at.pegelhub.measurement.application.MeasurementService;
 import at.pegelhub.measurement.domain.MeasurementBucket;
@@ -20,13 +18,12 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.Clock;
 import java.time.Instant;
-import java.util.Base64;
 import java.util.List;
 import java.util.UUID;
 
 import static at.pegelhub.testsupport.ExampleData.MEASUREMENT;
-import static at.pegelhub.testsupport.ExampleData.MEASUREMENT_PAGE_ROW;
-import static at.pegelhub.testsupport.ExampleData.MEASUREMENT_PAGE_ROWS;
+import static at.pegelhub.testsupport.ExampleData.MEASUREMENT_READ_ROW;
+import static at.pegelhub.testsupport.ExampleData.MEASUREMENT_READ_ROWS;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
@@ -85,7 +82,7 @@ class MeasurementControllerTest {
     @Test
     void listMeasurementsReturnsLeanEnvelope() throws Exception {
         when(measurementService.listMeasurements(any())).thenAnswer(invocation ->
-                new MeasurementList(invocation.getArgument(0), false, null, MEASUREMENT_PAGE_ROWS));
+                new MeasurementList(invocation.getArgument(0), false, MEASUREMENT_READ_ROWS));
 
         mockMvc.perform(get("/api/v1/time-series/{timeSeriesId}/measurements", TIME_SERIES_ID.value())
                         .param("from", "2010-10-12T08:00:00Z")
@@ -99,9 +96,8 @@ class MeasurementControllerTest {
                 .andExpect(jsonPath("$.order").value("asc"))
                 .andExpect(jsonPath("$.limit").value(100))
                 .andExpect(jsonPath("$.truncated").value(false))
-                .andExpect(jsonPath("$.next").value(nullValue()))
-                .andExpect(jsonPath("$.measurements[0].observedAt").value(MEASUREMENT_PAGE_ROW.observedAt().toString()))
-                .andExpect(jsonPath("$.measurements[0].value").value(MEASUREMENT_PAGE_ROW.value()))
+                .andExpect(jsonPath("$.measurements[0].observedAt").value(MEASUREMENT_READ_ROW.observedAt().toString()))
+                .andExpect(jsonPath("$.measurements[0].value").value(MEASUREMENT_READ_ROW.value()))
                 .andExpect(jsonPath("$.measurements[0].receivedAt").doesNotExist())
                 .andExpect(jsonPath("$.measurements[0].submittedByConnectorId").doesNotExist())
                 .andExpect(jsonPath("$.measurements[0].timeSeriesId").doesNotExist());
@@ -115,7 +111,7 @@ class MeasurementControllerTest {
     @Test
     void listMeasurementsSupportsRelativeWindow() throws Exception {
         when(measurementService.listMeasurements(any())).thenAnswer(invocation ->
-                new MeasurementList(invocation.getArgument(0), false, null, List.of()));
+                new MeasurementList(invocation.getArgument(0), false, List.of()));
 
         mockMvc.perform(get("/api/v1/time-series/{timeSeriesId}/measurements", TIME_SERIES_ID.value())
                         .param("last", "24h"))
@@ -126,27 +122,22 @@ class MeasurementControllerTest {
     }
 
     @Test
-    void listMeasurementsDecodesAndEncodesCompositeCursor() throws Exception {
-        MeasurementCursor cursor = new MeasurementCursor(
-                Instant.parse("2026-06-17T12:00:00Z"),
-                new ConnectorId(UUID.fromString("0d9a3c87-b41a-4663-af0a-f6ec5e6a91cf")));
-        String encodedCursor = Base64.getUrlEncoder()
-                .withoutPadding()
-                .encodeToString("2026-06-17T12:00:00Z|0d9a3c87-b41a-4663-af0a-f6ec5e6a91cf".getBytes());
+    void listMeasurementsReportsTruncation() throws Exception {
         when(measurementService.listMeasurements(any())).thenAnswer(invocation ->
-                new MeasurementList(invocation.getArgument(0), true, cursor, List.of(MEASUREMENT_PAGE_ROW)));
+                new MeasurementList(invocation.getArgument(0), true, List.of(MEASUREMENT_READ_ROW)));
 
         mockMvc.perform(get("/api/v1/time-series/{timeSeriesId}/measurements", TIME_SERIES_ID.value())
                         .param("last", "24h")
-                        .param("cursor", encodedCursor))
+                        .param("order", "desc")
+                        .param("limit", "1"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.next.from").value("2026-06-16T13:00:00Z"))
-                .andExpect(jsonPath("$.next.to").value("2026-06-17T13:00:00Z"))
-                .andExpect(jsonPath("$.next.order").value("asc"))
-                .andExpect(jsonPath("$.next.limit").value(1000))
-                .andExpect(jsonPath("$.next.cursor").value(encodedCursor));
+                .andExpect(jsonPath("$.order").value("desc"))
+                .andExpect(jsonPath("$.limit").value(1))
+                .andExpect(jsonPath("$.truncated").value(true));
 
-        verify(measurementService).listMeasurements(argThat(query -> cursor.equals(query.cursor())));
+        verify(measurementService).listMeasurements(argThat(query ->
+                query.order() == at.pegelhub.measurement.application.MeasurementOrder.DESC
+                        && query.limit() == 1));
     }
 
     @Test
@@ -216,6 +207,14 @@ class MeasurementControllerTest {
         mockMvc.perform(get("/api/v1/time-series/{timeSeriesId}/measurements", TIME_SERIES_ID.value())
                         .param("last", "24h")
                         .param("limit", "0"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void listMeasurementsRejectsALimitAboveTheServerMaximum() throws Exception {
+        mockMvc.perform(get("/api/v1/time-series/{timeSeriesId}/measurements", TIME_SERIES_ID.value())
+                        .param("last", "24h")
+                        .param("limit", "10001"))
                 .andExpect(status().isBadRequest());
     }
 

@@ -7,8 +7,7 @@ import static java.util.Objects.requireNonNull;
 public record MeasurementList(
         MeasurementListQuery query,
         boolean truncated,
-        MeasurementCursor nextCursor,
-        List<MeasurementPageRow> measurements) {
+        List<MeasurementReadRow> measurements) {
 
     public MeasurementList {
         requireNonNull(query);

@@ -196,7 +196,7 @@ class OpenApiDocumentationWebMvcTest {
         JsonNode paths = openApiJson().path("paths");
 
         assertThat(queryParameterNames(paths.path("/api/v1/time-series/{timeSeriesId}/measurements").path("get")))
-                .containsExactlyInAnyOrder("last", "from", "to", "order", "limit", "cursor");
+                .containsExactlyInAnyOrder("last", "from", "to", "order", "limit");
         assertThat(queryParameterNames(paths.path("/api/v1/time-series/{timeSeriesId}/measurements/buckets").path("get")))
                 .containsExactlyInAnyOrder("last", "from", "to", "bucket", "maxPoints");
     }
