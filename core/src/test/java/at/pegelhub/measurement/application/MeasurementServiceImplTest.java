@@ -35,7 +35,7 @@ final class MeasurementServiceImplTest {
     private static final Instant OBSERVED_AT = Instant.parse("2026-04-25T10:15:30Z");
     private static final Clock CLOCK = Clock.fixed(Instant.parse("2026-06-17T13:00:00Z"), ZoneOffset.UTC);
     private static final ConnectorId CONNECTOR_ID = new ConnectorId(CONNECTOR_UUID);
-    private static final MeasurementPageRow PAGE_ROW = new MeasurementPageRow(OBSERVED_AT, 10.5, CONNECTOR_ID);
+    private static final MeasurementReadRow READ_ROW = new MeasurementReadRow(OBSERVED_AT, 10.5, CONNECTOR_ID);
     private static final MeasurementWindow WINDOW = new MeasurementWindow(
             Instant.parse("2026-06-16T13:00:00Z"),
             Instant.parse("2026-06-17T13:00:00Z"),
@@ -81,8 +81,8 @@ final class MeasurementServiceImplTest {
 
     @Test
     void listMeasurementsReturnsAuthorizedWindow() {
-        var query = new MeasurementListQuery(TIME_SERIES_ID, WINDOW, MeasurementOrder.ASC, 100, null);
-        MeasurementList repositoryResult = new MeasurementList(query, false, null, List.of(PAGE_ROW));
+        var query = new MeasurementListQuery(TIME_SERIES_ID, WINDOW, MeasurementOrder.ASC, 100);
+        MeasurementList repositoryResult = new MeasurementList(query, false, List.of(READ_ROW));
         measurementRepository.measurementList = repositoryResult;
 
         MeasurementList result = measurementService.listMeasurements(query);
@@ -93,17 +93,15 @@ final class MeasurementServiceImplTest {
     }
 
     @Test
-    void listMeasurementsDelegatesRepositoryPagingResult() {
-        MeasurementPageRow second = measurementAt("2026-06-17T12:00:00Z");
-        var query = new MeasurementListQuery(TIME_SERIES_ID, WINDOW, MeasurementOrder.DESC, 1, null);
-        MeasurementCursor cursor = new MeasurementCursor(second.observedAt(), second.submittedByConnectorId());
-        measurementRepository.measurementList = new MeasurementList(query, true, cursor, List.of(second));
+    void listMeasurementsDelegatesBoundedRepositoryResult() {
+        MeasurementReadRow second = measurementAt("2026-06-17T12:00:00Z");
+        var query = new MeasurementListQuery(TIME_SERIES_ID, WINDOW, MeasurementOrder.DESC, 1);
+        measurementRepository.measurementList = new MeasurementList(query, true, List.of(second));
 
         MeasurementList result = measurementService.listMeasurements(query);
 
         assertEquals(List.of(second), result.measurements());
         assertEquals(true, result.truncated());
-        assertEquals(cursor, result.nextCursor());
     }
 
     @Test
@@ -138,9 +136,9 @@ final class MeasurementServiceImplTest {
         assertEquals(ts, result);
     }
 
-    private static MeasurementPageRow measurementAt(String observedAt) {
+    private static MeasurementReadRow measurementAt(String observedAt) {
         Instant timestamp = Instant.parse(observedAt);
-        return new MeasurementPageRow(
+        return new MeasurementReadRow(
                 timestamp,
                 10.5,
                 CONNECTOR_ID);

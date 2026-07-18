@@ -7,9 +7,9 @@ import jakarta.validation.constraints.Min;
 import java.time.Instant;
 
 /**
- * HTTP query parameters for a page of raw Measurements.
+ * HTTP query parameters for a bounded raw Measurement read.
  */
-public record MeasurementPageParameters(
+public record MeasurementReadParameters(
         @Schema(description = "Positive relative window such as 3h, 24h, 7d, or 30d. Provide either last or both from and to.")
         String last,
         @Schema(description = "Inclusive explicit window start. Required with to when last is omitted.", example = "2026-06-17T00:00:00Z")
@@ -19,7 +19,5 @@ public record MeasurementPageParameters(
         @Schema(description = "Sort order by observed time.", allowableValues = {"asc", "desc"}, defaultValue = "asc")
         String order,
         @Schema(description = "Maximum raw points to return.", minimum = "1", maximum = "10000", defaultValue = "1000")
-        @Min(1) @Max(10_000) Integer limit,
-        @Schema(description = "Opaque page position returned by the previous response.")
-        String cursor) {
+        @Min(1) @Max(10_000) Integer limit) {
 }

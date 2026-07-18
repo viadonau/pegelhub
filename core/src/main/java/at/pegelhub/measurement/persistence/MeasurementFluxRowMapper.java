@@ -1,7 +1,7 @@
 package at.pegelhub.measurement.persistence;
 
 import at.pegelhub.connector.domain.ConnectorId;
-import at.pegelhub.measurement.application.MeasurementPageRow;
+import at.pegelhub.measurement.application.MeasurementReadRow;
 import com.influxdb.exceptions.InfluxException;
 import com.influxdb.query.FluxRecord;
 import com.influxdb.query.FluxTable;
@@ -18,11 +18,11 @@ import java.util.UUID;
 @Component
 final class MeasurementFluxRowMapper {
 
-    List<MeasurementPageRow> pageRows(List<FluxTable> tables) {
-        List<MeasurementPageRow> measurements = new ArrayList<>();
+    List<MeasurementReadRow> rawMeasurementRows(List<FluxTable> tables) {
+        List<MeasurementReadRow> measurements = new ArrayList<>();
         for (FluxTable table : tables) {
             for (FluxRecord record : table.getRecords()) {
-                measurements.add(new MeasurementPageRow(
+                measurements.add(new MeasurementReadRow(
                         requiredInstant(record, "_time"),
                         requiredNumber(record, InfluxMeasurementSchema.VALUE_FIELD).doubleValue(),
                         new ConnectorId(UUID.fromString(requiredString(
@@ -89,7 +89,7 @@ final class MeasurementFluxRowMapper {
         if (value instanceof Instant instant) {
             return instant;
         }
-        throw new InfluxException("Measurement page row is missing instant column " + column);
+        throw new InfluxException("Measurement read row is missing instant column " + column);
     }
 
     private String requiredString(FluxRecord record, String column) {
@@ -97,7 +97,7 @@ final class MeasurementFluxRowMapper {
         if (value instanceof String text && !text.isBlank()) {
             return text;
         }
-        throw new InfluxException("Measurement page row is missing string column " + column);
+        throw new InfluxException("Measurement read row is missing string column " + column);
     }
 
     private Number requiredNumber(FluxRecord record, String column) {
@@ -105,7 +105,7 @@ final class MeasurementFluxRowMapper {
         if (value instanceof Number number) {
             return number;
         }
-        throw new InfluxException("Measurement page row is missing numeric column " + column);
+        throw new InfluxException("Measurement read row is missing numeric column " + column);
     }
 
 }

@@ -1,7 +1,6 @@
 package at.pegelhub.measurement.persistence;
 
 import at.pegelhub.measurement.application.MeasurementBucketQuery;
-import at.pegelhub.measurement.application.MeasurementCursor;
 import at.pegelhub.measurement.application.MeasurementListQuery;
 import at.pegelhub.measurement.application.MeasurementOrder;
 import at.pegelhub.shared.duration.PegelhubDurationLiteral;
@@ -24,7 +23,7 @@ final class MeasurementFluxQueryBuilder {
         this.database = requireNonNull(database);
     }
 
-    String page(MeasurementListQuery query, int fetchLimit) {
+    String rawMeasurements(MeasurementListQuery query, int fetchLimit) {
         requireNonNull(query);
         if (fetchLimit < 1) {
             throw new IllegalArgumentException("fetchLimit must be positive");
@@ -32,15 +31,14 @@ final class MeasurementFluxQueryBuilder {
         String measurementRows = measurementWindow(
                 query.timeSeriesId().value(),
                 query.window().from(),
-                query.window().to())
-                + cursorFilter(query.order(), query.cursor());
-        String pageOperations = " |> group(columns: [])"
+                query.window().to());
+        String boundedReadOperations = " |> group(columns: [])"
                 + sortByMeasurementPosition(query.order())
                 + " |> limit(n: " + fetchLimit + ")";
 
         return measurementRows
                 + valueFieldFilter()
-                + pageOperations
+                + boundedReadOperations
                 + " |> rename(columns: {_value: \"value\"})"
                 + " |> keep(columns: [\"_time\", \"submittedByConnectorId\", \"value\"])";
     }
@@ -97,21 +95,6 @@ final class MeasurementFluxQueryBuilder {
 
     private String measurementGroup() {
         return " |> group(columns: [\"_measurement\"])";
-    }
-
-    private String cursorFilter(MeasurementOrder order, MeasurementCursor cursor) {
-        requireNonNull(order);
-        if (cursor == null) {
-            return "";
-        }
-        String observedAt = "time(v: " + stringLiteral(cursor.observedAt().toString()) + ")";
-        String connectorId = stringLiteral(cursor.submittedByConnectorId().value().toString());
-        return switch (order) {
-            case ASC -> " |> filter(fn: (r) => r._time > " + observedAt
-                    + " or (r._time == " + observedAt + " and r.submittedByConnectorId > " + connectorId + "))";
-            case DESC -> " |> filter(fn: (r) => r._time < " + observedAt
-                    + " or (r._time == " + observedAt + " and r.submittedByConnectorId < " + connectorId + "))";
-        };
     }
 
     private String sortByMeasurementPosition(MeasurementOrder order) {

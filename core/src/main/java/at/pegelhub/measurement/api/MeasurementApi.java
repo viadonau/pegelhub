@@ -1,7 +1,7 @@
 package at.pegelhub.measurement.api;
 
 import at.pegelhub.measurement.api.read.input.MeasurementBucketParameters;
-import at.pegelhub.measurement.api.read.input.MeasurementPageParameters;
+import at.pegelhub.measurement.api.read.input.MeasurementReadParameters;
 import at.pegelhub.measurement.api.read.output.MeasurementBucketListResponse;
 import at.pegelhub.measurement.api.read.output.MeasurementListResponse;
 import at.pegelhub.measurement.api.write.WriteMeasurementsRequest;
@@ -55,7 +55,7 @@ public interface MeasurementApi {
             summary = "Lists raw measurements for a time series",
             description = """
                     Returns raw measurement points in a bounded time window.
-                    Provide either last or both from and to. Cursor pagination uses an opaque stable position and must be reused with the same resolved window and order.
+                    Provide either last or both from and to. Results are bounded by limit; truncated indicates whether more points exist in the window.
                     For the latest measurement, request a bounded descending list with limit=1, for example last=365d&order=desc&limit=1.
                     Requires MEASUREMENT_READ or SYSTEM_ADMIN.
                     """,
@@ -72,7 +72,7 @@ public interface MeasurementApi {
     MeasurementListResponse listMeasurements(
             @Parameter(description = "Time series identifier.", required = true)
             @PathVariable UUID timeSeriesId,
-            @ParameterObject @Valid @ModelAttribute MeasurementPageParameters parameters);
+            @ParameterObject @Valid @ModelAttribute MeasurementReadParameters parameters);
 
     @Operation(
             tags = "Measurement Buckets",

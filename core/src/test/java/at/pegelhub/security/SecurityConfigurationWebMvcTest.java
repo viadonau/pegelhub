@@ -91,7 +91,7 @@ class SecurityConfigurationWebMvcTest {
     @BeforeEach
     void prepareMeasurementReads() {
         when(measurementService.listMeasurements(any())).thenAnswer(invocation ->
-                new MeasurementList(invocation.getArgument(0), false, null, List.of()));
+                new MeasurementList(invocation.getArgument(0), false, List.of()));
     }
 
     @Test

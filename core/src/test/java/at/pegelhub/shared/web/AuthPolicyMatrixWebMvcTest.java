@@ -43,7 +43,7 @@ import static at.pegelhub.testsupport.ExampleData.CONTACT;
 import static at.pegelhub.testsupport.ExampleData.CONNECTOR;
 import static at.pegelhub.testsupport.ExampleData.ID;
 import static at.pegelhub.testsupport.ExampleData.MEASUREMENT;
-import static at.pegelhub.testsupport.ExampleData.MEASUREMENT_PAGE_ROWS;
+import static at.pegelhub.testsupport.ExampleData.MEASUREMENT_READ_ROWS;
 import static at.pegelhub.testsupport.ExampleData.TELEMETRIES;
 import static at.pegelhub.testsupport.ExampleData.TELEMETRY;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
@@ -89,7 +89,7 @@ class AuthPolicyMatrixWebMvcTest {
     void prepare() {
         when(clock.instant()).thenReturn(Instant.parse("2026-06-17T13:00:00Z"));
         when(measurementService.listMeasurements(any())).thenAnswer(invocation ->
-                new MeasurementList(invocation.getArgument(0), false, null, MEASUREMENT_PAGE_ROWS));
+                new MeasurementList(invocation.getArgument(0), false, MEASUREMENT_READ_ROWS));
         when(measurementService.listMeasurementBuckets(any())).thenAnswer(invocation ->
                 new MeasurementBucketList(invocation.getArgument(0), Collections.singletonList(new MeasurementBucket(
                         MEASUREMENT.timeSeriesId(),
