@@ -10,11 +10,11 @@ RUNNING_ORIGIN="${1:-$EXPECTED_ORIGIN}"
 
 usage() {
   cat <<'USAGE'
-Usage: PEGELHUB_FRONTEND_URL=<imported-origin> scripts/check-keycloak-frontend-origin.sh [running-origin]
+Usage: PEGELHUB_FRONTEND_URL=<configured-origin> scripts/check-keycloak-frontend-origin.sh [frontend-origin]
 
 Checks that the local Keycloak realm import template uses PEGELHUB_FRONTEND_URL
-for the browser client and that the running Angular origin matches the origin
-used when the realm was imported.
+for the browser client and that the supplied frontend origin matches the
+configured template value. This does not inspect an existing Keycloak realm.
 
 Examples:
   PEGELHUB_FRONTEND_URL=http://localhost:4200 scripts/check-keycloak-frontend-origin.sh
@@ -34,7 +34,7 @@ case "${1:-}" in
     ;;
 esac
 
-[[ -n "$EXPECTED_ORIGIN" ]] || fail "Set PEGELHUB_FRONTEND_URL to the origin used for the Keycloak realm import."
+[[ -n "$EXPECTED_ORIGIN" ]] || fail "Set PEGELHUB_FRONTEND_URL to the origin configured for a fresh Keycloak realm import."
 [[ -n "$RUNNING_ORIGIN" ]] || fail "Pass the running frontend origin or set PEGELHUB_FRONTEND_URL."
 [[ -f "$REALM_IMPORT" ]] || fail "Missing realm import: $REALM_IMPORT"
 command -v python3 >/dev/null 2>&1 || fail "python3 is required to parse the Keycloak realm import."
@@ -85,10 +85,11 @@ running = normalize_origin(running_origin)
 
 if expected != running:
     fail(
-        "Running frontend origin does not match the Keycloak import origin: "
-        f"running={running}, imported={expected}. Recreate/update the local realm or start Angular on {expected}."
+        "Frontend origin does not match the configured realm-template origin: "
+        f"frontend={running}, configured={expected}. Update the configuration or start Angular on {expected}."
     )
 
 print(f"OK: {client_id} realm import is frontend-origin templated.")
-print(f"OK: running frontend origin matches imported origin: {running}")
+print(f"OK: supplied frontend origin matches configured template origin: {running}")
+print("NOTE: existing Keycloak realm state was not inspected.")
 PY

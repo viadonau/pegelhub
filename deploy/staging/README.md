@@ -77,6 +77,18 @@ cp privkey.pem deploy/staging/certs/privkey.pem
 chmod 600 deploy/staging/certs/privkey.pem
 ```
 
+The current `company` mode supports only certificates whose chain is already
+trusted by the stock JVM trust stores used by Core and the connectors. It does
+not yet distribute a private company CA into application containers. Confirm
+this constraint explicitly in `.env`:
+
+```env
+PEGELHUB_COMPANY_CERT_PUBLICLY_TRUSTED=true
+```
+
+The checked deployment path rejects certificates that expire within 24 hours,
+do not match the private key, or do not cover all three configured hostnames.
+
 The `certs/` directory is mounted read-only into Caddy. The same HTTPS
 hostnames, Keycloak issuer, and Core `KEYCLOAK_ISSUER_URI` are used in both
 modes; the mode changes only how TLS is terminated.
@@ -250,7 +262,9 @@ deploy/staging/scripts/deploy.sh --check sha-<short-sha>
 ```
 
 The validation rejects missing or placeholder image tags, missing FTP config,
-production-unsafe public ports, and any rendered `build:` section.
+production-unsafe public ports, any rendered `build:` section, invalid company
+certificates, and invalid rendered Caddy configuration. It starts only an
+ephemeral Caddy validation container and does not change persistent services.
 
 ## Deploy From GitHub
 

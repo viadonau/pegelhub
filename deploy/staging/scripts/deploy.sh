@@ -106,6 +106,21 @@ validate_environment() {
   [ -n "$(env_value PEGELHUB_API_HOSTNAME)" ] || fail "PEGELHUB_API_HOSTNAME is missing."
   [ -n "$(env_value PEGELHUB_KEYCLOAK_HOSTNAME)" ] || fail "PEGELHUB_KEYCLOAK_HOSTNAME is missing."
 
+  ingress_mode=$(env_value PEGELHUB_INGRESS_MODE)
+  [ -n "$ingress_mode" ] || ingress_mode=public
+  case "$ingress_mode" in
+    public)
+      ;;
+    company)
+      [ "$(env_value PEGELHUB_COMPANY_CERT_PUBLICLY_TRUSTED)" = "true" ] ||
+        fail "company ingress requires PEGELHUB_COMPANY_CERT_PUBLICLY_TRUSTED=true; private CA certificates are not supported by the current JVM containers."
+      validate_company_certificate
+      ;;
+    *)
+      fail "PEGELHUB_INGRESS_MODE must be public or company."
+      ;;
+  esac
+
   ftp_config_dir=$(env_value FTP_CONFIG_DIR)
   [ -n "$ftp_config_dir" ] || ftp_config_dir="./ftp-config"
   ftp_config_dir=$(resolve_path "$ftp_config_dir")
@@ -122,6 +137,36 @@ validate_environment() {
         ;;
     esac
   fi
+}
+
+validate_company_certificate() {
+  certificate="$DEPLOY_DIR/certs/fullchain.pem"
+  private_key="$DEPLOY_DIR/certs/privkey.pem"
+  [ -r "$certificate" ] || fail "company ingress requires readable $certificate"
+  [ -r "$private_key" ] || fail "company ingress requires readable $private_key"
+  command -v openssl >/dev/null 2>&1 || fail "openssl is required to validate company ingress certificates."
+
+  openssl x509 -in "$certificate" -noout >/dev/null 2>&1 || fail "Invalid company certificate: $certificate"
+  openssl pkey -in "$private_key" -noout >/dev/null 2>&1 || fail "Invalid company private key: $private_key"
+  openssl x509 -in "$certificate" -checkend 86400 -noout >/dev/null 2>&1 ||
+    fail "Company certificate is expired or expires within 24 hours."
+
+  certificate_key=$(openssl x509 -in "$certificate" -pubkey -noout |
+    openssl pkey -pubin -outform DER 2>/dev/null |
+    openssl dgst -sha256)
+  private_key_value=$(openssl pkey -in "$private_key" -pubout -outform DER 2>/dev/null |
+    openssl dgst -sha256)
+  [ "$certificate_key" = "$private_key_value" ] || fail "Company certificate and private key do not match."
+
+  for hostname_key in PEGELHUB_FRONTEND_HOSTNAME PEGELHUB_API_HOSTNAME PEGELHUB_KEYCLOAK_HOSTNAME; do
+    hostname=$(env_value "$hostname_key")
+    openssl x509 -in "$certificate" -checkhost "$hostname" -noout >/dev/null 2>&1 ||
+      fail "Company certificate does not cover $hostname_key=$hostname."
+  done
+}
+
+validate_caddy_config() {
+  compose run --rm --no-deps -e CADDY_RENDER_ONLY=true caddy >/dev/null
 }
 
 select_tag() {
@@ -184,11 +229,12 @@ export PEGELHUB_IMAGE_TAG
 mkdir -p "$STATE_DIR"
 compose config > "$RENDERED_FILE"
 validate_rendered_config "$RENDERED_FILE"
+validate_caddy_config
 
-printf '%s\n' "Validated staging Compose for image tag $PEGELHUB_IMAGE_TAG."
+printf '%s\n' "Validated staging Compose and Caddy ingress for image tag $PEGELHUB_IMAGE_TAG."
 
 if [ "$CHECK_ONLY" = "true" ]; then
-  printf '%s\n' "Check only; no images pulled and no services changed."
+  printf '%s\n' "Check only; no application images pulled and no persistent services changed."
   exit 0
 fi
 
