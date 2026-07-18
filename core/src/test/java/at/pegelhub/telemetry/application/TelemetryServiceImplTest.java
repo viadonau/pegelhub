@@ -35,6 +35,18 @@ final class TelemetryServiceImplTest {
             "subject",
             "local-taker-example",
             Set.of());
+    private static final WriteTelemetryCommand WRITE_COMMAND = new WriteTelemetryCommand(
+            TELEMETRY.stationIPAddressIntern(),
+            TELEMETRY.stationIPAddressExtern(),
+            TELEMETRY.timestamp(),
+            TELEMETRY.cycleTime(),
+            TELEMETRY.temperatureWater(),
+            TELEMETRY.temperatureAir(),
+            TELEMETRY.performanceVoltageBattery(),
+            TELEMETRY.performanceVoltageSupply(),
+            TELEMETRY.performanceElectricityBattery(),
+            TELEMETRY.performanceElectricitySupply(),
+            TELEMETRY.fieldStrengthTransmission());
 
     @BeforeEach
     public void prepare() {
@@ -69,7 +81,7 @@ final class TelemetryServiceImplTest {
                 .thenReturn(java.util.Optional.of(CONNECTOR));
         when(REPOSITORY.saveTelemetry(any())).thenReturn(savedTelemetry);
 
-        Telemetry result = telemetryService.saveTelemetry(TELEMETRY);
+        Telemetry result = telemetryService.saveTelemetry(WRITE_COMMAND);
         assertEquals(savedTelemetry, result);
         verify(CONNECTOR_REPOSITORY).findByKeycloakClientId(ACTOR.clientId());
         verify(REPOSITORY).saveTelemetry(savedTelemetry);
@@ -80,7 +92,7 @@ final class TelemetryServiceImplTest {
         when(CONNECTOR_REPOSITORY.findByKeycloakClientId(ACTOR.clientId()))
                 .thenReturn(java.util.Optional.empty());
 
-        assertThrows(NotFoundException.class, () -> telemetryService.saveTelemetry(TELEMETRY));
+        assertThrows(NotFoundException.class, () -> telemetryService.saveTelemetry(WRITE_COMMAND));
         verify(REPOSITORY, never()).saveTelemetry(any());
     }
 
@@ -96,7 +108,7 @@ final class TelemetryServiceImplTest {
         when(CONNECTOR_REPOSITORY.findByKeycloakClientId(ACTOR.clientId()))
                 .thenReturn(java.util.Optional.of(inactiveConnector));
 
-        assertThrows(AccessDeniedException.class, () -> telemetryService.saveTelemetry(TELEMETRY));
+        assertThrows(AccessDeniedException.class, () -> telemetryService.saveTelemetry(WRITE_COMMAND));
         verify(REPOSITORY, never()).saveTelemetry(any());
     }
 

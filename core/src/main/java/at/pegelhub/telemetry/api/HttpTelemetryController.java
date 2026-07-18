@@ -3,10 +3,15 @@ package at.pegelhub.telemetry.api;
 import at.pegelhub.telemetry.domain.Telemetry;
 import at.pegelhub.telemetry.application.TelemetryService;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.ArraySchema;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -19,6 +24,8 @@ import static java.util.Objects.requireNonNull;
  */
 @RestController
 @RequestMapping("/api/v1/telemetry")
+@Tag(name = "Telemetry", description = "Write and query connector technical telemetry.")
+@SecurityRequirement(name = "bearerAuth")
 public class HttpTelemetryController {
 
     private final TelemetryService telemetryService;
@@ -27,33 +34,48 @@ public class HttpTelemetryController {
         this.telemetryService = requireNonNull(telemetryService);
     }
 
-    @Operation(summary = "Adds a new Telemetry Entry to the system")
+    @Operation(
+            summary = "Writes telemetry",
+            description = "Stores one technical telemetry entry. Requires TELEMETRY_WRITE or SYSTEM_ADMIN.")
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Returns the saved Telemetry Entry",
-                    content = {@Content(mediaType = "application/json", schema = @Schema(implementation = Telemetry.class))})
+            @ApiResponse(responseCode = "200", description = "Returns the saved telemetry entry",
+                    content = {@Content(mediaType = "application/json", schema = @Schema(implementation = Telemetry.class))}),
+            @ApiResponse(responseCode = "400", description = "The telemetry payload is invalid.", content = @Content),
+            @ApiResponse(responseCode = "404", description = "The authenticated client has no registered connector.", content = @Content)
     })
     @PostMapping
-    public Telemetry writeTelemetryData(@RequestBody Telemetry telemetry) {
-        return telemetryService.saveTelemetry(telemetry);
+    public Telemetry writeTelemetryData(@Valid @RequestBody WriteTelemetryRequest request) {
+        return telemetryService.saveTelemetry(TelemetryMapper.toCommand(request));
     }
 
-    @Operation(summary = "Gets all Telemetry Data in Range")
+    @Operation(
+            summary = "Lists telemetry in a relative range",
+            description = "Returns telemetry entries in a positive relative range such as 72h. Requires TELEMETRY_READ or SYSTEM_ADMIN.")
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Returns all Telemetry Data in Range",
-                    content = {@Content(mediaType = "application/json", schema = @Schema(implementation = Telemetry.class))})
+            @ApiResponse(responseCode = "200", description = "Returns telemetry entries in the requested range.",
+                    content = @Content(array = @ArraySchema(schema = @Schema(implementation = Telemetry.class)))),
+            @ApiResponse(responseCode = "400", description = "The range is invalid.", content = @Content)
     })
     @GetMapping("/{range}")
-    public List<Telemetry> findTelemetryInRange(@PathVariable String range) {
+    public List<Telemetry> findTelemetryInRange(
+            @Parameter(description = "Positive relative range such as 72h.", example = "72h", required = true)
+            @PathVariable String range) {
         return telemetryService.getByRange(range);
     }
 
-    @Operation(summary = "Gets last Telemetry entry for ID")
+    @Operation(
+            summary = "Gets the latest telemetry entry for an ID",
+            description = "Returns the most recent telemetry entry for a measurement/station identifier. Requires TELEMETRY_READ or SYSTEM_ADMIN.")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Returns the telemetry entry",
-                    content = {@Content(mediaType = "application/json", schema = @Schema(implementation = Telemetry.class))})
+                    content = {@Content(mediaType = "application/json", schema = @Schema(implementation = Telemetry.class))}),
+            @ApiResponse(responseCode = "400", description = "The UUID is invalid.", content = @Content),
+            @ApiResponse(responseCode = "500", description = "The latest telemetry entry could not be resolved.", content = @Content)
     })
     @GetMapping("/last/{uuid}")
-    public Telemetry findTelemetryById(@PathVariable UUID uuid) {
+    public Telemetry findTelemetryById(
+            @Parameter(description = "Measurement or station telemetry identifier.", required = true)
+            @PathVariable UUID uuid) {
         return telemetryService.getLastData(uuid);
     }
 }

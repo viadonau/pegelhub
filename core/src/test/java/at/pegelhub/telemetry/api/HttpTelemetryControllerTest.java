@@ -38,7 +38,6 @@ class HttpTelemetryControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
-                                  "measurement": "a93fdc3d-b71f-44ce-a826-fe1dc1f1f357",
                                   "stationIPAddressIntern": "172.0.0.0",
                                   "stationIPAddressExtern": "172.0.0.0",
                                   "timestamp": "2010-10-12T08:50:00Z",

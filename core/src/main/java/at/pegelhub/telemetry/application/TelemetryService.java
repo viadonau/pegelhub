@@ -13,10 +13,10 @@ public interface TelemetryService {
     /**
      * Saves a telemetry.
      *
-     * @param telemetry to save.
+     * @param command client-supplied telemetry values to save.
      * @return the saved telemetry.
      */
-    Telemetry saveTelemetry(Telemetry telemetry);
+    Telemetry saveTelemetry(WriteTelemetryCommand command);
 
     /**
      * Queries a telemetry.
@@ -34,4 +34,3 @@ public interface TelemetryService {
      */
     Telemetry getLastData(UUID uuid);
 }
-

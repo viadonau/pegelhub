@@ -14,6 +14,9 @@ Loose project memory for work that should not interrupt the current slice. Keep 
 - API response shape cleanup
   Standardize response conventions, especially measurement reads, so the API stops exposing domain-ish wrappers accidentally.
 
+- Request DTO Bean Validation
+  Replace constructor-only checks and hand-authored OpenAPI requiredness with Jakarta Bean Validation (`@NotNull`, `@NotBlank`, `@Size`, and nested `@Valid`) at controller boundaries, then let Springdoc derive required and nullable request-schema constraints from the enforced runtime contract.
+
 - Connector configuration model
   Merge duplicated/legacy config concepts and align connector runtime config with the new Core domain and auth model.
 
