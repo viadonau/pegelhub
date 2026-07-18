@@ -106,6 +106,11 @@ validate_environment() {
   [ -n "$(env_value PEGELHUB_API_HOSTNAME)" ] || fail "PEGELHUB_API_HOSTNAME is missing."
   [ -n "$(env_value PEGELHUB_KEYCLOAK_HOSTNAME)" ] || fail "PEGELHUB_KEYCLOAK_HOSTNAME is missing."
 
+  case "$(env_value FLYWAY_BASELINE_ON_MIGRATE)" in
+    ""|true|false) ;;
+    *) fail "FLYWAY_BASELINE_ON_MIGRATE must be true or false." ;;
+  esac
+
   ftp_config_dir=$(env_value FTP_CONFIG_DIR)
   [ -n "$ftp_config_dir" ] || ftp_config_dir="./ftp-config"
   ftp_config_dir=$(resolve_path "$ftp_config_dir")

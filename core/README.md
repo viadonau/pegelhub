@@ -62,6 +62,8 @@ The token in `.env` is the source of truth for local first-start setup. If your 
 
 InfluxDB setup, environment variables, and migration notes from the old generated-token flow are documented in `docs/influxdb.md`.
 
+Core owns its relational metadata schema with Flyway migrations in `src/main/resources/db/migration/`. Hibernate validates the schema on startup and no longer creates or updates tables. Keep `FLYWAY_BASELINE_ON_MIGRATE=false` for fresh databases and normal operation. Follow the [Flyway rollout procedure](docs/flyway.md) before the one-time baseline of an existing Hibernate-created schema.
+
 Useful local stack commands from the repository root:
 
 ```bash

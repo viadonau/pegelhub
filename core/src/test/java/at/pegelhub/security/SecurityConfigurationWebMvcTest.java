@@ -260,8 +260,17 @@ class SecurityConfigurationWebMvcTest {
                 .issuedAt(Instant.now())
                 .expiresAt(Instant.now().plusSeconds(600))
                 .claim("azp", authorizedParty)
+                .claim("pegelhub_actor_type", actorType(roles).name())
                 .claim("resource_access", Map.of("pegelhub-core-api", Map.of("roles", roles)))
                 .build();
+    }
+
+    private static PegelHubActorType actorType(List<String> roles) {
+        if (roles.contains(PegelHubAuthority.MEASUREMENT_READ.value())
+                || roles.contains(PegelHubAuthority.MEASUREMENT_WRITE.value())) {
+            return PegelHubActorType.CLIENT;
+        }
+        return PegelHubActorType.USER;
     }
 
     private static JwtValidationException validationException(String description) {
