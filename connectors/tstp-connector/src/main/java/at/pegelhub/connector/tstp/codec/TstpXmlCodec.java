@@ -1,9 +1,7 @@
-package at.pegelhub.connector.tstp.service.impl;
+package at.pegelhub.connector.tstp.codec;
 
-import at.pegelhub.connector.tstp.service.TstpBinaryService;
-import at.pegelhub.connector.tstp.service.TstpXmlService;
-import at.pegelhub.connector.tstp.service.model.XmlTsData;
 import at.pegelhub.connector.tstp.service.model.XmlQueryResponse;
+import at.pegelhub.connector.tstp.service.model.XmlTsData;
 import at.pegelhub.connector.tstp.service.model.XmlTsDefinition;
 import at.pegelhub.connector.tstp.service.model.XmlTsResponse;
 import at.pegelhub.lib.model.Measurement;
@@ -17,36 +15,35 @@ import jakarta.xml.bind.Marshaller;
 import jakarta.xml.bind.Unmarshaller;
 import java.io.StringReader;
 import java.io.StringWriter;
-import java.util.*;
+import java.util.Base64;
+import java.util.List;
 
-public class TstpXmlServiceImpl implements TstpXmlService {
-    private static final Logger LOG = LoggerFactory.getLogger(TstpXmlServiceImpl.class);
-    private final TstpBinaryService binaryService;
+public final class TstpXmlCodec {
+    private static final Logger LOG = LoggerFactory.getLogger(TstpXmlCodec.class);
 
-    public TstpXmlServiceImpl(TstpBinaryService binaryService) {
-        this.binaryService = binaryService;
+    private final TstpBinaryCodec binaryCodec;
+
+    public TstpXmlCodec(TstpBinaryCodec binaryCodec) {
+        this.binaryCodec = binaryCodec;
     }
 
-    @Override
-    public List<Measurement> parseXmlGetResponseToMeasurements(String responseBody) {
+    public List<Measurement> parseMeasurements(String responseBody) {
         XmlTsData responseObject = unmarshalXmlTsData(responseBody);
         LOG.debug("unmarshalled get response");
 
         return parseXmlTsDataToMeasurementList(responseObject);
     }
-    @Override
-    public XmlQueryResponse parseXmlCatalog(String xmlCatalog) {
+
+    public XmlQueryResponse parseCatalog(String xmlCatalog) {
         return unmarshalXmlCatalog(xmlCatalog);
     }
 
-    @Override
-    public XmlTsResponse parseXmlPutResponse(String xml) {
-        return unmarshalXMlTsResponse(xml);
+    public XmlTsResponse parseWriteResponse(String xml) {
+        return unmarshalXmlTsResponse(xml);
     }
 
-    @Override
-    public String parseXmlPutRequest(List<Measurement> measurements) {
-        byte[] binaryBlock = binaryService.encode(measurements);
+    public String writeRequest(List<Measurement> measurements) {
+        byte[] binaryBlock = binaryCodec.encode(measurements);
         String binaryEncoded = insertNewlines(Base64.getEncoder().encodeToString(binaryBlock));
 
         XmlTsDefinition xmlTsDef = new XmlTsDefinition(
@@ -54,10 +51,11 @@ public class TstpXmlServiceImpl implements TstpXmlService {
                 "Nein",
                 "K",
                 "cm",
-                String.valueOf(measurements.size()*12),
+                String.valueOf(measurements.size() * 12),
                 String.valueOf(measurements.size())
         );
         XmlTsData xmlTsData = new XmlTsData("1", xmlTsDef, binaryEncoded);
+
         return marshallXmlTsData(xmlTsData);
     }
 
@@ -75,11 +73,11 @@ public class TstpXmlServiceImpl implements TstpXmlService {
             marshaller.marshal(tsData, sw);
             return sw.toString();
         } catch (JAXBException e) {
-            throw new RuntimeException("There was an error marshalling the XmlTsData");
+            throw new IllegalArgumentException("Could not encode TSTP measurement XML", e);
         }
     }
 
-    private XmlTsResponse unmarshalXMlTsResponse(String xml) {
+    private XmlTsResponse unmarshalXmlTsResponse(String xml) {
         try {
             JAXBContext jaxbContext = JAXBContext.newInstance(XmlTsResponse.class);
             Unmarshaller unmarshaller = jaxbContext.createUnmarshaller();
@@ -87,10 +85,9 @@ public class TstpXmlServiceImpl implements TstpXmlService {
 
             return (XmlTsResponse) unmarshaller.unmarshal(reader);
         } catch (JAXBException e) {
-            throw new RuntimeException("There was an error unmarshalling the XmlTsResponse");
+            throw new IllegalArgumentException("Could not decode TSTP write response", e);
         }
     }
-
 
     private XmlQueryResponse unmarshalXmlCatalog(String xmlCatalog) {
         try {
@@ -100,7 +97,7 @@ public class TstpXmlServiceImpl implements TstpXmlService {
 
             return (XmlQueryResponse) unmarshaller.unmarshal(reader);
         } catch (JAXBException e) {
-            throw new RuntimeException("There was an error unmarshalling the XML Catalog");
+            throw new IllegalArgumentException("Could not decode TSTP catalog XML", e);
         }
     }
 
@@ -108,10 +105,8 @@ public class TstpXmlServiceImpl implements TstpXmlService {
         String rawMeasurements = data.getData().replace("\n", "");
         byte[] decoded = Base64.getDecoder().decode(rawMeasurements);
 
-        return binaryService.decode(decoded);
+        return binaryCodec.decode(decoded);
     }
-
-
 
     private XmlTsData unmarshalXmlTsData(String xml) {
         try {
@@ -121,17 +116,19 @@ public class TstpXmlServiceImpl implements TstpXmlService {
 
             return (XmlTsData) unmarshaller.unmarshal(reader);
         } catch (JAXBException e) {
-            throw new RuntimeException("There was an error unmarshalling the XML");
+            throw new IllegalArgumentException("Could not decode TSTP measurement XML", e);
         }
     }
 
     private String insertNewlines(String inputString) {
         StringBuilder sb = new StringBuilder(inputString);
         int i = 60;
+
         while (i < sb.length()) {
             sb.insert(i, "\n");
             i += 60 + 1; // +1 to account for new \n
         }
+
         return sb.toString();
     }
 }
