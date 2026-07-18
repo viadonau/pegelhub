@@ -24,8 +24,8 @@ class TstpConnectorModuleTest {
     @Test
     void loadsSortedMixedDirectionMappings() throws Exception {
         writeConnectorYaml(8030);
-        writeMapping("20-outbound.yaml", SECOND_SERIES, 78, "core-to-external", true);
-        writeMapping("10-inbound.yaml", FIRST_SERIES, 77, "external-to-core", false);
+        writeMapping("20-outbound.yaml", SECOND_SERIES, 78, "core-to-external");
+        writeMapping("10-inbound.yaml", FIRST_SERIES, 77, "external-to-core");
 
         TstpConnectorSettings settings = module().getConnectorSettings(bootstrap());
 
@@ -36,7 +36,6 @@ class TstpConnectorModuleTest {
         assertEquals("10-inbound.yaml", settings.mappings().get(0).fileName());
         assertEquals(MappingDirection.EXTERNAL_TO_CORE, settings.mappings().get(0).value().direction());
         assertEquals("20-outbound.yaml", settings.mappings().get(1).fileName());
-        assertTrue(settings.mappings().get(1).value().verifyRoundTrip());
     }
 
     @Test
@@ -50,8 +49,8 @@ class TstpConnectorModuleTest {
     @Test
     void rejectsDuplicateOutboundTarget() throws Exception {
         writeConnectorYaml(8030);
-        writeMapping("one.yaml", FIRST_SERIES, 77, "core-to-external", false);
-        writeMapping("two.yaml", SECOND_SERIES, 77, "core-to-external", false);
+        writeMapping("one.yaml", FIRST_SERIES, 77, "core-to-external");
+        writeMapping("two.yaml", SECOND_SERIES, 77, "core-to-external");
 
         IllegalArgumentException error = assertThrows(
                 IllegalArgumentException.class,
@@ -62,15 +61,19 @@ class TstpConnectorModuleTest {
     }
 
     @Test
-    void rejectsRoundTripVerificationForInboundMapping() throws Exception {
+    void rejectsFeedbackCyclesAcrossMultipleMappings() throws Exception {
         writeConnectorYaml(8030);
-        writeMapping("inbound.yaml", FIRST_SERIES, 77, "external-to-core", true);
+        writeMapping("01-a-to-station.yaml", FIRST_SERIES, 77, "core-to-external");
+        writeMapping("02-station-to-b.yaml", SECOND_SERIES, 77, "external-to-core");
+        writeMapping("03-b-to-station.yaml", SECOND_SERIES, 78, "core-to-external");
+        writeMapping("04-station-to-a.yaml", FIRST_SERIES, 78, "external-to-core");
 
         IllegalArgumentException error = assertThrows(
                 IllegalArgumentException.class,
                 () -> module().getConnectorSettings(bootstrap()));
 
-        assertTrue(error.getMessage().contains("verifyRoundTrip"));
+        assertTrue(error.getMessage().contains("04-station-to-a.yaml"));
+        assertTrue(error.getMessage().contains("feedback cycle"));
     }
 
     @Test
@@ -111,14 +114,12 @@ class TstpConnectorModuleTest {
             String fileName,
             UUID timeSeriesId,
             int stationId,
-            String direction,
-            boolean verifyRoundTrip) throws Exception {
+            String direction) throws Exception {
         Files.createDirectories(configDirectory.resolve("mappings"));
         Files.writeString(configDirectory.resolve("mappings").resolve(fileName), """
                 timeSeriesId: "%s"
                 stationId: %d
                 direction: "%s"
-                verifyRoundTrip: %s
-                """.formatted(timeSeriesId, stationId, direction, verifyRoundTrip));
+                """.formatted(timeSeriesId, stationId, direction));
     }
 }

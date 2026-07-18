@@ -9,8 +9,7 @@ import java.util.UUID;
 record TstpMapping(
         UUID timeSeriesId,
         Integer stationId,
-        MappingDirection direction,
-        boolean verifyRoundTrip) implements DirectedMapping {
+        MappingDirection direction) implements DirectedMapping {
     TstpMapping {
         Objects.requireNonNull(timeSeriesId, "timeSeriesId");
         Objects.requireNonNull(stationId, "stationId");

@@ -70,7 +70,7 @@ final class Verifier {
         } else if (puts.stream().noneMatch(request -> hasExpectedTstpPutMeasurements(state, request))) {
             failures.add("TSTP writer PUT did not contain the expected sorted measurements");
         }
-        requireCoreQuery(state.localCore, SuiteConstants.TSTP_WRITER_TS, "last=60s", failures);
+        requireCoreQuery(state.localCore, SuiteConstants.TSTP_WRITER_TS, "last=61s", failures);
     }
 
     private static void verifyIec(HarnessState state, List<String> failures) {
@@ -102,8 +102,8 @@ final class Verifier {
                 SuiteConstants.ICC_LOCAL_TARGET_TS,
                 state.iccExternalSourceMeasurement.observedAt(),
                 state.iccExternalSourceMeasurement.value()), failures);
-        requireCoreQuery(state.localCore, SuiteConstants.ICC_LOCAL_SOURCE_TS, "last=1m", failures);
-        requireCoreQuery(state.externalCore, SuiteConstants.ICC_EXTERNAL_SOURCE_TS, "last=1m", failures);
+        requireCoreQuery(state.localCore, SuiteConstants.ICC_LOCAL_SOURCE_TS, "last=60s", failures);
+        requireCoreQuery(state.externalCore, SuiteConstants.ICC_EXTERNAL_SOURCE_TS, "last=60s", failures);
     }
 
     private static boolean hasExpectedTstpPutMeasurements(HarnessState state, TstpRequest request) {

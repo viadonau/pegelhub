@@ -11,7 +11,10 @@ import at.pegelhub.lib.runtime.LoadedMapping;
 import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
+import java.time.Clock;
 import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -28,23 +31,22 @@ class TstpSynchronizerTest {
     private static final Instant OBSERVED_AT = Instant.parse("2026-06-07T10:15:30Z");
 
     @Test
-    void processesMixedDirectionsSequentiallyAndVerifiesOutboundRoundTrip() {
+    void processesMixedDirectionsSequentially() {
         FakeCoreClient core = new FakeCoreClient(List.of(
                 new Measurement(OUTBOUND_SERIES, OBSERVED_AT, 42.0)));
         FakeTstpClient tstp = new FakeTstpClient();
         tstp.readMeasurements = List.of(new Measurement(null, OBSERVED_AT, 42.0));
 
         synchronizer(core, tstp, List.of(
-                mapping("01-in.yaml", INBOUND_SERIES, 11, MappingDirection.EXTERNAL_TO_CORE, false),
-                mapping("02-out.yaml", OUTBOUND_SERIES, 22, MappingDirection.CORE_TO_EXTERNAL, true))).run();
+                mapping("01-in.yaml", INBOUND_SERIES, 11, MappingDirection.EXTERNAL_TO_CORE),
+                mapping("02-out.yaml", OUTBOUND_SERIES, 22, MappingDirection.CORE_TO_EXTERNAL))).run();
 
         assertEquals(List.of(11, 22), tstp.catalogRequests);
         assertEquals(1, core.sent.size());
         assertEquals(INBOUND_SERIES, core.sent.getFirst().getTimeSeriesId());
         assertEquals(1, tstp.written.size());
         assertEquals(OUTBOUND_SERIES, tstp.written.getFirst().getTimeSeriesId());
-        assertEquals(3, tstp.operations.size());
-        assertEquals(List.of("read:zrid-11", "write:zrid-22", "read:zrid-22"), tstp.operations);
+        assertEquals(List.of("read:zrid-11", "write:zrid-22"), tstp.operations);
     }
 
     @Test
@@ -58,14 +60,40 @@ class TstpSynchronizerTest {
                 core,
                 tstp,
                 List.of(
-                        mapping("broken.yaml", INBOUND_SERIES, 11, MappingDirection.EXTERNAL_TO_CORE, false),
-                        mapping("working.yaml", OUTBOUND_SERIES, 22, MappingDirection.EXTERNAL_TO_CORE, false)))
+                        mapping("broken.yaml", INBOUND_SERIES, 11, MappingDirection.EXTERNAL_TO_CORE),
+                        mapping("working.yaml", OUTBOUND_SERIES, 22, MappingDirection.EXTERNAL_TO_CORE)))
                 .run());
 
         assertTrue(error.getMessage().contains("1 of 2"));
         assertEquals(1, error.getSuppressed().length);
         assertEquals(1, core.sent.size());
         assertEquals(OUTBOUND_SERIES, core.sent.getFirst().getTimeSeriesId());
+    }
+
+    @Test
+    void coversElapsedTimeBetweenFixedDelayCycles() {
+        Instant startedAt = Instant.parse("2026-06-07T10:00:00Z");
+        MutableClock clock = new MutableClock(startedAt);
+        FakeCoreClient core = new FakeCoreClient(List.of());
+        FakeTstpClient tstp = new FakeTstpClient();
+        TstpSynchronizer synchronizer = synchronizer(
+                core,
+                tstp,
+                List.of(
+                        mapping("01-in.yaml", INBOUND_SERIES, 11, MappingDirection.EXTERNAL_TO_CORE),
+                        mapping("02-out.yaml", OUTBOUND_SERIES, 22, MappingDirection.CORE_TO_EXTERNAL)),
+                Duration.ofMinutes(10),
+                clock);
+
+        synchronizer.run();
+        clock.advance(Duration.ofMinutes(10).plusSeconds(20));
+        synchronizer.run();
+
+        assertEquals(
+                List.of(Duration.ofMinutes(10).plusSeconds(1), Duration.ofMinutes(10).plusSeconds(21)),
+                core.lookbacks);
+        assertEquals(new ReadWindow(startedAt.minus(Duration.ofMinutes(10)), startedAt), tstp.readWindows.get(0));
+        assertEquals(new ReadWindow(startedAt, clock.instant()), tstp.readWindows.get(1));
     }
 
     private static TstpSynchronizer synchronizer(
@@ -77,22 +105,38 @@ class TstpSynchronizerTest {
                 tstp,
                 new TstpCatalogResolver(tstp),
                 mappings,
-                Duration.ofHours(24));
+                Duration.ofHours(24),
+                Clock.fixed(OBSERVED_AT.plusSeconds(1), ZoneOffset.UTC));
+    }
+
+    private static TstpSynchronizer synchronizer(
+            FakeCoreClient core,
+            FakeTstpClient tstp,
+            List<LoadedMapping<TstpMapping>> mappings,
+            Duration initialLookback,
+            Clock clock) {
+        return new TstpSynchronizer(
+                core,
+                tstp,
+                new TstpCatalogResolver(tstp),
+                mappings,
+                initialLookback,
+                clock);
     }
 
     private static LoadedMapping<TstpMapping> mapping(
             String fileName,
             UUID timeSeriesId,
             int stationId,
-            MappingDirection direction,
-            boolean verifyRoundTrip) {
+            MappingDirection direction) {
         return new LoadedMapping<>(
                 fileName,
-                new TstpMapping(timeSeriesId, stationId, direction, verifyRoundTrip));
+                new TstpMapping(timeSeriesId, stationId, direction));
     }
 
     private static final class FakeCoreClient implements PegelHubClient {
         private final Collection<Measurement> outbound;
+        private final List<Duration> lookbacks = new ArrayList<>();
         private List<Measurement> sent = List.of();
 
         private FakeCoreClient(Collection<Measurement> outbound) {
@@ -101,6 +145,7 @@ class TstpSynchronizerTest {
 
         @Override
         public Collection<Measurement> getMeasurementsOfTimeSeries(UUID timeSeriesId, Duration lookback) {
+            lookbacks.add(lookback);
             return outbound;
         }
 
@@ -123,12 +168,14 @@ class TstpSynchronizerTest {
         private final List<Integer> catalogRequests = new ArrayList<>();
         private final List<Integer> failingStations = new ArrayList<>();
         private final List<String> operations = new ArrayList<>();
+        private final List<ReadWindow> readWindows = new ArrayList<>();
         private List<Measurement> readMeasurements = List.of();
         private List<Measurement> written = List.of();
 
         @Override
         public List<Measurement> readMeasurements(String zrid, Instant readFrom, Instant readUntil) {
             operations.add("read:" + zrid);
+            readWindows.add(new ReadWindow(readFrom, readUntil));
             return readMeasurements;
         }
 
@@ -153,6 +200,36 @@ class TstpSynchronizerTest {
 
         @Override
         public void close() {
+        }
+    }
+
+    private record ReadWindow(Instant from, Instant until) {
+    }
+
+    private static final class MutableClock extends Clock {
+        private Instant now;
+
+        private MutableClock(Instant now) {
+            this.now = now;
+        }
+
+        void advance(Duration duration) {
+            now = now.plus(duration);
+        }
+
+        @Override
+        public ZoneId getZone() {
+            return ZoneOffset.UTC;
+        }
+
+        @Override
+        public Clock withZone(ZoneId zone) {
+            return Clock.fixed(now, zone);
+        }
+
+        @Override
+        public Instant instant() {
+            return now;
         }
     }
 }

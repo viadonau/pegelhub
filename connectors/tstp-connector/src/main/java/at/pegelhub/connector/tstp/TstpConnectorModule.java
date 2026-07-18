@@ -20,11 +20,13 @@ import at.pegelhub.lib.runtime.ConnectorRuntimeDefinition;
 import at.pegelhub.lib.runtime.LoadedMapping;
 
 import java.io.IOException;
-import java.net.http.HttpClient;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.UUID;
 
 public final class TstpConnectorModule implements ConnectorModule {
     @Override
@@ -37,10 +39,9 @@ public final class TstpConnectorModule implements ConnectorModule {
         TstpConnectorSettings settings = getConnectorSettings(bootstrap);
         try (ConnectorRuntimeAssembly runtime = ConnectorRuntimeAssembly.begin(name())) {
             PegelHubClient coreClient = runtime.own(bootstrap.openCoreClient(settings.coreConnection()));
-            TstpClient tstpClient = runtime.own(new HttpTstpClient(
+            TstpClient tstpClient = runtime.own(HttpTstpClient.open(
                     settings.address(),
                     settings.port(),
-                    HttpClient.newHttpClient(),
                     new TstpXmlCodec(new TstpBinaryCodec())));
             TstpSynchronizer synchronizer = new TstpSynchronizer(
                     coreClient,
@@ -76,10 +77,9 @@ public final class TstpConnectorModule implements ConnectorModule {
 
     private static void validateMappings(List<LoadedMapping<TstpMapping>> mappings) {
         Set<Integer> outboundTargets = new HashSet<>();
-        Set<java.util.UUID> inboundTargets = new HashSet<>();
+        Set<UUID> inboundTargets = new HashSet<>();
         Set<MappingKey> seen = new HashSet<>();
-        Set<MappingPair> inboundPairs = new HashSet<>();
-        Set<MappingPair> outboundPairs = new HashSet<>();
+        Map<MappingNode, Set<MappingNode>> graph = new HashMap<>();
 
         for (LoadedMapping<TstpMapping> loaded : mappings) {
             TstpMapping mapping = loaded.value();
@@ -87,28 +87,42 @@ public final class TstpConnectorModule implements ConnectorModule {
             if (!seen.add(key)) {
                 throw invalid(loaded, "duplicates another mapping");
             }
-            MappingPair pair = new MappingPair(mapping.timeSeriesId(), mapping.stationId());
             if (mapping.direction() == MappingDirection.CORE_TO_EXTERNAL) {
                 if (!outboundTargets.add(mapping.stationId())) {
                     throw invalid(loaded, "duplicates outbound TSTP target station " + mapping.stationId());
                 }
-                if (inboundPairs.contains(pair)) {
-                    throw invalid(loaded, "creates a same-series feedback loop; use verifyRoundTrip instead");
-                }
-                outboundPairs.add(pair);
             } else {
-                if (mapping.verifyRoundTrip()) {
-                    throw invalid(loaded, "verifyRoundTrip is only valid for core-to-external mappings");
-                }
                 if (!inboundTargets.add(mapping.timeSeriesId())) {
                     throw invalid(loaded, "duplicates inbound Core target " + mapping.timeSeriesId());
                 }
-                if (outboundPairs.contains(pair)) {
-                    throw invalid(loaded, "creates a same-series feedback loop; use verifyRoundTrip instead");
-                }
-                inboundPairs.add(pair);
             }
+
+            MappingNode source = mapping.direction() == MappingDirection.CORE_TO_EXTERNAL
+                    ? new CoreNode(mapping.timeSeriesId())
+                    : new TstpNode(mapping.stationId());
+            MappingNode target = mapping.direction() == MappingDirection.CORE_TO_EXTERNAL
+                    ? new TstpNode(mapping.stationId())
+                    : new CoreNode(mapping.timeSeriesId());
+            if (hasPath(graph, target, source, new HashSet<>())) {
+                throw invalid(loaded, "creates a feedback cycle across Core series and TSTP stations");
+            }
+            graph.computeIfAbsent(source, ignored -> new HashSet<>()).add(target);
         }
+    }
+
+    private static boolean hasPath(
+            Map<MappingNode, Set<MappingNode>> graph,
+            MappingNode current,
+            MappingNode target,
+            Set<MappingNode> visited) {
+        if (current.equals(target)) {
+            return true;
+        }
+        if (!visited.add(current)) {
+            return false;
+        }
+        return graph.getOrDefault(current, Set.of()).stream()
+                .anyMatch(next -> hasPath(graph, next, target, visited));
     }
 
     private static IllegalArgumentException invalid(LoadedMapping<TstpMapping> mapping, String message) {
@@ -136,9 +150,15 @@ public final class TstpConnectorModule implements ConnectorModule {
         }
     }
 
-    private record MappingKey(java.util.UUID timeSeriesId, int stationId, MappingDirection direction) {
+    private record MappingKey(UUID timeSeriesId, int stationId, MappingDirection direction) {
     }
 
-    private record MappingPair(java.util.UUID timeSeriesId, int stationId) {
+    private sealed interface MappingNode permits CoreNode, TstpNode {
+    }
+
+    private record CoreNode(UUID timeSeriesId) implements MappingNode {
+    }
+
+    private record TstpNode(int stationId) implements MappingNode {
     }
 }

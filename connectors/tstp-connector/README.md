@@ -43,19 +43,12 @@ direction: "external-to-core"
 
 Use `direction: "external-to-core"` to read from TSTP into Core. Use `direction: "core-to-external"` to write Core measurements to TSTP.
 
-An outbound mapping may request an immediate read-back check:
-
-```yaml
-timeSeriesId: "22222222-2222-2222-2222-222222222222"
-stationId: 456
-direction: "core-to-external"
-verifyRoundTrip: true
-```
-
-`verifyRoundTrip` defaults to `false` and is rejected for inbound mappings. The connector continues processing
-other mappings after an individual failure, logs a cycle summary, and reports the collected failures after the
-cycle. Duplicate outbound station targets, duplicate inbound Core targets, exact duplicates, and same-pair
-opposite-direction feedback loops are rejected during startup.
+The connector continues processing other mappings after an individual failure, logs a cycle summary, and reports
+the collected failures after the cycle. Successful reads advance a per-mapping synchronization boundary. Core
+lookbacks overlap that boundary by one second and are then filtered to the new logical window, so time spent
+processing a cycle does not leave gaps or duplicate the boundary value before the next fixed-delay run. Duplicate
+outbound station targets, duplicate inbound Core targets, exact duplicates, and directed feedback cycles are rejected
+during startup.
 
 ## Docker
 

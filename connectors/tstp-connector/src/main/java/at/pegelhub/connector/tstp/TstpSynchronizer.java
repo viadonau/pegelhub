@@ -9,14 +9,15 @@ import at.pegelhub.lib.runtime.LoadedMapping;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.math.BigDecimal;
-import java.math.RoundingMode;
+import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 final class TstpSynchronizer implements Runnable {
     private static final Logger LOG = LoggerFactory.getLogger(TstpSynchronizer.class);
@@ -25,19 +26,32 @@ final class TstpSynchronizer implements Runnable {
     private final TstpClient tstpClient;
     private final TstpCatalogResolver catalogResolver;
     private final List<LoadedMapping<TstpMapping>> mappings;
-    private final Duration lookback;
+    private final Duration initialLookback;
+    private final Clock clock;
+    private final Map<TstpMapping, Instant> synchronizedThrough = new HashMap<>();
 
     TstpSynchronizer(
             PegelHubClient coreClient,
             TstpClient tstpClient,
             TstpCatalogResolver catalogResolver,
             List<LoadedMapping<TstpMapping>> mappings,
-            Duration lookback) {
+            Duration initialLookback) {
+        this(coreClient, tstpClient, catalogResolver, mappings, initialLookback, Clock.systemUTC());
+    }
+
+    TstpSynchronizer(
+            PegelHubClient coreClient,
+            TstpClient tstpClient,
+            TstpCatalogResolver catalogResolver,
+            List<LoadedMapping<TstpMapping>> mappings,
+            Duration initialLookback,
+            Clock clock) {
         this.coreClient = coreClient;
         this.tstpClient = tstpClient;
         this.catalogResolver = catalogResolver;
         this.mappings = List.copyOf(mappings);
-        this.lookback = lookback;
+        this.initialLookback = initialLookback;
+        this.clock = clock;
     }
 
     @Override
@@ -47,8 +61,10 @@ final class TstpSynchronizer implements Runnable {
         List<MappingFailure> failures = new ArrayList<>();
 
         for (LoadedMapping<TstpMapping> loaded : mappings) {
+            Instant until = clock.instant().truncatedTo(ChronoUnit.SECONDS);
             try {
-                boolean changed = synchronize(loaded.value());
+                boolean changed = synchronize(loaded.value(), until);
+                synchronizedThrough.put(loaded.value(), until);
                 if (changed) {
                     succeeded++;
                 } else {
@@ -75,11 +91,15 @@ final class TstpSynchronizer implements Runnable {
         }
     }
 
-    private boolean synchronize(TstpMapping mapping) {
+    private boolean synchronize(TstpMapping mapping, Instant until) {
         String zrid = catalogResolver.resolveZrid(mapping.stationId());
+        Instant previousBoundary = synchronizedThrough.get(mapping);
+        Instant requestedFrom = previousBoundary == null ? until.minus(initialLookback) : previousBoundary;
+        Instant from = requestedFrom.isBefore(until) ? requestedFrom : until.minusSeconds(1);
         if (mapping.direction() == MappingDirection.EXTERNAL_TO_CORE) {
-            Instant until = Instant.now();
-            List<Measurement> measurements = tstpClient.readMeasurements(zrid, until.minus(lookback), until);
+            List<Measurement> measurements = tstpClient.readMeasurements(zrid, from, until).stream()
+                    .filter(measurement -> isInsideWindow(measurement, from, until, previousBoundary != null))
+                    .toList();
             if (measurements.isEmpty()) {
                 return false;
             }
@@ -89,52 +109,33 @@ final class TstpSynchronizer implements Runnable {
             return true;
         }
 
+        Duration coreLookback = Duration.between(from, clock.instant()).plusSeconds(1);
         List<Measurement> measurements = coreClient
-                .getMeasurementsOfTimeSeries(mapping.timeSeriesId(), lookback)
+                .getMeasurementsOfTimeSeries(mapping.timeSeriesId(), coreLookback)
                 .stream()
+                .filter(measurement -> isInsideWindow(measurement, from, until, previousBoundary != null))
                 .sorted(Comparator.comparing(Measurement::getObservedAt))
                 .toList();
         if (measurements.isEmpty()) {
             return false;
         }
         tstpClient.writeMeasurements(zrid, measurements);
-        if (mapping.verifyRoundTrip()) {
-            verifyRoundTrip(zrid, measurements);
-        }
         return true;
     }
 
-    private void verifyRoundTrip(String zrid, List<Measurement> expected) {
-        Instant from = expected.getFirst().getObservedAt().truncatedTo(ChronoUnit.SECONDS);
-        Instant until = expected.getLast().getObservedAt().truncatedTo(ChronoUnit.SECONDS).plusSeconds(1);
-
-        // Real-system integration will determine whether this needs bounded polling for eventual visibility.
-        List<Measurement> actual = tstpClient.readMeasurements(zrid, from, until);
-        for (Measurement measurement : expected) {
-            NormalizedMeasurement normalized = normalize(measurement);
-            boolean present = actual.stream().map(this::normalize).anyMatch(normalized::equals);
-            if (!present) {
-                throw new IllegalStateException(
-                        "TSTP round-trip verification did not return measurement " + normalized);
-            }
-        }
-        LOG.info("TSTP round-trip verification passed for ZRID {} with {} measurement(s)", zrid, expected.size());
+    private boolean isInsideWindow(
+            Measurement measurement,
+            Instant from,
+            Instant until,
+            boolean continuing) {
+        boolean afterStart = continuing
+                ? measurement.getObservedAt().isAfter(from)
+                : !measurement.getObservedAt().isBefore(from);
+        return afterStart && !measurement.getObservedAt().isAfter(until);
     }
 
     private Measurement withTimeSeriesId(Measurement measurement, TstpMapping mapping) {
         return new Measurement(mapping.timeSeriesId(), measurement.getObservedAt(), measurement.getValue());
-    }
-
-    private NormalizedMeasurement normalize(Measurement measurement) {
-        double value = BigDecimal.valueOf(measurement.getValue().floatValue())
-                .setScale(2, RoundingMode.HALF_UP)
-                .doubleValue();
-        return new NormalizedMeasurement(
-                measurement.getObservedAt().truncatedTo(ChronoUnit.SECONDS),
-                value);
-    }
-
-    private record NormalizedMeasurement(Instant observedAt, double value) {
     }
 
     private record MappingFailure(String fileName, Exception cause) {
