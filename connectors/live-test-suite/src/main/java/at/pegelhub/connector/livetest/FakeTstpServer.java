@@ -60,7 +60,17 @@ final class FakeTstpServer implements AutoCloseable {
                 "",
                 List.of(),
                 Instant.now()));
-        HttpSupport.respondText(exchange, 200, tsDataXml(List.of(SuiteConstants.TSTP_READER_MEASUREMENT)));
+        try {
+            Instant from = Instant.parse(query.get("Von"));
+            Instant to = Instant.parse(query.get("Bis"));
+            List<MeasurementRecord> measurements = List.of(state.tstpReaderMeasurement).stream()
+                    .filter(measurement -> !measurement.observedAt().isBefore(from))
+                    .filter(measurement -> !measurement.observedAt().isAfter(to))
+                    .toList();
+            HttpSupport.respondText(exchange, 200, tsDataXml(measurements));
+        } catch (RuntimeException e) {
+            HttpSupport.respondText(exchange, 400, "invalid TSTP window");
+        }
     }
 
     private void handlePut(com.sun.net.httpserver.HttpExchange exchange, Map<String, String> query) throws IOException {

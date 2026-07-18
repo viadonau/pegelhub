@@ -17,7 +17,7 @@ final class Verifier {
     static VerificationResult verify(HarnessState state, Set<Scenario> scenarios) {
         List<String> failures = new ArrayList<>();
         if (Duration.between(state.startedAt, Instant.now()).compareTo(Duration.ofSeconds(5)) < 0) {
-            failures.add("waiting for at least two connector poll cycles");
+            failures.add("waiting for the initial connector cycle");
         }
 
         if (scenarios.contains(Scenario.FTP)) {
@@ -60,17 +60,17 @@ final class Verifier {
                 "Get".equalsIgnoreCase(request.command()) && SuiteConstants.TSTP_READER_ZRID.equals(request.zrid()))) {
             failures.add("TSTP reader did not request Get for " + SuiteConstants.TSTP_READER_ZRID);
         }
-        requireMeasurement(state.localCore, SuiteConstants.TSTP_READER_MEASUREMENT, failures);
+        requireMeasurement(state.localCore, state.tstpReaderMeasurement, failures);
         List<TstpRequest> puts = state.tstpRequests.stream()
                 .filter(request -> "PUT".equalsIgnoreCase(request.command()))
                 .filter(request -> SuiteConstants.TSTP_WRITER_ZRID.equals(request.zrid()))
                 .toList();
         if (puts.isEmpty()) {
             failures.add("TSTP writer did not PUT to " + SuiteConstants.TSTP_WRITER_ZRID);
-        } else if (puts.stream().noneMatch(Verifier::hasExpectedTstpPutMeasurements)) {
+        } else if (puts.stream().noneMatch(request -> hasExpectedTstpPutMeasurements(state, request))) {
             failures.add("TSTP writer PUT did not contain the expected sorted measurements");
         }
-        requireCoreQuery(state.localCore, SuiteConstants.TSTP_WRITER_TS, "last=1s", failures);
+        requireCoreQuery(state.localCore, SuiteConstants.TSTP_WRITER_TS, "last=60s", failures);
     }
 
     private static void verifyIec(HarnessState state, List<String> failures) {
@@ -83,7 +83,7 @@ final class Verifier {
         if (state.iecCaptures.stream().noneMatch(capture ->
                 "connector-to-server".equals(capture.direction())
                         && capture.ioa() == SuiteConstants.IEC_CORE_TO_EXTERNAL_IOA
-                        && close(capture.value(), SuiteConstants.IEC_CORE_TO_EXTERNAL_MEASUREMENT.value()))) {
+                        && close(capture.value(), state.iecCoreToExternalMeasurement.value()))) {
             failures.add("IEC connector did not send expected core-to-external ASDU");
         }
         requireCoreQuery(state.localCore, SuiteConstants.IEC_CORE_TO_EXTERNAL_TS, "last=365d", failures);
@@ -96,23 +96,23 @@ final class Verifier {
         requireToken(state, "icc-external", failures);
         requireMeasurement(state.externalCore, new MeasurementRecord(
                 SuiteConstants.ICC_EXTERNAL_TARGET_TS,
-                SuiteConstants.ICC_LOCAL_SOURCE_MEASUREMENT.observedAt(),
-                SuiteConstants.ICC_LOCAL_SOURCE_MEASUREMENT.value()), failures);
+                state.iccLocalSourceMeasurement.observedAt(),
+                state.iccLocalSourceMeasurement.value()), failures);
         requireMeasurement(state.localCore, new MeasurementRecord(
                 SuiteConstants.ICC_LOCAL_TARGET_TS,
-                SuiteConstants.ICC_EXTERNAL_SOURCE_MEASUREMENT.observedAt(),
-                SuiteConstants.ICC_EXTERNAL_SOURCE_MEASUREMENT.value()), failures);
-        requireCoreQuery(state.localCore, SuiteConstants.ICC_LOCAL_SOURCE_TS, "last=1s", failures);
-        requireCoreQuery(state.externalCore, SuiteConstants.ICC_EXTERNAL_SOURCE_TS, "last=1s", failures);
+                state.iccExternalSourceMeasurement.observedAt(),
+                state.iccExternalSourceMeasurement.value()), failures);
+        requireCoreQuery(state.localCore, SuiteConstants.ICC_LOCAL_SOURCE_TS, "last=1m", failures);
+        requireCoreQuery(state.externalCore, SuiteConstants.ICC_EXTERNAL_SOURCE_TS, "last=1m", failures);
     }
 
-    private static boolean hasExpectedTstpPutMeasurements(TstpRequest request) {
+    private static boolean hasExpectedTstpPutMeasurements(HarnessState state, TstpRequest request) {
         List<MeasurementRecord> measurements = request.measurements();
         return measurements.size() == 2
-                && measurements.get(0).observedAt().equals(SuiteConstants.TSTP_WRITER_FIRST.observedAt())
-                && close(measurements.get(0).value(), SuiteConstants.TSTP_WRITER_FIRST.value())
-                && measurements.get(1).observedAt().equals(SuiteConstants.TSTP_WRITER_SECOND.observedAt())
-                && close(measurements.get(1).value(), SuiteConstants.TSTP_WRITER_SECOND.value());
+                && measurements.get(0).observedAt().equals(state.tstpWriterFirst.observedAt())
+                && close(measurements.get(0).value(), state.tstpWriterFirst.value())
+                && measurements.get(1).observedAt().equals(state.tstpWriterSecond.observedAt())
+                && close(measurements.get(1).value(), state.tstpWriterSecond.value());
     }
 
     private static void verifyUnexpectedWrites(HarnessState state, Set<Scenario> scenarios, List<String> failures) {

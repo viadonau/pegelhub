@@ -71,7 +71,8 @@ public class HttpPegelHubClientTest {
             return responseCallback.handleResponse(httpResp);
         });
 
-        phc.getMeasurementsOfTimeSeries(uuid, Duration.ofHours(72));
+        phc.getMeasurementsOfTimeSeries(
+                UUID.fromString("395c0232-d110-40fd-bd7f-2bb4a0f2009d"), Duration.ofHours(72));
 
         assertEquals("http://keycloak.local/token", requestUris.get(0));
         assertEquals("Bearer local-access-token", authorizationHeaders.get(1));
@@ -96,7 +97,8 @@ public class HttpPegelHubClientTest {
             return responseCallback.handleResponse(httpResp);
         });
 
-        phc.getMeasurementsOfTimeSeries(uuid, Duration.ofHours(72));
+        phc.getMeasurementsOfTimeSeries(
+                UUID.fromString("395c0232-d110-40fd-bd7f-2bb4a0f2009d"), Duration.ofHours(72));
 
         assertFalse(requestUris.getFirst().contains("apiKey"));
     }
@@ -151,13 +153,47 @@ public class HttpPegelHubClientTest {
         public void getMeasurementsOfTimeSeries_MapsCurrentCoreMeasurementEnvelope() throws IOException {
             mockSuccessfulResponse(getResource("CoreMeasurementListResponse.json"));
 
-            Collection<Measurement> measurements = phc.getMeasurementsOfTimeSeries(uuid, Duration.ofHours(24));
+            UUID timeSeriesId = UUID.fromString("395c0232-d110-40fd-bd7f-2bb4a0f2009d");
+            Collection<Measurement> measurements =
+                    phc.getMeasurementsOfTimeSeries(timeSeriesId, Duration.ofHours(24));
 
             assertEquals(1, measurements.size());
             Measurement measurement = measurements.iterator().next();
             assertEquals(UUID.fromString("395c0232-d110-40fd-bd7f-2bb4a0f2009d"), measurement.getTimeSeriesId());
             assertEquals(Instant.parse("2026-06-17T12:00:00Z"), measurement.getObservedAt());
             assertEquals(2.73, measurement.getValue());
+        }
+
+        @Test
+        void getMeasurementsRejectsTruncatedLookbacks() throws IOException {
+            mockSuccessfulResponse(getResource("CoreMeasurementListTruncatedResponse.json"));
+
+            RuntimeException error = assertThrows(RuntimeException.class,
+                    () -> phc.getMeasurementsOfTimeSeries(uuid, Duration.ofHours(24)));
+
+            assertInstanceOf(IllegalStateException.class, error.getCause());
+            assertTrue(error.getCause().getMessage().contains("truncated"));
+        }
+
+        @Test
+        void getMeasurementsRejectsMismatchedTimeSeries() throws IOException {
+            mockSuccessfulResponse(getResource("CoreMeasurementListResponse.json"));
+
+            RuntimeException error = assertThrows(RuntimeException.class,
+                    () -> phc.getMeasurementsOfTimeSeries(uuid, Duration.ofHours(24)));
+
+            assertInstanceOf(IllegalStateException.class, error.getCause());
+            assertTrue(error.getCause().getMessage().contains(uuid.toString()));
+        }
+
+        @Test
+        void getLatestMeasurementAcceptsTruncationBecauseItRequestsOnlyOneValue() throws IOException {
+            mockSuccessfulResponse(getResource("CoreMeasurementListTruncatedResponse.json"));
+
+            Optional<Measurement> measurement = phc.getLatestMeasurementOfTimeSeries(uuid);
+
+            assertTrue(measurement.isPresent());
+            assertEquals(uuid, measurement.orElseThrow().getTimeSeriesId());
         }
 
         @Test
@@ -186,6 +222,36 @@ public class HttpPegelHubClientTest {
             assertEquals(
                     "http://localhost:1111/api/v1/time-series/395c0232-d110-40fd-bd7f-2bb4a0f2009d/measurements?last=365d&order=desc&limit=1",
                     requestUris.get(1));
+        }
+
+        @Test
+        void getMeasurementsThrowsWhenCoreRejectsTheRequest() throws IOException {
+            mockTokenSuccessAndCoreResponse(HttpStatus.SC_UNAUTHORIZED, "unauthorized");
+
+            RuntimeException error = assertThrows(RuntimeException.class,
+                    () -> phc.getMeasurementsOfTimeSeries(uuid, Duration.ofHours(72)));
+
+            assertNotNull(error.getCause());
+            assertTrue(error.getCause().getMessage().contains("401"));
+        }
+
+        @Test
+        void getLatestMeasurementThrowsWhenCoreFails() throws IOException {
+            mockTokenSuccessAndCoreResponse(HttpStatus.SC_INTERNAL_SERVER_ERROR, "failure");
+
+            RuntimeException error = assertThrows(RuntimeException.class,
+                    () -> phc.getLatestMeasurementOfTimeSeries(uuid));
+
+            assertNotNull(error.getCause());
+            assertTrue(error.getCause().getMessage().contains("500"));
+        }
+
+        @Test
+        void getLatestMeasurementDistinguishesMissingTimeSeries() throws IOException {
+            mockTokenSuccessAndCoreResponse(HttpStatus.SC_NOT_FOUND, "missing");
+
+            assertThrows(at.pegelhub.lib.exception.NotFoundException.class,
+                    () -> phc.getLatestMeasurementOfTimeSeries(uuid));
         }
 
         @Test
@@ -280,6 +346,23 @@ public class HttpPegelHubClientTest {
             when(httpResp.getEntity()).thenReturn(entity);
             when(httpResp.getCode()).thenReturn(code);
             return responseCallback.handleResponse(httpResp);
+        });
+    }
+
+    private void mockTokenSuccessAndCoreResponse(int coreStatus, String coreBody) throws IOException {
+        when(httpClient.execute(any(), any(HttpClientResponseHandler.class))).thenAnswer(a -> {
+            var request = (org.apache.hc.client5.http.classic.methods.HttpUriRequestBase) a.getRawArguments()[0];
+            var responseCallback = (HttpClientResponseHandler<?>) a.getRawArguments()[1];
+            boolean tokenRequest = request.getUri().toString().contains("keycloak.local");
+            ClassicHttpResponse response = mock(ClassicHttpResponse.class);
+            HttpEntity entity = mock(HttpEntity.class);
+            String body = tokenRequest
+                    ? "{\"access_token\":\"local-access-token\",\"expires_in\":300}"
+                    : coreBody;
+            when(entity.getContent()).thenReturn(new ByteArrayInputStream(body.getBytes()));
+            when(response.getEntity()).thenReturn(entity);
+            when(response.getCode()).thenReturn(tokenRequest ? HttpStatus.SC_OK : coreStatus);
+            return responseCallback.handleResponse(response);
         });
     }
 

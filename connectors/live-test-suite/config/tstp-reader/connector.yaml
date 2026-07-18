@@ -5,7 +5,7 @@ keycloak:
   clientId: "tstp-reader"
   clientSecret: "secret"
 schedule:
-  delay: "1s"
+  delay: "1m"
 mappingsDir: "mappings"
 tstp:
   address: "live-suite"

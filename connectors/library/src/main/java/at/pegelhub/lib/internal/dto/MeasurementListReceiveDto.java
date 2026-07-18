@@ -7,9 +7,14 @@ import java.util.UUID;
 
 public record MeasurementListReceiveDto(
         UUID timeSeriesId,
+        boolean truncated,
         List<MeasurementReceiveDto> measurements) {
 
-    public List<Measurement> toMeasurements() {
+    public List<Measurement> toMeasurements(UUID expectedTimeSeriesId) {
+        if (!expectedTimeSeriesId.equals(timeSeriesId)) {
+            throw new IllegalStateException(
+                    "Core returned measurements for " + timeSeriesId + " instead of " + expectedTimeSeriesId);
+        }
         return measurements == null
                 ? List.of()
                 : measurements.stream()
