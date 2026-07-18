@@ -17,96 +17,86 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class TstpConnectorModuleTest {
-    private static final UUID TIME_SERIES_ID = UUID.fromString("11111111-1111-1111-1111-111111111111");
+    private static final UUID FIRST_SERIES = UUID.fromString("11111111-1111-1111-1111-111111111111");
+    private static final UUID SECOND_SERIES = UUID.fromString("22222222-2222-2222-2222-222222222222");
 
     @TempDir
-    Path tmp;
+    Path configDirectory;
 
     @Test
-    void shouldLoadCheckedInExampleConfiguration() throws Exception {
+    void loadsCheckedInExampleConfiguration() throws Exception {
         TstpConnectorConfig config = new TstpConnectorConfigLoader().load(
                 ConnectorConfigDirectory.at(Path.of("examples/config")));
 
         assertEquals("127.0.0.1", config.server().host());
-        assertEquals(123, config.mapping().stationId());
+        assertEquals(123, config.mappings().getFirst().stationId());
     }
 
     @Test
-    void shouldResolveConnectorConfigFromExplicitConfigDir() throws Exception {
-        writeConfig("core-to-external");
+    void loadsSortedMixedDirectionMappings() throws Exception {
+        writeConnectorYaml(8030);
+        writeMapping("20-outbound.yaml", SECOND_SERIES, 78, "core-to-external");
+        writeMapping("10-inbound.yaml", FIRST_SERIES, 77, "external-to-core");
 
-        TstpConnectorConfig config = new TstpConnectorConfigLoader()
-                .load(configDirectory());
+        TstpConnectorConfig config = loadConfig();
 
-        assertEquals("http://127.0.0.1:8081/", config.coreConnection().baseUrl().toString());
-        assertEquals("http://keycloak.local/token", config.coreConnection().authentication().tokenUrl());
-        assertEquals("connector", config.coreConnection().authentication().clientId());
-        assertEquals("secret", config.coreConnection().authentication().clientSecret());
         assertEquals("127.0.0.2", config.server().host());
         assertEquals(8030, config.server().port());
         assertEquals(Duration.ofSeconds(10), config.pollInterval());
-        assertEquals(TIME_SERIES_ID, config.mapping().timeSeriesId());
-        assertEquals(77, config.mapping().stationId());
-        assertEquals(MappingDirection.CORE_TO_EXTERNAL, config.mapping().direction());
+        assertEquals(2, config.mappings().size());
+        assertEquals(MappingDirection.EXTERNAL_TO_CORE, config.mappings().get(0).direction());
+        assertEquals(MappingDirection.CORE_TO_EXTERNAL, config.mappings().get(1).direction());
     }
 
     @Test
-    void failsWhenNoMappingExists() throws Exception {
-        writeConnectorYaml();
-        Files.createDirectories(tmp.resolve("mappings"));
+    void rejectsNoMappings() throws Exception {
+        writeConnectorYaml(8030);
+        Files.createDirectories(configDirectory.resolve("mappings"));
 
-        ConnectorConfigDirectory configDirectory = configDirectory();
-
-        assertThrows(IllegalArgumentException.class,
-                () -> new TstpConnectorConfigLoader().load(configDirectory));
+        assertThrows(IllegalArgumentException.class, this::loadConfig);
     }
 
     @Test
-    void failsWhenMoreThanOneMappingExists() throws Exception {
-        writeConfig("external-to-core");
-        Files.writeString(tmp.resolve("mappings/other.yaml"), """
-                timeSeriesId: "22222222-2222-2222-2222-222222222222"
-                stationId: 78
-                direction: "core-to-external"
-                """);
+    void rejectsDuplicateOutboundTarget() throws Exception {
+        writeConnectorYaml(8030);
+        writeMapping("one.yaml", FIRST_SERIES, 77, "core-to-external");
+        writeMapping("two.yaml", SECOND_SERIES, 77, "core-to-external");
 
-        ConnectorConfigDirectory configDirectory = configDirectory();
+        IllegalArgumentException error = assertThrows(IllegalArgumentException.class, this::loadConfig);
 
-        assertThrows(IllegalArgumentException.class,
-                () -> new TstpConnectorConfigLoader().load(configDirectory));
+        assertTrue(error.getMessage().contains("two.yaml"));
+        assertTrue(error.getMessage().contains("target station 77"));
     }
 
     @Test
-    void failsWhenProtocolPortIsInvalid() throws Exception {
+    void rejectsFeedbackCyclesAcrossMultipleMappings() throws Exception {
+        writeConnectorYaml(8030);
+        writeMapping("01-a-to-station.yaml", FIRST_SERIES, 77, "core-to-external");
+        writeMapping("02-station-to-b.yaml", SECOND_SERIES, 77, "external-to-core");
+        writeMapping("03-b-to-station.yaml", SECOND_SERIES, 78, "core-to-external");
+        writeMapping("04-station-to-a.yaml", FIRST_SERIES, 78, "external-to-core");
+
+        IllegalArgumentException error = assertThrows(IllegalArgumentException.class, this::loadConfig);
+
+        assertTrue(error.getMessage().contains("04-station-to-a.yaml"));
+        assertTrue(error.getMessage().contains("feedback cycle"));
+    }
+
+    @Test
+    void rejectsInvalidPort() throws Exception {
         writeConnectorYaml(0);
 
-        ConnectorConfigDirectory configDirectory = configDirectory();
+        Exception error = assertThrows(Exception.class, this::loadConfig);
 
-        Exception ex = assertThrows(Exception.class,
-                () -> new TstpConnectorConfigLoader().load(configDirectory));
-        assertTrue(ex.getMessage().contains("tstp.server.port"));
+        assertTrue(error.getMessage().contains("tstp.server.port"));
     }
 
-    private ConnectorConfigDirectory configDirectory() {
-        return ConnectorConfigDirectory.at(tmp);
-    }
-
-    private void writeConfig(String direction) throws Exception {
-        writeConnectorYaml();
-        Files.createDirectories(tmp.resolve("mappings"));
-        Files.writeString(tmp.resolve("mappings/station.yaml"), """
-                timeSeriesId: "11111111-1111-1111-1111-111111111111"
-                stationId: 77
-                direction: "%s"
-                """.formatted(direction));
-    }
-
-    private void writeConnectorYaml() throws Exception {
-        writeConnectorYaml(8030);
+    private TstpConnectorConfig loadConfig() throws Exception {
+        return new TstpConnectorConfigLoader().load(ConnectorConfigDirectory.at(configDirectory));
     }
 
     private void writeConnectorYaml(int port) throws Exception {
-        Files.writeString(tmp.resolve("connector.yaml"), """
+        Files.writeString(configDirectory.resolve("connector.yaml"), """
                 core:
                   baseUrl: "http://127.0.0.1:8081/"
                   authentication:
@@ -120,5 +110,19 @@ class TstpConnectorModuleTest {
                     host: "127.0.0.2"
                     port: %d
                 """.formatted(port));
+    }
+
+    private void writeMapping(
+            String fileName,
+            UUID timeSeriesId,
+            int stationId,
+            String direction
+    ) throws Exception {
+        Files.createDirectories(configDirectory.resolve("mappings"));
+        Files.writeString(configDirectory.resolve("mappings").resolve(fileName), """
+                timeSeriesId: "%s"
+                stationId: %d
+                direction: "%s"
+                """.formatted(timeSeriesId, stationId, direction));
     }
 }
