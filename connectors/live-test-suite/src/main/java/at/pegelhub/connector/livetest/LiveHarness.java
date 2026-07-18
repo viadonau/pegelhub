@@ -22,11 +22,11 @@ final class LiveHarness implements AutoCloseable {
     }
 
     private void seedCoreData() {
-        state.localCore.seed(SuiteConstants.TSTP_WRITER_FIRST);
-        state.localCore.seed(SuiteConstants.TSTP_WRITER_SECOND);
-        state.localCore.seed(SuiteConstants.IEC_CORE_TO_EXTERNAL_MEASUREMENT);
-        state.localCore.seed(SuiteConstants.ICC_LOCAL_SOURCE_MEASUREMENT);
-        state.externalCore.seed(SuiteConstants.ICC_EXTERNAL_SOURCE_MEASUREMENT);
+        state.localCore.seed(state.tstpWriterFirst);
+        state.localCore.seed(state.tstpWriterSecond);
+        state.localCore.seed(state.iecCoreToExternalMeasurement);
+        state.localCore.seed(state.iccLocalSourceMeasurement);
+        state.externalCore.seed(state.iccExternalSourceMeasurement);
     }
 
     private Path fixturesDir() {

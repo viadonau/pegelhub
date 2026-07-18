@@ -60,6 +60,21 @@ compose_base=(-f "$COMPOSE_FILE" --project-name "$project_name")
 
 export LIVE_SCENARIO="$scenario"
 
+cleanup() {
+  status=$?
+  trap - EXIT INT TERM
+  if [[ "$status" -ne 0 && "${KEEP_LIVE_SUITE:-0}" == "1" ]]; then
+    printf 'Leaving failed live suite containers running for inspection.\n' >&2
+  else
+    compose_cmd "${compose_base[@]}" "${profile_args[@]}" down --volumes --remove-orphans >/dev/null || true
+  fi
+  exit "$status"
+}
+
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+
 printf 'Building live connector suite images for scenario: %s\n' "$scenario"
 compose_cmd "${compose_base[@]}" "${profile_args[@]}" build
 
@@ -74,10 +89,6 @@ set -e
 if [[ "$status" -ne 0 ]]; then
   printf '\nLive connector suite failed. Logs follow:\n' >&2
   compose_cmd "${compose_base[@]}" "${profile_args[@]}" logs --no-color >&2 || true
-fi
-
-if [[ "${KEEP_LIVE_SUITE:-0}" != "1" ]]; then
-  compose_cmd "${compose_base[@]}" "${profile_args[@]}" down --volumes --remove-orphans >/dev/null || true
 fi
 
 exit "$status"
