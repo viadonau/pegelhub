@@ -12,6 +12,8 @@ import at.pegelhub.measurement.api.read.output.MeasurementListResponse;
 import at.pegelhub.measurement.api.read.output.MeasurementPointResponse;
 import at.pegelhub.measurement.api.write.WriteMeasurementRequest;
 import at.pegelhub.measurement.api.write.WriteMeasurementsRequest;
+import at.pegelhub.measuringpoint.api.CreateMeasuringPointRequest;
+import at.pegelhub.measuringpoint.api.MeasuringPointResponse;
 import at.pegelhub.security.PegelHubActorType;
 import at.pegelhub.station.api.CreateStationRequest;
 import at.pegelhub.station.api.StationResponse;
@@ -57,7 +59,13 @@ final class FullStackWorkflowIntegrationTest extends FullStackIntegrationTestBas
         ConnectorDto connector = registerConnector(operator, connectorToken.clientId(), "mc-" + compactId(connectorToken.clientId()));
         StationOwnerResponse owner = postStationOwner(operator, "Owner " + suffix);
         StationResponse station = postStation(operator, owner.id(), "station-" + suffix);
-        TimeSeriesResponse timeSeries = postTimeSeries(operator, station.id(), "water-level", "cm", connector.id());
+        MeasuringPointResponse measuringPoint = postMeasuringPoint(operator, station.id(), "Main gauge");
+        TimeSeriesResponse timeSeries = postTimeSeries(
+                operator,
+                measuringPoint.id(),
+                "water-level",
+                "cm",
+                connector.id());
         grantWriteAccess(operator, connector.id(), timeSeries.id());
         grantReadAccess(operator, connector.id(), timeSeries.id());
         Instant latestTimestamp = Instant.now().minus(5, ChronoUnit.MINUTES).truncatedTo(ChronoUnit.SECONDS);
@@ -152,7 +160,7 @@ final class FullStackWorkflowIntegrationTest extends FullStackIntegrationTestBas
 
     private TimeSeriesResponse postTimeSeries(
             AuthToken operator,
-            UUID stationId,
+            UUID measuringPointId,
             String observedProperty,
             String unit,
             UUID sourceConnectorId) {
@@ -160,20 +168,34 @@ final class FullStackWorkflowIntegrationTest extends FullStackIntegrationTestBas
                 "/api/v1/time-series",
                 HttpMethod.POST,
                 bearerEntity(new CreateTimeSeriesRequest(
-                        stationId,
+                        measuringPointId,
                         observedProperty,
                         unit,
                         null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
                         sourceConnectorId), operator),
                 TimeSeriesResponse.class);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+        assertThat(response.getBody()).isNotNull();
+        return response.getBody();
+    }
+
+    private MeasuringPointResponse postMeasuringPoint(AuthToken operator, UUID stationId, String name) {
+        ResponseEntity<MeasuringPointResponse> response = rest.exchange(
+                "/api/v1/measuring-points",
+                HttpMethod.POST,
+                bearerEntity(new CreateMeasuringPointRequest(
+                        stationId,
+                        name,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null), operator),
+                MeasuringPointResponse.class);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CREATED);
         assertThat(response.getBody()).isNotNull();

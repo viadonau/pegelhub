@@ -6,6 +6,7 @@ import at.pegelhub.contact.application.ContactService;
 import at.pegelhub.measurement.api.read.MeasurementReadQueryResolver;
 import at.pegelhub.measurement.application.MeasurementBucketResolutionPolicy;
 import at.pegelhub.measurement.application.MeasurementService;
+import at.pegelhub.measuringpoint.application.MeasuringPointService;
 import at.pegelhub.station.application.StationService;
 import at.pegelhub.stationowner.application.StationOwnerService;
 import at.pegelhub.telemetry.application.TelemetryService;
@@ -71,6 +72,9 @@ class OpenApiDocumentationWebMvcTest {
             "DELETE /api/v1/contact/{uuid}",
             "POST /api/v1/measurements",
             "GET /api/v1/measurements/system-time",
+            "POST /api/v1/measuring-points",
+            "GET /api/v1/measuring-points",
+            "GET /api/v1/measuring-points/{id}",
             "POST /api/v1/station-owners",
             "GET /api/v1/station-owners",
             "GET /api/v1/station-owners/{id}",
@@ -107,6 +111,9 @@ class OpenApiDocumentationWebMvcTest {
 
     @MockitoBean
     private MeasurementService measurementService;
+
+    @MockitoBean
+    private MeasuringPointService measuringPointService;
 
     @MockitoBean
     private StationService stationService;
@@ -152,6 +159,7 @@ class OpenApiDocumentationWebMvcTest {
                 "Legacy Contacts",
                 "Measurement Buckets",
                 "Measurements",
+                "Measuring Points",
                 "Station Owners",
                 "Stations",
                 "Telemetry",

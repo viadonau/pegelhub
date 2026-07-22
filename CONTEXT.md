@@ -1,6 +1,6 @@
 # PegelHub Context
 
-PegelHub models hydrological stations, the time series observed at those stations, technical connectors that exchange data, and the measurements written into the time-series store.
+PegelHub models hydrological stations, physical measuring points within those stations, the time series observed at those points, technical connectors that exchange data, and the measurements written into the time-series store.
 
 ## Language
 
@@ -13,11 +13,15 @@ The organization or responsibility holder for one or more stations.
 _Avoid_: Contact, operator, owner contact
 
 **Station**:
-A stable hydrological place where values are observed, such as a gauge location on a water body.
+A stable hydrological site, such as a named gauge station on a water body. A Station contains one or more MeasuringPoints.
 _Avoid_: Supplier, measurement source
 
+**MeasuringPoint**:
+A stable physical observation position within a Station. It groups the TimeSeries observed at the same position and owns shared gauge-location and reference metadata. A MeasuringPoint is not the replaceable sensor or device installed there.
+_Avoid_: Sensor, device, measurement value, TimeSeries
+
 **TimeSeries**:
-A single observed series at a station, defined by what is observed and in which unit. A station can have multiple time series, such as water level, discharge, water temperature, and air temperature.
+A single observed series at a MeasuringPoint, defined by what is observed and in which unit. A MeasuringPoint can have multiple TimeSeries, such as water level, discharge, water temperature, and air temperature.
 _Avoid_: Datastream, channel, measurement series
 
 **Measurement**:

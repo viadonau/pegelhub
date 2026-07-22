@@ -12,7 +12,7 @@ import at.pegelhub.security.PegelHubActor;
 import at.pegelhub.security.PegelHubActorType;
 import at.pegelhub.security.PegelHubAuthority;
 import at.pegelhub.shared.error.NotFoundException;
-import at.pegelhub.station.domain.StationId;
+import at.pegelhub.measuringpoint.domain.MeasuringPointId;
 import at.pegelhub.timeseries.application.TimeSeriesService;
 import at.pegelhub.timeseries.domain.ObservedPropertyCode;
 import at.pegelhub.timeseries.domain.TimeSeries;
@@ -260,17 +260,9 @@ final class MeasurementAuthorizationPolicyImplTest {
     private static TimeSeries timeSeries(ConnectorId sourceConnectorId) {
         return new TimeSeries(
                 TIME_SERIES_ID,
-                new StationId(UUID.fromString("7f65e3b7-97b4-4016-83a3-77f51332dc01")),
+                new MeasuringPointId(UUID.fromString("7f65e3b7-97b4-4016-83a3-77f51332dc01")),
                 new ObservedPropertyCode("water-level"),
                 new UnitCode("cm"),
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
                 null,
                 sourceConnectorId);
     }

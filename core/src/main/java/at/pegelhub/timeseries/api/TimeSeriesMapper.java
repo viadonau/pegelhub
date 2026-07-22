@@ -1,7 +1,7 @@
 package at.pegelhub.timeseries.api;
 
-import at.pegelhub.station.domain.StationId;
 import at.pegelhub.connector.domain.ConnectorId;
+import at.pegelhub.measuringpoint.domain.MeasuringPointId;
 import at.pegelhub.timeseries.application.CreateTimeSeriesCommand;
 import at.pegelhub.timeseries.domain.ExternalTimeSeriesCode;
 import at.pegelhub.timeseries.domain.ObservedPropertyCode;
@@ -15,17 +15,9 @@ final class TimeSeriesMapper {
 
     static CreateTimeSeriesCommand toCommand(CreateTimeSeriesRequest request) {
         return new CreateTimeSeriesCommand(
-                new StationId(request.stationId()),
+                new MeasuringPointId(request.measuringPointId()),
                 new ObservedPropertyCode(request.observedProperty()),
                 new UnitCode(request.unit()),
-                request.referenceLevel(),
-                request.referenceYear(),
-                request.riverKilometer(),
-                request.bank(),
-                request.rnw(),
-                request.hsw(),
-                request.mw(),
-                request.hw100(),
                 toExternalCode(request.externalCode()),
                 toConnectorId(request.sourceConnectorId()));
     }
@@ -33,17 +25,9 @@ final class TimeSeriesMapper {
     static TimeSeriesResponse toResponse(TimeSeries timeSeries) {
         return new TimeSeriesResponse(
                 timeSeries.id().value(),
-                timeSeries.stationId().value(),
+                timeSeries.measuringPointId().value(),
                 timeSeries.observedProperty().value(),
                 timeSeries.unit().value(),
-                timeSeries.referenceLevel(),
-                timeSeries.referenceYear(),
-                timeSeries.riverKilometer(),
-                timeSeries.bank(),
-                timeSeries.rnw(),
-                timeSeries.hsw(),
-                timeSeries.mw(),
-                timeSeries.hw100(),
                 toExternalCodeValue(timeSeries.externalCode()),
                 toConnectorIdValue(timeSeries.sourceConnectorId()));
     }

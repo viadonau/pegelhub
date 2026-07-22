@@ -1,7 +1,8 @@
 package at.pegelhub.timeseries.persistence;
 
-import at.pegelhub.station.domain.StationId;
 import at.pegelhub.connector.domain.ConnectorId;
+import at.pegelhub.measuringpoint.domain.MeasuringPointId;
+import at.pegelhub.station.domain.StationId;
 import at.pegelhub.timeseries.domain.ExternalTimeSeriesCode;
 import at.pegelhub.timeseries.domain.ObservedPropertyCode;
 import at.pegelhub.timeseries.domain.TimeSeries;
@@ -43,6 +44,14 @@ class TimeSeriesRepositoryAdapter implements TimeSeriesRepository {
     }
 
     @Override
+    public List<TimeSeries> findByMeasuringPointId(MeasuringPointId measuringPointId) {
+        requireNonNull(measuringPointId);
+        return timeSeries.findByMeasuringPointId(measuringPointId.value()).stream()
+                .map(this::toDomain)
+                .toList();
+    }
+
+    @Override
     public List<TimeSeries> findByStationId(StationId stationId) {
         requireNonNull(stationId);
         return timeSeries.findByStationId(stationId.value()).stream()
@@ -53,17 +62,9 @@ class TimeSeriesRepositoryAdapter implements TimeSeriesRepository {
     private TimeSeriesEntity toEntity(TimeSeries timeSeries) {
         return new TimeSeriesEntity(
                 timeSeries.id().value(),
-                timeSeries.stationId().value(),
+                timeSeries.measuringPointId().value(),
                 timeSeries.observedProperty().value(),
                 timeSeries.unit().value(),
-                timeSeries.referenceLevel(),
-                timeSeries.referenceYear(),
-                timeSeries.riverKilometer(),
-                timeSeries.bank(),
-                timeSeries.rnw(),
-                timeSeries.hsw(),
-                timeSeries.mw(),
-                timeSeries.hw100(),
                 toExternalCodeValue(timeSeries.externalCode()),
                 toConnectorIdValue(timeSeries.sourceConnectorId()));
     }
@@ -71,17 +72,9 @@ class TimeSeriesRepositoryAdapter implements TimeSeriesRepository {
     private TimeSeries toDomain(TimeSeriesEntity timeSeries) {
         return new TimeSeries(
                 new TimeSeriesId(timeSeries.id()),
-                new StationId(timeSeries.stationId()),
+                new MeasuringPointId(timeSeries.measuringPointId()),
                 new ObservedPropertyCode(timeSeries.observedProperty()),
                 new UnitCode(timeSeries.unit()),
-                timeSeries.referenceLevel(),
-                timeSeries.referenceYear(),
-                timeSeries.riverKilometer(),
-                timeSeries.bank(),
-                timeSeries.rnw(),
-                timeSeries.hsw(),
-                timeSeries.mw(),
-                timeSeries.hw100(),
                 toExternalCode(timeSeries.externalCode()),
                 toConnectorId(timeSeries.sourceConnectorId()));
     }

@@ -1,5 +1,6 @@
 package at.pegelhub.timeseries.application;
 
+import at.pegelhub.measuringpoint.domain.MeasuringPointId;
 import at.pegelhub.station.domain.StationId;
 import at.pegelhub.timeseries.domain.TimeSeries;
 import at.pegelhub.timeseries.domain.TimeSeriesId;
@@ -13,6 +14,8 @@ public interface TimeSeriesService {
     TimeSeries get(TimeSeriesId id);
 
     List<TimeSeries> list();
+
+    List<TimeSeries> listForMeasuringPoint(MeasuringPointId measuringPointId);
 
     List<TimeSeries> listForStation(StationId stationId);
 }

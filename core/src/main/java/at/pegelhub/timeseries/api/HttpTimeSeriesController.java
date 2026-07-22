@@ -1,5 +1,6 @@
 package at.pegelhub.timeseries.api;
 
+import at.pegelhub.measuringpoint.domain.MeasuringPointId;
 import at.pegelhub.station.domain.StationId;
 import at.pegelhub.timeseries.application.TimeSeriesService;
 import at.pegelhub.timeseries.domain.TimeSeriesId;
@@ -42,14 +43,14 @@ final class HttpTimeSeriesController {
 
     @Operation(
             summary = "Creates a time series",
-            description = "Creates observed property metadata for a station. Requires METADATA_WRITE or SYSTEM_ADMIN.")
+            description = "Creates observed property metadata for a measuring point. Requires METADATA_WRITE or SYSTEM_ADMIN.")
     @ApiResponses(value = {
             @ApiResponse(
                     responseCode = "201",
                     description = "Returns the created time series.",
                     content = @Content(schema = @Schema(implementation = TimeSeriesResponse.class))),
             @ApiResponse(responseCode = "400", description = "The time series payload is invalid.", content = @Content),
-            @ApiResponse(responseCode = "404", description = "A referenced station or connector was not found.", content = @Content)
+            @ApiResponse(responseCode = "404", description = "A referenced measuring point or connector was not found.", content = @Content)
     })
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
@@ -75,21 +76,29 @@ final class HttpTimeSeriesController {
 
     @Operation(
             summary = "Lists time series",
-            description = "Returns all time series, optionally filtered by stationId. Requires METADATA_READ, METADATA_WRITE, or SYSTEM_ADMIN.")
+            description = "Returns all time series, optionally filtered by measuringPointId or stationId. Requires METADATA_READ, METADATA_WRITE, or SYSTEM_ADMIN.")
     @ApiResponses(value = {
             @ApiResponse(
                     responseCode = "200",
                     description = "Returns time series records.",
                     content = @Content(array = @ArraySchema(schema = @Schema(implementation = TimeSeriesResponse.class)))),
-            @ApiResponse(responseCode = "400", description = "The stationId query parameter is invalid.", content = @Content)
+            @ApiResponse(responseCode = "400", description = "A query parameter is invalid or both filters were provided.", content = @Content),
+            @ApiResponse(responseCode = "404", description = "The measuring point or station was not found.", content = @Content)
     })
     @GetMapping
     List<TimeSeriesResponse> list(
+            @Parameter(description = "Optional measuring point identifier to filter time series.", required = false)
+            @RequestParam(required = false) UUID measuringPointId,
             @Parameter(description = "Optional station identifier to filter time series.", required = false)
             @RequestParam(required = false) UUID stationId) {
-        var result = stationId == null
-                ? timeSeries.list()
-                : timeSeries.listForStation(new StationId(stationId));
+        if (measuringPointId != null && stationId != null) {
+            throw new IllegalArgumentException("Provide either measuringPointId or stationId");
+        }
+        var result = measuringPointId != null
+                ? timeSeries.listForMeasuringPoint(new MeasuringPointId(measuringPointId))
+                : stationId != null
+                        ? timeSeries.listForStation(new StationId(stationId))
+                        : timeSeries.list();
         return result.stream()
                 .map(TimeSeriesMapper::toResponse)
                 .toList();
