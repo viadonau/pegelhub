@@ -1,5 +1,6 @@
 package at.pegelhub.timeseries.persistence;
 
+import at.pegelhub.measuringpoint.domain.MeasuringPointId;
 import at.pegelhub.station.domain.StationId;
 import at.pegelhub.timeseries.domain.TimeSeries;
 import at.pegelhub.timeseries.domain.TimeSeriesId;
@@ -14,6 +15,8 @@ public interface TimeSeriesRepository {
     Optional<TimeSeries> findById(TimeSeriesId id);
 
     List<TimeSeries> findAll();
+
+    List<TimeSeries> findByMeasuringPointId(MeasuringPointId measuringPointId);
 
     List<TimeSeries> findByStationId(StationId stationId);
 }

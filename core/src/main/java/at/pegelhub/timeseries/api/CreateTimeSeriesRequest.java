@@ -2,8 +2,6 @@ package at.pegelhub.timeseries.api;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.Max;
-import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
@@ -11,9 +9,9 @@ import java.util.UUID;
 
 @Schema(description = "Request to create observed time series metadata.")
 public record CreateTimeSeriesRequest(
-        @Schema(description = "Station that owns this time series.", format = "uuid", example = "2d45797c-5a99-4c52-99b5-68414f6a9b58")
+        @Schema(description = "Measuring point that owns this time series.", format = "uuid", example = "d2de586e-0997-480b-9abe-bb2072af6689")
         @NotNull
-        UUID stationId,
+        UUID measuringPointId,
 
         @Schema(description = "Observed property code, for example water-level or discharge.", maxLength = 120, example = "water-level")
         @NotBlank
@@ -24,33 +22,6 @@ public record CreateTimeSeriesRequest(
         @NotBlank
         @Size(max = 40)
         String unit,
-
-        @Schema(description = "Optional reference level, for example meters above Adria.", example = "156.42", nullable = true)
-        Double referenceLevel,
-
-        @Schema(description = "Optional reference year for water-level metadata.", minimum = "1", maximum = "9999", example = "2020", nullable = true)
-        @Min(1)
-        @Max(9999)
-        Integer referenceYear,
-
-        @Schema(description = "Optional river kilometer.", example = "1933.2", nullable = true)
-        Double riverKilometer,
-
-        @Schema(description = "Optional bank description or code.", maxLength = 40, example = "left", nullable = true)
-        @Size(max = 40)
-        String bank,
-
-        @Schema(description = "Optional regulatory low water value.", example = "120.0", nullable = true)
-        Double rnw,
-
-        @Schema(description = "Optional highest navigable water value.", example = "620.0", nullable = true)
-        Double hsw,
-
-        @Schema(description = "Optional mean water value.", example = "280.0", nullable = true)
-        Double mw,
-
-        @Schema(description = "Optional hundred-year flood value.", example = "760.0", nullable = true)
-        Double hw100,
 
         @Schema(description = "Optional external connector mapping code.", maxLength = 160, example = "AT-WIEN-PEGEL-1", nullable = true)
         @Size(max = 160)

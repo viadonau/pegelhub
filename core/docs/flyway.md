@@ -4,8 +4,14 @@ Core owns the PostgreSQL metadata schema through the migrations in
 `src/main/resources/db/migration/`. Hibernate uses `ddl-auto=validate` and must
 not create or update the schema.
 
-Fresh databases keep `FLYWAY_BASELINE_ON_MIGRATE=false`. Flyway applies V1 and
-then every later migration before Hibernate validates the result.
+Fresh databases keep `FLYWAY_BASELINE_ON_MIGRATE=false`. Flyway applies V1,
+V2, V3, and every later migration before Hibernate validates the result.
+
+Migration histories are immutable per deployed lineage. A database that has
+already applied migrations from another branch must be started with an artifact
+that still contains those exact migration files and checksums plus the new
+migration. Do not use `flyway repair` to make two different version histories
+look compatible.
 
 V2 adds these explicitly named foreign keys with `ON DELETE RESTRICT`:
 
@@ -18,6 +24,15 @@ V2 adds these explicitly named foreign keys with `ON DELETE RESTRICT`:
 V2 also adds the access-grant assignment uniqueness constraint and its connector
 and resource lookup indexes. Keeping these definitions in V2 means fresh and
 baselined databases receive the same access-grant integrity rules exactly once.
+
+V3 introduces `measuring_point` between Station and TimeSeries. It groups legacy
+TimeSeries rows by Station plus their complete shared gauge-metadata tuple,
+backfills one deterministic point per tuple using a canonical binary encoding
+that is independent of PostgreSQL float formatting, replaces
+`time_series.station_id` with `measuring_point_id`, and moves the shared gauge
+columns to the new table. The migration replaces `fk_time_series_station` with
+`fk_time_series_measuring_point`; Station ancestry remains available through
+`measuring_point.station_id` and `fk_measuring_point_station`.
 
 No relationship cascades on delete. Existing dependent rows must be handled
 explicitly before their parent can be deleted. `access_grant.resource_id` has no
@@ -136,10 +151,10 @@ schema.
     order by installed_rank;
    ```
 
-   An adopted schema must have a successful `BASELINE` row at version 1 and a
-   successful SQL migration row at version 2. Also check the Core logs for a
-   successful Flyway migration and Hibernate startup. If startup fails, keep Core
-   stopped and reconcile the failure or restore the backup before proceeding.
+   An adopted schema must have a successful `BASELINE` row at version 1 and
+   successful SQL migration rows through version 3. Also check the Core logs for
+   a successful Flyway migration and Hibernate startup. If startup fails, keep
+   Core stopped and reconcile the failure or restore the backup before proceeding.
 
 7. Immediately set `FLYWAY_BASELINE_ON_MIGRATE=false` again and recreate Core so
    the normal safe setting is active. Run `scripts/local-stack.sh compose-up`

@@ -4,12 +4,14 @@ import at.pegelhub.testsupport.IntegrationTest;
 import at.pegelhub.testsupport.JpaIntegrationTestConfiguration;
 import at.pegelhub.testsupport.PegelHubPostgresqlContainer;
 import jakarta.persistence.EntityManagerFactory;
+import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.WebApplicationType;
 import org.springframework.boot.builder.SpringApplicationBuilder;
 import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.datasource.DriverManagerDataSource;
 
 import java.sql.DriverManager;
 import java.sql.SQLException;
@@ -40,19 +42,18 @@ final class FlywayMigrationIntegrationTest {
             assertThat(migrationHistory(jdbc))
                     .containsExactly(
                             new Migration("1", "SQL"),
-                            new Migration("2", "SQL"));
+                            new Migration("2", "SQL"),
+                            new Migration("3", "SQL"));
             assertMetadataRelationships(jdbc);
             assertOrphanInsertsAreRejected(jdbc);
         }
     }
 
     @Test
-    void legacyHibernateSchemaIsBaselinedAtV1AndReceivesLaterMigrations() throws SQLException {
+    void legacyV1SchemaIsBaselinedAtV1AndReceivesLaterMigrations() throws SQLException {
         String schema = createEmptySchema("legacy");
 
-        try (ConfigurableApplicationContext ignored = createLegacyHibernateSchema(schema)) {
-            // Closing a ddl-auto=create context leaves the legacy-equivalent schema in place.
-        }
+        createLegacyV1Schema(schema);
 
         try (ConfigurableApplicationContext context = baselineLegacyDatabase(schema)) {
             assertThat(context.getBean(EntityManagerFactory.class).isOpen()).isTrue();
@@ -61,22 +62,175 @@ final class FlywayMigrationIntegrationTest {
             assertThat(migrationHistory(jdbc))
                     .containsExactly(
                             new Migration("1", "BASELINE"),
-                            new Migration("2", "SQL"));
+                            new Migration("2", "SQL"),
+                            new Migration("3", "SQL"));
             assertMetadataRelationships(jdbc);
             assertOrphanInsertsAreRejected(jdbc);
         }
+    }
+
+    @Test
+    void measuringPointMigrationBackfillsDistinctMetadataTuplesWithoutLoss() throws SQLException {
+        String schema = createEmptySchema("backfill");
+        migrateThrough(schema, "2");
+        JdbcTemplate jdbc = jdbcTemplate(schema);
+
+        UUID ownerId = UUID.randomUUID();
+        UUID stationId = UUID.randomUUID();
+        UUID firstTimeSeriesId = UUID.randomUUID();
+        UUID secondTimeSeriesId = UUID.randomUUID();
+        UUID distinctTimeSeriesId = UUID.randomUUID();
+
+        jdbc.update("insert into station_owner (id, name) values (?, ?)", ownerId, "Owner");
+        jdbc.update("""
+                        insert into station (id, owner_id, station_number, name, water_body)
+                        values (?, ?, ?, ?, ?)
+                        """,
+                stationId, ownerId, "backfill-station", "Kienstock", "Danube");
+        insertLegacyTimeSeries(jdbc, firstTimeSeriesId, stationId, "water-level", "cm", 120.0, "R");
+        insertLegacyTimeSeries(jdbc, secondTimeSeriesId, stationId, "discharge", "m3-s", 120.0, "R");
+        insertLegacyTimeSeries(jdbc, distinctTimeSeriesId, stationId, "water-temperature", "celsius", 121.0, "L");
+
+        migrateThrough(schema, "3");
+
+        UUID firstPointId = measuringPointId(jdbc, firstTimeSeriesId);
+        UUID secondPointId = measuringPointId(jdbc, secondTimeSeriesId);
+        UUID distinctPointId = measuringPointId(jdbc, distinctTimeSeriesId);
+        assertThat(firstPointId).isEqualTo(secondPointId).isNotEqualTo(distinctPointId);
+        assertThat(jdbc.queryForObject("select count(*) from measuring_point", Integer.class)).isEqualTo(2);
+
+        Map<String, Object> sharedMetadata = jdbc.queryForMap("""
+                select measuring_point.reference_level,
+                       measuring_point.reference_year,
+                       measuring_point.river_kilometer,
+                       measuring_point.bank,
+                       measuring_point.rnw,
+                       measuring_point.mw,
+                       measuring_point.hsw,
+                       measuring_point.hw100
+                  from time_series
+                  join measuring_point on measuring_point.id = time_series.measuring_point_id
+                 where time_series.id = ?
+                """, firstTimeSeriesId);
+        assertThat(sharedMetadata)
+                .containsEntry("reference_level", 120.0)
+                .containsEntry("reference_year", 2010)
+                .containsEntry("river_kilometer", 1921.34)
+                .containsEntry("bank", "R")
+                .containsEntry("rnw", 162.0)
+                .containsEntry("mw", 295.0)
+                .containsEntry("hsw", 480.0)
+                .containsEntry("hw100", 760.0);
+
+        List<String> timeSeriesColumns = jdbc.queryForList("""
+                        select column_name
+                          from information_schema.columns
+                         where table_schema = current_schema()
+                           and table_name = 'time_series'
+                        """,
+                String.class);
+        assertThat(timeSeriesColumns)
+                .contains("measuring_point_id", "observed_property", "unit", "external_code", "source_connector_id")
+                .doesNotContain(
+                        "station_id",
+                        "reference_level",
+                        "reference_year",
+                        "river_kilometer",
+                        "bank",
+                        "rnw",
+                        "mw",
+                        "hsw",
+                        "hw100");
+
+        try (ConfigurableApplicationContext context = startFreshDatabase(schema)) {
+            assertThat(context.getBean(EntityManagerFactory.class).isOpen()).isTrue();
+        }
+    }
+
+    @Test
+    void measuringPointBackfillIdentifiersIgnoreFloatOutputFormatting() throws SQLException {
+        UUID ownerId = UUID.fromString("fb2285c8-a25a-4d63-9e56-34b044e18d3e");
+        UUID stationId = UUID.fromString("5f02b90c-35e2-43cd-a67e-d035b48f0639");
+        UUID timeSeriesId = UUID.fromString("d20954e8-3cde-4dbf-a8bc-e83344635ccc");
+
+        UUID lowPrecisionId = backfilledMeasuringPointId(
+                "float_low",
+                "set extra_float_digits = -15",
+                ownerId,
+                stationId,
+                timeSeriesId);
+        UUID highPrecisionId = backfilledMeasuringPointId(
+                "float_high",
+                "set extra_float_digits = 3",
+                ownerId,
+                stationId,
+                timeSeriesId);
+
+        assertThat(lowPrecisionId).isEqualTo(highPrecisionId);
     }
 
     private static ConfigurableApplicationContext startFreshDatabase(String schema) {
         return startApplication(schema, true, false, "validate");
     }
 
-    private static ConfigurableApplicationContext createLegacyHibernateSchema(String schema) {
-        return startApplication(schema, false, false, "create");
-    }
-
     private static ConfigurableApplicationContext baselineLegacyDatabase(String schema) {
         return startApplication(schema, true, true, "validate");
+    }
+
+    private static void createLegacyV1Schema(String schema) {
+        migrateThrough(schema, "1");
+        jdbcTemplate(schema).execute("drop table flyway_schema_history");
+    }
+
+    private static void migrateThrough(String schema, String target) {
+        migrateThrough(schema, target, null);
+    }
+
+    private static void migrateThrough(String schema, String target, String initSql) {
+        var configuration = Flyway.configure()
+                .dataSource(schemaJdbcUrl(schema), POSTGRES.getUsername(), POSTGRES.getPassword())
+                .schemas(schema)
+                .target(target);
+        if (initSql != null) {
+            configuration.initSql(initSql);
+        }
+        configuration.load().migrate();
+    }
+
+    private static UUID backfilledMeasuringPointId(
+            String scenario,
+            String initSql,
+            UUID ownerId,
+            UUID stationId,
+            UUID timeSeriesId) throws SQLException {
+        String schema = createEmptySchema(scenario);
+        migrateThrough(schema, "2");
+        JdbcTemplate jdbc = jdbcTemplate(schema);
+        jdbc.update("insert into station_owner (id, name) values (?, ?)", ownerId, "Owner");
+        jdbc.update("""
+                        insert into station (id, owner_id, station_number, name, water_body)
+                        values (?, ?, ?, ?, ?)
+                        """,
+                stationId, ownerId, "float-format-station", "Kienstock", "Danube");
+        insertLegacyTimeSeries(
+                jdbc,
+                timeSeriesId,
+                stationId,
+                "water-level",
+                "cm",
+                120.12345678901234,
+                "R");
+
+        migrateThrough(schema, "3", initSql);
+
+        return measuringPointId(jdbc, timeSeriesId);
+    }
+
+    private static JdbcTemplate jdbcTemplate(String schema) {
+        return new JdbcTemplate(new DriverManagerDataSource(
+                schemaJdbcUrl(schema),
+                POSTGRES.getUsername(),
+                POSTGRES.getPassword()));
     }
 
     private static ConfigurableApplicationContext startApplication(
@@ -161,7 +315,7 @@ final class FlywayMigrationIntegrationTest {
                         resultSet.getString("delete_rule")));
 
         assertThat(foreignKeys)
-                .filteredOn(foreignKey -> List.of("station", "time_series", "access_grant")
+                .filteredOn(foreignKey -> List.of("station", "measuring_point", "time_series", "access_grant")
                         .contains(foreignKey.table()))
                 .containsExactlyInAnyOrder(
                         new ForeignKey(
@@ -172,10 +326,17 @@ final class FlywayMigrationIntegrationTest {
                                 "id",
                                 "RESTRICT"),
                         new ForeignKey(
-                                "fk_time_series_station",
-                                "time_series",
+                                "fk_measuring_point_station",
+                                "measuring_point",
                                 "station_id",
                                 "station",
+                                "id",
+                                "RESTRICT"),
+                        new ForeignKey(
+                                "fk_time_series_measuring_point",
+                                "time_series",
+                                "measuring_point_id",
+                                "measuring_point",
                                 "id",
                                 "RESTRICT"),
                         new ForeignKey(
@@ -199,6 +360,7 @@ final class FlywayMigrationIntegrationTest {
         assertThat(indexNames)
                 .contains(
                         "ix_station_owner",
+                        "ix_measuring_point_station",
                         "ix_time_series_source_connector",
                         "ix_access_grant_connector",
                         "ix_access_grant_resource");
@@ -212,11 +374,26 @@ final class FlywayMigrationIntegrationTest {
                         """,
                 String.class);
         assertThat(uniqueConstraints).contains("uk_access_grant_assignment");
+
+        List<String> metadataUniqueConstraints = jdbc.queryForList("""
+                        select constraint_name
+                          from information_schema.table_constraints
+                         where constraint_schema = current_schema()
+                           and table_name in ('measuring_point', 'time_series')
+                           and constraint_type = 'UNIQUE'
+                        """,
+                String.class);
+        assertThat(metadataUniqueConstraints)
+                .contains(
+                        "uk_measuring_point_station_name",
+                        "uk_time_series_measuring_point_property_unit")
+                .doesNotContain("uk_time_series_station_property_unit");
     }
 
     private static void assertOrphanInsertsAreRejected(JdbcTemplate jdbc) {
         UUID ownerId = UUID.randomUUID();
         UUID stationId = UUID.randomUUID();
+        UUID measuringPointId = UUID.randomUUID();
 
         assertThatThrownBy(() -> jdbc.update("""
                         insert into station (id, owner_id, station_number, name, water_body)
@@ -234,25 +411,36 @@ final class FlywayMigrationIntegrationTest {
                 stationId, ownerId, "valid-station", "Station", "Danube");
 
         assertThatThrownBy(() -> jdbc.update("""
-                        insert into time_series (id, station_id, observed_property, unit)
+                        insert into measuring_point (id, station_id, name)
+                        values (?, ?, ?)
+                        """,
+                UUID.randomUUID(), UUID.randomUUID(), "Orphan point"))
+                .isInstanceOf(DataIntegrityViolationException.class)
+                .hasMessageContaining("fk_measuring_point_station");
+
+        jdbc.update("insert into measuring_point (id, station_id, name) values (?, ?, ?)",
+                measuringPointId, stationId, "Main gauge");
+
+        assertThatThrownBy(() -> jdbc.update("""
+                        insert into time_series (id, measuring_point_id, observed_property, unit)
                         values (?, ?, ?, ?)
                         """,
                 UUID.randomUUID(), UUID.randomUUID(), "water-level", "cm"))
                 .isInstanceOf(DataIntegrityViolationException.class)
-                .hasMessageContaining("fk_time_series_station");
+                .hasMessageContaining("fk_time_series_measuring_point");
 
         assertThat(jdbc.update("""
-                        insert into time_series (id, station_id, observed_property, unit, source_connector_id)
+                        insert into time_series (id, measuring_point_id, observed_property, unit, source_connector_id)
                         values (?, ?, ?, ?, null)
                         """,
-                UUID.randomUUID(), stationId, "water-temperature", "celsius"))
+                UUID.randomUUID(), measuringPointId, "water-temperature", "celsius"))
                 .isEqualTo(1);
 
         assertThatThrownBy(() -> jdbc.update("""
-                        insert into time_series (id, station_id, observed_property, unit, source_connector_id)
+                        insert into time_series (id, measuring_point_id, observed_property, unit, source_connector_id)
                         values (?, ?, ?, ?, ?)
                         """,
-                UUID.randomUUID(), stationId, "discharge", "m3-s", UUID.randomUUID()))
+                UUID.randomUUID(), measuringPointId, "discharge", "m3-s", UUID.randomUUID()))
                 .isInstanceOf(DataIntegrityViolationException.class)
                 .hasMessageContaining("fk_time_series_source_connector");
 
@@ -263,6 +451,51 @@ final class FlywayMigrationIntegrationTest {
                 UUID.randomUUID(), UUID.randomUUID(), "STATION", stationId, "READ"))
                 .isInstanceOf(DataIntegrityViolationException.class)
                 .hasMessageContaining("fk_access_grant_connector");
+    }
+
+    private static void insertLegacyTimeSeries(
+            JdbcTemplate jdbc,
+            UUID id,
+            UUID stationId,
+            String observedProperty,
+            String unit,
+            double referenceLevel,
+            String bank) {
+        jdbc.update("""
+                        insert into time_series (
+                            id,
+                            station_id,
+                            observed_property,
+                            unit,
+                            reference_level,
+                            reference_year,
+                            river_kilometer,
+                            bank,
+                            rnw,
+                            mw,
+                            hsw,
+                            hw100)
+                        values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """,
+                id,
+                stationId,
+                observedProperty,
+                unit,
+                referenceLevel,
+                2010,
+                1921.34,
+                bank,
+                162.0,
+                295.0,
+                480.0,
+                760.0);
+    }
+
+    private static UUID measuringPointId(JdbcTemplate jdbc, UUID timeSeriesId) {
+        return jdbc.queryForObject(
+                "select measuring_point_id from time_series where id = ?",
+                UUID.class,
+                timeSeriesId);
     }
 
     private record Migration(String version, String type) {

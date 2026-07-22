@@ -1,7 +1,8 @@
 package at.pegelhub.timeseries.api;
 
-import at.pegelhub.station.domain.StationId;
 import at.pegelhub.connector.domain.ConnectorId;
+import at.pegelhub.measuringpoint.domain.MeasuringPointId;
+import at.pegelhub.station.domain.StationId;
 import at.pegelhub.timeseries.application.CreateTimeSeriesCommand;
 import at.pegelhub.timeseries.application.TimeSeriesService;
 import at.pegelhub.timeseries.domain.ExternalTimeSeriesCode;
@@ -32,21 +33,14 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class HttpTimeSeriesControllerTest {
 
     private static final UUID TIME_SERIES_ID = UUID.fromString("00d570f1-9547-40fd-9b16-30ac083d0723");
-    private static final UUID STATION_ID = UUID.fromString("a9a3d5e7-de04-43a2-8b10-abfb1bdd2819");
+    private static final UUID MEASURING_POINT_ID = UUID.fromString("a9a3d5e7-de04-43a2-8b10-abfb1bdd2819");
+    private static final UUID STATION_ID = UUID.fromString("1f69841d-455b-4ff8-adb0-fcc18481ad58");
     private static final UUID SOURCE_CONNECTOR_ID = UUID.fromString("b8614980-37c8-46b6-8d78-b6fb6f84c950");
     private static final TimeSeries TIME_SERIES = new TimeSeries(
             new TimeSeriesId(TIME_SERIES_ID),
-            new StationId(STATION_ID),
+            new MeasuringPointId(MEASURING_POINT_ID),
             new ObservedPropertyCode("water-level"),
             new UnitCode("cm"),
-            120.0,
-            2010,
-            1921.34,
-            "R",
-            162.0,
-            480.0,
-            295.0,
-            760.0,
             new ExternalTimeSeriesCode("main-stage"),
             new ConnectorId(SOURCE_CONNECTOR_ID));
 
@@ -64,55 +58,33 @@ class HttpTimeSeriesControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
-                                  "stationId": "%s",
+                                  "measuringPointId": "%s",
                                   "observedProperty": "water-level",
                                   "unit": "cm",
-                                  "referenceLevel": 120.0,
-                                  "referenceYear": 2010,
-                                  "riverKilometer": 1921.34,
-                                  "bank": "R",
-                                  "rnw": 162.0,
-                                  "hsw": 480.0,
-                                  "mw": 295.0,
-                                  "hw100": 760.0,
                                   "externalCode": "main-stage",
                                   "sourceConnectorId": "%s"
                                 }
-                                """.formatted(STATION_ID, SOURCE_CONNECTOR_ID)))
+                                """.formatted(MEASURING_POINT_ID, SOURCE_CONNECTOR_ID)))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.id").value(TIME_SERIES_ID.toString()))
-                .andExpect(jsonPath("$.stationId").value(STATION_ID.toString()))
+                .andExpect(jsonPath("$.measuringPointId").value(MEASURING_POINT_ID.toString()))
                 .andExpect(jsonPath("$.observedProperty").value("water-level"))
                 .andExpect(jsonPath("$.unit").value("cm"))
-                .andExpect(jsonPath("$.referenceLevel").value(120.0))
-                .andExpect(jsonPath("$.referenceYear").value(2010))
-                .andExpect(jsonPath("$.riverKilometer").value(1921.34))
-                .andExpect(jsonPath("$.bank").value("R"))
-                .andExpect(jsonPath("$.rnw").value(162.0))
-                .andExpect(jsonPath("$.hsw").value(480.0))
-                .andExpect(jsonPath("$.mw").value(295.0))
-                .andExpect(jsonPath("$.hw100").value(760.0))
                 .andExpect(jsonPath("$.externalCode").value("main-stage"))
-                .andExpect(jsonPath("$.sourceConnectorId").value(SOURCE_CONNECTOR_ID.toString()));
+                .andExpect(jsonPath("$.sourceConnectorId").value(SOURCE_CONNECTOR_ID.toString()))
+                .andExpect(jsonPath("$.stationId").doesNotExist())
+                .andExpect(jsonPath("$.referenceLevel").doesNotExist());
 
         verify(timeSeries).create(eq(new CreateTimeSeriesCommand(
-                new StationId(STATION_ID),
+                new MeasuringPointId(MEASURING_POINT_ID),
                 new ObservedPropertyCode("water-level"),
                 new UnitCode("cm"),
-                120.0,
-                2010,
-                1921.34,
-                "R",
-                162.0,
-                480.0,
-                295.0,
-                760.0,
                 new ExternalTimeSeriesCode("main-stage"),
                 new ConnectorId(SOURCE_CONNECTOR_ID))));
     }
 
     @Test
-    void rejectsCreateWithoutStationId() throws Exception {
+    void rejectsCreateWithoutMeasuringPointId() throws Exception {
         mockMvc.perform(post("/api/v1/time-series")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -131,6 +103,7 @@ class HttpTimeSeriesControllerTest {
         mockMvc.perform(get("/api/v1/time-series/{id}", TIME_SERIES_ID))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(TIME_SERIES_ID.toString()))
+                .andExpect(jsonPath("$.measuringPointId").value(MEASURING_POINT_ID.toString()))
                 .andExpect(jsonPath("$.observedProperty").value("water-level"));
     }
 
@@ -144,12 +117,31 @@ class HttpTimeSeriesControllerTest {
     }
 
     @Test
+    void listsTimeSeriesForMeasuringPoint() throws Exception {
+        when(timeSeries.listForMeasuringPoint(new MeasuringPointId(MEASURING_POINT_ID)))
+                .thenReturn(List.of(TIME_SERIES));
+
+        mockMvc.perform(get("/api/v1/time-series")
+                        .param("measuringPointId", MEASURING_POINT_ID.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].measuringPointId").value(MEASURING_POINT_ID.toString()));
+    }
+
+    @Test
     void listsTimeSeriesForStation() throws Exception {
         when(timeSeries.listForStation(new StationId(STATION_ID))).thenReturn(List.of(TIME_SERIES));
 
         mockMvc.perform(get("/api/v1/time-series")
                         .param("stationId", STATION_ID.toString()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].stationId").value(STATION_ID.toString()));
+                .andExpect(jsonPath("$[0].measuringPointId").value(MEASURING_POINT_ID.toString()));
+    }
+
+    @Test
+    void rejectsCombinedFilters() throws Exception {
+        mockMvc.perform(get("/api/v1/time-series")
+                        .param("measuringPointId", MEASURING_POINT_ID.toString())
+                        .param("stationId", STATION_ID.toString()))
+                .andExpect(status().isBadRequest());
     }
 }

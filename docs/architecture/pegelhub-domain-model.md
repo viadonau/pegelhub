@@ -4,12 +4,13 @@ This document describes the current branch state after the domain migration. It 
 
 ## Logical Model
 
-The diagram is logical, not a guarantee that every relationship is already enforced by a database foreign key. The first migration pass still relies partly on Hibernate-managed schema updates. Full Flyway ownership, metadata FKs, access-grant reshaping, and connector contact reshaping are follow-up work.
+The relational metadata schema is owned by Flyway and Hibernate validates the resulting shape at startup. The polymorphic AccessGrant target and legacy Connector contact shape remain deliberate exceptions to otherwise explicit metadata relationships.
 
 ```mermaid
 erDiagram
     StationOwner ||--o{ Station : owns
-    Station ||--o{ TimeSeries : has
+    Station ||--o{ MeasuringPoint : contains
+    MeasuringPoint ||--o{ TimeSeries : groups
     Connector ||--o{ TimeSeries : "optional source"
     Connector ||--o{ AccessGrant : "is subject of"
     AccessGrant }o--|| Station : "targets when resourceType=STATION"
@@ -38,19 +39,25 @@ erDiagram
         string location "optional"
     }
 
-    TimeSeries {
+    MeasuringPoint {
         uuid id PK
-        uuid stationId "logical Station reference"
-        string observedProperty "e.g. water-level"
-        string unit "e.g. cm"
+        uuid stationId FK
+        string name "unique within Station"
         double referenceLevel "optional PNP in meters over Adria"
         int referenceYear "optional reference year for RNW/MW/HSW"
-        double riverKilometer "optional V1 gauge location"
-        string bank "optional V1 gauge bank"
+        double riverKilometer "optional gauge location"
+        string bank "optional gauge bank"
         double rnw "optional water-level reference"
-        double hsw "optional water-level reference"
         double mw "optional water-level reference"
+        double hsw "optional water-level reference"
         double hw100 "optional water-level reference"
+    }
+
+    TimeSeries {
+        uuid id PK
+        uuid measuringPointId FK
+        string observedProperty "e.g. water-level"
+        string unit "e.g. cm"
         string externalCode "optional connector mapping"
         uuid sourceConnectorId "optional source Connector"
     }
@@ -125,7 +132,7 @@ erDiagram
 
 ## Deferred Model Cleanup
 
-The current connector/contact shape is intentionally still legacy-shaped. `Contact` is still a standalone resource and `Connector` still owns four required contact references. The preferred follow-up direction is to replace that with connector-owned, role-based contact points once Flyway/schema migrations are introduced.
+The current connector/contact shape is intentionally still legacy-shaped. `Contact` is still a standalone resource and `Connector` still owns four required contact references. The preferred follow-up direction is to replace that with connector-owned, role-based contact points through a separate staged migration.
 
 ```mermaid
 flowchart LR
@@ -134,10 +141,8 @@ flowchart LR
     Connector --> TechnicalResponsible["Contact: technically responsible"]
     Connector --> OperationCompany["Contact: operation company"]
 
-    Connector -. "future Flyway cleanup" .-> ContactPoints["Connector-owned contact points by role"]
+    Connector -. "future cleanup" .-> ContactPoints["Connector-owned contact points by role"]
 ```
-
-PNP, gauge-location, and water-level reference metadata currently lives directly on `TimeSeries` as a V1 simplification. Extract a `MeasuringPoint` between `Station` and `TimeSeries` when multiple series share one bank/kilometer/reference set or when left/right/device identity needs an independent lifecycle.
 
 ## Authorization Cascade
 
@@ -149,7 +154,8 @@ flowchart TD
     check -->|STATION| stationGrant[Station grant]
 
     direct --> perm{permission?}
-    stationGrant --> stationSeries[All TimeSeries at this station]
+    stationGrant --> stationPoints[MeasuringPoints at this station]
+    stationPoints --> stationSeries[TimeSeries at those points]
     stationSeries --> read[Can read]
 
     perm -->|READ| read
@@ -160,7 +166,7 @@ flowchart TD
     sameSource -->|no| deny[Deny]
 ```
 
-Station grants are read-only and cover all TimeSeries at the station. Direct TimeSeries `WRITE` grants are rejected when the TimeSeries has a different `sourceConnectorId`.
+Station grants are read-only and cover all TimeSeries below the Station's MeasuringPoints. Direct TimeSeries `WRITE` grants are rejected when the TimeSeries has a different `sourceConnectorId`.
 
 ## Measurement Write Path
 
@@ -246,8 +252,11 @@ The security column names the effective Spring Security rule. Most metadata rout
 | POST | `/api/v1/stations` | `METADATA_WRITE` or `SYSTEM_ADMIN` | Create station |
 | GET | `/api/v1/stations` | `METADATA_READ`, `METADATA_WRITE`, or `SYSTEM_ADMIN` | List stations |
 | GET | `/api/v1/stations/{id}` | `METADATA_READ`, `METADATA_WRITE`, or `SYSTEM_ADMIN` | Get station |
+| POST | `/api/v1/measuring-points` | `METADATA_WRITE` or `SYSTEM_ADMIN` | Create measuring point |
+| GET | `/api/v1/measuring-points` | `METADATA_READ`, `METADATA_WRITE`, or `SYSTEM_ADMIN` | List measuring points, optionally filtered by `stationId` |
+| GET | `/api/v1/measuring-points/{id}` | `METADATA_READ`, `METADATA_WRITE`, or `SYSTEM_ADMIN` | Get measuring point |
 | POST | `/api/v1/time-series` | `METADATA_WRITE` or `SYSTEM_ADMIN` | Create time series |
-| GET | `/api/v1/time-series` | `METADATA_READ`, `METADATA_WRITE`, or `SYSTEM_ADMIN` | List time series, optionally filtered by `stationId` |
+| GET | `/api/v1/time-series` | `METADATA_READ`, `METADATA_WRITE`, or `SYSTEM_ADMIN` | List time series, optionally filtered by `measuringPointId` or `stationId` |
 | GET | `/api/v1/time-series/{id}` | `METADATA_READ`, `METADATA_WRITE`, or `SYSTEM_ADMIN` | Get time series |
 | POST | `/api/v1/access-grants` | `METADATA_WRITE` or `SYSTEM_ADMIN` | Create access grant |
 | GET | `/api/v1/access-grants` | `METADATA_READ`, `METADATA_WRITE`, or `SYSTEM_ADMIN` | List access grants, optionally filtered by `connectorId` |
@@ -262,6 +271,7 @@ The security column names the effective Spring Security rule. Most metadata rout
 core/src/main/java/at/pegelhub/
 ├── stationowner/       StationOwner API/application/domain/persistence
 ├── station/            Station API/application/domain/persistence
+├── measuringpoint/     MeasuringPoint API/application/domain/persistence
 ├── timeseries/         TimeSeries API/application/domain/persistence
 ├── access/             AccessGrant API/application/domain/persistence
 ├── measurement/        TimeSeries-backed Measurement write/read API and Influx persistence
@@ -278,8 +288,6 @@ core/src/main/java/at/pegelhub/
 
 ## Known Follow-Up Areas
 
-- Introduce Flyway with a curated baseline and move Hibernate to schema validation.
-- Add database-level FKs and indexes for metadata relationships.
 - Reshape `AccessGrant` persistence away from polymorphic `resourceType/resourceId`.
 - Replace standalone Contact CRUD and four connector contact FKs with connector-owned role-based contact points.
 - Standardize measurement and telemetry response DTOs.

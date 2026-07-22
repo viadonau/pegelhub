@@ -10,6 +10,7 @@ import at.pegelhub.connector.application.CreateConnectorCommand;
 import at.pegelhub.connector.domain.Connector;
 import at.pegelhub.connector.domain.ConnectorId;
 import at.pegelhub.connector.domain.ConnectorStatus;
+import at.pegelhub.measuringpoint.domain.MeasuringPointId;
 import at.pegelhub.shared.error.NotFoundException;
 import at.pegelhub.station.application.CreateStationCommand;
 import at.pegelhub.station.application.StationService;
@@ -41,6 +42,8 @@ final class AccessGrantServiceImplTest {
     private static final ConnectorId CONNECTOR_ID = new ConnectorId(UUID.fromString("a0c57d32-ce76-4e89-9ce9-caa3ee5e33f7"));
     private static final ConnectorId OTHER_CONNECTOR_ID = new ConnectorId(UUID.fromString("8c6c64dc-0e9f-4112-af69-18988aa1f022"));
     private static final StationId STATION_ID = new StationId(UUID.fromString("e08e267b-95bd-492f-93a3-3e50d727a1c4"));
+    private static final MeasuringPointId MEASURING_POINT_ID = new MeasuringPointId(
+            UUID.fromString("17c82a5e-c818-4945-8c21-4f9ec69e9b31"));
     private static final TimeSeriesId TIME_SERIES_ID = new TimeSeriesId(UUID.fromString("65fc3eeb-b4dd-4749-bb67-8b1fc9f75b97"));
     private static final AccessGrantId GRANT_ID = new AccessGrantId(UUID.fromString("58bd0cc1-57b9-427f-9ee8-d432636183bf"));
     private static final Station STATION = new Station(
@@ -52,17 +55,9 @@ final class AccessGrantServiceImplTest {
             null);
     private static final TimeSeries TIME_SERIES = new TimeSeries(
             TIME_SERIES_ID,
-            STATION_ID,
+            MEASURING_POINT_ID,
             new ObservedPropertyCode("water-level"),
             new UnitCode("cm"),
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
             null,
             null);
 
@@ -237,17 +232,9 @@ final class AccessGrantServiceImplTest {
     private static TimeSeries timeSeriesWithSource(ConnectorId sourceConnectorId) {
         return new TimeSeries(
                 TIME_SERIES_ID,
-                STATION_ID,
+                MEASURING_POINT_ID,
                 new ObservedPropertyCode("water-level"),
                 new UnitCode("cm"),
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
                 null,
                 sourceConnectorId);
     }
@@ -363,10 +350,15 @@ final class AccessGrantServiceImplTest {
         }
 
         @Override
-        public List<TimeSeries> listForStation(StationId stationId) {
+        public List<TimeSeries> listForMeasuringPoint(MeasuringPointId measuringPointId) {
             return timeSeries.stream()
-                    .filter(series -> series.stationId().equals(stationId))
+                    .filter(series -> series.measuringPointId().equals(measuringPointId))
                     .toList();
+        }
+
+        @Override
+        public List<TimeSeries> listForStation(StationId stationId) {
+            throw new UnsupportedOperationException("Not needed by this test");
         }
     }
 }

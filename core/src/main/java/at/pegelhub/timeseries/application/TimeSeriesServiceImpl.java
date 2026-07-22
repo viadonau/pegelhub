@@ -1,6 +1,8 @@
 package at.pegelhub.timeseries.application;
 
 import at.pegelhub.connector.application.ConnectorService;
+import at.pegelhub.measuringpoint.application.MeasuringPointService;
+import at.pegelhub.measuringpoint.domain.MeasuringPointId;
 import at.pegelhub.shared.error.NotFoundException;
 import at.pegelhub.station.application.StationService;
 import at.pegelhub.station.domain.StationId;
@@ -17,11 +19,17 @@ import static java.util.Objects.requireNonNull;
 class TimeSeriesServiceImpl implements TimeSeriesService {
 
     private final TimeSeriesRepository timeSeries;
+    private final MeasuringPointService measuringPoints;
     private final StationService stations;
     private final ConnectorService connectors;
 
-    TimeSeriesServiceImpl(TimeSeriesRepository timeSeries, StationService stations, ConnectorService connectors) {
+    TimeSeriesServiceImpl(
+            TimeSeriesRepository timeSeries,
+            MeasuringPointService measuringPoints,
+            StationService stations,
+            ConnectorService connectors) {
         this.timeSeries = requireNonNull(timeSeries);
+        this.measuringPoints = requireNonNull(measuringPoints);
         this.stations = requireNonNull(stations);
         this.connectors = requireNonNull(connectors);
     }
@@ -29,22 +37,14 @@ class TimeSeriesServiceImpl implements TimeSeriesService {
     @Override
     public TimeSeries create(CreateTimeSeriesCommand command) {
         requireNonNull(command);
-        stations.get(command.stationId());
+        measuringPoints.get(command.measuringPointId());
         if (command.sourceConnectorId() != null) {
             connectors.get(command.sourceConnectorId());
         }
         return timeSeries.save(TimeSeries.create(
-                command.stationId(),
+                command.measuringPointId(),
                 command.observedProperty(),
                 command.unit(),
-                command.referenceLevel(),
-                command.referenceYear(),
-                command.riverKilometer(),
-                command.bank(),
-                command.rnw(),
-                command.hsw(),
-                command.mw(),
-                command.hw100(),
                 command.externalCode(),
                 command.sourceConnectorId()));
     }
@@ -59,6 +59,13 @@ class TimeSeriesServiceImpl implements TimeSeriesService {
     @Override
     public List<TimeSeries> list() {
         return timeSeries.findAll();
+    }
+
+    @Override
+    public List<TimeSeries> listForMeasuringPoint(MeasuringPointId measuringPointId) {
+        requireNonNull(measuringPointId);
+        measuringPoints.get(measuringPointId);
+        return timeSeries.findByMeasuringPointId(measuringPointId);
     }
 
     @Override

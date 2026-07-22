@@ -6,8 +6,9 @@ import at.pegelhub.access.domain.AccessResourceRef;
 import at.pegelhub.access.domain.AccessResourceType;
 import at.pegelhub.access.persistence.AccessGrantRepository;
 import at.pegelhub.connector.domain.ConnectorId;
+import at.pegelhub.measuringpoint.application.MeasuringPointService;
+import at.pegelhub.station.domain.StationId;
 import at.pegelhub.timeseries.application.TimeSeriesService;
-import at.pegelhub.timeseries.domain.TimeSeries;
 import at.pegelhub.timeseries.domain.TimeSeriesId;
 import org.springframework.stereotype.Service;
 
@@ -21,10 +22,15 @@ class AccessAuthorizationServiceImpl implements AccessAuthorizationService {
 
     private final AccessGrantRepository accessGrants;
     private final TimeSeriesService timeSeries;
+    private final MeasuringPointService measuringPoints;
 
-    AccessAuthorizationServiceImpl(AccessGrantRepository accessGrants, TimeSeriesService timeSeries) {
+    AccessAuthorizationServiceImpl(
+            AccessGrantRepository accessGrants,
+            TimeSeriesService timeSeries,
+            MeasuringPointService measuringPoints) {
         this.accessGrants = requireNonNull(accessGrants);
         this.timeSeries = requireNonNull(timeSeries);
+        this.measuringPoints = requireNonNull(measuringPoints);
     }
 
     @Override
@@ -38,17 +44,19 @@ class AccessAuthorizationServiceImpl implements AccessAuthorizationService {
         List<AccessGrant> matchingGrants = accessGrants.findByConnectorId(connectorId).stream()
                 .filter(grant -> grant.permission() == permission)
                 .toList();
-        Optional<TimeSeries> stationScopedTimeSeries = requestedTimeSeriesForStationScopedGrant(resource, matchingGrants);
+        Optional<StationId> stationScopedTimeSeriesStation = requestedStationForStationScopedGrant(
+                resource,
+                matchingGrants);
         return matchingGrants.stream()
-                .anyMatch(grant -> grantCoversResource(grant, resource, stationScopedTimeSeries));
+                .anyMatch(grant -> grantCoversResource(grant, resource, stationScopedTimeSeriesStation));
     }
 
     /**
      * Resolves the requested TimeSeries only when it is needed to check station-scoped coverage.
      * Direct TimeSeries grants can be matched by ID alone, but a Station grant must compare its
-     * Station ID with the requested TimeSeries' owning Station.
+     * Station ID with the Station containing the requested TimeSeries' MeasuringPoint.
      */
-    private Optional<TimeSeries> requestedTimeSeriesForStationScopedGrant(
+    private Optional<StationId> requestedStationForStationScopedGrant(
             AccessResourceRef requestedResource,
             List<AccessGrant> matchingGrants) {
         if (requestedResource.type() != AccessResourceType.TIME_SERIES) {
@@ -56,20 +64,22 @@ class AccessAuthorizationServiceImpl implements AccessAuthorizationService {
         }
         boolean hasStationGrant = matchingGrants.stream()
                 .anyMatch(grant -> grant.resource().type() == AccessResourceType.STATION);
-        return hasStationGrant
-                ? Optional.of(timeSeries.get(new TimeSeriesId(requestedResource.id())))
-                : Optional.empty();
+        if (!hasStationGrant) {
+            return Optional.empty();
+        }
+        var requestedTimeSeries = timeSeries.get(new TimeSeriesId(requestedResource.id()));
+        return Optional.of(measuringPoints.get(requestedTimeSeries.measuringPointId()).stationId());
     }
 
     /**
      * Checks whether a grant's resource covers the requested resource.
-     * Direct resource matches are exact; Station grants cover TimeSeries whose stationId matches
-     * the grant's Station resource ID.
+     * Direct resource matches are exact; Station grants cover TimeSeries whose MeasuringPoint is
+     * contained by the granted Station.
      */
     private boolean grantCoversResource(
             AccessGrant grant,
             AccessResourceRef requestedResource,
-            Optional<TimeSeries> stationScopedTimeSeries) {
+            Optional<StationId> stationScopedTimeSeriesStation) {
         if (grant.resource().equals(requestedResource)) {
             return true;
         }
@@ -77,8 +87,9 @@ class AccessAuthorizationServiceImpl implements AccessAuthorizationService {
                 || requestedResource.type() != AccessResourceType.TIME_SERIES) {
             return false;
         }
-        return stationScopedTimeSeries
-                .map(timeSeries -> grant.resource().id().equals(timeSeries.stationId().value()))
+        return stationScopedTimeSeriesStation
+                .map(StationId::value)
+                .map(grant.resource().id()::equals)
                 .orElse(false);
     }
 }
