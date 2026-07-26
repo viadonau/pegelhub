@@ -7,21 +7,21 @@ import jakarta.validation.constraints.NotNull;
 
 import java.util.UUID;
 
-@Schema(description = "Request to grant a connector access to a station or time series.")
+@Schema(description = "openapi.access.create-access-grant-request.request-to-grant-a-connector-access-to")
 public record CreateAccessGrantRequest(
-        @Schema(description = "Connector that receives the grant.", format = "uuid", example = "0d9a3c87-b41a-4663-af0a-f6ec5e6a91cf")
+        @Schema(description = "openapi.access.create-access-grant-request.connector-that-receives-the-grant", format = "uuid", example = "0d9a3c87-b41a-4663-af0a-f6ec5e6a91cf")
         @NotNull
         UUID connectorId,
 
-        @Schema(description = "Type of resource the grant targets.", example = "TIME_SERIES")
+        @Schema(description = "openapi.access.access-grant-response.type-of-resource-the-grant-targets", example = "TIME_SERIES")
         @NotNull
         AccessResourceType resourceType,
 
-        @Schema(description = "Identifier of the station or time series resource.", format = "uuid", example = "8ce8c5b6-f093-4d46-b770-7239cdfa3d76")
+        @Schema(description = "openapi.access.access-grant-response.identifier-of-the-station-or-time-series", format = "uuid", example = "8ce8c5b6-f093-4d46-b770-7239cdfa3d76")
         @NotNull
         UUID resourceId,
 
-        @Schema(description = "Permission granted to the connector.", example = "READ")
+        @Schema(description = "openapi.access.access-grant-response.permission-granted-to-the-connector", example = "READ")
         @NotNull
         AccessPermission permission
 ) {

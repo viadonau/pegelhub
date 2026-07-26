@@ -31,7 +31,7 @@ import static java.util.Objects.requireNonNull;
 
 @RestController
 @RequestMapping("/api/v1/time-series")
-@Tag(name = "Time Series", description = "Manage observed time series metadata.")
+@Tag(name = "Time Series", description = "openapi.timeseries.http-time-series-controller.manage-observed-time-series-metadata")
 @SecurityRequirement(name = "bearerAuth")
 final class HttpTimeSeriesController {
 
@@ -42,15 +42,15 @@ final class HttpTimeSeriesController {
     }
 
     @Operation(
-            summary = "Creates a time series",
-            description = "Creates observed property metadata for a measuring point. Requires METADATA_WRITE or SYSTEM_ADMIN.")
+            summary = "openapi.timeseries.http-time-series-controller.creates-a-time-series",
+            description = "openapi.timeseries.http-time-series-controller.creates-observed-property-metadata-for-a-measuring")
     @ApiResponses(value = {
             @ApiResponse(
                     responseCode = "201",
-                    description = "Returns the created time series.",
+                    description = "openapi.timeseries.http-time-series-controller.returns-the-created-time-series",
                     content = @Content(schema = @Schema(implementation = TimeSeriesResponse.class))),
-            @ApiResponse(responseCode = "400", description = "The time series payload is invalid.", content = @Content),
-            @ApiResponse(responseCode = "404", description = "A referenced measuring point or connector was not found.", content = @Content)
+            @ApiResponse(responseCode = "400", description = "openapi.timeseries.http-time-series-controller.the-time-series-payload-is-invalid", content = @Content),
+            @ApiResponse(responseCode = "404", description = "openapi.timeseries.http-time-series-controller.a-referenced-measuring-point-or-connector-was", content = @Content)
     })
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
@@ -59,37 +59,37 @@ final class HttpTimeSeriesController {
     }
 
     @Operation(
-            summary = "Gets a time series by ID",
-            description = "Returns observed time series metadata. Requires METADATA_READ, METADATA_WRITE, or SYSTEM_ADMIN.")
+            summary = "openapi.timeseries.http-time-series-controller.gets-a-time-series-by-id",
+            description = "openapi.timeseries.http-time-series-controller.returns-observed-time-series-metadata-requires-metadata")
     @ApiResponses(value = {
             @ApiResponse(
                     responseCode = "200",
-                    description = "Returns the time series.",
+                    description = "openapi.timeseries.http-time-series-controller.returns-the-time-series",
                     content = @Content(schema = @Schema(implementation = TimeSeriesResponse.class))),
-            @ApiResponse(responseCode = "400", description = "The time series UUID is invalid.", content = @Content),
-            @ApiResponse(responseCode = "404", description = "The time series was not found.", content = @Content)
+            @ApiResponse(responseCode = "400", description = "openapi.timeseries.http-time-series-controller.the-time-series-uuid-is-invalid", content = @Content),
+            @ApiResponse(responseCode = "404", description = "openapi.timeseries.http-time-series-controller.the-time-series-was-not-found", content = @Content)
     })
     @GetMapping("/{id}")
-    TimeSeriesResponse get(@Parameter(description = "Time series identifier.", required = true) @PathVariable UUID id) {
+    TimeSeriesResponse get(@Parameter(description = "openapi.measurement.measurement-api.time-series-identifier", required = true) @PathVariable UUID id) {
         return TimeSeriesMapper.toResponse(timeSeries.get(new TimeSeriesId(id)));
     }
 
     @Operation(
-            summary = "Lists time series",
-            description = "Returns all time series, optionally filtered by measuringPointId or stationId. Requires METADATA_READ, METADATA_WRITE, or SYSTEM_ADMIN.")
+            summary = "openapi.timeseries.http-time-series-controller.lists-time-series",
+            description = "openapi.timeseries.http-time-series-controller.returns-all-time-series-optionally-filtered-by")
     @ApiResponses(value = {
             @ApiResponse(
                     responseCode = "200",
-                    description = "Returns time series records.",
+                    description = "openapi.timeseries.http-time-series-controller.returns-time-series-records",
                     content = @Content(array = @ArraySchema(schema = @Schema(implementation = TimeSeriesResponse.class)))),
-            @ApiResponse(responseCode = "400", description = "A query parameter is invalid or both filters were provided.", content = @Content),
-            @ApiResponse(responseCode = "404", description = "The measuring point or station was not found.", content = @Content)
+            @ApiResponse(responseCode = "400", description = "openapi.timeseries.http-time-series-controller.a-query-parameter-is-invalid-or-both", content = @Content),
+            @ApiResponse(responseCode = "404", description = "openapi.timeseries.http-time-series-controller.the-measuring-point-or-station-was-not", content = @Content)
     })
     @GetMapping
     List<TimeSeriesResponse> list(
-            @Parameter(description = "Optional measuring point identifier to filter time series.", required = false)
+            @Parameter(description = "openapi.timeseries.http-time-series-controller.optional-measuring-point-identifier-to-filter-time", required = false)
             @RequestParam(required = false) UUID measuringPointId,
-            @Parameter(description = "Optional station identifier to filter time series.", required = false)
+            @Parameter(description = "openapi.timeseries.http-time-series-controller.optional-station-identifier-to-filter-time-series", required = false)
             @RequestParam(required = false) UUID stationId) {
         if (measuringPointId != null && stationId != null) {
             throw new IllegalArgumentException("Provide either measuringPointId or stationId");

@@ -20,7 +20,7 @@ import static java.util.Objects.requireNonNull;
 
 @RestController
 @RequestMapping("/api/v1/connectors")
-@Tag(name = "Connectors", description = "Manage connector metadata.")
+@Tag(name = "Connectors", description = "openapi.connector.http-connector-controller.manage-connector-metadata")
 @SecurityRequirement(name = "bearerAuth")
 public final class HttpConnectorController {
 
@@ -31,14 +31,14 @@ public final class HttpConnectorController {
     }
 
     @Operation(
-            summary = "Creates a connector",
-            description = "Creates connector metadata. Requires METADATA_WRITE or SYSTEM_ADMIN.")
+            summary = "openapi.connector.http-connector-controller.creates-a-connector",
+            description = "openapi.connector.http-connector-controller.creates-connector-metadata-requires-metadata-write-or")
     @ApiResponses(value = {
             @ApiResponse(
                     responseCode = "200",
-                    description = "Returns the created connector.",
+                    description = "openapi.connector.http-connector-controller.returns-the-created-connector",
                     content = @Content(schema = @Schema(implementation = ConnectorDto.class))),
-            @ApiResponse(responseCode = "400", description = "The connector payload is invalid.", content = @Content)
+            @ApiResponse(responseCode = "400", description = "openapi.connector.http-connector-controller.the-connector-payload-is-invalid", content = @Content)
     })
     @PostMapping
     public ConnectorDto create(@RequestBody CreateConnectorDto dto) {
@@ -46,27 +46,27 @@ public final class HttpConnectorController {
     }
 
     @Operation(
-            summary = "Gets a connector by ID",
-            description = "Returns connector metadata for a UUID. Requires METADATA_READ, METADATA_WRITE, or SYSTEM_ADMIN.")
+            summary = "openapi.connector.http-connector-controller.gets-a-connector-by-id",
+            description = "openapi.connector.http-connector-controller.returns-connector-metadata-for-a-uuid-requires")
     @ApiResponses(value = {
             @ApiResponse(
                     responseCode = "200",
-                    description = "Returns the connector.",
+                    description = "openapi.connector.http-connector-controller.returns-the-connector",
                     content = @Content(schema = @Schema(implementation = ConnectorDto.class))),
-            @ApiResponse(responseCode = "400", description = "The connector UUID is invalid.", content = @Content),
-            @ApiResponse(responseCode = "404", description = "The connector was not found.", content = @Content)
+            @ApiResponse(responseCode = "400", description = "openapi.connector.http-connector-controller.the-connector-uuid-is-invalid", content = @Content),
+            @ApiResponse(responseCode = "404", description = "openapi.connector.http-connector-controller.the-connector-was-not-found", content = @Content)
     })
     @GetMapping("/{uuid}")
-    public ConnectorDto get(@Parameter(description = "Connector identifier.", required = true) @PathVariable UUID uuid) {
+    public ConnectorDto get(@Parameter(description = "openapi.connector.connector-dto.connector-identifier", required = true) @PathVariable UUID uuid) {
         return ConnectorMapper.toResponse(connectorService.get(new ConnectorId(uuid)));
     }
 
     @Operation(
-            summary = "Lists all connectors",
-            description = "Returns all connector metadata records. Requires METADATA_READ, METADATA_WRITE, or SYSTEM_ADMIN.")
+            summary = "openapi.connector.http-connector-controller.lists-all-connectors",
+            description = "openapi.connector.http-connector-controller.returns-all-connector-metadata-records-requires-metadata")
     @ApiResponse(
             responseCode = "200",
-            description = "Returns all connectors.",
+            description = "openapi.connector.http-connector-controller.returns-all-connectors",
             content = @Content(array = @ArraySchema(schema = @Schema(implementation = ConnectorDto.class))))
     @GetMapping
     public List<ConnectorDto> list() {
@@ -74,15 +74,15 @@ public final class HttpConnectorController {
     }
 
     @Operation(
-            summary = "Deletes a connector by ID",
-            description = "Deletes connector metadata for a UUID. Requires METADATA_WRITE or SYSTEM_ADMIN.")
+            summary = "openapi.connector.http-connector-controller.deletes-a-connector-by-id",
+            description = "openapi.connector.http-connector-controller.deletes-connector-metadata-for-a-uuid-requires")
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "The connector was deleted."),
-            @ApiResponse(responseCode = "400", description = "The connector UUID is invalid.", content = @Content),
-            @ApiResponse(responseCode = "404", description = "The connector was not found.", content = @Content)
+            @ApiResponse(responseCode = "200", description = "openapi.connector.http-connector-controller.the-connector-was-deleted"),
+            @ApiResponse(responseCode = "400", description = "openapi.connector.http-connector-controller.the-connector-uuid-is-invalid", content = @Content),
+            @ApiResponse(responseCode = "404", description = "openapi.connector.http-connector-controller.the-connector-was-not-found", content = @Content)
     })
     @DeleteMapping("/{uuid}")
-    public void delete(@Parameter(description = "Connector identifier.", required = true) @PathVariable UUID uuid) {
+    public void delete(@Parameter(description = "openapi.connector.connector-dto.connector-identifier", required = true) @PathVariable UUID uuid) {
         connectorService.delete(new ConnectorId(uuid));
     }
 }

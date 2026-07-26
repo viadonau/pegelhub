@@ -1,4 +1,6 @@
 spring:
+  messages:
+    fallback-to-system-locale: false
   security:
     oauth2:
       resourceserver:
@@ -44,6 +46,9 @@ management:
         include: health,info
 
 springdoc:
+  allowed-locales:
+    - en
+    - de
   api-docs:
     enabled: true
   paths-to-match: /api/v1/**
@@ -53,3 +58,9 @@ springdoc:
     filter: true
     operations-sorter: alpha
     tags-sorter: alpha
+    urls:
+      - name: Deutsch
+        url: /v3/api-docs?lang=de
+      - name: English
+        url: /v3/api-docs?lang=en
+    urls-primary-name: Deutsch

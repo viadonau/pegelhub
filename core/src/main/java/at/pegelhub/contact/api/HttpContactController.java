@@ -26,7 +26,7 @@ import static java.util.Objects.requireNonNull;
  */
 @RestController
 @RequestMapping("/api/v1/contact")
-@Tag(name = "Legacy Contacts", description = "Legacy contact metadata endpoints.")
+@Tag(name = "Legacy Contacts", description = "openapi.contact.http-contact-controller.legacy-contact-metadata-endpoints")
 @SecurityRequirement(name = "bearerAuth")
 public class HttpContactController {
 
@@ -38,14 +38,14 @@ public class HttpContactController {
     }
 
     @Operation(
-            summary = "Creates a legacy contact",
-            description = "Creates a legacy contact metadata record. Requires METADATA_WRITE or SYSTEM_ADMIN.")
+            summary = "openapi.contact.http-contact-controller.creates-a-legacy-contact",
+            description = "openapi.contact.http-contact-controller.creates-a-legacy-contact-metadata-record-requires")
     @ApiResponses(value = {
             @ApiResponse(
                     responseCode = "200",
-                    description = "Returns the saved contact.",
+                    description = "openapi.contact.http-contact-controller.returns-the-saved-contact",
                     content = @Content(schema = @Schema(implementation = ContactDto.class))),
-            @ApiResponse(responseCode = "400", description = "The contact payload is invalid.", content = @Content)
+            @ApiResponse(responseCode = "400", description = "openapi.contact.http-contact-controller.the-contact-payload-is-invalid", content = @Content)
     })
     @PostMapping
     public ContactDto saveContact(@RequestBody CreateContactDto contact) {
@@ -53,27 +53,27 @@ public class HttpContactController {
     }
 
     @Operation(
-            summary = "Gets a legacy contact by ID",
-            description = "Returns a legacy contact metadata record. Requires METADATA_READ, METADATA_WRITE, or SYSTEM_ADMIN.")
+            summary = "openapi.contact.http-contact-controller.gets-a-legacy-contact-by-id",
+            description = "openapi.contact.http-contact-controller.returns-a-legacy-contact-metadata-record-requires")
     @ApiResponses(value = {
             @ApiResponse(
                     responseCode = "200",
-                    description = "Returns the contact.",
+                    description = "openapi.contact.http-contact-controller.returns-the-contact",
                     content = @Content(schema = @Schema(implementation = ContactDto.class))),
-            @ApiResponse(responseCode = "400", description = "The contact UUID is invalid.", content = @Content),
-            @ApiResponse(responseCode = "404", description = "The contact was not found.", content = @Content)
+            @ApiResponse(responseCode = "400", description = "openapi.contact.http-contact-controller.the-contact-uuid-is-invalid", content = @Content),
+            @ApiResponse(responseCode = "404", description = "openapi.contact.http-contact-controller.the-contact-was-not-found", content = @Content)
     })
     @GetMapping("/{uuid}")
-    public ContactDto getContactById(@Parameter(description = "Contact identifier.", required = true) @PathVariable UUID uuid) {
+    public ContactDto getContactById(@Parameter(description = "openapi.contact.contact-dto.contact-identifier", required = true) @PathVariable UUID uuid) {
         return DomainToDtoConverter.convert(contactService.getContactById(uuid));
     }
 
     @Operation(
-            summary = "Lists legacy contacts",
-            description = "Returns all legacy contact metadata records. Requires METADATA_READ, METADATA_WRITE, or SYSTEM_ADMIN.")
+            summary = "openapi.contact.http-contact-controller.lists-legacy-contacts",
+            description = "openapi.contact.http-contact-controller.returns-all-legacy-contact-metadata-records-requires")
     @ApiResponse(
             responseCode = "200",
-            description = "Returns all contacts.",
+            description = "openapi.contact.http-contact-controller.returns-all-contacts",
             content = @Content(array = @ArraySchema(schema = @Schema(implementation = ContactDto.class))))
     @GetMapping
     public List<ContactDto> getAllContacts() {
@@ -81,15 +81,15 @@ public class HttpContactController {
     }
 
     @Operation(
-            summary = "Deletes a legacy contact by ID",
-            description = "Deletes a legacy contact metadata record. Requires METADATA_WRITE or SYSTEM_ADMIN.")
+            summary = "openapi.contact.http-contact-controller.deletes-a-legacy-contact-by-id",
+            description = "openapi.contact.http-contact-controller.deletes-a-legacy-contact-metadata-record-requires")
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "The contact was deleted."),
-            @ApiResponse(responseCode = "400", description = "The contact UUID is invalid.", content = @Content),
-            @ApiResponse(responseCode = "404", description = "The contact was not found.", content = @Content)
+            @ApiResponse(responseCode = "200", description = "openapi.contact.http-contact-controller.the-contact-was-deleted"),
+            @ApiResponse(responseCode = "400", description = "openapi.contact.http-contact-controller.the-contact-uuid-is-invalid", content = @Content),
+            @ApiResponse(responseCode = "404", description = "openapi.contact.http-contact-controller.the-contact-was-not-found", content = @Content)
     })
     @DeleteMapping("/{uuid}")
-    public void deleteContact(@Parameter(description = "Contact identifier.", required = true) @PathVariable UUID uuid) {
+    public void deleteContact(@Parameter(description = "openapi.contact.contact-dto.contact-identifier", required = true) @PathVariable UUID uuid) {
         contactService.deleteContact(uuid);
     }
 }

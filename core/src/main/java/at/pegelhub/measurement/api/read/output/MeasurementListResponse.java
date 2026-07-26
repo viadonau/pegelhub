@@ -5,18 +5,18 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import java.util.List;
 import java.util.UUID;
 
-@Schema(description = "Lean envelope of raw measurements for one time series.")
+@Schema(description = "openapi.measurement.measurement-list-response.lean-envelope-of-raw-measurements-for-one")
 public record MeasurementListResponse(
-        @Schema(description = "Time series whose measurements are returned.")
+        @Schema(description = "openapi.measurement.measurement-list-response.time-series-whose-measurements-are-returned")
         UUID timeSeriesId,
-        @Schema(description = "Resolved query window.")
+        @Schema(description = "openapi.measurement.measurement-bucket-list-response.resolved-query-window")
         MeasurementWindowResponse window,
-        @Schema(description = "Sort order used for the returned measurements.")
+        @Schema(description = "openapi.measurement.measurement-list-response.sort-order-used-for-the-returned-measurements")
         MeasurementSortOrder order,
-        @Schema(description = "Requested maximum number of raw points.", example = "1000")
+        @Schema(description = "openapi.measurement.measurement-list-response.requested-maximum-number-of-raw-points", example = "1000")
         int limit,
-        @Schema(description = "Whether more points exist in the requested window than were returned.", example = "false")
+        @Schema(description = "openapi.measurement.measurement-list-response.whether-more-points-exist-in-the-requested", example = "false")
         boolean truncated,
-        @Schema(description = "Raw measurement points.")
+        @Schema(description = "openapi.measurement.measurement-list-response.raw-measurement-points")
         List<MeasurementPointResponse> measurements) {
 }

@@ -9,11 +9,11 @@ import java.util.List;
 
 import static at.pegelhub.shared.validation.Validations.requireNotEmpty;
 
-@Schema(description = "Batch of raw measurements to write.")
+@Schema(description = "openapi.measurement.write-measurements-request.batch-of-raw-measurements-to-write")
 public record WriteMeasurementsRequest(
         @ArraySchema(
                 minItems = 1,
-                schema = @Schema(description = "One measurement to store."))
+                schema = @Schema(description = "openapi.measurement.write-measurements-request.one-measurement-to-store"))
         @NotEmpty List<@Valid WriteMeasurementRequest> measurements) {
 
     public WriteMeasurementsRequest {

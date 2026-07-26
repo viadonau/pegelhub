@@ -28,7 +28,7 @@ import static java.util.Objects.requireNonNull;
 
 @RestController
 @RequestMapping("/api/v1/station-owners")
-@Tag(name = "Station Owners", description = "Manage station owner metadata.")
+@Tag(name = "Station Owners", description = "openapi.stationowner.http-station-owner-controller.manage-station-owner-metadata")
 @SecurityRequirement(name = "bearerAuth")
 final class HttpStationOwnerController {
 
@@ -39,14 +39,14 @@ final class HttpStationOwnerController {
     }
 
     @Operation(
-            summary = "Creates a station owner",
-            description = "Creates station owner metadata. Requires METADATA_WRITE or SYSTEM_ADMIN.")
+            summary = "openapi.stationowner.http-station-owner-controller.creates-a-station-owner",
+            description = "openapi.stationowner.http-station-owner-controller.creates-station-owner-metadata-requires-metadata-write")
     @ApiResponses(value = {
             @ApiResponse(
                     responseCode = "201",
-                    description = "Returns the created station owner.",
+                    description = "openapi.stationowner.http-station-owner-controller.returns-the-created-station-owner",
                     content = @Content(schema = @Schema(implementation = StationOwnerResponse.class))),
-            @ApiResponse(responseCode = "400", description = "The station owner payload is invalid.", content = @Content)
+            @ApiResponse(responseCode = "400", description = "openapi.stationowner.http-station-owner-controller.the-station-owner-payload-is-invalid", content = @Content)
     })
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
@@ -55,27 +55,27 @@ final class HttpStationOwnerController {
     }
 
     @Operation(
-            summary = "Gets a station owner by ID",
-            description = "Returns station owner metadata. Requires METADATA_READ, METADATA_WRITE, or SYSTEM_ADMIN.")
+            summary = "openapi.stationowner.http-station-owner-controller.gets-a-station-owner-by-id",
+            description = "openapi.stationowner.http-station-owner-controller.returns-station-owner-metadata-requires-metadata-read")
     @ApiResponses(value = {
             @ApiResponse(
                     responseCode = "200",
-                    description = "Returns the station owner.",
+                    description = "openapi.stationowner.http-station-owner-controller.returns-the-station-owner",
                     content = @Content(schema = @Schema(implementation = StationOwnerResponse.class))),
-            @ApiResponse(responseCode = "400", description = "The station owner UUID is invalid.", content = @Content),
-            @ApiResponse(responseCode = "404", description = "The station owner was not found.", content = @Content)
+            @ApiResponse(responseCode = "400", description = "openapi.stationowner.http-station-owner-controller.the-station-owner-uuid-is-invalid", content = @Content),
+            @ApiResponse(responseCode = "404", description = "openapi.station.http-station-controller.the-station-owner-was-not-found", content = @Content)
     })
     @GetMapping("/{id}")
-    StationOwnerResponse get(@Parameter(description = "Station owner identifier.", required = true) @PathVariable UUID id) {
+    StationOwnerResponse get(@Parameter(description = "openapi.station.create-station-request.station-owner-identifier", required = true) @PathVariable UUID id) {
         return StationOwnerMapper.toResponse(stationOwners.get(new StationOwnerId(id)));
     }
 
     @Operation(
-            summary = "Lists station owners",
-            description = "Returns all station owner metadata records. Requires METADATA_READ, METADATA_WRITE, or SYSTEM_ADMIN.")
+            summary = "openapi.stationowner.http-station-owner-controller.lists-station-owners",
+            description = "openapi.stationowner.http-station-owner-controller.returns-all-station-owner-metadata-records-requires")
     @ApiResponse(
             responseCode = "200",
-            description = "Returns station owners.",
+            description = "openapi.stationowner.http-station-owner-controller.returns-station-owners",
             content = @Content(array = @ArraySchema(schema = @Schema(implementation = StationOwnerResponse.class))))
     @GetMapping
     List<StationOwnerResponse> list() {
