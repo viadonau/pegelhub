@@ -1,10 +1,10 @@
 <#macro registrationLayout bodyClass="" displayInfo=false displayMessage=true displayRequiredFields=false displayWide=false>
 <!DOCTYPE html>
-<html class="${properties.kcHtmlClass!}" lang="${(locale.currentLanguageTag)!'en'}">
+<html class="${properties.kcHtmlClass!}" lang="${(locale.currentLanguageTag)!'de'}">
 
 <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
     <meta name="robots" content="noindex, nofollow">
     <title>${msg("loginTitle",(realm.displayName!''))} · PegelHub</title>
     <link rel="icon" href="${url.resourcesPath}/img/pegelhub-logo.png" />
