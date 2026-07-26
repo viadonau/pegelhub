@@ -3,6 +3,11 @@
   "enabled": true,
   "displayName": "PegelHub Local",
   "loginTheme": "pegelhub",
+  "internationalizationEnabled": true,
+  "supportedLocales": [
+    "de"
+  ],
+  "defaultLocale": "de",
   "accessTokenLifespan": 600,
   "ssoSessionIdleTimeout": 1800,
   "ssoSessionMaxLifespan": 3600,
