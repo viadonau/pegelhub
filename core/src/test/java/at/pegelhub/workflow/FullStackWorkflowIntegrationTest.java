@@ -1,12 +1,12 @@
 package at.pegelhub.workflow;
 
+import at.pegelhub.access.api.AccessGrantPermission;
+import at.pegelhub.access.api.AccessGrantResourceType;
 import at.pegelhub.access.api.CreateAccessGrantRequest;
-import at.pegelhub.access.domain.AccessPermission;
-import at.pegelhub.access.domain.AccessResourceType;
 import at.pegelhub.connector.api.ConnectorDto;
+import at.pegelhub.connector.api.ConnectorStatusDto;
 import at.pegelhub.connector.api.CreateConnectorDto;
 import at.pegelhub.connector.api.RegisterConnectorRequest;
-import at.pegelhub.connector.domain.ConnectorStatus;
 import at.pegelhub.contact.api.CreateContactDto;
 import at.pegelhub.measurement.api.read.output.MeasurementListResponse;
 import at.pegelhub.measurement.api.read.output.MeasurementPointResponse;
@@ -52,7 +52,7 @@ final class FullStackWorkflowIntegrationTest extends FullStackIntegrationTestBas
         AuthToken operator = userToken("operator-" + suffix, "local-operator", List.of("metadata:write", "system:admin"));
         AuthToken connectorToken = clientToken(
                 "measurement-" + suffix,
-                "supplier-client-" + suffix,
+                "connector-client-" + suffix,
                 List.of("measurement:write", "measurement:read"));
         ConnectorDto connector = registerConnector(operator, connectorToken.clientId(), "mc-" + compactId(connectorToken.clientId()));
         StationOwnerResponse owner = postStationOwner(operator, "Owner " + suffix);
@@ -112,7 +112,7 @@ final class FullStackWorkflowIntegrationTest extends FullStackIntegrationTestBas
     private ConnectorDto registerConnector(AuthToken operator, String keycloakClientId, String connectorNumber) {
         RegisterConnectorRequest request = new RegisterConnectorRequest(
                 keycloakClientId,
-                ConnectorStatus.ACTIVE,
+                ConnectorStatusDto.ACTIVE,
                 connectorDto(connectorNumber));
 
         ResponseEntity<ConnectorDto> response = rest.exchange(
@@ -181,20 +181,20 @@ final class FullStackWorkflowIntegrationTest extends FullStackIntegrationTestBas
     }
 
     private void grantWriteAccess(AuthToken operator, UUID connectorId, UUID timeSeriesId) {
-        grantAccess(operator, connectorId, timeSeriesId, AccessPermission.WRITE);
+        grantAccess(operator, connectorId, timeSeriesId, AccessGrantPermission.WRITE);
     }
 
     private void grantReadAccess(AuthToken operator, UUID connectorId, UUID timeSeriesId) {
-        grantAccess(operator, connectorId, timeSeriesId, AccessPermission.READ);
+        grantAccess(operator, connectorId, timeSeriesId, AccessGrantPermission.READ);
     }
 
-    private void grantAccess(AuthToken operator, UUID connectorId, UUID timeSeriesId, AccessPermission permission) {
+    private void grantAccess(AuthToken operator, UUID connectorId, UUID timeSeriesId, AccessGrantPermission permission) {
         ResponseEntity<Void> response = rest.exchange(
                 "/api/v1/access-grants",
                 HttpMethod.POST,
                 bearerEntity(new CreateAccessGrantRequest(
                         connectorId,
-                        AccessResourceType.TIME_SERIES,
+                        AccessGrantResourceType.TIME_SERIES,
                         timeSeriesId,
                         permission), operator),
                 Void.class);

@@ -4,6 +4,7 @@ import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -64,5 +65,15 @@ final class TelemetryTest {
         assertDoesNotThrow(() -> new Telemetry(MEASUREMENT, IP_ADDRESS, IP_ADDRESS,
                 TIMESTAMP, CYCLE_TIME, TEMPERATURE, TEMPERATURE, PERFORMANCE, PERFORMANCE,
                 PERFORMANCE, PERFORMANCE, FIELD_STRENGTH));
+    }
+
+    @Test
+    public void legacyEnvironmentalAliasesExposeExistingFields() {
+        Telemetry telemetry = new Telemetry(MEASUREMENT, IP_ADDRESS, IP_ADDRESS,
+                TIMESTAMP, CYCLE_TIME, TEMPERATURE, TEMPERATURE, PERFORMANCE, PERFORMANCE,
+                PERFORMANCE, PERFORMANCE, FIELD_STRENGTH);
+
+        assertEquals(TEMPERATURE, telemetry.legacyTemperatureWater());
+        assertEquals(TEMPERATURE, telemetry.legacyTemperatureAir());
     }
 }

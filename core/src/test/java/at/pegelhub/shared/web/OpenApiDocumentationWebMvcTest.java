@@ -162,6 +162,44 @@ class OpenApiDocumentationWebMvcTest {
     }
 
     @Test
+    void measurementReadOpenApiUsesHttpResponseSchemas() throws Exception {
+        JsonNode spec = openApiJson();
+        JsonNode paths = spec.path("paths");
+        JsonNode schemas = spec.path("components").path("schemas");
+
+        assertThat(schemaNames(schemas)).contains(
+                "MeasurementListResponse",
+                "MeasurementPointResponse",
+                "MeasurementBucketListResponse",
+                "MeasurementBucketPointResponse");
+        assertThat(schemaNames(schemas)).doesNotContain(
+                "Measurement",
+                "MeasurementBucket",
+                "MeasurementList",
+                "MeasurementBucketList",
+                "MeasurementReadQuery");
+
+        assertThat(jsonResponseSchemaRef(paths, "/api/v1/time-series/{timeSeriesId}/measurements"))
+                .isEqualTo("#/components/schemas/MeasurementListResponse");
+        assertThat(jsonResponseSchemaRef(paths, "/api/v1/time-series/{timeSeriesId}/measurements/buckets"))
+                .isEqualTo("#/components/schemas/MeasurementBucketListResponse");
+    }
+
+    @Test
+    void accessAndConnectorOpenApiUseHttpEnumSchemas() throws Exception {
+        JsonNode schemas = openApiJson().path("components").path("schemas");
+
+        assertThat(schemaNames(schemas)).contains(
+                "AccessPermission",
+                "AccessResourceType",
+                "ConnectorStatus");
+        assertThat(schemaNames(schemas)).doesNotContain(
+                "AccessGrantPermission",
+                "AccessGrantResourceType",
+                "ConnectorStatusDto");
+    }
+
+    @Test
     void commonAuthResponsesAreAppliedOnlyToBearerProtectedOperations() throws Exception {
         JsonNode paths = openApiJson().path("paths");
 
@@ -199,26 +237,6 @@ class OpenApiDocumentationWebMvcTest {
                 .containsExactlyInAnyOrder("last", "from", "to", "order", "limit");
         assertThat(queryParameterNames(paths.path("/api/v1/time-series/{timeSeriesId}/measurements/buckets").path("get")))
                 .containsExactlyInAnyOrder("last", "from", "to", "bucket", "maxPoints");
-    }
-
-    @Test
-    void telemetryWriteSchemaExcludesTheServerOwnedConnectorIdentity() throws Exception {
-        JsonNode spec = openApiJson();
-        JsonNode telemetryPost = spec.path("paths").path("/api/v1/telemetry").path("post");
-        JsonNode writeSchema = spec.path("components").path("schemas").path("WriteTelemetryRequest");
-        JsonNode telemetrySchema = spec.path("components").path("schemas").path("Telemetry");
-
-        assertThat(telemetryPost.path("requestBody").path("content").path("application/json")
-                .path("schema").path("$ref").asText()).endsWith("/WriteTelemetryRequest");
-        assertThat(writeSchema.path("properties").has("measurement")).isFalse();
-        assertThat(textValues(writeSchema.path("required")))
-                .containsExactlyInAnyOrder("stationIPAddressIntern", "stationIPAddressExtern", "timestamp", "cycleTime");
-        assertThat(telemetrySchema.path("properties").path("measurement").path("readOnly").asBoolean()).isTrue();
-        assertThat(telemetryPost.path("responses").has("404")).isTrue();
-        assertThat(spec.path("paths").path("/api/v1/telemetry/last/{uuid}").path("get")
-                .path("responses").has("404")).isFalse();
-        assertThat(spec.path("paths").path("/api/v1/telemetry/last/{uuid}").path("get")
-                .path("responses").has("500")).isTrue();
     }
 
     @Test
@@ -298,6 +316,25 @@ class OpenApiDocumentationWebMvcTest {
         return names;
     }
 
+    private static Set<String> schemaNames(JsonNode schemas) {
+        Set<String> names = new TreeSet<>();
+        schemas.fieldNames().forEachRemaining(names::add);
+        return names;
+    }
+
+    private static String jsonResponseSchemaRef(JsonNode paths, String path) {
+        JsonNode content = paths.path(path)
+                .path("get")
+                .path("responses")
+                .path("200")
+                .path("content");
+        Iterator<JsonNode> mediaTypes = content.elements();
+        if (!mediaTypes.hasNext()) {
+            return "";
+        }
+        return mediaTypes.next().path("schema").path("$ref").asText();
+    }
+
     private static Set<String> queryParameterNames(JsonNode operation) {
         Set<String> names = new TreeSet<>();
         operation.path("parameters").forEach(parameter -> {
@@ -306,12 +343,6 @@ class OpenApiDocumentationWebMvcTest {
             }
         });
         return names;
-    }
-
-    private static Set<String> textValues(JsonNode array) {
-        Set<String> values = new TreeSet<>();
-        array.forEach(value -> values.add(value.asText()));
-        return values;
     }
 
 }

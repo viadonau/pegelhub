@@ -35,7 +35,7 @@ final class TelemetryFluxRowMapperTest {
                     assertThat(telemetry.measurement()).isEqualTo("station-a");
                     assertThat(telemetry.timestamp()).isEqualTo(timestamp);
                     assertThat(telemetry.cycleTime()).isEqualTo(30);
-                    assertThat(telemetry.temperatureWater()).isEqualTo(14.2);
+                    assertThat(telemetry.legacyTemperatureWater()).isEqualTo(14.2);
                     assertThat(telemetry.stationIPAddressIntern()).isEqualTo("10.0.0.1");
                     assertThat(telemetry.stationIPAddressExtern()).isEqualTo("203.0.113.1");
                 });

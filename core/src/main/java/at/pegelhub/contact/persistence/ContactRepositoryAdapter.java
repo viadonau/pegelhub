@@ -1,9 +1,5 @@
 package at.pegelhub.contact.persistence;
 
-import at.pegelhub.shared.persistence.DomainToEntityConverter;
-import at.pegelhub.shared.persistence.EntityToDomainConverter;
-import at.pegelhub.shared.persistence.*;
-
 import at.pegelhub.contact.domain.Contact;
 import org.springframework.stereotype.Repository;
 
@@ -31,7 +27,7 @@ public class ContactRepositoryAdapter implements ContactRepository {
         if (contact.getId() == null) {
             contact = contact.withId(UUID.randomUUID());
         }
-        return EntityToDomainConverter.convert(jpaContactRepository.save(DomainToEntityConverter.convert(contact)));
+        return ContactEntityMapper.toDomain(jpaContactRepository.save(ContactEntityMapper.toEntity(contact)));
     }
 
     /**
@@ -40,7 +36,7 @@ public class ContactRepositoryAdapter implements ContactRepository {
      */
     @Override
     public Contact getById(UUID uuid) {
-        return jpaContactRepository.findById(uuid).map(EntityToDomainConverter::convert).orElse(null);
+        return jpaContactRepository.findById(uuid).map(ContactEntityMapper::toDomain).orElse(null);
     }
 
     /**
@@ -48,7 +44,7 @@ public class ContactRepositoryAdapter implements ContactRepository {
      */
     @Override
     public List<Contact> getAllContacts() {
-        return EntityToDomainConverter.convert(jpaContactRepository.findAll());
+        return jpaContactRepository.findAll().stream().map(ContactEntityMapper::toDomain).toList();
     }
 
     /**
@@ -57,7 +53,7 @@ public class ContactRepositoryAdapter implements ContactRepository {
      */
     @Override
     public Contact update(Contact contact) {
-        return EntityToDomainConverter.convert(jpaContactRepository.save(DomainToEntityConverter.convert(contact)));
+        return ContactEntityMapper.toDomain(jpaContactRepository.save(ContactEntityMapper.toEntity(contact)));
     }
 
     /**

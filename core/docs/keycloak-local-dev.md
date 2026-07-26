@@ -39,6 +39,32 @@ Application** link. Set it independently in each environment. Realm import runs
 only when the realm does not already exist, so changing this value does not
 update an existing realm.
 
+If the Angular dev server runs on a different port, for example because
+`localhost:4200` is already occupied, set `PEGELHUB_FRONTEND_URL` to the exact
+origin before importing the realm:
+
+```text
+PEGELHUB_FRONTEND_URL=http://localhost:4201
+```
+
+Keycloak validates the full browser redirect origin. A dev server on
+`http://127.0.0.1:4201` is a different origin from `http://localhost:4201`, and
+both differ from the default `http://localhost:4200`. If Keycloak shows
+`Invalid parameter: redirect_uri`, either run the frontend on the imported
+origin or recreate the local Keycloak realm after changing
+`PEGELHUB_FRONTEND_URL`.
+
+Before browser testing on a non-default port, run the local origin check:
+
+```sh
+PEGELHUB_FRONTEND_URL=http://localhost:4201 \
+  scripts/check-keycloak-frontend-origin.sh http://localhost:4201
+```
+
+The check verifies that the realm import templates the browser client from
+`PEGELHUB_FRONTEND_URL` and that the Angular origin you intend to use matches
+the origin that should have been imported.
+
 ## Iterate On The Login Theme
 
 The local Keycloak container runs in `start-dev` mode with theme caches disabled:

@@ -7,29 +7,40 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
 import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 
 import java.util.UUID;
 
 @Entity
-@Table(name = "access_grant")
+@Table(
+        name = "access_grant",
+        uniqueConstraints = @UniqueConstraint(
+                name = "uk_access_grant_assignment",
+                columnNames = {"connector_id", "resource_type", "resource_id", "permission"}),
+        indexes = {
+                @Index(name = "ix_access_grant_connector", columnList = "connector_id"),
+                @Index(name = "ix_access_grant_resource", columnList = "resource_type, resource_id")
+        })
 class AccessGrantEntity {
 
     @Id
+    @Column(name = "id")
     private UUID id;
 
-    @Column(nullable = false)
+    @Column(name = "connector_id", nullable = false)
     private UUID connectorId;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 40)
+    @Column(name = "resource_type", nullable = false, length = 40)
     private AccessResourceType resourceType;
 
-    @Column(nullable = false)
+    @Column(name = "resource_id", nullable = false)
     private UUID resourceId;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 40)
+    @Column(name = "permission", nullable = false, length = 40)
     private AccessPermission permission;
 
     protected AccessGrantEntity() {

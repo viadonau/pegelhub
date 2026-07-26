@@ -14,6 +14,8 @@ import java.util.List;
 import java.util.UUID;
 
 import static at.pegelhub.testsupport.ExampleData.CONNECTOR;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentCaptor.forClass;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
@@ -69,6 +71,65 @@ class HttpConnectorControllerTest {
     }
 
     @Test
+    void createNormalizesOmittedLegacyConnectorFields() throws Exception {
+        when(connectorService.create(any())).thenReturn(CONNECTOR);
+
+        mockMvc.perform(post("/api/v1/connectors")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "connectorNumber": "connectorNR"
+                                }
+                                """))
+                .andExpect(status().isOk());
+
+        var command = forClass(at.pegelhub.connector.application.CreateConnectorCommand.class);
+        verify(connectorService).create(command.capture());
+        assertThat(command.getValue().typeDescription()).isEmpty();
+        assertThat(command.getValue().softwareVersion()).isEmpty();
+        assertThat(command.getValue().worksFromDataVersion()).isEmpty();
+        assertThat(command.getValue().dataDefinition()).isEmpty();
+        assertThat(command.getValue().notes()).isEmpty();
+        assertThat(command.getValue().manufacturer()).isNotNull();
+        assertThat(command.getValue().softwareManufacturer()).isNotNull();
+        assertThat(command.getValue().technicallyResponsible()).isNotNull();
+        assertThat(command.getValue().operationCompany()).isNotNull();
+    }
+
+    @Test
+    void createWithBlankConnectorNumberReturnsValidationProblem() throws Exception {
+        mockMvc.perform(post("/api/v1/connectors")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "connectorNumber": " "
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+                .andExpect(jsonPath("$.errors[0].field").value("connectorNumber"));
+    }
+
+    @Test
+    void createWithInvalidNestedContactReturnsValidationProblem() throws Exception {
+        mockMvc.perform(post("/api/v1/connectors")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "connectorNumber": "connectorNR",
+                                  "manufacturer": {
+                                    "organization": "%s"
+                                  }
+                                }
+                                """.formatted("x".repeat(151))))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+                .andExpect(jsonPath("$.errors[0].field").value("manufacturer.organization"));
+    }
+
+    @Test
     void getByIdReturnsDtoJson() throws Exception {
         ConnectorId id = CONNECTOR.id();
         when(connectorService.get(id)).thenReturn(CONNECTOR);
@@ -106,7 +167,10 @@ class HttpConnectorControllerTest {
 
         mockMvc.perform(get("/api/v1/connectors/{uuid}", id))
                 .andExpect(status().isNotFound())
-                .andExpect(content().string("connector missing"));
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.code").value("NOT_FOUND"))
+                .andExpect(jsonPath("$.status").value(404))
+                .andExpect(jsonPath("$.detail").value("connector missing"));
     }
 
     @Test
@@ -123,6 +187,9 @@ class HttpConnectorControllerTest {
 
         mockMvc.perform(delete("/api/v1/connectors/{uuid}", id))
                 .andExpect(status().isNotFound())
-                .andExpect(content().string("connector missing"));
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.code").value("NOT_FOUND"))
+                .andExpect(jsonPath("$.status").value(404))
+                .andExpect(jsonPath("$.detail").value("connector missing"));
     }
 }

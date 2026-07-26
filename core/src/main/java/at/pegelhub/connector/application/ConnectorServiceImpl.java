@@ -4,7 +4,7 @@ import at.pegelhub.connector.domain.Connector;
 import at.pegelhub.connector.domain.ConnectorId;
 import at.pegelhub.connector.domain.ConnectorStatus;
 import at.pegelhub.connector.persistence.ConnectorRepository;
-import at.pegelhub.contact.domain.Contact;
+import at.pegelhub.contact.api.ContactMapper;
 import at.pegelhub.contact.persistence.ContactRepository;
 import at.pegelhub.shared.error.NotFoundException;
 import org.springframework.stereotype.Service;
@@ -74,24 +74,15 @@ class ConnectorServiceImpl implements ConnectorService {
     private Connector connectorFromCommand(CreateConnectorCommand command) {
         return Connector.create(
                 command.connectorNumber(),
-                contactFromDto(command.manufacturer()),
+                ContactMapper.toDomain(command.manufacturer()),
                 command.typeDescription(),
                 command.softwareVersion(),
                 command.worksFromDataVersion(),
                 command.dataDefinition(),
-                contactFromDto(command.softwareManufacturer()),
-                contactFromDto(command.technicallyResponsible()),
-                contactFromDto(command.operationCompany()),
+                ContactMapper.toDomain(command.softwareManufacturer()),
+                ContactMapper.toDomain(command.technicallyResponsible()),
+                ContactMapper.toDomain(command.operationCompany()),
                 command.notes());
-    }
-
-    private Contact contactFromDto(at.pegelhub.contact.api.CreateContactDto dto) {
-        return new Contact(null,
-                dto.organization(), dto.contactPerson(), dto.contactStreet(), dto.contactPlz(),
-                dto.location(), dto.contactCountry(), dto.emergencyNumber(), dto.emergencyNumberTwo(),
-                dto.emergencyMail(), dto.serviceNumber(), dto.serviceNumberTwo(), dto.serviceMail(),
-                dto.administrationPhoneNumber(), dto.administrationPhoneNumberTwo(), dto.administrationMail(),
-                dto.contactNodes());
     }
 
     private Connector persistContacts(Connector connector) {

@@ -1,6 +1,5 @@
 package at.pegelhub.connector.api;
 
-import at.pegelhub.connector.domain.ConnectorStatus;
 import at.pegelhub.contact.api.ContactDto;
 import io.swagger.v3.oas.annotations.media.Schema;
 
@@ -40,13 +39,13 @@ public record ConnectorDto(
         @Schema(description = "Keycloak client id bound to this connector, if registered.", example = "local-connector-example", nullable = true)
         String keycloakClientId,
         @Schema(description = "Connector lifecycle status.", example = "ACTIVE")
-        ConnectorStatus status) {
+        ConnectorStatusDto status) {
     public ConnectorDto(UUID id, String connectorNumber, ContactDto manufacturer, String typeDescription,
                         String softwareVersion, String worksFromDataVersion, String dataDefinition,
                         ContactDto softwareManufacturer, ContactDto technicallyResponsible,
                         ContactDto operationCompany, String notes) {
         this(id, connectorNumber, manufacturer, typeDescription, softwareVersion, worksFromDataVersion, dataDefinition,
-                softwareManufacturer, technicallyResponsible, operationCompany, notes, null, ConnectorStatus.ACTIVE);
+                softwareManufacturer, technicallyResponsible, operationCompany, notes, null, ConnectorStatusDto.ACTIVE);
     }
 
     public ConnectorDto {

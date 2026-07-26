@@ -11,6 +11,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -41,7 +42,7 @@ public final class HttpConnectorController {
             @ApiResponse(responseCode = "400", description = "The connector payload is invalid.", content = @Content)
     })
     @PostMapping
-    public ConnectorDto create(@RequestBody CreateConnectorDto dto) {
+    public ConnectorDto create(@Valid @RequestBody CreateConnectorDto dto) {
         return ConnectorMapper.toResponse(connectorService.create(ConnectorMapper.toCommand(dto)));
     }
 

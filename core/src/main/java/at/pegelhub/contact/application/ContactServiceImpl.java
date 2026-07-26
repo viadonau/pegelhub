@@ -17,9 +17,11 @@ import static java.util.Objects.requireNonNull;
 public class ContactServiceImpl implements ContactService {
 
     private final ContactRepository contactRepository;
+    private final List<ContactDeletionGuard> deletionGuards;
 
-    public ContactServiceImpl(ContactRepository contactRepository) {
+    public ContactServiceImpl(ContactRepository contactRepository, List<ContactDeletionGuard> deletionGuards) {
         this.contactRepository = requireNonNull(contactRepository);
+        this.deletionGuards = List.copyOf(requireNonNull(deletionGuards));
     }
 
     /**
@@ -59,6 +61,7 @@ public class ContactServiceImpl implements ContactService {
     @Override
     public void deleteContact(UUID uuid) {
         getContactById(uuid);
+        deletionGuards.forEach(guard -> guard.assertCanDelete(uuid));
         contactRepository.deleteContact(uuid);
     }
 }

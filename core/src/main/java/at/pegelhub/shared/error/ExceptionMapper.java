@@ -3,54 +3,42 @@ package at.pegelhub.shared.error;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpStatus;
+import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.context.request.WebRequest;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
 
 /**
- * Maps uncaught exceptions to {@code ResponseEntity}s.
+ * Maps uncaught exceptions to RFC 9457 problem detail responses.
  */
 @ControllerAdvice
 public class ExceptionMapper extends ResponseEntityExceptionHandler {
 
-    Logger LOGGER = LoggerFactory.getLogger(ExceptionMapper.class);
+    private static final Logger LOGGER = LoggerFactory.getLogger(ExceptionMapper.class);
 
-    @ExceptionHandler(value = {UnauthorizedException.class})
-    protected ResponseEntity<Object> handleUnauthorizedException(RuntimeException ex, WebRequest request) {
-        LOGGER.error("Unauthorized Access", ex);
-        String bodyOfResponse = "Unauthorized";
-        return handleExceptionInternal(ex, bodyOfResponse, new HttpHeaders(), HttpStatus.UNAUTHORIZED, request);
+    @ExceptionHandler(RuntimeException.class)
+    protected ResponseEntity<Object> handleRuntimeException(RuntimeException ex, WebRequest request) {
+        return handleExceptionInternal(ex, null, new HttpHeaders(), ApiErrorResponse.from(ex).code().status(), request);
     }
 
-    @ExceptionHandler(value = {AccessDeniedException.class})
-    protected ResponseEntity<Object> handleAccessDeniedException(RuntimeException ex, WebRequest request) {
-        LOGGER.error("Forbidden Access", ex);
-        String bodyOfResponse = "Forbidden";
-        return handleExceptionInternal(ex, bodyOfResponse, new HttpHeaders(), HttpStatus.FORBIDDEN, request);
+    @Override
+    protected ResponseEntity<Object> handleExceptionInternal(Exception ex,
+                                                            Object body,
+                                                            HttpHeaders headers,
+                                                            HttpStatusCode status,
+                                                            WebRequest request) {
+        ApiErrorResponse error = ApiErrorResponse.from(ex, status);
+        logMappedException(ex, error);
+        return super.handleExceptionInternal(ex, error.toProblemDetail(request), headers, error.code().status(), request);
     }
 
-    @ExceptionHandler(value = {NotFoundException.class})
-    protected ResponseEntity<Object> handleNotFoundException(RuntimeException ex, WebRequest request) {
-        LOGGER.error("Not Found", ex);
-        String bodyOfResponse = ex.getMessage();
-        return handleExceptionInternal(ex, bodyOfResponse, new HttpHeaders(), HttpStatus.NOT_FOUND, request);
-    }
-
-    @ExceptionHandler(value = {IllegalArgumentException.class})
-    protected ResponseEntity<Object> handleIllegalArgumentException(RuntimeException ex, WebRequest request) {
-        LOGGER.error("Invalid Arguments", ex);
-        String bodyOfResponse = ex.getMessage();
-        return handleExceptionInternal(ex, bodyOfResponse, new HttpHeaders(), HttpStatus.BAD_REQUEST, request);
-    }
-
-    @ExceptionHandler(value = {RuntimeException.class})
-    protected ResponseEntity<Object> handleGenericException(RuntimeException ex, WebRequest request) {
-        LOGGER.error("Internal Server Error", ex);
-        String bodyOfResponse = ex.getMessage();
-        return handleExceptionInternal(ex, bodyOfResponse, new HttpHeaders(), HttpStatus.INTERNAL_SERVER_ERROR, request);
+    private void logMappedException(Exception ex, ApiErrorResponse error) {
+        if (error.shouldLogStackTrace()) {
+            LOGGER.error("{} mapped to {}", ex.getClass().getSimpleName(), error.code().name(), ex);
+            return;
+        }
+        LOGGER.warn("{} mapped to {}: {}", ex.getClass().getSimpleName(), error.code().name(), error.detail());
     }
 }
