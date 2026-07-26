@@ -30,7 +30,7 @@ import static java.util.Objects.requireNonNull;
 
 @RestController
 @RequestMapping("/api/v1/access-grants")
-@Tag(name = "Access Grants", description = "Manage connector access grants for stations and time series.")
+@Tag(name = "Access Grants", description = "openapi.access.http-access-grant-controller.manage-connector-access-grants-for-stations-and")
 @SecurityRequirement(name = "bearerAuth")
 final class HttpAccessGrantController {
 
@@ -41,15 +41,15 @@ final class HttpAccessGrantController {
     }
 
     @Operation(
-            summary = "Creates an access grant",
-            description = "Creates a connector permission for a station or time series. Requires METADATA_WRITE or SYSTEM_ADMIN.")
+            summary = "openapi.access.http-access-grant-controller.creates-an-access-grant",
+            description = "openapi.access.http-access-grant-controller.creates-a-connector-permission-for-a-station")
     @ApiResponses(value = {
             @ApiResponse(
                     responseCode = "201",
-                    description = "Returns the created access grant.",
+                    description = "openapi.access.http-access-grant-controller.returns-the-created-access-grant",
                     content = @Content(schema = @Schema(implementation = AccessGrantResponse.class))),
-            @ApiResponse(responseCode = "400", description = "The access grant payload is invalid.", content = @Content),
-            @ApiResponse(responseCode = "404", description = "A referenced connector or resource was not found.", content = @Content)
+            @ApiResponse(responseCode = "400", description = "openapi.access.http-access-grant-controller.the-access-grant-payload-is-invalid", content = @Content),
+            @ApiResponse(responseCode = "404", description = "openapi.access.http-access-grant-controller.a-referenced-connector-or-resource-was-not", content = @Content)
     })
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
@@ -58,34 +58,34 @@ final class HttpAccessGrantController {
     }
 
     @Operation(
-            summary = "Gets an access grant by ID",
-            description = "Returns one access grant. Requires METADATA_READ, METADATA_WRITE, or SYSTEM_ADMIN.")
+            summary = "openapi.access.http-access-grant-controller.gets-an-access-grant-by-id",
+            description = "openapi.access.http-access-grant-controller.returns-one-access-grant-requires-metadata-read")
     @ApiResponses(value = {
             @ApiResponse(
                     responseCode = "200",
-                    description = "Returns the access grant.",
+                    description = "openapi.access.http-access-grant-controller.returns-the-access-grant",
                     content = @Content(schema = @Schema(implementation = AccessGrantResponse.class))),
-            @ApiResponse(responseCode = "400", description = "The access grant UUID is invalid.", content = @Content),
-            @ApiResponse(responseCode = "404", description = "The access grant was not found.", content = @Content)
+            @ApiResponse(responseCode = "400", description = "openapi.access.http-access-grant-controller.the-access-grant-uuid-is-invalid", content = @Content),
+            @ApiResponse(responseCode = "404", description = "openapi.access.http-access-grant-controller.the-access-grant-was-not-found", content = @Content)
     })
     @GetMapping("/{id}")
-    AccessGrantResponse get(@Parameter(description = "Access grant identifier.", required = true) @PathVariable UUID id) {
+    AccessGrantResponse get(@Parameter(description = "openapi.access.access-grant-response.access-grant-identifier", required = true) @PathVariable UUID id) {
         return AccessGrantMapper.toResponse(accessGrants.get(new AccessGrantId(id)));
     }
 
     @Operation(
-            summary = "Lists access grants",
-            description = "Returns all access grants, optionally filtered by connectorId. Requires METADATA_READ, METADATA_WRITE, or SYSTEM_ADMIN.")
+            summary = "openapi.access.http-access-grant-controller.lists-access-grants",
+            description = "openapi.access.http-access-grant-controller.returns-all-access-grants-optionally-filtered-by")
     @ApiResponses(value = {
             @ApiResponse(
                     responseCode = "200",
-                    description = "Returns access grants.",
+                    description = "openapi.access.http-access-grant-controller.returns-access-grants",
                     content = @Content(array = @ArraySchema(schema = @Schema(implementation = AccessGrantResponse.class)))),
-            @ApiResponse(responseCode = "400", description = "The connectorId query parameter is invalid.", content = @Content)
+            @ApiResponse(responseCode = "400", description = "openapi.access.http-access-grant-controller.the-connector-id-query-parameter-is-invalid", content = @Content)
     })
     @GetMapping
     List<AccessGrantResponse> list(
-            @Parameter(description = "Optional connector identifier to filter grants.", required = false)
+            @Parameter(description = "openapi.access.http-access-grant-controller.optional-connector-identifier-to-filter-grants", required = false)
             @RequestParam(required = false) UUID connectorId) {
         var result = connectorId == null
                 ? accessGrants.list()

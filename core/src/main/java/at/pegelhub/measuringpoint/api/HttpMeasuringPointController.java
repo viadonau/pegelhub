@@ -30,7 +30,7 @@ import static java.util.Objects.requireNonNull;
 
 @RestController
 @RequestMapping("/api/v1/measuring-points")
-@Tag(name = "Measuring Points", description = "Manage physical measuring points within stations.")
+@Tag(name = "Measuring Points", description = "openapi.measuringpoint.http-measuring-point-controller.manage-physical-measuring-points-within-stations")
 @SecurityRequirement(name = "bearerAuth")
 final class HttpMeasuringPointController {
 
@@ -41,15 +41,15 @@ final class HttpMeasuringPointController {
     }
 
     @Operation(
-            summary = "Creates a measuring point",
-            description = "Creates physical measuring point metadata under a station. Requires METADATA_WRITE or SYSTEM_ADMIN.")
+            summary = "openapi.measuringpoint.http-measuring-point-controller.creates-a-measuring-point",
+            description = "openapi.measuringpoint.http-measuring-point-controller.creates-physical-measuring-point-metadata-under-a")
     @ApiResponses(value = {
             @ApiResponse(
                     responseCode = "201",
-                    description = "Returns the created measuring point.",
+                    description = "openapi.measuringpoint.http-measuring-point-controller.returns-the-created-measuring-point",
                     content = @Content(schema = @Schema(implementation = MeasuringPointResponse.class))),
-            @ApiResponse(responseCode = "400", description = "The measuring point payload is invalid.", content = @Content),
-            @ApiResponse(responseCode = "404", description = "The station was not found.", content = @Content)
+            @ApiResponse(responseCode = "400", description = "openapi.measuringpoint.http-measuring-point-controller.the-measuring-point-payload-is-invalid", content = @Content),
+            @ApiResponse(responseCode = "404", description = "openapi.measuringpoint.http-measuring-point-controller.the-station-was-not-found", content = @Content)
     })
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
@@ -58,36 +58,36 @@ final class HttpMeasuringPointController {
     }
 
     @Operation(
-            summary = "Gets a measuring point by ID",
-            description = "Returns measuring point metadata. Requires METADATA_READ, METADATA_WRITE, or SYSTEM_ADMIN.")
+            summary = "openapi.measuringpoint.http-measuring-point-controller.gets-a-measuring-point-by-id",
+            description = "openapi.measuringpoint.http-measuring-point-controller.returns-measuring-point-metadata-requires-metadata-read")
     @ApiResponses(value = {
             @ApiResponse(
                     responseCode = "200",
-                    description = "Returns the measuring point.",
+                    description = "openapi.measuringpoint.http-measuring-point-controller.returns-the-measuring-point",
                     content = @Content(schema = @Schema(implementation = MeasuringPointResponse.class))),
-            @ApiResponse(responseCode = "400", description = "The measuring point UUID is invalid.", content = @Content),
-            @ApiResponse(responseCode = "404", description = "The measuring point was not found.", content = @Content)
+            @ApiResponse(responseCode = "400", description = "openapi.measuringpoint.http-measuring-point-controller.the-measuring-point-uuid-is-invalid", content = @Content),
+            @ApiResponse(responseCode = "404", description = "openapi.measuringpoint.http-measuring-point-controller.the-measuring-point-was-not-found", content = @Content)
     })
     @GetMapping("/{id}")
     MeasuringPointResponse get(
-            @Parameter(description = "Measuring point identifier.", required = true) @PathVariable UUID id) {
+            @Parameter(description = "openapi.measuringpoint.http-measuring-point-controller.measuring-point-identifier", required = true) @PathVariable UUID id) {
         return MeasuringPointMapper.toResponse(measuringPoints.get(new MeasuringPointId(id)));
     }
 
     @Operation(
-            summary = "Lists measuring points",
-            description = "Returns all measuring points, optionally filtered by stationId. Requires METADATA_READ, METADATA_WRITE, or SYSTEM_ADMIN.")
+            summary = "openapi.measuringpoint.http-measuring-point-controller.lists-measuring-points",
+            description = "openapi.measuringpoint.http-measuring-point-controller.returns-all-measuring-points-optionally-filtered-by")
     @ApiResponses(value = {
             @ApiResponse(
                     responseCode = "200",
-                    description = "Returns measuring point records.",
+                    description = "openapi.measuringpoint.http-measuring-point-controller.returns-measuring-point-records",
                     content = @Content(array = @ArraySchema(schema = @Schema(implementation = MeasuringPointResponse.class)))),
-            @ApiResponse(responseCode = "400", description = "The stationId query parameter is invalid.", content = @Content),
-            @ApiResponse(responseCode = "404", description = "The station was not found.", content = @Content)
+            @ApiResponse(responseCode = "400", description = "openapi.measuringpoint.http-measuring-point-controller.the-station-id-query-parameter-is-invalid", content = @Content),
+            @ApiResponse(responseCode = "404", description = "openapi.measuringpoint.http-measuring-point-controller.the-station-was-not-found", content = @Content)
     })
     @GetMapping
     List<MeasuringPointResponse> list(
-            @Parameter(description = "Optional station identifier to filter measuring points.", required = false)
+            @Parameter(description = "openapi.measuringpoint.http-measuring-point-controller.optional-station-identifier-to-filter-measuring-points", required = false)
             @RequestParam(required = false) UUID stationId) {
         var result = stationId == null
                 ? measuringPoints.list()

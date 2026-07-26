@@ -24,7 +24,7 @@ import static java.util.Objects.requireNonNull;
  */
 @RestController
 @RequestMapping("/api/v1/telemetry")
-@Tag(name = "Telemetry", description = "Write and query connector technical telemetry.")
+@Tag(name = "Telemetry", description = "openapi.telemetry.http-telemetry-controller.write-and-query-connector-technical-telemetry")
 @SecurityRequirement(name = "bearerAuth")
 public class HttpTelemetryController {
 
@@ -35,13 +35,13 @@ public class HttpTelemetryController {
     }
 
     @Operation(
-            summary = "Writes telemetry",
-            description = "Stores one technical telemetry entry. Requires TELEMETRY_WRITE or SYSTEM_ADMIN.")
+            summary = "openapi.telemetry.http-telemetry-controller.writes-telemetry",
+            description = "openapi.telemetry.http-telemetry-controller.stores-one-technical-telemetry-entry-requires-telemetry")
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Returns the saved telemetry entry",
+            @ApiResponse(responseCode = "200", description = "openapi.telemetry.http-telemetry-controller.returns-the-saved-telemetry-entry",
                     content = {@Content(mediaType = "application/json", schema = @Schema(implementation = Telemetry.class))}),
-            @ApiResponse(responseCode = "400", description = "The telemetry payload is invalid.", content = @Content),
-            @ApiResponse(responseCode = "404", description = "The authenticated client has no registered connector.", content = @Content)
+            @ApiResponse(responseCode = "400", description = "openapi.telemetry.http-telemetry-controller.the-telemetry-payload-is-invalid", content = @Content),
+            @ApiResponse(responseCode = "404", description = "openapi.telemetry.http-telemetry-controller.the-authenticated-client-has-no-registered-connector", content = @Content)
     })
     @PostMapping
     public Telemetry writeTelemetryData(@Valid @RequestBody WriteTelemetryRequest request) {
@@ -49,32 +49,32 @@ public class HttpTelemetryController {
     }
 
     @Operation(
-            summary = "Lists telemetry in a relative range",
-            description = "Returns telemetry entries in a positive relative range such as 72h. Requires TELEMETRY_READ or SYSTEM_ADMIN.")
+            summary = "openapi.telemetry.http-telemetry-controller.lists-telemetry-in-a-relative-range",
+            description = "openapi.telemetry.http-telemetry-controller.returns-telemetry-entries-in-a-positive-relative")
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Returns telemetry entries in the requested range.",
+            @ApiResponse(responseCode = "200", description = "openapi.telemetry.http-telemetry-controller.returns-telemetry-entries-in-the-requested-range",
                     content = @Content(array = @ArraySchema(schema = @Schema(implementation = Telemetry.class)))),
-            @ApiResponse(responseCode = "400", description = "The range is invalid.", content = @Content)
+            @ApiResponse(responseCode = "400", description = "openapi.telemetry.http-telemetry-controller.the-range-is-invalid", content = @Content)
     })
     @GetMapping("/{range}")
     public List<Telemetry> findTelemetryInRange(
-            @Parameter(description = "Positive relative range such as 72h.", example = "72h", required = true)
+            @Parameter(description = "openapi.telemetry.http-telemetry-controller.positive-relative-range-such-as-72h", example = "72h", required = true)
             @PathVariable String range) {
         return telemetryService.getByRange(range);
     }
 
     @Operation(
-            summary = "Gets the latest telemetry entry for an ID",
-            description = "Returns the most recent telemetry entry for a measurement/station identifier. Requires TELEMETRY_READ or SYSTEM_ADMIN.")
+            summary = "openapi.telemetry.http-telemetry-controller.gets-the-latest-telemetry-entry-for-an",
+            description = "openapi.telemetry.http-telemetry-controller.returns-the-most-recent-telemetry-entry-for")
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Returns the telemetry entry",
+            @ApiResponse(responseCode = "200", description = "openapi.telemetry.http-telemetry-controller.returns-the-telemetry-entry",
                     content = {@Content(mediaType = "application/json", schema = @Schema(implementation = Telemetry.class))}),
-            @ApiResponse(responseCode = "400", description = "The UUID is invalid.", content = @Content),
-            @ApiResponse(responseCode = "500", description = "The latest telemetry entry could not be resolved.", content = @Content)
+            @ApiResponse(responseCode = "400", description = "openapi.telemetry.http-telemetry-controller.the-uuid-is-invalid", content = @Content),
+            @ApiResponse(responseCode = "500", description = "openapi.telemetry.http-telemetry-controller.the-latest-telemetry-entry-could-not-be", content = @Content)
     })
     @GetMapping("/last/{uuid}")
     public Telemetry findTelemetryById(
-            @Parameter(description = "Measurement or station telemetry identifier.", required = true)
+            @Parameter(description = "openapi.telemetry.http-telemetry-controller.measurement-or-station-telemetry-identifier", required = true)
             @PathVariable UUID uuid) {
         return telemetryService.getLastData(uuid);
     }

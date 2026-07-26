@@ -28,7 +28,7 @@ import static java.util.Objects.requireNonNull;
 
 @RestController
 @RequestMapping("/api/v1/stations")
-@Tag(name = "Stations", description = "Manage hydrological stations.")
+@Tag(name = "Stations", description = "openapi.station.http-station-controller.manage-hydrological-stations")
 @SecurityRequirement(name = "bearerAuth")
 final class HttpStationController {
 
@@ -39,15 +39,15 @@ final class HttpStationController {
     }
 
     @Operation(
-            summary = "Creates a station",
-            description = "Creates station metadata under a station owner. Requires METADATA_WRITE or SYSTEM_ADMIN.")
+            summary = "openapi.station.http-station-controller.creates-a-station",
+            description = "openapi.station.http-station-controller.creates-station-metadata-under-a-station-owner")
     @ApiResponses(value = {
             @ApiResponse(
                     responseCode = "201",
-                    description = "Returns the created station.",
+                    description = "openapi.station.http-station-controller.returns-the-created-station",
                     content = @Content(schema = @Schema(implementation = StationResponse.class))),
-            @ApiResponse(responseCode = "400", description = "The station payload is invalid.", content = @Content),
-            @ApiResponse(responseCode = "404", description = "The station owner was not found.", content = @Content)
+            @ApiResponse(responseCode = "400", description = "openapi.station.http-station-controller.the-station-payload-is-invalid", content = @Content),
+            @ApiResponse(responseCode = "404", description = "openapi.station.http-station-controller.the-station-owner-was-not-found", content = @Content)
     })
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
@@ -56,27 +56,27 @@ final class HttpStationController {
     }
 
     @Operation(
-            summary = "Gets a station by ID",
-            description = "Returns station metadata. Requires METADATA_READ, METADATA_WRITE, or SYSTEM_ADMIN.")
+            summary = "openapi.station.http-station-controller.gets-a-station-by-id",
+            description = "openapi.station.http-station-controller.returns-station-metadata-requires-metadata-read-metadata")
     @ApiResponses(value = {
             @ApiResponse(
                     responseCode = "200",
-                    description = "Returns the station.",
+                    description = "openapi.station.http-station-controller.returns-the-station",
                     content = @Content(schema = @Schema(implementation = StationResponse.class))),
-            @ApiResponse(responseCode = "400", description = "The station UUID is invalid.", content = @Content),
-            @ApiResponse(responseCode = "404", description = "The station was not found.", content = @Content)
+            @ApiResponse(responseCode = "400", description = "openapi.station.http-station-controller.the-station-uuid-is-invalid", content = @Content),
+            @ApiResponse(responseCode = "404", description = "openapi.measuringpoint.http-measuring-point-controller.the-station-was-not-found", content = @Content)
     })
     @GetMapping("/{id}")
-    StationResponse get(@Parameter(description = "Station identifier.", required = true) @PathVariable UUID id) {
+    StationResponse get(@Parameter(description = "openapi.station.http-station-controller.station-identifier", required = true) @PathVariable UUID id) {
         return StationMapper.toResponse(stations.get(new StationId(id)));
     }
 
     @Operation(
-            summary = "Lists stations",
-            description = "Returns all station metadata records. Requires METADATA_READ, METADATA_WRITE, or SYSTEM_ADMIN.")
+            summary = "openapi.station.http-station-controller.lists-stations",
+            description = "openapi.station.http-station-controller.returns-all-station-metadata-records-requires-metadata")
     @ApiResponse(
             responseCode = "200",
-            description = "Returns stations.",
+            description = "openapi.station.http-station-controller.returns-stations",
             content = @Content(array = @ArraySchema(schema = @Schema(implementation = StationResponse.class))))
     @GetMapping
     List<StationResponse> list() {

@@ -13,6 +13,7 @@ import at.pegelhub.telemetry.application.TelemetryService;
 import at.pegelhub.timeseries.application.TimeSeriesService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springdoc.core.configuration.SpringDocConfiguration;
@@ -23,16 +24,31 @@ import org.springdoc.webmvc.core.configuration.SpringDocWebMvcConfiguration;
 import org.springdoc.webmvc.ui.SwaggerConfig;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.ImportAutoConfiguration;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.boot.context.properties.bind.Bindable;
+import org.springframework.boot.context.properties.bind.Binder;
+import org.springframework.boot.context.properties.source.ConfigurationPropertySources;
+import org.springframework.boot.env.YamlPropertySourceLoader;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.core.env.MutablePropertySources;
+import org.springframework.core.io.FileSystemResource;
+import org.springframework.http.HttpHeaders;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
+import java.io.InputStreamReader;
+import java.io.UncheckedIOException;
+import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
+import java.util.Properties;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.BiConsumer;
@@ -48,13 +64,20 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @AutoConfigureMockMvc(addFilters = false)
 @ImportAutoConfiguration({
         SpringDocConfiguration.class,
-        SpringDocConfigProperties.class,
         SpringDocWebMvcConfiguration.class,
-        SwaggerConfig.class,
+        SwaggerConfig.class
+})
+@EnableConfigurationProperties({
+        SpringDocConfigProperties.class,
         SwaggerUiConfigProperties.class,
         SwaggerUiOAuthProperties.class
 })
-@Import({OpenApiConfiguration.class, MeasurementReadQueryResolver.class, MeasurementBucketResolutionPolicy.class})
+@Import({
+        OpenApiConfiguration.class,
+        WebConfiguration.class,
+        MeasurementReadQueryResolver.class,
+        MeasurementBucketResolutionPolicy.class
+})
 class OpenApiDocumentationWebMvcTest {
 
     private static final Set<String> EXPECTED_OPERATIONS = Set.of(
@@ -98,6 +121,12 @@ class OpenApiDocumentationWebMvcTest {
     @Autowired
     private MockMvc mockMvc;
 
+    @Autowired
+    private SwaggerUiConfigProperties swaggerUiConfig;
+
+    @Autowired
+    private SpringDocConfigProperties springDocConfig;
+
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @MockitoBean
@@ -133,6 +162,15 @@ class OpenApiDocumentationWebMvcTest {
     @BeforeEach
     void setUpClock() {
         when(clock.instant()).thenReturn(Instant.parse("2026-06-17T13:00:00Z"));
+
+        SpringDocConfigProperties configuredSpringDoc =
+                bindApplicationYaml("springdoc", SpringDocConfigProperties.class);
+        springDocConfig.setAllowedLocales(configuredSpringDoc.getAllowedLocales());
+
+        SwaggerUiConfigProperties configuredSwaggerUi =
+                bindApplicationYaml("springdoc.swagger-ui", SwaggerUiConfigProperties.class);
+        swaggerUiConfig.setUrls(configuredSwaggerUi.getUrls());
+        swaggerUiConfig.setUrlsPrimaryName(configuredSwaggerUi.getUrlsPrimaryName());
     }
 
     @Test
@@ -246,6 +284,97 @@ class OpenApiDocumentationWebMvcTest {
         assertThat(swaggerStatus).isIn(200, 301, 302, 303, 307, 308);
     }
 
+    @Test
+    void englishAndGermanMessageBundlesHaveTheSameKeys() throws Exception {
+        assertThat(messageBundle("messages_de.properties").stringPropertyNames())
+                .containsExactlyInAnyOrderElementsOf(messageBundle("messages.properties").stringPropertyNames());
+    }
+
+    @Test
+    void openApiLanguageSelectionIsExplicitAndDeterministic() throws Exception {
+        JsonNode defaultSpec = openApiJson();
+        JsonNode englishSpec = openApiJson("en");
+        JsonNode germanSpec = openApiJson("de");
+
+        assertThat(defaultSpec.path("info").path("description").asText())
+                .isEqualTo("HTTP API for PegelHub metadata, measurements, telemetry, and connector administration.");
+        assertThat(englishSpec).isEqualTo(defaultSpec);
+        assertThat(openApiJsonWithAcceptLanguage("de-AT")).isEqualTo(englishSpec);
+        assertThat(openApiJson("en-US")).isEqualTo(englishSpec);
+        assertThat(openApiJson("unsupported")).isEqualTo(englishSpec);
+        assertThat(openApiJson("de-AT")).isEqualTo(germanSpec);
+        assertThat(openApiJson("de-DE")).isEqualTo(germanSpec);
+        assertThat(germanSpec.path("info").path("description").asText())
+                .isEqualTo("HTTP API für PegelHub-Metadaten, Messwerte, Telemetrie und Konnektorverwaltung.");
+    }
+
+    @Test
+    void germanOpenApiTranslatesEveryDocumentationLayerWithoutChangingTheContract() throws Exception {
+        JsonNode englishSpec = openApiJson("en");
+        JsonNode germanSpec = openApiJson("de");
+
+        assertThat(unresolvedMessageKeys(englishSpec)).isEmpty();
+        assertThat(unresolvedMessageKeys(germanSpec)).isEmpty();
+
+        assertThat(tag(germanSpec, "Stations").path("description").asText()).contains("Pegelstation");
+        assertThat(germanSpec.path("paths").path("/api/v1/stations").path("post").path("summary").asText())
+                .contains("Pegelstation");
+        assertThat(germanSpec.path("paths").path("/api/v1/stations/{id}").path("get")
+                .path("parameters").path(0).path("description").asText())
+                .contains("Pegelstation");
+        assertThat(germanSpec.path("paths").path("/api/v1/stations").path("post")
+                .path("responses").path("201").path("description").asText())
+                .contains("Pegelstation");
+        assertThat(germanSpec.path("components").path("schemas").path("MeasuringPointResponse")
+                .path("description").asText())
+                .contains("Messpunkt");
+        assertThat(germanSpec.path("components").path("schemas").path("TimeSeriesResponse")
+                .path("properties").path("measuringPointId").path("description").asText())
+                .contains("Messpunkt");
+        assertThat(germanSpec.path("components").path("responses").path("Unauthorized")
+                .path("description").asText())
+                .isEqualTo("Ein Bearer-Token fehlt oder ist ungültig.");
+        assertThat(germanSpec.path("components").path("responses").path("Forbidden")
+                .path("description").asText())
+                .isEqualTo("Das authentifizierte Token gewährt nicht die erforderliche Berechtigung.");
+
+        assertThat(jsonDifferences(
+                withoutDocumentationProse(englishSpec),
+                withoutDocumentationProse(germanSpec),
+                "$")).isEmpty();
+    }
+
+    @Test
+    void yamlDocumentationSupportsTheSameLanguageSelection() throws Exception {
+        String defaultSpec = openApiYaml(null);
+        String englishSpec = openApiYaml("en");
+        String germanSpec = openApiYaml("de");
+
+        assertThat(defaultSpec).contains("openapi: 3.1.0", "HTTP API for PegelHub metadata");
+        assertThat(englishSpec).isEqualTo(defaultSpec);
+        assertThat(openApiYaml("en-US")).isEqualTo(englishSpec);
+        assertThat(openApiYaml("unsupported")).isEqualTo(englishSpec);
+        assertThat(germanSpec).contains("openapi: 3.1.0", "HTTP API für PegelHub-Metadaten");
+        assertThat(openApiYaml("de-AT")).isEqualTo(germanSpec);
+        assertThat(openApiYaml("de-DE")).isEqualTo(germanSpec);
+    }
+
+    @Test
+    void swaggerConfigurationOffersBothLanguagesAndSelectsGerman() throws Exception {
+        assertThat(springDocConfig.getAllowedLocales()).containsExactly("en", "de");
+        assertThat(swaggerUiConfig.getUrlsPrimaryName()).isEqualTo("Deutsch");
+        String content = mockMvc.perform(get("/v3/api-docs/swagger-config"))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+        JsonNode config = objectMapper.readTree(content);
+
+        assertThat(config.path("urls.primaryName").asText()).isEqualTo("Deutsch");
+        assertThat(swaggerDefinition(config, "Deutsch").path("url").asText()).isEqualTo("/v3/api-docs?lang=de");
+        assertThat(swaggerDefinition(config, "English").path("url").asText()).isEqualTo("/v3/api-docs?lang=en");
+    }
+
     private JsonNode openApiJson() throws Exception {
         String content = mockMvc.perform(get("/v3/api-docs"))
                 .andExpect(status().isOk())
@@ -253,6 +382,143 @@ class OpenApiDocumentationWebMvcTest {
                 .getResponse()
                 .getContentAsString();
         return objectMapper.readTree(content);
+    }
+
+    private JsonNode openApiJson(String language) throws Exception {
+        String content = mockMvc.perform(get("/v3/api-docs").queryParam("lang", language))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+        return objectMapper.readTree(content);
+    }
+
+    private JsonNode openApiJsonWithAcceptLanguage(String language) throws Exception {
+        String content = mockMvc.perform(get("/v3/api-docs").header(HttpHeaders.ACCEPT_LANGUAGE, language))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+        return objectMapper.readTree(content);
+    }
+
+    private String openApiYaml(String language) throws Exception {
+        MockHttpServletRequestBuilder request = get("/v3/api-docs.yaml");
+        if (language != null) {
+            request.queryParam("lang", language);
+        }
+        return mockMvc.perform(request)
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString(StandardCharsets.UTF_8);
+    }
+
+    private static <T> T bindApplicationYaml(String prefix, Class<T> type) {
+        try {
+            var applicationYaml = new FileSystemResource(
+                    System.getProperty("basedir") + "/src/main/resources/application.yaml");
+            MutablePropertySources propertySources = new MutablePropertySources();
+            new YamlPropertySourceLoader().load("applicationYaml", applicationYaml)
+                    .forEach(propertySources::addLast);
+
+            return new Binder(ConfigurationPropertySources.from(propertySources))
+                    .bind(prefix, Bindable.of(type))
+                    .orElseThrow(() -> new IllegalStateException(prefix + " configuration is missing"));
+        } catch (java.io.IOException exception) {
+            throw new UncheckedIOException(exception);
+        }
+    }
+
+    private static Properties messageBundle(String name) throws Exception {
+        Properties properties = new Properties();
+        try (var stream = OpenApiDocumentationWebMvcTest.class.getClassLoader().getResourceAsStream(name)) {
+            assertThat(stream).as("message bundle %s", name).isNotNull();
+            properties.load(new InputStreamReader(stream, StandardCharsets.UTF_8));
+        }
+        return properties;
+    }
+
+    private static JsonNode tag(JsonNode spec, String name) {
+        for (JsonNode tag : spec.path("tags")) {
+            if (name.equals(tag.path("name").asText())) {
+                return tag;
+            }
+        }
+        throw new AssertionError("Missing OpenAPI tag: " + name);
+    }
+
+    private static JsonNode swaggerDefinition(JsonNode config, String name) {
+        for (JsonNode definition : config.path("urls")) {
+            if (name.equals(definition.path("name").asText())) {
+                return definition;
+            }
+        }
+        throw new AssertionError("Missing Swagger definition: " + name);
+    }
+
+    private static JsonNode withoutDocumentationProse(JsonNode spec) {
+        JsonNode copy = spec.deepCopy();
+        removeDocumentationProse(copy);
+        return copy;
+    }
+
+    private static void removeDocumentationProse(JsonNode node) {
+        if (node instanceof ObjectNode object) {
+            object.remove(List.of("summary", "description"));
+            object.elements().forEachRemaining(OpenApiDocumentationWebMvcTest::removeDocumentationProse);
+            return;
+        }
+        node.elements().forEachRemaining(OpenApiDocumentationWebMvcTest::removeDocumentationProse);
+    }
+
+    private static List<String> unresolvedMessageKeys(JsonNode spec) {
+        List<String> unresolved = new ArrayList<>();
+        collectUnresolvedMessageKeys(spec, unresolved);
+        return unresolved;
+    }
+
+    private static void collectUnresolvedMessageKeys(JsonNode node, List<String> unresolved) {
+        if (node.isTextual() && node.asText().startsWith("openapi.")) {
+            unresolved.add(node.asText());
+        }
+        node.elements().forEachRemaining(child -> collectUnresolvedMessageKeys(child, unresolved));
+    }
+
+    private static List<String> jsonDifferences(JsonNode expected, JsonNode actual, String path) {
+        List<String> differences = new ArrayList<>();
+        if (expected.getNodeType() != actual.getNodeType()) {
+            differences.add(path + " has different node types");
+            return differences;
+        }
+        if (expected.isObject()) {
+            Set<String> expectedFields = new TreeSet<>();
+            expected.fieldNames().forEachRemaining(expectedFields::add);
+            Set<String> actualFields = new TreeSet<>();
+            actual.fieldNames().forEachRemaining(actualFields::add);
+            if (!expectedFields.equals(actualFields)) {
+                differences.add(path + " has different fields: " + expectedFields + " != " + actualFields);
+                return differences;
+            }
+            for (String field : expectedFields) {
+                differences.addAll(jsonDifferences(expected.get(field), actual.get(field), path + "." + field));
+            }
+            return differences;
+        }
+        if (expected.isArray()) {
+            if (expected.size() != actual.size()) {
+                differences.add(path + " has different array sizes");
+                return differences;
+            }
+            for (int index = 0; index < expected.size(); index++) {
+                differences.addAll(jsonDifferences(expected.get(index), actual.get(index), path + "[" + index + "]"));
+            }
+            return differences;
+        }
+        if (!expected.equals(actual)) {
+            differences.add(path + " differs: " + expected + " != " + actual);
+        }
+        return differences;
     }
 
     private static Set<String> operationKeys(JsonNode paths) {

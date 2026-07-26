@@ -28,23 +28,19 @@ import java.time.Instant;
 import java.util.UUID;
 
 @RequestMapping("/api/v1")
-@Tag(name = "Measurements", description = "Write and read time series measurements.")
-@Tag(name = "Measurement Buckets", description = "Read chart-ready aggregated measurement buckets.")
+@Tag(name = "Measurements", description = "openapi.measurement.measurement-api.write-and-read-time-series-measurements")
+@Tag(name = "Measurement Buckets", description = "openapi.measurement.measurement-api.read-chart-ready-aggregated-measurement-buckets")
 public interface MeasurementApi {
 
     @Operation(
             tags = "Measurements",
-            summary = "Writes measurements for one or more time series",
-            description = """
-                    Stores raw measurements submitted by the authenticated connector.
-                    The connector identity is taken from the access token; submittedByConnectorId is not accepted from the request body.
-                    Requires MEASUREMENT_WRITE.
-                    """,
+            summary = "openapi.measurement.measurement-api.writes-measurements-for-one-or-more-time",
+            description = "openapi.measurement.measurement-api.write.description",
             security = @SecurityRequirement(name = "bearerAuth"))
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "204", description = "The measurements were successfully written."),
-            @ApiResponse(responseCode = "400", description = "The request body is invalid.", content = @Content),
-            @ApiResponse(responseCode = "404", description = "A connector or time series was not found.", content = @Content)
+            @ApiResponse(responseCode = "204", description = "openapi.measurement.measurement-api.the-measurements-were-successfully-written"),
+            @ApiResponse(responseCode = "400", description = "openapi.measurement.measurement-api.the-request-body-is-invalid", content = @Content),
+            @ApiResponse(responseCode = "404", description = "openapi.measurement.measurement-api.a-connector-or-time-series-was-not", content = @Content)
     })
     @PostMapping("/measurements")
     @ResponseStatus(HttpStatus.NO_CONTENT)
@@ -52,58 +48,49 @@ public interface MeasurementApi {
 
     @Operation(
             tags = "Measurements",
-            summary = "Lists raw measurements for a time series",
-            description = """
-                    Returns raw measurement points in a bounded time window.
-                    Provide either last or both from and to. Results are bounded by limit; truncated indicates whether more points exist in the window.
-                    For the latest measurement, request a bounded descending list with limit=1, for example last=365d&order=desc&limit=1.
-                    Requires MEASUREMENT_READ or SYSTEM_ADMIN.
-                    """,
+            summary = "openapi.measurement.measurement-api.lists-raw-measurements-for-a-time-series",
+            description = "openapi.measurement.measurement-api.list-raw.description",
             security = @SecurityRequirement(name = "bearerAuth"))
     @ApiResponses(value = {
             @ApiResponse(
                     responseCode = "200",
-                    description = "Returns a lean envelope of raw measurements.",
+                    description = "openapi.measurement.measurement-api.returns-a-lean-envelope-of-raw-measurements",
                     content = @Content(schema = @Schema(implementation = MeasurementListResponse.class))),
-            @ApiResponse(responseCode = "400", description = "The query parameters are invalid.", content = @Content),
-            @ApiResponse(responseCode = "404", description = "The connector or time series was not found.", content = @Content)
+            @ApiResponse(responseCode = "400", description = "openapi.measurement.measurement-api.the-query-parameters-are-invalid", content = @Content),
+            @ApiResponse(responseCode = "404", description = "openapi.measurement.measurement-api.the-connector-or-time-series-was-not", content = @Content)
     })
     @GetMapping("/time-series/{timeSeriesId}/measurements")
     MeasurementListResponse listMeasurements(
-            @Parameter(description = "Time series identifier.", required = true)
+            @Parameter(description = "openapi.measurement.measurement-api.time-series-identifier", required = true)
             @PathVariable UUID timeSeriesId,
             @ParameterObject @Valid @ModelAttribute MeasurementReadParameters parameters);
 
     @Operation(
             tags = "Measurement Buckets",
-            summary = "Lists chart-ready measurement buckets for a time series",
-            description = """
-                    Returns average buckets for charting in a bounded time window.
-                    Provide either last or both from and to. Supply bucket for an explicit width, or maxPoints for automatic resolution.
-                    Requires MEASUREMENT_READ or SYSTEM_ADMIN.
-                    """,
+            summary = "openapi.measurement.measurement-api.lists-chart-ready-measurement-buckets-for-a",
+            description = "openapi.measurement.measurement-api.list-buckets.description",
             security = @SecurityRequirement(name = "bearerAuth"))
     @ApiResponses(value = {
             @ApiResponse(
                     responseCode = "200",
-                    description = "Returns average buckets for charting.",
+                    description = "openapi.measurement.measurement-api.returns-average-buckets-for-charting",
                     content = @Content(schema = @Schema(implementation = MeasurementBucketListResponse.class))),
-            @ApiResponse(responseCode = "400", description = "The query parameters are invalid.", content = @Content),
-            @ApiResponse(responseCode = "404", description = "The connector or time series was not found.", content = @Content)
+            @ApiResponse(responseCode = "400", description = "openapi.measurement.measurement-api.the-query-parameters-are-invalid", content = @Content),
+            @ApiResponse(responseCode = "404", description = "openapi.measurement.measurement-api.the-connector-or-time-series-was-not", content = @Content)
     })
     @GetMapping("/time-series/{timeSeriesId}/measurements/buckets")
     MeasurementBucketListResponse listMeasurementBuckets(
-            @Parameter(description = "Time series identifier.", required = true)
+            @Parameter(description = "openapi.measurement.measurement-api.time-series-identifier", required = true)
             @PathVariable UUID timeSeriesId,
             @ParameterObject @Valid @ModelAttribute MeasurementBucketParameters parameters);
 
     @Operation(
             tags = "Measurements",
-            summary = "Reads the measurement database system time",
-            description = "Returns the InfluxDB system time used by the measurement store. Public endpoint for health and clock checks.")
+            summary = "openapi.measurement.measurement-api.reads-the-measurement-database-system-time",
+            description = "openapi.measurement.measurement-api.returns-the-influx-db-system-time-used")
     @ApiResponse(
             responseCode = "200",
-            description = "Returns the database system time.",
+            description = "openapi.measurement.measurement-api.returns-the-database-system-time",
             content = @Content(schema = @Schema(type = "string", format = "date-time", example = "2026-06-17T13:00:00Z")))
     @GetMapping("/measurements/system-time")
     Instant getSystemTime();

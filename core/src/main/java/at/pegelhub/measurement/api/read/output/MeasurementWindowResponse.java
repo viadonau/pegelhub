@@ -4,12 +4,12 @@ import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.time.Instant;
 
-@Schema(description = "Resolved time window used by a measurement query.")
+@Schema(description = "openapi.measurement.measurement-window-response.resolved-time-window-used-by-a-measurement")
 public record MeasurementWindowResponse(
-        @Schema(description = "Inclusive window start.", example = "2026-06-17T00:00:00Z")
+        @Schema(description = "openapi.measurement.measurement-window-response.inclusive-window-start", example = "2026-06-17T00:00:00Z")
         Instant from,
-        @Schema(description = "Exclusive window end.", example = "2026-06-18T00:00:00Z")
+        @Schema(description = "openapi.measurement.measurement-window-response.exclusive-window-end", example = "2026-06-18T00:00:00Z")
         Instant to,
-        @Schema(description = "Original relative duration when requested with last. Null for explicit from/to windows.", example = "24h", nullable = true)
+        @Schema(description = "openapi.measurement.measurement-window-response.original-relative-duration-when-requested-with-last", example = "24h", nullable = true)
         String requested) {
 }

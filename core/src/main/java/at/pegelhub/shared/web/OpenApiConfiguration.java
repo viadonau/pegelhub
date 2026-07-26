@@ -8,8 +8,13 @@ import io.swagger.v3.oas.models.responses.ApiResponse;
 import io.swagger.v3.oas.models.responses.ApiResponses;
 import io.swagger.v3.oas.models.security.SecurityScheme;
 import org.springdoc.core.customizers.OperationCustomizer;
+import org.springdoc.core.customizers.OpenApiLocaleCustomizer;
+import org.springdoc.core.utils.PropertyResolverUtils;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+
+import java.util.Comparator;
+import java.util.Locale;
 
 @Configuration
 public class OpenApiConfiguration {
@@ -25,16 +30,30 @@ public class OpenApiConfiguration {
                 .info(new Info()
                         .title("PegelHub Core API")
                         .version("2.0.0-SNAPSHOT")
-                        .description("HTTP API for PegelHub metadata, measurements, telemetry, and connector administration."))
+                        .description("openapi.info.description"))
                 .components(new Components()
                         .addSecuritySchemes(BEARER_AUTH, new SecurityScheme()
                                 .type(SecurityScheme.Type.HTTP)
                                 .scheme("bearer")
                                 .bearerFormat("JWT"))
                         .addResponses(UNAUTHORIZED, new ApiResponse()
-                                .description("A Bearer token is missing or invalid."))
+                                .description("openapi.response.unauthorized"))
                         .addResponses(FORBIDDEN, new ApiResponse()
-                                .description("The authenticated token does not grant the required permission.")));
+                                .description("openapi.response.forbidden")));
+    }
+
+    @Bean
+    OpenApiLocaleCustomizer localizedOpenApiDocumentation(PropertyResolverUtils properties) {
+        return new OpenApiDocumentationLocalizer(properties);
+    }
+
+    @Bean
+    OpenApiLocaleCustomizer deterministicOpenApiTagOrder() {
+        return (openApi, ignored) -> {
+            if (openApi.getTags() != null) {
+                openApi.getTags().sort(Comparator.comparing(tag -> tag.getName().toLowerCase(Locale.ROOT)));
+            }
+        };
     }
 
     @Bean

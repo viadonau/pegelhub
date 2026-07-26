@@ -20,7 +20,7 @@ import static java.util.Objects.requireNonNull;
 
 @RestController
 @RequestMapping("/api/v1/admin/connectors")
-@Tag(name = "Connector Admin", description = "Administrative connector identity binding endpoints.")
+@Tag(name = "Connector Admin", description = "openapi.connector.http-admin-connector-controller.administrative-connector-identity-binding-endpoints")
 @SecurityRequirement(name = "bearerAuth")
 public final class HttpAdminConnectorController {
 
@@ -31,14 +31,14 @@ public final class HttpAdminConnectorController {
     }
 
     @Operation(
-            summary = "Registers a connector identity binding",
-            description = "Creates connector metadata and binds it to a Keycloak client id. Requires SYSTEM_ADMIN.")
+            summary = "openapi.connector.http-admin-connector-controller.registers-a-connector-identity-binding",
+            description = "openapi.connector.http-admin-connector-controller.creates-connector-metadata-and-binds-it-to")
     @ApiResponses(value = {
             @ApiResponse(
                     responseCode = "201",
-                    description = "Returns the registered connector.",
+                    description = "openapi.connector.http-admin-connector-controller.returns-the-registered-connector",
                     content = @Content(schema = @Schema(implementation = ConnectorDto.class))),
-            @ApiResponse(responseCode = "400", description = "The registration payload is invalid.", content = @Content)
+            @ApiResponse(responseCode = "400", description = "openapi.connector.http-admin-connector-controller.the-registration-payload-is-invalid", content = @Content)
     })
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
