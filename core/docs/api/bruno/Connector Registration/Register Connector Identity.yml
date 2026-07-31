@@ -1,0 +1,59 @@
+info:
+  name: Register Connector Identity
+  type: http
+  seq: 1
+
+http:
+  method: POST
+  url: "{{baseUrl}}/{{apiPath}}/admin/connectors"
+  headers:
+    - name: X-Auth-Profile
+      value: operator
+    - name: Content-Type
+      value: application/json
+  body:
+    type: json
+    data: |-
+      {
+        "keycloakClientId": "{{connectorClientId}}",
+        "status": "ACTIVE",
+        "connector": {
+          "connectorNumber": "{{connectorClientId}}",
+          "manufacturer": { "organization": "PegelHub Local" },
+          "typeDescription": "Bruno workflow connector",
+          "softwareVersion": "dev",
+          "worksFromDataVersion": "1.0",
+          "dataDefinition": "pegelhub-v1",
+          "softwareManufacturer": { "organization": "PegelHub Local" },
+          "technicallyResponsible": { "organization": "PegelHub Local" },
+          "operationCompany": { "organization": "PegelHub Local" },
+          "notes": "Created by the repository Bruno workflow."
+        }
+      }
+  auth: inherit
+
+runtime:
+  scripts:
+    - type: before-request
+      code: bru.setVar('expectWorkflowConnector', '');
+    - type: after-response
+      code: |-
+        const status = res.getStatus();
+        const clientId = bru.getEnvVar('connectorClientId')
+          || bru.getVar('connectorClientId')
+          || bru.getCollectionVar('connectorClientId');
+        const duplicateMessage = `Connector already exists for Keycloak client id ${clientId}`;
+        const responseBody = String(res.getBody() || '');
+        const registrationAccepted = status === 201
+          || (status === 400 && responseBody.includes(duplicateMessage));
+
+        test('connector registered or matching identity already exists', () => {
+          expect(registrationAccepted).to.equal(true);
+        });
+
+        if (registrationAccepted) {
+          bru.setVar('expectWorkflowConnector', 'true');
+          if (status === 201) bru.setVar('connectorId', res.getBody().id);
+        }
+
+docs: Registers connector metadata and binds it to the configured Keycloak client id.

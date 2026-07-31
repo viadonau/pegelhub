@@ -1,0 +1,30 @@
+info:
+  name: List Time Series
+  type: http
+  seq: 2
+  tags:
+    - read-only
+
+http:
+  method: GET
+  url: "{{baseUrl}}/{{apiPath}}/time-series"
+  params:
+    - name: measuringPointId
+      value: "{{measuringPointId}}"
+      type: query
+      disabled: true
+    - name: stationId
+      value: "{{stationId}}"
+      type: query
+      disabled: true
+  headers:
+    - name: X-Auth-Profile
+      value: operator
+  auth: inherit
+
+runtime:
+  scripts:
+    - type: after-response
+      code: test('status is 200', () => expect(res.getStatus()).to.equal(200));
+
+docs: Lists time series. Enable either measuringPointId or stationId to filter.

@@ -1,0 +1,39 @@
+info:
+  name: Read Raw Measurements
+  type: http
+  seq: 2
+
+http:
+  method: GET
+  url: "{{baseUrl}}/{{apiPath}}/time-series/{{timeSeriesId}}/measurements?last=1h&order=asc&limit=1000"
+  params:
+    - name: last
+      value: 1h
+      type: query
+    - name: from
+      value: ""
+      type: query
+      disabled: true
+    - name: to
+      value: ""
+      type: query
+      disabled: true
+    - name: order
+      value: asc
+      type: query
+    - name: limit
+      value: "1000"
+      type: query
+  headers:
+    - name: X-Auth-Profile
+      value: operator
+  auth: inherit
+
+runtime:
+  scripts:
+    - type: after-response
+      code: |-
+        test('status is 200', () => expect(res.getStatus()).to.equal(200));
+        test('response is bounded', () => expect(res.getBody().measurements.length).to.be.at.most(1000));
+
+docs: Reads a bounded raw window. Disable last and enable from and to for an explicit window.

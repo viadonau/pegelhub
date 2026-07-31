@@ -1,0 +1,33 @@
+info:
+  name: Create Time Series
+  type: http
+  seq: 1
+
+http:
+  method: POST
+  url: "{{baseUrl}}/{{apiPath}}/time-series"
+  headers:
+    - name: X-Auth-Profile
+      value: operator
+    - name: Content-Type
+      value: application/json
+  body:
+    type: json
+    data: |-
+      {
+        "measuringPointId": "{{measuringPointId}}",
+        "observedProperty": "water-level",
+        "unit": "cm",
+        "externalCode": "BRUNO-WATER-LEVEL",
+        "sourceConnectorId": "{{connectorId}}"
+      }
+  auth: inherit
+
+runtime:
+  scripts:
+    - type: after-response
+      code: |-
+        test('status is 201', () => expect(res.getStatus()).to.equal(201));
+        bru.setVar('timeSeriesId', res.getBody().id);
+
+docs: Creates a time series for the workflow measuring point and captures its id.

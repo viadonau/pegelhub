@@ -1,0 +1,33 @@
+info:
+  name: Create Station Owner
+  type: http
+  seq: 1
+
+http:
+  method: POST
+  url: "{{baseUrl}}/{{apiPath}}/station-owners"
+  headers:
+    - name: X-Auth-Profile
+      value: operator
+    - name: Content-Type
+      value: application/json
+  body:
+    type: json
+    data: |-
+      {
+        "name": "Bruno Workflow Owner",
+        "shortName": "BRUNO",
+        "notes": "Created by the repository Bruno workflow."
+      }
+  auth: inherit
+
+runtime:
+  scripts:
+    - type: before-request
+      code: bru.setVar('workflowRunId', String(Date.now()));
+    - type: after-response
+      code: |-
+        test('status is 201', () => expect(res.getStatus()).to.equal(201));
+        bru.setVar('stationOwnerId', res.getBody().id);
+
+docs: Creates a station owner and captures its id.

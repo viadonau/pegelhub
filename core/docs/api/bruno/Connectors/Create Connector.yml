@@ -1,0 +1,39 @@
+info:
+  name: Create Connector
+  type: http
+  seq: 1
+
+http:
+  method: POST
+  url: "{{baseUrl}}/{{apiPath}}/connectors"
+  headers:
+    - name: X-Auth-Profile
+      value: operator
+    - name: Content-Type
+      value: application/json
+  body:
+    type: json
+    data: |-
+      {
+        "connectorNumber": "manual-bruno-example",
+        "manufacturer": { "organization": "PegelHub Local" },
+        "typeDescription": "Manual Bruno example",
+        "softwareVersion": "dev",
+        "worksFromDataVersion": "1.0",
+        "dataDefinition": "pegelhub-v1",
+        "softwareManufacturer": { "organization": "PegelHub Local" },
+        "technicallyResponsible": { "organization": "PegelHub Local" },
+        "operationCompany": { "organization": "PegelHub Local" },
+        "notes": "Standalone metadata example; not part of the write workflow."
+      }
+  auth: inherit
+
+runtime:
+  scripts:
+    - type: after-response
+      code: |-
+        const status = res.getStatus();
+        test('status is 200', () => expect(status).to.equal(200));
+        if (status === 200) bru.setVar('connectorId', res.getBody().id);
+
+docs: Creates standalone connector metadata without an identity binding and captures its id.

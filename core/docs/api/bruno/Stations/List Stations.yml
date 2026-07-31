@@ -1,0 +1,21 @@
+info:
+  name: List Stations
+  type: http
+  seq: 2
+  tags:
+    - read-only
+
+http:
+  method: GET
+  url: "{{baseUrl}}/{{apiPath}}/stations"
+  headers:
+    - name: X-Auth-Profile
+      value: operator
+  auth: inherit
+
+runtime:
+  scripts:
+    - type: after-response
+      code: test('status is 200', () => expect(res.getStatus()).to.equal(200));
+
+docs: Lists stations.

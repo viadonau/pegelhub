@@ -1,0 +1,21 @@
+info:
+  name: Get Time Series
+  type: http
+  seq: 3
+
+http:
+  method: GET
+  url: "{{baseUrl}}/{{apiPath}}/time-series/{{id}}"
+  headers:
+    - name: X-Auth-Profile
+      value: operator
+  auth: inherit
+
+runtime:
+  scripts:
+    - type: before-request
+      code: bru.setVar('id', bru.getVar('timeSeriesId'));
+    - type: after-response
+      code: test('status is 200', () => expect(res.getStatus()).to.equal(200));
+
+docs: Gets a time series by id.

@@ -1,0 +1,38 @@
+info:
+  name: Create Measuring Point
+  type: http
+  seq: 1
+
+http:
+  method: POST
+  url: "{{baseUrl}}/{{apiPath}}/measuring-points"
+  headers:
+    - name: X-Auth-Profile
+      value: operator
+    - name: Content-Type
+      value: application/json
+  body:
+    type: json
+    data: |-
+      {
+        "stationId": "{{stationId}}",
+        "name": "Main gauge",
+        "referenceLevel": 156.42,
+        "referenceYear": 2020,
+        "riverKilometer": 1933.2,
+        "bank": "left",
+        "rnw": 120.0,
+        "mw": 280.0,
+        "hsw": 620.0,
+        "hw100": 760.0
+      }
+  auth: inherit
+
+runtime:
+  scripts:
+    - type: after-response
+      code: |-
+        test('status is 201', () => expect(res.getStatus()).to.equal(201));
+        bru.setVar('measuringPointId', res.getBody().id);
+
+docs: Creates a measuring point and captures its id.

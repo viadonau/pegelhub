@@ -1,0 +1,37 @@
+info:
+  name: Write Measurements
+  type: http
+  seq: 1
+
+http:
+  method: POST
+  url: "{{baseUrl}}/{{apiPath}}/measurements"
+  headers:
+    - name: X-Auth-Profile
+      value: connector
+    - name: Content-Type
+      value: application/json
+  body:
+    type: json
+    data: |-
+      {
+        "measurements": [
+          {
+            "timeSeriesId": "{{timeSeriesId}}",
+            "observedAt": "{{measurementTimestamp}}",
+            "value": 273.0
+          }
+        ]
+      }
+  auth: inherit
+
+runtime:
+  scripts:
+    - type: before-request
+      code: |-
+        const timestamp = new Date().toISOString();
+        bru.setVar('measurementTimestamp', timestamp);
+    - type: after-response
+      code: test('status is 204', () => expect(res.getStatus()).to.equal(204));
+
+docs: Writes one measurement as the connector identity after the access grant exists.

@@ -1,0 +1,41 @@
+info:
+  name: Write Telemetry
+  type: http
+  seq: 1
+
+http:
+  method: POST
+  url: "{{baseUrl}}/{{apiPath}}/telemetry"
+  headers:
+    - name: X-Auth-Profile
+      value: connector
+    - name: Content-Type
+      value: application/json
+  body:
+    type: json
+    data: |-
+      {
+        "stationIPAddressIntern": "172.16.0.10",
+        "stationIPAddressExtern": "203.0.113.10",
+        "timestamp": "{{telemetryTimestamp}}",
+        "cycleTime": 60,
+        "temperatureWater": 12.4,
+        "temperatureAir": 18.7,
+        "performanceVoltageBattery": 12.2,
+        "performanceVoltageSupply": 24.0,
+        "performanceElectricityBattery": 1.2,
+        "performanceElectricitySupply": 0.8,
+        "fieldStrengthTransmission": 87.0
+      }
+  auth: inherit
+
+runtime:
+  scripts:
+    - type: before-request
+      code: |-
+        const timestamp = new Date().toISOString();
+        bru.setVar('telemetryTimestamp', timestamp);
+    - type: after-response
+      code: test('status is 200', () => expect(res.getStatus()).to.equal(200));
+
+docs: Writes telemetry as the configured connector identity.

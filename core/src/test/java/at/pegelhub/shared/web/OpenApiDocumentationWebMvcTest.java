@@ -14,6 +14,7 @@ import at.pegelhub.timeseries.application.TimeSeriesService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springdoc.core.configuration.SpringDocConfiguration;
@@ -42,6 +43,8 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
 import java.io.InputStreamReader;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -50,8 +53,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.function.BiConsumer;
+import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
@@ -129,6 +134,8 @@ class OpenApiDocumentationWebMvcTest {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
+    private final ObjectMapper yamlMapper = new ObjectMapper(new YAMLFactory());
+
     @MockitoBean
     private AccessGrantService accessGrantService;
 
@@ -205,6 +212,79 @@ class OpenApiDocumentationWebMvcTest {
 
         assertThat(paths.path("/api/v1/measurements").path("post").path("security").isArray()).isTrue();
         assertThat(paths.path("/api/v1/measurements/system-time").path("get").has("security")).isFalse();
+    }
+
+    @Test
+    void brunoCollectionMatchesEnglishOpenApiOperationsAndQueryParameters() throws Exception {
+        JsonNode openApiPaths = openApiJson("en").path("paths");
+        Set<String> openApiOperations = operationKeys(openApiPaths);
+        Map<String, Set<String>> openApiQueryParameters = new TreeMap<>();
+        forEachOperation(openApiPaths, (operation, definition) ->
+                openApiQueryParameters.put(operation, queryParameterNames(definition)));
+        Path collection = Path.of(System.getProperty("basedir"), "docs/api/bruno");
+        List<String> brunoOperations = new ArrayList<>();
+        Map<String, Set<String>> brunoQueryParameters = new TreeMap<>();
+
+        try (Stream<Path> files = Files.walk(collection)) {
+            for (Path file : files.filter(path -> path.toString().endsWith(".yml")).sorted().toList()) {
+                JsonNode document = yamlMapper.readTree(file.toFile());
+                assertThat(document).as("parsed YAML document %s", file).isNotNull();
+
+                if (!"http".equals(document.path("info").path("type").asText())) {
+                    continue;
+                }
+
+                String method = document.path("http").path("method").asText().toUpperCase();
+                String url = document.path("http").path("url").asText();
+                assertThat(method).as("HTTP method in %s", file).isNotBlank();
+                assertThat(url).as("HTTP URL in %s", file).isNotBlank();
+                String operation = method + " " + normalizeBrunoPath(url);
+                brunoOperations.add(operation);
+
+                Set<String> urlQueryParameters = brunoUrlQueryParameterNames(url);
+                Set<String> enabledQueryParameters = new TreeSet<>();
+                Set<String> queryParameters = new TreeSet<>(urlQueryParameters);
+                for (JsonNode parameter : document.path("http").path("params")) {
+                    if ("query".equals(parameter.path("type").asText())) {
+                        String name = parameter.path("name").asText();
+                        queryParameters.add(name);
+                        if (!parameter.path("disabled").asBoolean(false)) {
+                            enabledQueryParameters.add(name);
+                        }
+                    }
+                }
+                assertThat(enabledQueryParameters)
+                        .as("enabled query parameters reflected in the URL for %s", file)
+                        .containsExactlyElementsOf(urlQueryParameters);
+                brunoQueryParameters.put(operation, queryParameters);
+            }
+        }
+
+        assertThat(brunoOperations).doesNotHaveDuplicates();
+        assertThat(new TreeSet<>(brunoOperations))
+                .containsExactlyElementsOf(new TreeSet<>(openApiOperations));
+        assertThat(brunoQueryParameters).containsExactlyInAnyOrderEntriesOf(openApiQueryParameters);
+    }
+
+    @Test
+    void brunoRemoteExampleContainsOnlyFileBackedCredentialPlaceholders() throws Exception {
+        Path environment = Path.of(
+                System.getProperty("basedir"),
+                "docs/api/bruno/environments/Remote.example.yml");
+        JsonNode variables = yamlMapper.readTree(environment.toFile()).path("variables");
+
+        for (JsonNode variable : variables) {
+            String name = variable.path("name").asText();
+            assertThat(name).doesNotContain("AccessToken", "TokenExpiresAt");
+            assertThat(variable.has("secret"))
+                    .as("file-backed remote variable %s", name)
+                    .isFalse();
+            if (name.endsWith("ClientId") || name.endsWith("ClientSecret")) {
+                assertThat(variable.path("value").asText())
+                        .as("remote credential placeholder %s", name)
+                        .isEmpty();
+            }
+        }
     }
 
     @Test
@@ -437,6 +517,31 @@ class OpenApiDocumentationWebMvcTest {
             properties.load(new InputStreamReader(stream, StandardCharsets.UTF_8));
         }
         return properties;
+    }
+
+    private static String normalizeBrunoPath(String url) {
+        String path = url
+                .replace("{{baseUrl}}", "")
+                .replace("{{apiPath}}", "api/v1")
+                .split("\\?", 2)[0]
+                .replaceAll("\\{\\{([^}/]+)}}", "{$1}");
+        return path.startsWith("/") ? path : "/" + path;
+    }
+
+    private static Set<String> brunoUrlQueryParameterNames(String url) {
+        Set<String> names = new TreeSet<>();
+        int queryStart = url.indexOf('?');
+        if (queryStart < 0 || queryStart == url.length() - 1) {
+            return names;
+        }
+
+        for (String parameter : url.substring(queryStart + 1).split("&")) {
+            String name = parameter.split("=", 2)[0];
+            if (!name.isBlank()) {
+                names.add(name);
+            }
+        }
+        return names;
     }
 
     private static JsonNode tag(JsonNode spec, String name) {

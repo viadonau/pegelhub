@@ -1,0 +1,21 @@
+info:
+  name: Get System Time
+  type: http
+  seq: 4
+  tags:
+    - read-only
+
+http:
+  method: GET
+  url: "{{baseUrl}}/{{apiPath}}/measurements/system-time"
+  headers:
+    - name: X-Auth-Profile
+      value: none
+  auth: inherit
+
+runtime:
+  scripts:
+    - type: after-response
+      code: test('status is 200', () => expect(res.getStatus()).to.equal(200));
+
+docs: Reads InfluxDB system time without authentication.

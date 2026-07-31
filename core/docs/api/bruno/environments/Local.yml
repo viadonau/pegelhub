@@ -1,0 +1,18 @@
+name: Local
+variables:
+  - name: baseUrl
+    value: http://localhost:8080
+  - name: apiPath
+    value: api/v1
+  - name: keycloakTokenUrl
+    value: http://pegelhub-keycloak.test:8082/realms/pegelhub/protocol/openid-connect/token
+  - name: authProfile
+    value: operator
+  - name: operatorClientId
+    value: local-operator
+  - name: operatorClientSecret
+    value: local-dev-operator-secret-change-me
+  - name: connectorClientId
+    value: local-connector-example
+  - name: connectorClientSecret
+    value: local-dev-connector-secret-change-me
