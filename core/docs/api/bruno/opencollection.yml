@@ -1,0 +1,124 @@
+opencollection: 1.0.0
+
+info:
+  name: PegelHub Core API
+
+request:
+  auth:
+    type: bearer
+    token: "{{accessToken}}"
+  variables:
+    - name: connectorId
+      value: ""
+    - name: stationOwnerId
+      value: ""
+    - name: stationId
+      value: ""
+    - name: measuringPointId
+      value: ""
+    - name: timeSeriesId
+      value: ""
+    - name: accessGrantId
+      value: ""
+    - name: contactId
+      value: ""
+    - name: measurementTimestamp
+      value: ""
+    - name: telemetryTimestamp
+      value: ""
+    - name: range
+      value: 1h
+  scripts:
+    - type: before-request
+      code: |-
+        function valueFor(name) {
+          return bru.getEnvVar(name) || bru.getVar(name) || bru.getCollectionVar(name);
+        }
+
+        const authProfile = String(req.getHeader('X-Auth-Profile') || valueFor('authProfile') || 'operator')
+          .trim()
+          .toLowerCase();
+        req.deleteHeader('X-Auth-Profile');
+
+        if (authProfile === 'none') {
+          bru.setVar('accessToken', '');
+          req.deleteHeader('Authorization');
+        } else {
+          const profiles = {
+            operator: {
+              clientId: 'operatorClientId',
+              clientSecret: 'operatorClientSecret',
+              token: 'operatorAccessToken',
+              expiresAt: 'operatorTokenExpiresAt',
+              scope: 'operatorTokenScope'
+            },
+            connector: {
+              clientId: 'connectorClientId',
+              clientSecret: 'connectorClientSecret',
+              token: 'connectorAccessToken',
+              expiresAt: 'connectorTokenExpiresAt',
+              scope: 'connectorTokenScope'
+            }
+          };
+          const profile = profiles[authProfile];
+          if (!profile) {
+            throw new Error(`Unknown auth profile '${authProfile}'. Use operator, connector, or none.`);
+          }
+
+          const tokenUrl = valueFor('keycloakTokenUrl');
+          const clientId = valueFor(profile.clientId);
+          const clientSecret = valueFor(profile.clientSecret);
+          const missing = [
+            ['keycloakTokenUrl', tokenUrl],
+            [profile.clientId, clientId],
+            [profile.clientSecret, clientSecret]
+          ].filter(([, value]) => !value).map(([name]) => name);
+          if (missing.length) {
+            throw new Error(`Missing environment variable(s): ${missing.join(', ')}`);
+          }
+
+          const now = Date.now();
+          const tokenScope = `${tokenUrl}\n${clientId}`;
+          let accessToken = bru.getVar(profile.token);
+          const expiresAt = Number(bru.getVar(profile.expiresAt) || 0);
+          const cachedScope = bru.getVar(profile.scope);
+          if (!accessToken || cachedScope !== tokenScope || expiresAt - 30000 <= now) {
+            const form = [
+              ['grant_type', 'client_credentials'],
+              ['client_id', clientId],
+              ['client_secret', clientSecret]
+            ].map(([name, value]) => `${encodeURIComponent(name)}=${encodeURIComponent(value)}`).join('&');
+            const response = await bru.sendRequest({
+              url: tokenUrl,
+              method: 'POST',
+              headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+              data: form
+            });
+            if (!response || response.status < 200 || response.status >= 300) {
+              throw new Error(`Could not fetch ${authProfile} token from Keycloak.`);
+            }
+            const body = typeof response.data === 'string' ? JSON.parse(response.data) : response.data;
+            if (!body || !body.access_token) {
+              throw new Error('Keycloak response did not contain access_token.');
+            }
+            accessToken = body.access_token;
+            bru.setVar(profile.token, accessToken);
+            bru.setVar(profile.expiresAt, String(now + Number(body.expires_in || 60) * 1000));
+            bru.setVar(profile.scope, tokenScope);
+          }
+
+          bru.setVar('accessToken', accessToken);
+          req.setHeader('Authorization', `Bearer ${accessToken}`);
+        }
+
+docs:
+  content: Repository-owned executable examples for the English PegelHub Core OpenAPI contract.
+  type: text/markdown
+
+bundled: false
+
+extensions:
+  bruno:
+    ignore:
+      - node_modules
+      - .git

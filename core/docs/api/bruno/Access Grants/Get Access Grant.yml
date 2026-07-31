@@ -1,0 +1,21 @@
+info:
+  name: Get Access Grant
+  type: http
+  seq: 3
+
+http:
+  method: GET
+  url: "{{baseUrl}}/{{apiPath}}/access-grants/{{id}}"
+  headers:
+    - name: X-Auth-Profile
+      value: operator
+  auth: inherit
+
+runtime:
+  scripts:
+    - type: before-request
+      code: bru.setVar('id', bru.getVar('accessGrantId'));
+    - type: after-response
+      code: test('status is 200', () => expect(res.getStatus()).to.equal(200));
+
+docs: Gets an access grant by id.

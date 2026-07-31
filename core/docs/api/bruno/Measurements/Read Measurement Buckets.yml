@@ -1,0 +1,38 @@
+info:
+  name: Read Measurement Buckets
+  type: http
+  seq: 3
+
+http:
+  method: GET
+  url: "{{baseUrl}}/{{apiPath}}/time-series/{{timeSeriesId}}/measurements/buckets?last=1h&maxPoints=200"
+  params:
+    - name: last
+      value: 1h
+      type: query
+    - name: from
+      value: ""
+      type: query
+      disabled: true
+    - name: to
+      value: ""
+      type: query
+      disabled: true
+    - name: bucket
+      value: 5m
+      type: query
+      disabled: true
+    - name: maxPoints
+      value: "200"
+      type: query
+  headers:
+    - name: X-Auth-Profile
+      value: operator
+  auth: inherit
+
+runtime:
+  scripts:
+    - type: after-response
+      code: test('status is 200', () => expect(res.getStatus()).to.equal(200));
+
+docs: Reads chart-ready averages. Use last or from/to, and either bucket or maxPoints.

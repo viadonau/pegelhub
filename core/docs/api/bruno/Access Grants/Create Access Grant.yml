@@ -1,0 +1,32 @@
+info:
+  name: Create Access Grant
+  type: http
+  seq: 1
+
+http:
+  method: POST
+  url: "{{baseUrl}}/{{apiPath}}/access-grants"
+  headers:
+    - name: X-Auth-Profile
+      value: operator
+    - name: Content-Type
+      value: application/json
+  body:
+    type: json
+    data: |-
+      {
+        "connectorId": "{{connectorId}}",
+        "resourceType": "TIME_SERIES",
+        "resourceId": "{{timeSeriesId}}",
+        "permission": "WRITE"
+      }
+  auth: inherit
+
+runtime:
+  scripts:
+    - type: after-response
+      code: |-
+        test('status is 201', () => expect(res.getStatus()).to.equal(201));
+        bru.setVar('accessGrantId', res.getBody().id);
+
+docs: Grants the workflow connector write access to the workflow time series.

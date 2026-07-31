@@ -1,0 +1,41 @@
+info:
+  name: List Connectors
+  type: http
+  seq: 2
+  tags:
+    - read-only
+
+http:
+  method: GET
+  url: "{{baseUrl}}/{{apiPath}}/connectors"
+  headers:
+    - name: X-Auth-Profile
+      value: operator
+  auth: inherit
+
+runtime:
+  scripts:
+    - type: before-request
+      code: bru.setVar('connectorId', '');
+    - type: after-response
+      code: |-
+        test('status is 200', () => expect(res.getStatus()).to.equal(200));
+
+        const connectors = res.getBody();
+        test('response is a connector list', () => expect(Array.isArray(connectors)).to.equal(true));
+
+        const clientId = bru.getEnvVar('connectorClientId')
+          || bru.getVar('connectorClientId')
+          || bru.getCollectionVar('connectorClientId');
+        const connector = Array.isArray(connectors)
+          ? connectors.find(item => item.keycloakClientId === clientId)
+          : undefined;
+
+        if (bru.getVar('expectWorkflowConnector') === 'true') {
+          test('registered workflow connector is present', () => expect(connector).to.exist);
+          bru.setVar('expectWorkflowConnector', '');
+        }
+
+        if (connector) bru.setVar('connectorId', connector.id);
+
+docs: Lists connectors and captures the configured workflow connector id when present.

@@ -27,6 +27,6 @@ scripts/local-stack.sh compose-up
 scripts/local-stack.sh smoke
 ```
 
-Core API client notes and the Postman collection live in `core/docs/api/postman/`.
+Executable Core API examples and client notes live in `core/docs/api/bruno/`.
 Keycloak local setup and operations live in `core/docs/keycloak-local-dev.md`
 and `core/docs/keycloak-operations.md`.
