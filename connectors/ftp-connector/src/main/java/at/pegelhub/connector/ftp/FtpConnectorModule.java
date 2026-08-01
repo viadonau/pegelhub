@@ -9,16 +9,11 @@ import at.pegelhub.lib.config.ConnectorConfigDirectory;
 import at.pegelhub.lib.runtime.ConnectorModule;
 import at.pegelhub.lib.runtime.ConnectorRuntimeAssembly;
 import at.pegelhub.lib.runtime.ConnectorRuntimeDefinition;
-import org.apache.commons.net.PrintCommandListener;
 import org.apache.commons.net.ftp.FTPClient;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
-import java.io.PrintWriter;
 import java.time.Duration;
 
 public final class FtpConnectorModule implements ConnectorModule {
-    private static final Logger LOG = LoggerFactory.getLogger(FtpConnectorModule.class);
     private final FtpConnectorConfigLoader configLoader = new FtpConnectorConfigLoader();
 
     @Override
@@ -35,7 +30,6 @@ public final class FtpConnectorModule implements ConnectorModule {
             FTPClient ftp = new FTPClient();
             runtime.own(ftp::disconnect);
             ftp.setControlKeepAliveTimeout(Duration.ofMinutes(15));
-            ftp.addProtocolCommandListener(new PrintCommandListener(new PrintWriter(new LogOutputStream(LOG))));
             ftp.setDataTimeout(Duration.ofMinutes(15));
 
             PegelHubClient client = runtime.own(coreClients.create(config.coreConnection()));
