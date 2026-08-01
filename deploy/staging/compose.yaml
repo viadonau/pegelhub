@@ -71,8 +71,6 @@ services:
       DOCKER_INFLUXDB_INIT_ORG: ${INFLUX_ORG}
       DOCKER_INFLUXDB_INIT_BUCKET: ${INFLUX_INTERNAL_BUCKET}
       DOCKER_INFLUXDB_INIT_ADMIN_TOKEN: ${INFLUX_TOKEN}
-      INFLUX_DATA_BUCKET: ${INFLUX_DATA_BUCKET}
-      INFLUX_TELEMETRY_BUCKET: ${INFLUX_TELEMETRY_BUCKET}
     healthcheck:
       test: ["CMD", "influx", "ping"]
       interval: 10s
@@ -81,7 +79,27 @@ services:
       start_period: 15s
     volumes:
       - datastore-data:/var/lib/influxdb2
-      - ../../core/docker/influxdb/init:/docker-entrypoint-initdb.d:ro
+    networks:
+      - pegelhub-staging
+
+  influx-bucket-setup:
+    image: influxdb:2.2-alpine
+    restart: "no"
+    entrypoint: ["/bin/sh", "/usr/local/bin/configure-buckets.sh"]
+    environment:
+      INFLUX_HOST: http://data-db:8086
+      INFLUX_ORG: ${INFLUX_ORG}
+      INFLUX_TOKEN: ${INFLUX_TOKEN}
+      INFLUX_INTERNAL_BUCKET: ${INFLUX_INTERNAL_BUCKET}
+      INFLUX_DATA_BUCKET: ${INFLUX_DATA_BUCKET}
+      INFLUX_DATA_RETENTION: ${INFLUX_DATA_RETENTION:-60d}
+      INFLUX_TELEMETRY_BUCKET: ${INFLUX_TELEMETRY_BUCKET}
+      INFLUX_TELEMETRY_RETENTION: ${INFLUX_TELEMETRY_RETENTION:-60d}
+    volumes:
+      - ../../core/docker/influxdb/configure-buckets.sh:/usr/local/bin/configure-buckets.sh:ro
+    depends_on:
+      data-db:
+        condition: service_healthy
     networks:
       - pegelhub-staging
 
@@ -152,6 +170,8 @@ services:
         condition: service_healthy
       data-db:
         condition: service_healthy
+      influx-bucket-setup:
+        condition: service_completed_successfully
       keycloak:
         condition: service_started
     networks:

@@ -89,6 +89,24 @@ requires a backup and schema/orphan preflight, enables the baseline setting for
 the first Flyway startup only, verifies the version 1 baseline and version 2
 migration history, and then disables the setting again.
 
+## InfluxDB Retention
+
+Staging configures measurement and telemetry retention independently:
+
+```env
+INFLUX_DATA_RETENTION=60d
+INFLUX_TELEMETRY_RETENTION=60d
+```
+
+Use `0s` for infinite retention. Other accepted values are positive whole
+hours, days, or weeks, such as `24h`, `60d`, or `8w`.
+
+The `influx-bucket-setup` service reconciles both policies on fresh and existing
+InfluxDB volumes before Core starts. Reducing retention, including changing
+`0s` to a finite value, can permanently remove older points. Back up data that
+must be preserved before deploying such a change. An application rollback does
+not restore expired InfluxDB data.
+
 ## GitHub Staging Deploy Setup
 
 The `Images` workflow has a `Deploy Staging` job. It runs only after all images
@@ -242,7 +260,8 @@ deploy/staging/scripts/deploy.sh --check sha-<short-sha>
 ```
 
 The validation rejects missing or placeholder image tags, missing FTP config,
-production-unsafe public ports, and any rendered `build:` section.
+invalid InfluxDB retention values, production-unsafe public ports, and any
+rendered `build:` section.
 
 ## Deploy From GitHub
 
@@ -323,3 +342,5 @@ backup/restore or forward-migration decision.
 - `--refresh-keycloak` recreates the Keycloak container, but does not recreate
   or wipe the Keycloak database.
 - Rotate any real FTP password that was ever committed or shared in examples.
+- Treat retention reductions as data migrations; image rollback does not undo
+  expired InfluxDB data.

@@ -2,8 +2,13 @@
 
 Pegelhub stores time-series data in InfluxDB and uses two buckets in one organization:
 
-- `INFLUX_DATA_BUCKET` for measurement data
-- `INFLUX_TELEMETRY_BUCKET` for telemetry data
+- `INFLUX_DATA_BUCKET` for measurement data, with retention configured by
+  `INFLUX_DATA_RETENTION`
+- `INFLUX_TELEMETRY_BUCKET` for telemetry data, with retention configured by
+  `INFLUX_TELEMETRY_RETENTION`
+
+Both retention settings default to `60d`. Set either one to `0s` to retain that
+bucket indefinitely.
 
 The application does not read a generated token file anymore. Runtime configuration comes from environment variables through the `pegelhub.influx.*` Spring properties.
 
@@ -22,9 +27,23 @@ The compose setup starts:
 
 - `meta-db` on host port `5444`
 - `data-db` on host port `8111`
+- `influx-bucket-setup` as a one-shot provisioning service
 - `core-app` on `8080` and actuator on `8081`
 
-`docker/influxdb/init/01-create-buckets.sh` only creates buckets during InfluxDB initialization. It does not generate app config files.
+`influx-bucket-setup` waits for InfluxDB, creates missing application buckets,
+and updates existing buckets to the configured retention. Core starts only
+after this service succeeds. This works for both fresh and existing InfluxDB
+volumes; bucket provisioning is no longer limited to first initialization.
+
+The provisioner accepts `0s` for infinite retention or a positive whole number
+of hours, days, or weeks, such as `24h`, `60d`, or `8w`. It validates both
+policies and requires all three bucket names to be different before changing
+either application bucket.
+
+Changing a bucket from infinite to finite retention, or reducing its finite
+retention, can permanently remove older data. InfluxDB applies expiry
+asynchronously, and reverting the environment value cannot restore deleted
+points.
 
 ## Runtime Config
 
@@ -37,10 +56,18 @@ The app expects these variables:
 - `INFLUX_TELEMETRY_BUCKET`
 - `INFLUX_LATEST_RANGE` (optional, defaults to `72h`)
 
+Compose provisioning additionally uses:
+
+- `INFLUX_INTERNAL_BUCKET`, the first-start bucket required by the official
+  InfluxDB image and not used by Core
+- `INFLUX_DATA_RETENTION` (optional, defaults to `60d`)
+- `INFLUX_TELEMETRY_RETENTION` (optional, defaults to `60d`)
+
 `InfluxDBConfiguration` creates one shared client from `INFLUX_URL`, `INFLUX_ORG`, and `INFLUX_TOKEN`.
 Repository operations pass the target bucket explicitly, so the data and telemetry buckets do not need separate client instances.
 The actuator Influx health check pings the server and performs a tiny read query against both configured buckets.
 Latest-value endpoints use `INFLUX_LATEST_RANGE` to define how far back they search.
+This query horizon is independent of both retention settings.
 
 In local Compose, the same declared token is passed both to InfluxDB first-start setup and to `core-app`. In production, the app should use a dedicated least-privilege token instead of an admin token.
 
@@ -120,6 +147,27 @@ pegelhub:
 ```
 
 Override those variables if your local InfluxDB uses different values.
+
+To reconcile bucket policies explicitly after changing local retention values,
+run:
+
+```bash
+docker compose up --force-recreate influx-bucket-setup
+docker compose up -d core-app
+```
+
+## Tests
+
+The provisioning integration test starts a real InfluxDB container and verifies
+bucket creation, finite and infinite updates, repeated execution, and invalid
+configuration handling:
+
+```bash
+mvn -f core/pom.xml -Pintegration \
+  -Dtest=NoUnitTests \
+  -Dsurefire.failIfNoSpecifiedTests=false \
+  -Dit.test=InfluxBucketProvisioningIntegrationTest verify
+```
 
 ## Previous Setup
 
