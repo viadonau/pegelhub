@@ -1,5 +1,11 @@
 name: ${COMPOSE_PROJECT_NAME:-pegelhub-staging}
 
+x-staging-logging: &staging-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
 volumes:
   caddy-config:
   caddy-data:
@@ -14,6 +20,7 @@ networks:
 services:
   caddy:
     image: caddy:2-alpine
+    logging: *staging-logging
     restart: unless-stopped
     environment:
       PEGELHUB_FRONTEND_HOSTNAME: ${PEGELHUB_FRONTEND_HOSTNAME}
@@ -39,6 +46,7 @@ services:
     profiles:
       - frontend
     image: ${PEGELHUB_FRONTEND_IMAGE}
+    logging: *staging-logging
     pull_policy: always
     restart: unless-stopped
     networks:
@@ -46,6 +54,7 @@ services:
 
   meta-db:
     image: postgres:14-alpine
+    logging: *staging-logging
     restart: unless-stopped
     environment:
       POSTGRES_PASSWORD: ${META_PASSWORD}
@@ -63,6 +72,7 @@ services:
 
   data-db:
     image: influxdb:2.2-alpine
+    logging: *staging-logging
     restart: unless-stopped
     environment:
       DOCKER_INFLUXDB_INIT_MODE: setup
@@ -84,6 +94,7 @@ services:
 
   influx-bucket-setup:
     image: influxdb:2.2-alpine
+    logging: *staging-logging
     restart: "no"
     entrypoint: ["/bin/sh", "/usr/local/bin/configure-buckets.sh"]
     environment:
@@ -105,6 +116,7 @@ services:
 
   keycloak-db:
     image: postgres:16-alpine
+    logging: *staging-logging
     restart: unless-stopped
     environment:
       POSTGRES_USER: keycloak
@@ -123,6 +135,7 @@ services:
 
   keycloak:
     image: quay.io/keycloak/keycloak:26.2
+    logging: *staging-logging
     restart: unless-stopped
     command: ["start", "--import-realm"]
     environment:
@@ -150,6 +163,7 @@ services:
 
   core-app:
     image: ghcr.io/viadonau/pegelhub-core:${PEGELHUB_IMAGE_TAG:?Set PEGELHUB_IMAGE_TAG}
+    logging: *staging-logging
     pull_policy: always
     restart: unless-stopped
     environment:
@@ -179,6 +193,7 @@ services:
 
   ftp-connector:
     image: ghcr.io/viadonau/pegelhub-ftp-connector:${PEGELHUB_IMAGE_TAG:?Set PEGELHUB_IMAGE_TAG}
+    logging: *staging-logging
     pull_policy: always
     restart: unless-stopped
     environment:
