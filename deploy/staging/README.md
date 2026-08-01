@@ -107,6 +107,31 @@ InfluxDB volumes before Core starts. Reducing retention, including changing
 must be preserved before deploying such a change. An application rollback does
 not restore expired InfluxDB data.
 
+## Container Console Logs
+
+Every staging service, including the optional frontend and the one-shot
+`influx-bucket-setup` service, uses Docker's `json-file` logging driver with a
+maximum file size of `10m` and five files per container. This bounds
+Docker-managed stdout and stderr logs to approximately 50 MB per container. It
+does not change application log levels or retention inside databases and named
+volumes.
+
+Docker applies logging options when it creates a container. On the first deploy
+of this policy, `docker compose up -d` should detect the changed service
+configuration and recreate every active staging container, causing a brief
+service interruption while preserving named volumes. The idempotent
+`influx-bucket-setup` service runs again before Core starts. If deployment output
+shows that an existing container was not recreated, rerun the stack explicitly
+with the same immutable image tag:
+
+```sh
+PEGELHUB_IMAGE_TAG=sha-<short-sha> docker compose \
+  --env-file deploy/staging/.env \
+  -f deploy/staging/compose.yaml \
+  up -d --force-recreate
+deploy/staging/scripts/smoke.sh
+```
+
 ## GitHub Staging Deploy Setup
 
 The `Images` workflow has a `Deploy Staging` job. It runs only after all images
@@ -341,6 +366,9 @@ backup/restore or forward-migration decision.
   auth changes.
 - `--refresh-keycloak` recreates the Keycloak container, but does not recreate
   or wipe the Keycloak database.
+- Container logging options take effect only after container recreation; verify
+  that every active service is recreated on the first deployment of a logging
+  policy change.
 - Rotate any real FTP password that was ever committed or shared in examples.
 - Treat retention reductions as data migrations; image rollback does not undo
   expired InfluxDB data.

@@ -26,6 +26,9 @@ Loose project memory for work that should not interrupt the current slice. Keep 
 - Caddy/frontend/backend deployment docs
   Tighten wording around deployment modes, env vars, and how frontend, Core, Keycloak, and Caddy fit together.
 
+- Shared Compose base
+  Extract genuinely common local and staging service definitions into a shared Compose base with thin environment-specific overrides, so database, InfluxDB, Keycloak, and Core changes have one source of truth while local and staging policy remains explicit.
+
 - Domain migration PR/docs wording
   Clean up task/PR language after the domain migration branch is stable, so the documented intent matches the final shape.
 
