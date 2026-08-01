@@ -33,7 +33,7 @@ Loose project memory for work that should not interrupt the current slice. Keep 
   Reshape the AccessGrant DB model and introduce a real Flyway migration/baseline story before staging becomes too stateful.
 
 - Influx persistence follow-up
-  Collect concrete retention, query performance, and InfluxBucketOperations gateway issues before doing a broader cleanup; the obvious shared Flux query leakage is already reduced.
+  Collect concrete query performance and InfluxBucketOperations gateway issues before doing a broader cleanup; the obvious shared Flux query leakage is already reduced.
 
 - Telemetry model shape
   Investigate the remaining legacy Telemetry slice and decide what connector runtime telemetry should look like before deepening its storage/API path.

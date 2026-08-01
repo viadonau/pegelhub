@@ -23,14 +23,10 @@ jobs:
           java-version: '21'
           cache: maven
 
-      - name: Test core
-        run: mvn -B -ntp -f core/pom.xml test
+      - name: Verify Maven reactor
+        run: mvn -B -ntp -Pintegration verify
 
-      - name: Test connectors
-        run: mvn -B -ntp -f connectors/pom.xml test
-
-      - name: Package core
-        run: mvn -B -ntp -f core/pom.xml -DskipTests package
-
-      - name: Package connectors
-        run: mvn -B -ntp -f connectors/pom.xml -DskipTests package
+      - name: Validate Compose files
+        run: |
+          docker compose --env-file core/.env.example -f core/docker-compose.yaml config --quiet
+          docker compose --env-file deploy/staging/.env.example -f deploy/staging/compose.yaml config --quiet

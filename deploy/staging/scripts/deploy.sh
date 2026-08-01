@@ -94,6 +94,18 @@ resolve_path() {
   esac
 }
 
+validate_retention() {
+  variable_name="$1"
+  retention=$(env_value "$variable_name")
+  [ -n "$retention" ] || retention="60d"
+
+  if [ "$retention" = "0s" ] || printf '%s\n' "$retention" | grep -Eq '^[1-9][0-9]*(h|d|w)$'; then
+    return
+  fi
+
+  fail "$variable_name must be 0s or a positive whole number of hours, days, or weeks."
+}
+
 validate_environment() {
   [ -f "$ENV_FILE" ] || fail "Missing $ENV_FILE. Copy .env.example to .env and fill it on the staging host."
 
@@ -110,6 +122,18 @@ validate_environment() {
     ""|true|false) ;;
     *) fail "FLYWAY_BASELINE_ON_MIGRATE must be true or false." ;;
   esac
+
+  validate_retention INFLUX_DATA_RETENTION
+  validate_retention INFLUX_TELEMETRY_RETENTION
+
+  internal_bucket=$(env_value INFLUX_INTERNAL_BUCKET)
+  data_bucket=$(env_value INFLUX_DATA_BUCKET)
+  telemetry_bucket=$(env_value INFLUX_TELEMETRY_BUCKET)
+  if [ "$internal_bucket" = "$data_bucket" ] \
+    || [ "$internal_bucket" = "$telemetry_bucket" ] \
+    || [ "$data_bucket" = "$telemetry_bucket" ]; then
+    fail "INFLUX_INTERNAL_BUCKET, INFLUX_DATA_BUCKET, and INFLUX_TELEMETRY_BUCKET must be different."
+  fi
 
   ftp_config_dir=$(env_value FTP_CONFIG_DIR)
   [ -n "$ftp_config_dir" ] || ftp_config_dir="./ftp-config"
