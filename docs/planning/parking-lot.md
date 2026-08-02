@@ -5,8 +5,10 @@ Loose project memory for work that should not interrupt the current slice. Keep 
 - Caddy company/public modes
   Clarify whether deployment needs separate internal-company and public-facing modes, and what differs in routing, TLS, auth, and config.
 
-- Keycloak client provisioning
-  Move environment-specific clients out of realm import; keep realm import as local bootstrap and define a clean staging setup path.
+- Keycloak connector client provisioning
+  Automate environment-specific connector enrollment and secret rotation only
+  when repeated operations justify it; staging currently uses a documented
+  manual enrollment step.
 
 - Connector library cleanup
   Decide whether the remaining shared client pieces should be generated from Core OpenAPI instead of hand-maintained.

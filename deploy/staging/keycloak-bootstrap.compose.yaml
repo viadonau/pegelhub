@@ -1,0 +1,32 @@
+# One-shot offline importer used by scripts/bootstrap-keycloak.sh for a fresh realm.
+# It is intentionally excluded from routine deploys and never updates an existing
+# realm because the import runs with --override=false.
+services:
+  keycloak-realm-bootstrap:
+    profiles:
+      - keycloak-bootstrap
+    image: quay.io/keycloak/keycloak:26.2
+    restart: "no"
+    command:
+      [
+        "import",
+        "--file",
+        "/opt/pegelhub/keycloak/pegelhub-realm.json",
+        "--override",
+        "false"
+      ]
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN_USER}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://keycloak-db:5432/${KEYCLOAK_DB}
+      KC_DB_USERNAME: keycloak
+      KC_DB_PASSWORD: ${KEYCLOAK_DB_PASSWORD}
+      PEGELHUB_FRONTEND_URL: https://${PEGELHUB_FRONTEND_HOSTNAME}
+    volumes:
+      - ./keycloak:/opt/pegelhub/keycloak:ro
+    depends_on:
+      keycloak-db:
+        condition: service_healthy
+    networks:
+      - pegelhub-staging
