@@ -9,8 +9,9 @@ pegelhub_staging_repo_dir: /opt/pegelhub
 
 pegelhub_staging_repo_version: main
 
-# Optional: public key matching GitHub Environment secret STAGING_SSH_PRIVATE_KEY.
-# Leave empty to manage authorized_keys manually.
+# Optional: public key matching the STAGING_SSH_PRIVATE_KEY secret used by the
+# backend repository environment. Leave empty to manage authorized_keys
+# manually.
 pegelhub_staging_deploy_authorized_key: ""
 
 pegelhub_staging_packages:

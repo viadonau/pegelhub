@@ -42,16 +42,6 @@ services:
           - ${PEGELHUB_API_HOSTNAME}
           - ${PEGELHUB_KEYCLOAK_HOSTNAME}
 
-  frontend:
-    profiles:
-      - frontend
-    image: ${PEGELHUB_FRONTEND_IMAGE}
-    logging: *staging-logging
-    pull_policy: always
-    restart: unless-stopped
-    networks:
-      - pegelhub-staging
-
   meta-db:
     image: postgres:14-alpine
     logging: *staging-logging

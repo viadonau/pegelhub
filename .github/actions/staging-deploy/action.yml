@@ -1,0 +1,79 @@
+name: Staging Deploy
+description: Update the staging checkout and run a versioned deploy script.
+
+inputs:
+  target:
+    description: Deployment target (backend or frontend).
+    required: true
+  image:
+    description: Image tag or immutable image reference passed to the deploy script.
+    required: true
+  deploy_ref:
+    description: Backend repository branch or tag to deploy.
+    required: true
+  repo_dir:
+    description: Backend repository path on the staging host.
+    required: true
+  host:
+    description: Staging SSH host.
+    required: true
+  port:
+    description: Staging SSH port.
+    required: false
+    default: '22'
+  username:
+    description: Staging SSH user.
+    required: true
+  key:
+    description: Staging SSH private key.
+    required: true
+  fingerprint:
+    description: Staging SSH host key fingerprint.
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Run staging deploy
+      uses: appleboy/ssh-action@v1
+      env:
+        DEPLOY_IMAGE: ${{ inputs.image }}
+        DEPLOY_REF: ${{ inputs.deploy_ref }}
+        DEPLOY_TARGET: ${{ inputs.target }}
+        STAGING_REPO_DIR: ${{ inputs.repo_dir }}
+      with:
+        host: ${{ inputs.host }}
+        port: ${{ inputs.port }}
+        username: ${{ inputs.username }}
+        key: ${{ inputs.key }}
+        fingerprint: ${{ inputs.fingerprint }}
+        command_timeout: 15m
+        envs: STAGING_REPO_DIR,DEPLOY_REF,DEPLOY_TARGET,DEPLOY_IMAGE
+        script: |
+          set -eu
+          cd "$STAGING_REPO_DIR"
+
+          if ! git diff --quiet || ! git diff --cached --quiet; then
+            echo "Staging repository has uncommitted tracked changes. Refusing to deploy." >&2
+            exit 1
+          fi
+
+          git fetch --prune --tags origin
+          if git show-ref --verify --quiet "refs/remotes/origin/$DEPLOY_REF"; then
+            git checkout -B "$DEPLOY_REF" "origin/$DEPLOY_REF"
+          else
+            git checkout "$DEPLOY_REF"
+          fi
+
+          case "$DEPLOY_TARGET" in
+            backend)
+              deploy/staging/scripts/deploy.sh "$DEPLOY_IMAGE"
+              ;;
+            frontend)
+              deploy/staging/scripts/deploy-frontend.sh "$DEPLOY_IMAGE"
+              ;;
+            *)
+              echo "Unknown deployment target: $DEPLOY_TARGET" >&2
+              exit 1
+              ;;
+          esac

@@ -1,0 +1,23 @@
+services:
+  frontend:
+    image: ${PEGELHUB_FRONTEND_IMAGE:?Set PEGELHUB_FRONTEND_IMAGE}
+    restart: unless-stopped
+    environment:
+      PH_API_BASE_URL: /api/v1
+      PH_KEYCLOAK_URL: https://${PEGELHUB_KEYCLOAK_HOSTNAME}
+      PH_KEYCLOAK_REALM: pegelhub
+      PH_KEYCLOAK_CLIENT_ID: pegelhub-frontend
+      NGINX_API_UPSTREAM: http://core-app:8080
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/ >/dev/null && wget -qO- http://127.0.0.1/assets/config.json >/dev/null"]
+      interval: 5s
+      timeout: 5s
+      retries: 24
+      start_period: 10s
+    networks:
+      - pegelhub-staging

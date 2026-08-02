@@ -37,7 +37,8 @@ retry() {
 
 compose() {
   COMPOSE_PROJECT_NAME="$compose_project_name" \
-  COMPOSE_PROFILES="$compose_profiles" \
+  COMPOSE_IGNORE_ORPHANS=true \
+  COMPOSE_REMOVE_ORPHANS=false \
     docker compose \
       -p "$compose_project_name" \
       --env-file "$ENV_FILE" \
@@ -61,10 +62,8 @@ env_value() {
 }
 
 api_hostname=$(env_value PEGELHUB_API_HOSTNAME)
-frontend_hostname=$(env_value PEGELHUB_FRONTEND_HOSTNAME)
 keycloak_hostname=$(env_value PEGELHUB_KEYCLOAK_HOSTNAME)
 compose_project_name=$(env_value COMPOSE_PROJECT_NAME)
-compose_profiles=$(env_value COMPOSE_PROFILES)
 
 [ -n "$api_hostname" ] || fail "PEGELHUB_API_HOSTNAME is missing."
 [ -n "$keycloak_hostname" ] || fail "PEGELHUB_KEYCLOAK_HOSTNAME is missing."
@@ -74,17 +73,14 @@ case "$compose_project_name" in
 esac
 
 API_BASE_URL=${API_BASE_URL:-https://$api_hostname}
-FRONTEND_BASE_URL=${FRONTEND_BASE_URL:-https://$frontend_hostname}
 KEYCLOAK_ISSUER_URI=${KEYCLOAK_ISSUER_URI:-https://$keycloak_hostname/realms/pegelhub}
 
 unset \
   COMPOSE_PROJECT_NAME \
-  COMPOSE_PROFILES \
   FTP_CONFIG_DIR \
   PEGELHUB_FRONTEND_HOSTNAME \
   PEGELHUB_API_HOSTNAME \
   PEGELHUB_KEYCLOAK_HOSTNAME \
-  PEGELHUB_FRONTEND_IMAGE \
   META_PASSWORD \
   META_DB \
   INFLUX_ADMIN_USER \
@@ -104,12 +100,6 @@ unset \
   CORE_JAVA_TOOL_OPTIONS \
   FLYWAY_BASELINE_ON_MIGRATE \
   FTP_JAVA_TOOL_OPTIONS
-
-if printf '%s' "$compose_profiles" | grep -Eq '(^|.*,)[[:space:]]*frontend[[:space:]]*(,.*|$)'; then
-  [ -n "$frontend_hostname" ] || fail "PEGELHUB_FRONTEND_HOSTNAME is missing."
-  printf '%s\n' "Checking public frontend route..."
-  retry "Public frontend route" sh -c 'curl -fsS "$1/" >/dev/null' sh "$FRONTEND_BASE_URL"
-fi
 
 printf '%s\n' "Checking public API route..."
 retry "Public API route" sh -c 'curl -fsS "$1/api/v1/measurements/system-time" >/dev/null' sh "$API_BASE_URL"
