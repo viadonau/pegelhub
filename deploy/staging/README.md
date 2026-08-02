@@ -1,14 +1,15 @@
 # PegelHub Staging Deployment
 
-This directory is the first CD slice for PegelHub: a staging/rehearsal stack that
-pulls already-published GHCR images and starts them with Docker Compose. GitHub
-builds and publishes images, then the `Images` workflow can SSH into staging and
-run the host-side deploy script.
+This directory owns the coherent PegelHub staging topology and its host-side
+deployment behavior. The backend repository publishes Core and connector
+images; the frontend repository publishes its own image. Each workflow invokes
+a versioned server-side script in this repository rather than embedding Compose
+mutation logic in GitHub Actions.
 
 ## Services
 
 - Caddy reverse proxy on ports `80` and `443`
-- Optional frontend from `PEGELHUB_FRONTEND_IMAGE`
+- Independently released frontend from `frontend.compose.yaml`
 - PegelHub Core from `ghcr.io/viadonau/pegelhub-core:${PEGELHUB_IMAGE_TAG}`
 - PostgreSQL metadata database
 - InfluxDB
@@ -27,9 +28,9 @@ PEGELHUB_API_HOSTNAME      -> core-app:8080
 PEGELHUB_KEYCLOAK_HOSTNAME -> keycloak:8080
 ```
 
-The frontend container is optional until a real frontend image exists. Caddy
-already owns the frontend hostname; without the `frontend` Compose profile, that
-hostname returns a temporary `503` response instead of exposing Core directly.
+The frontend container is absent until the first frontend release. Caddy
+already owns the frontend hostname and returns a temporary `503` response while
+the `frontend` service is absent instead of exposing Core directly.
 
 ## Host Bootstrap
 
@@ -111,9 +112,9 @@ not restore expired InfluxDB data.
 
 ## Container Console Logs
 
-Every staging service, including the optional frontend and the one-shot
-`influx-bucket-setup` service, uses Docker's `json-file` logging driver with a
-maximum file size of `10m` and five files per container. This bounds
+Every staging service, including the independently managed frontend and the
+one-shot `influx-bucket-setup` service, uses Docker's `json-file` logging driver
+with a maximum file size of `10m` and five files per container. This bounds
 Docker-managed stdout and stderr logs to approximately 50 MB per container. It
 does not change application log levels or retention inside databases and named
 volumes.
@@ -136,8 +137,9 @@ deploy/staging/scripts/smoke.sh
 
 ## GitHub Staging Deploy Setup
 
-The `Images` workflow has a `Deploy Staging` job. It runs only after all images
-are published successfully.
+The `Images` workflow deploys backend releases. The `Deploy Frontend` workflow
+handles frontend release requests from the frontend repository. Both use the
+same staging Environment and deployment concurrency group.
 
 Configure a GitHub Environment named `staging`, then add these environment
 variables:
@@ -237,20 +239,40 @@ image. See the FTP connector README for the mapping file shape.
 
 ## Frontend
 
-The Compose stack includes an optional `frontend` profile:
+The base `compose.yaml` remains the Core, Keycloak, Caddy, database, and
+connector topology. `frontend.compose.yaml` adds only the frontend service and
+is always invoked with the base file, the same `COMPOSE_PROJECT_NAME`, and the
+same `pegelhub-staging` network. It does not create another Compose project or
+an external cross-project network.
+
+The frontend receives this runtime configuration from the overlay:
 
 ```env
-COMPOSE_PROFILES=frontend
-PEGELHUB_FRONTEND_IMAGE=ghcr.io/viadonau/pegelhub-frontend:sha-<short-sha>
+PH_API_BASE_URL=/api/v1
+PH_KEYCLOAK_URL=https://${PEGELHUB_KEYCLOAK_HOSTNAME}
+PH_KEYCLOAK_REALM=pegelhub
+PH_KEYCLOAK_CLIENT_ID=pegelhub-frontend
+NGINX_API_UPSTREAM=http://core-app:8080
 ```
 
-Leave `COMPOSE_PROFILES` unset until a frontend image exists. Once enabled,
-Caddy routes `PEGELHUB_FRONTEND_HOSTNAME` to `frontend:80`, while API calls
-should target `https://${PEGELHUB_API_HOSTNAME}` and Keycloak should use
-`https://${PEGELHUB_KEYCLOAK_HOSTNAME}/realms/pegelhub`. The current image
-workflow does not build a frontend image yet, so
-`PEGELHUB_FRONTEND_IMAGE` must point to a separately published image until a
-frontend module is added to the repository.
+Deploy a published frontend image from the host with its full immutable image
+reference:
+
+```sh
+deploy/staging/scripts/deploy-frontend.sh \
+  ghcr.io/viadonau/pegelhub-frontend@sha256:<64-lowercase-hex>
+```
+
+The script accepts only digest-pinned references in the expected GHCR
+repository. It acquires the same host lock as backend deploys and Keycloak
+bootstrap, pulls and recreates only `frontend`, waits for Compose health, and
+checks the public frontend and API proxy routes. A failed activation restores
+the previous frontend image. A failed first release removes its container so
+Caddy returns the original undeployed `503` response.
+
+Successful releases are recorded in the ignored, non-secret
+`state/frontend-release.env` file. Backend deploys use the base Compose file
+with orphan removal disabled, so they preserve an already released frontend.
 
 ## Keycloak Bootstrap
 
@@ -362,13 +384,18 @@ Validate Compose without rendering environment values:
 ```sh
 docker compose --env-file deploy/staging/.env.example \
   -f deploy/staging/compose.yaml config --quiet
+PEGELHUB_FRONTEND_IMAGE=ghcr.io/viadonau/pegelhub-frontend@sha256:0000000000000000000000000000000000000000000000000000000000000000 \
+  docker compose --env-file deploy/staging/.env.example \
+  -f deploy/staging/compose.yaml \
+  -f deploy/staging/frontend.compose.yaml \
+  config --quiet
 docker compose --env-file deploy/staging/.env.example \
   -f deploy/staging/compose.yaml \
   -f deploy/staging/keycloak-bootstrap.compose.yaml \
   --profile keycloak-bootstrap config --quiet
 ```
 
-Run the checked validation path with the real host config:
+Run the checked backend validation path with the real host config:
 
 ```sh
 deploy/staging/scripts/deploy.sh --check sha-<short-sha>
@@ -386,6 +413,7 @@ Run the dedicated policy checks:
 
 ```sh
 deploy/staging/tests/keycloak-static-test.sh
+deploy/staging/tests/frontend-deployment-test.sh
 deploy/staging/tests/keycloak-bootstrap-integration.sh
 ```
 
@@ -394,14 +422,28 @@ only that project's containers and volumes.
 
 ## Deploy From GitHub
 
-Push to `main`, run the `Images` workflow manually, or push a `v*` tag. After
-Core and connector images are published, GitHub SSHs into the staging host and runs:
+Push to backend `main`, run the backend `Images` workflow manually, or push a
+`v*` tag. After Core and connector images are published, GitHub SSHs into the
+staging host and runs:
 
 ```sh
 deploy/staging/scripts/deploy.sh <published-image-tag>
 ```
 
-The workflow fails if the remote deploy or smoke checks fail.
+The frontend repository independently verifies and publishes its production
+image on a push to frontend `main`, then sends its manifest digest to the
+backend `Deploy Frontend` workflow. That workflow uses the backend repository's
+`staging` Environment, updates the server checkout to backend `main`, and
+invokes:
+
+```sh
+deploy/staging/scripts/deploy-frontend.sh \
+  ghcr.io/viadonau/pegelhub-frontend@sha256:<64-lowercase-hex>
+```
+
+Backend and frontend releases share the `staging-deploy` concurrency group.
+The server-side lock also serializes automated releases with manual deployment
+and Keycloak bootstrap operations.
 
 ## Deploy From The Host
 
@@ -423,6 +465,10 @@ runs the smoke script. It does not retain the rendered Compose model. Pass
 `--refresh-keycloak` only when the deployment needs to force-recreate the
 Keycloak container for theme or container-config reload.
 
+Frontend releases and rollbacks use `deploy-frontend.sh` as described in the
+Frontend section. Do not add the frontend image to `.env` or start it through
+the backend deploy script.
+
 ## Smoke Checks
 
 Run smoke checks again after a deploy:
@@ -434,7 +480,6 @@ deploy/staging/scripts/smoke.sh
 The smoke script checks:
 
 - Public API route through Caddy
-- Public frontend route through Caddy when the `frontend` profile is enabled
 - Keycloak issuer discovery through Caddy
 - Core actuator health over the internal network
 - Keycloak management health over the internal network
@@ -442,6 +487,8 @@ The smoke script checks:
 
 The FTP connector can write measurements during normal operation. Treat this
 staging stack as a real ingestion environment once real FTP config is mounted.
+`deploy-frontend.sh` waits for frontend container health, then checks the public
+frontend root and Core's system-time endpoint through the frontend Nginx proxy.
 
 ## Rollback
 
@@ -461,11 +508,22 @@ Rollback changes image tags and restarts services. It does not delete volumes,
 prune images, or undo Flyway migrations. Database rollback remains a deliberate
 backup/restore or forward-migration decision.
 
+Rollback only the frontend to its previously recorded image:
+
+```sh
+deploy/staging/scripts/deploy-frontend.sh --rollback
+```
+
+Frontend rollback changes only the frontend container and swaps current and
+previous image references so the replaced image remains available for recovery.
+
 ## Operational Notes
 
 - Do not run `docker compose down -v` unless you explicitly want to delete
   staging data.
-- Keep the previous known-good image pulled on the host.
+- Keep the previous known-good backend and frontend images pulled on the host.
+- Never use `--remove-orphans` for the base Compose topology; the frontend is a
+  same-project service managed through its overlay.
 - Normal Keycloak startup never imports a realm. Use the explicit offline
   bootstrap only with Keycloak stopped.
 - `--refresh-keycloak` recreates the Keycloak container for theme/config reload;

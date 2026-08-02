@@ -1,7 +1,8 @@
 # PegelHub Ansible Bootstrap
 
-This Ansible setup prepares a staging host so the GitHub `Images` workflow can
-SSH in and run `deploy/staging/scripts/deploy.sh`.
+This Ansible setup prepares a staging host so the backend repository workflows
+can SSH in and invoke the versioned staging deploy scripts. The frontend
+repository publishes its image and requests deployment through the backend.
 
 It owns host bootstrap only:
 
@@ -16,8 +17,9 @@ It owns host bootstrap only:
 
 It intentionally does not store secrets in GitHub or overwrite existing real
 host values. The playbook appends missing template keys and only replaces empty
-or placeholder secret values in `deploy/staging/.env`. Fill hostnames, image
-values, and `deploy/staging/ftp-config/` on the host after the bootstrap run.
+or placeholder secret values in `deploy/staging/.env`. Fill hostnames, the
+backend image tag, and `deploy/staging/ftp-config/` on the host after the
+bootstrap run.
 It does not import, reset, or provision Keycloak.
 
 ## Prerequisites
@@ -64,8 +66,9 @@ After the playbook:
    added.
 2. Review `/opt/pegelhub/deploy/staging/.env`; database and Keycloak secrets
    are generated automatically when placeholders are present.
-3. Fill the staging hostnames, image values, and optional frontend values
-   in `/opt/pegelhub/deploy/staging/.env`.
+3. Fill the staging hostnames and backend image tag in
+   `/opt/pegelhub/deploy/staging/.env`. Frontend image versions are supplied to
+   `deploy-frontend.sh` and recorded under the ignored staging state directory.
 4. Create `/opt/pegelhub/deploy/staging/ftp-config/connector.yaml` after manually
    enrolling the staging FTP client as described in `deploy/staging/README.md`.
 5. Create at least one mapping under `/opt/pegelhub/deploy/staging/ftp-config/mappings/`.
@@ -78,7 +81,8 @@ stopped. Never use that operation as part of routine Ansible or image deployment
 
 ## GitHub Environment Values
 
-For the default example variables, the GitHub `staging` environment should use:
+For the default example variables, the backend GitHub `staging` environment
+should use:
 
 ```text
 STAGING_REPO_DIR=/opt/pegelhub
@@ -91,3 +95,7 @@ Set `STAGING_SSH_HOST`, `STAGING_SSH_PRIVATE_KEY`, and
 contain exactly one `SHA256:...` host key fingerprint. See
 `deploy/staging/README.md` for the key-type note; the default staging setup uses
 the ECDSA fingerprint.
+
+The backend `Deploy Frontend` workflow reuses this same `staging` environment.
+The frontend repository publishes an immutable image digest and requests that
+workflow through a repository dispatch event.

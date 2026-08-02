@@ -31,6 +31,9 @@ Loose project memory for work that should not interrupt the current slice. Keep 
 - Shared Compose base
   Extract genuinely common local and staging service definitions into a shared Compose base with thin environment-specific overrides, so database, InfluxDB, Keycloak, and Core changes have one source of truth while local and staging policy remains explicit.
 
+- Staging container logging policy
+  Investigate whether log rotation should remain explicit in each Compose file or move to host-wide Docker daemon defaults, including the Ansible ownership and migration impact for existing containers.
+
 - Domain migration PR/docs wording
   Clean up task/PR language after the domain migration branch is stable, so the documented intent matches the final shape.
 

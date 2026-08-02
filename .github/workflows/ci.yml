@@ -30,10 +30,14 @@ jobs:
         run: |
           docker compose --env-file core/.env.example -f core/docker-compose.yaml config --quiet
           docker compose --env-file deploy/staging/.env.example -f deploy/staging/compose.yaml config --quiet
+          PEGELHUB_FRONTEND_IMAGE=ghcr.io/viadonau/pegelhub-frontend@sha256:0000000000000000000000000000000000000000000000000000000000000000 docker compose --env-file deploy/staging/.env.example -f deploy/staging/compose.yaml -f deploy/staging/frontend.compose.yaml config --quiet
           docker compose --env-file deploy/staging/.env.example -f deploy/staging/compose.yaml -f deploy/staging/keycloak-bootstrap.compose.yaml --profile keycloak-bootstrap config --quiet
 
       - name: Validate staging Keycloak policy
         run: deploy/staging/tests/keycloak-static-test.sh
+
+      - name: Validate staging frontend deployment
+        run: deploy/staging/tests/frontend-deployment-test.sh
 
       - name: Verify disposable staging Keycloak bootstrap
         run: deploy/staging/tests/keycloak-bootstrap-integration.sh

@@ -100,12 +100,12 @@ done
 
 compose() {
   COMPOSE_PROJECT_NAME="$compose_project_name" \
-  COMPOSE_PROFILES="$compose_profiles" \
+  COMPOSE_IGNORE_ORPHANS=true \
+  COMPOSE_REMOVE_ORPHANS=false \
   FTP_CONFIG_DIR="$compose_ftp_config_dir" \
   PEGELHUB_FRONTEND_HOSTNAME="$compose_frontend_hostname" \
   PEGELHUB_API_HOSTNAME="$compose_api_hostname" \
   PEGELHUB_KEYCLOAK_HOSTNAME="$compose_keycloak_hostname" \
-  PEGELHUB_FRONTEND_IMAGE="$compose_frontend_image" \
   META_PASSWORD="$compose_meta_password" \
   META_DB="$compose_meta_db" \
   INFLUX_ADMIN_USER="$compose_influx_admin_user" \
@@ -247,24 +247,13 @@ validate_environment() {
   [ -f "$ftp_config_dir/connector.yaml" ] || fail "Missing FTP connector.yaml in $ftp_config_dir"
   [ -d "$ftp_config_dir/mappings" ] || fail "Missing FTP mappings directory in $ftp_config_dir"
 
-  compose_profiles=$(env_value COMPOSE_PROFILES)
-  if printf '%s' "$compose_profiles" | grep -Eq '(^|.*,)[[:space:]]*frontend[[:space:]]*(,.*|$)'; then
-    frontend_image=$(env_value PEGELHUB_FRONTEND_IMAGE)
-    case "$frontend_image" in
-      ""|*sha-replace-me*|*latest)
-        fail "COMPOSE_PROFILES enables frontend, but PEGELHUB_FRONTEND_IMAGE is missing, still a placeholder, or uses latest."
-        ;;
-    esac
-  fi
 }
 
 load_compose_environment() {
-  compose_profiles=$(env_value COMPOSE_PROFILES)
   compose_ftp_config_dir=$ftp_config_dir
   compose_frontend_hostname=$(env_value PEGELHUB_FRONTEND_HOSTNAME)
   compose_api_hostname=$(env_value PEGELHUB_API_HOSTNAME)
   compose_keycloak_hostname=$(env_value PEGELHUB_KEYCLOAK_HOSTNAME)
-  compose_frontend_image=$(env_value PEGELHUB_FRONTEND_IMAGE)
   compose_meta_password=$(env_value META_PASSWORD)
   compose_meta_db=$(env_value META_DB)
   compose_influx_admin_user=$(env_value INFLUX_ADMIN_USER)

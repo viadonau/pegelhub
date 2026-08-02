@@ -118,6 +118,9 @@ jobs:
       cancel-in-progress: false
 
     steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
       - name: Resolve image tag
         id: image-tag
         shell: bash
@@ -131,60 +134,15 @@ jobs:
           echo "image_tag=${image_tag}" >> "$GITHUB_OUTPUT"
           echo "Deploying image tag ${image_tag} to staging."
 
-      - name: Validate staging deploy config
-        shell: bash
-        env:
-          STAGING_REPO_DIR: ${{ vars.STAGING_REPO_DIR }}
-          STAGING_SSH_FINGERPRINT: ${{ secrets.STAGING_SSH_FINGERPRINT }}
-          STAGING_SSH_HOST: ${{ vars.STAGING_SSH_HOST }}
-          STAGING_SSH_PRIVATE_KEY: ${{ secrets.STAGING_SSH_PRIVATE_KEY }}
-          STAGING_SSH_USER: ${{ vars.STAGING_SSH_USER }}
-        run: |
-          for required in STAGING_REPO_DIR STAGING_SSH_FINGERPRINT STAGING_SSH_HOST STAGING_SSH_PRIVATE_KEY STAGING_SSH_USER; do
-            if [[ -z "${!required}" ]]; then
-              echo "${required} is missing." >&2
-              exit 1
-            fi
-          done
-
-      - name: Run staging deploy
-        uses: appleboy/ssh-action@v1
-        env:
-          IMAGE_TAG: ${{ steps.image-tag.outputs.image_tag }}
-          DEPLOY_REF: ${{ github.ref_name }}
-          STAGING_REPO_DIR: ${{ vars.STAGING_REPO_DIR }}
+      - name: Deploy backend
+        uses: ./.github/actions/staging-deploy
         with:
+          target: backend
+          image: ${{ steps.image-tag.outputs.image_tag }}
+          deploy_ref: ${{ github.ref_name }}
+          repo_dir: ${{ vars.STAGING_REPO_DIR }}
           host: ${{ vars.STAGING_SSH_HOST }}
           port: ${{ vars.STAGING_SSH_PORT || '22' }}
           username: ${{ vars.STAGING_SSH_USER }}
           key: ${{ secrets.STAGING_SSH_PRIVATE_KEY }}
           fingerprint: ${{ secrets.STAGING_SSH_FINGERPRINT }}
-          command_timeout: 15m
-          envs: STAGING_REPO_DIR,DEPLOY_REF,IMAGE_TAG
-          script: |
-            set -eu
-
-            for required in STAGING_REPO_DIR DEPLOY_REF IMAGE_TAG; do
-              eval "value=\${$required:-}"
-              if [ -z "$value" ]; then
-                echo "$required is missing." >&2
-                exit 1
-              fi
-            done
-
-            cd "$STAGING_REPO_DIR"
-
-            if ! git diff --quiet || ! git diff --cached --quiet; then
-              echo "Staging repository has uncommitted tracked changes. Refusing to deploy." >&2
-              exit 1
-            fi
-
-            git fetch --prune --tags origin
-
-            if git show-ref --verify --quiet "refs/remotes/origin/$DEPLOY_REF"; then
-              git checkout --force -B "$DEPLOY_REF" "origin/$DEPLOY_REF"
-            else
-              git checkout --force "$DEPLOY_REF"
-            fi
-
-            deploy/staging/scripts/deploy.sh "$IMAGE_TAG"

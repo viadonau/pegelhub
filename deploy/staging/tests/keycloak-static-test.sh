@@ -103,7 +103,8 @@ done
 
 if grep -Eq '(^|[[:space:]])set[[:space:]]+-[^[:space:]]*x' \
   "$DEPLOY_DIR/scripts/bootstrap-keycloak.sh" \
-  "$DEPLOY_DIR/scripts/deploy.sh"; then
+  "$DEPLOY_DIR/scripts/deploy.sh" \
+  "$DEPLOY_DIR/scripts/deploy-frontend.sh"; then
   fail "Staging operation scripts must never enable shell tracing."
 fi
 
@@ -218,8 +219,9 @@ grep -F 'docker inspect --format' \
   || fail "Offline bootstrap must inspect all Keycloak container states."
 grep -F 'keycloak-bootstrap.lock' \
   "$DEPLOY_DIR/scripts/bootstrap-keycloak.sh" \
-  "$DEPLOY_DIR/scripts/deploy.sh" >/dev/null \
-  || fail "Deploy and bootstrap must share a host operation lock."
+  "$DEPLOY_DIR/scripts/deploy.sh" \
+  "$DEPLOY_DIR/scripts/deploy-frontend.sh" >/dev/null \
+  || fail "Backend deploy, frontend deploy, and bootstrap must share a host operation lock."
 grep -F 'acquire_operation_lock' \
   "$DEPLOY_DIR/scripts/deploy.sh" >/dev/null \
   || fail "Routine deploy must acquire the shared staging operation lock."
@@ -232,8 +234,9 @@ grep -F 'rm -f "$LEGACY_RENDERED_FILE"' \
 
 for signal_safe_script in \
   "$DEPLOY_DIR/scripts/bootstrap-keycloak.sh" \
-  "$DEPLOY_DIR/scripts/deploy.sh"; do
-  grep -F "trap 'exit_on_signal 143' TERM" "$signal_safe_script" >/dev/null \
+  "$DEPLOY_DIR/scripts/deploy.sh" \
+  "$DEPLOY_DIR/scripts/deploy-frontend.sh"; do
+  grep -E "trap 'exit(_on_signal)? 143' TERM" "$signal_safe_script" >/dev/null \
     || fail "Staging operation scripts must exit after a termination signal."
 done
 
