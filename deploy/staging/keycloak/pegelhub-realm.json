@@ -1,0 +1,272 @@
+{
+  "realm": "pegelhub",
+  "enabled": true,
+  "displayName": "PegelHub Staging",
+  "loginTheme": "pegelhub",
+  "internationalizationEnabled": true,
+  "supportedLocales": [
+    "de"
+  ],
+  "defaultLocale": "de",
+  "accessTokenLifespan": 600,
+  "ssoSessionIdleTimeout": 1800,
+  "ssoSessionMaxLifespan": 3600,
+  "sslRequired": "external",
+  "roles": {
+    "realm": [
+      {
+        "name": "offline_access",
+        "description": "${role_offline-access}"
+      },
+      {
+        "name": "uma_authorization",
+        "description": "${role_uma_authorization}"
+      }
+    ],
+    "client": {
+      "pegelhub-core-api": [
+        {
+          "name": "measurement:write",
+          "description": "Write measurement data."
+        },
+        {
+          "name": "measurement:read",
+          "description": "Read measurement data."
+        },
+        {
+          "name": "telemetry:write",
+          "description": "Write telemetry data."
+        },
+        {
+          "name": "telemetry:read",
+          "description": "Read telemetry data."
+        },
+        {
+          "name": "metadata:write",
+          "description": "Create and update metadata."
+        },
+        {
+          "name": "metadata:read",
+          "description": "Read metadata."
+        },
+        {
+          "name": "system:admin",
+          "description": "Operate privileged system administration endpoints."
+        }
+      ]
+    }
+  },
+  "clientScopes": [
+    {
+      "name": "basic",
+      "description": "Adds the stable subject identifier to access tokens.",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "false",
+        "display.on.consent.screen": "false"
+      },
+      "protocolMappers": [
+        {
+          "name": "sub",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-sub-mapper",
+          "consentRequired": false,
+          "config": {
+            "access.token.claim": "true",
+            "introspection.token.claim": "true"
+          }
+        }
+      ]
+    },
+    {
+      "name": "profile",
+      "description": "Adds the PegelHub profile fields used by the browser client.",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "true",
+        "display.on.consent.screen": "false"
+      },
+      "protocolMappers": [
+        {
+          "name": "username",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "consentRequired": false,
+          "config": {
+            "user.attribute": "username",
+            "claim.name": "preferred_username",
+            "jsonType.label": "String",
+            "access.token.claim": "true",
+            "id.token.claim": "true",
+            "userinfo.token.claim": "true",
+            "introspection.token.claim": "true"
+          }
+        }
+      ]
+    },
+    {
+      "name": "pegelhub-core-roles",
+      "description": "Adds PegelHub Core API client roles to access tokens.",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "false",
+        "display.on.consent.screen": "false"
+      },
+      "protocolMappers": [
+        {
+          "name": "client roles",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-client-role-mapper",
+          "consentRequired": false,
+          "config": {
+            "user.attribute": "foo",
+            "claim.name": "resource_access.${client_id}.roles",
+            "jsonType.label": "String",
+            "multivalued": "true",
+            "access.token.claim": "true",
+            "introspection.token.claim": "true"
+          }
+        }
+      ]
+    },
+    {
+      "name": "pegelhub-core-audience",
+      "description": "Marks tokens intended for the PegelHub Core API.",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "false",
+        "display.on.consent.screen": "false"
+      },
+      "protocolMappers": [
+        {
+          "name": "PegelHub Core API audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.client.audience": "pegelhub-core-api",
+            "access.token.claim": "true",
+            "id.token.claim": "false",
+            "userinfo.token.claim": "false",
+            "introspection.token.claim": "true"
+          }
+        }
+      ]
+    },
+    {
+      "name": "pegelhub-user-actor",
+      "description": "Identifies interactive PegelHub users to Core.",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "false",
+        "display.on.consent.screen": "false"
+      },
+      "protocolMappers": [
+        {
+          "name": "PegelHub actor type",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-hardcoded-claim-mapper",
+          "consentRequired": false,
+          "config": {
+            "claim.name": "pegelhub_actor_type",
+            "claim.value": "USER",
+            "claim.value.type": "String",
+            "access.token.claim": "true",
+            "id.token.claim": "false",
+            "userinfo.token.claim": "false",
+            "introspection.token.claim": "true"
+          }
+        }
+      ]
+    },
+    {
+      "name": "pegelhub-client-actor",
+      "description": "Identifies service clients to Core.",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "false",
+        "display.on.consent.screen": "false"
+      },
+      "protocolMappers": [
+        {
+          "name": "PegelHub actor type",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-hardcoded-claim-mapper",
+          "consentRequired": false,
+          "config": {
+            "claim.name": "pegelhub_actor_type",
+            "claim.value": "CLIENT",
+            "claim.value.type": "String",
+            "access.token.claim": "true",
+            "id.token.claim": "false",
+            "userinfo.token.claim": "false",
+            "introspection.token.claim": "true"
+          }
+        }
+      ]
+    }
+  ],
+  "clientScopeMappings": {
+    "pegelhub-core-api": [
+      {
+        "client": "pegelhub-frontend",
+        "roles": [
+          "metadata:read",
+          "measurement:read"
+        ]
+      }
+    ]
+  },
+  "clients": [
+    {
+      "clientId": "pegelhub-core-api",
+      "name": "PegelHub Core API",
+      "description": "Resource client containing first-slice PegelHub API roles.",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "authorizationServicesEnabled": false,
+      "fullScopeAllowed": false,
+      "defaultClientScopes": [],
+      "optionalClientScopes": []
+    },
+    {
+      "clientId": "pegelhub-frontend",
+      "name": "PegelHub Frontend",
+      "description": "Staging browser client for the PegelHub frontend.",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "authorizationServicesEnabled": false,
+      "fullScopeAllowed": false,
+      "rootUrl": "${PEGELHUB_FRONTEND_URL}",
+      "baseUrl": "/",
+      "redirectUris": [
+        "${PEGELHUB_FRONTEND_URL}/*"
+      ],
+      "webOrigins": [
+        "${PEGELHUB_FRONTEND_URL}"
+      ],
+      "attributes": {
+        "pkce.code.challenge.method": "S256"
+      },
+      "defaultClientScopes": [
+        "profile",
+        "pegelhub-core-roles",
+        "pegelhub-core-audience",
+        "basic",
+        "pegelhub-user-actor"
+      ],
+      "optionalClientScopes": []
+    }
+  ],
+  "users": []
+}
