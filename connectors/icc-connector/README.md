@@ -1,41 +1,43 @@
-# ICC Connector
+# ICC connector
 
-This connector synchronizes selected time-series measurements between two Pegelhub clusters.
+The ICC connector synchronizes selected time-series measurements between a
+local PegelHub Core instance and a remote PegelHub Core instance. Each mapping
+chooses its direction independently.
 
 ## Build
 
-```sh
-mvn -pl connectors/icc-connector -am -DskipTests package
+From the repository root:
+
+```bash
+mvn -B -ntp -pl connectors/icc-connector -am test
+scripts/build-connector-image.sh icc-connector
 ```
 
-## Configuration
+The image is tagged `pegelhub-icc-connector:local`.
 
-The connector accepts an optional first CLI argument pointing to the config directory. Without an argument it reads from `/app/config`.
+## Configure
 
-The config directory must contain `connector.yaml` and a `mappings/` directory. ICC mappings connect local Core TimeSeries IDs to external Core TimeSeries IDs and use the same `direction` field as protocol connectors.
+The first command-line argument selects the configuration directory; containers
+default to `/app/config`. The directory must contain `connector.yaml` and at
+least one mapping YAML file. Start from [`examples/config/`](examples/config/)
+and replace its illustrative hosts and credentials.
 
-`connector.yaml`:
+Create a private working copy outside the repository:
 
-```yaml
-localCore:
-  baseUrl: "http://core.local:8080/"
-  authentication:
-    tokenUrl: "http://keycloak.local:8082/realms/pegelhub/protocol/openid-connect/token"
-    clientId: "icc-core"
-    clientSecret: "secret"
-remoteCore:
-  baseUrl: "http://external-core.local:8080/"
-  authentication:
-    tokenUrl: "http://external-keycloak.local:8082/realms/pegelhub/protocol/openid-connect/token"
-    clientId: "icc-external"
-    clientSecret: "secret"
-polling:
-  interval: "1h"
-mappings:
-  directory: "mappings"
+```bash
+CONFIG_ROOT="${XDG_CONFIG_HOME:-$HOME/.config}/pegelhub"
+install -d -m 700 "$CONFIG_ROOT"
+test -d "$CONFIG_ROOT/icc-connector" || \
+  cp -R connectors/icc-connector/examples/config "$CONFIG_ROOT/icc-connector"
+chmod 700 "$CONFIG_ROOT/icc-connector"
+chmod 600 "$CONFIG_ROOT/icc-connector/connector.yaml"
 ```
 
-`mappings/water-level.yaml`:
+`connector.yaml` defines `localCore` and `remoteCore`, each with `baseUrl` and
+client-credentials authentication. It also defines a positive polling interval
+ending in `s`, `m`, or `h`. `mappings.directory` defaults to `mappings`.
+
+Each mapping relates one local and one remote Core time series:
 
 ```yaml
 timeSeriesId: "11111111-1111-1111-1111-111111111111"
@@ -43,12 +45,26 @@ externalTimeSeriesId: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
 direction: "core-to-external"
 ```
 
-## Docker
+- `core-to-external` reads `timeSeriesId` from local Core and writes
+  `externalTimeSeriesId` to remote Core.
+- `external-to-core` reads `externalTimeSeriesId` from remote Core and writes
+  `timeSeriesId` to local Core.
 
-```sh
-scripts/build-connector-image.sh icc-connector
+Mapping files are processed in sorted filename order. Configure each Keycloak
+client for the `pegelhub-core-api` audience and only the read or write roles
+needed on that side, using the lowercase runtime values such as
+`measurement:read` and `measurement:write`.
+Each Core client also needs the registration and resource grants described in
+the [library authorization prerequisites](../library/#core-authorization-prerequisites).
 
-docker run --rm -d \
-  -v "$(pwd)/examples/config:/app/config:ro" \
+## Run the image
+
+```bash
+CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/pegelhub/icc-connector"
+docker run --rm \
+  -v "${CONFIG_DIR}:/app/config:ro" \
   pegelhub-icc-connector:local
 ```
+
+The checked-in configuration is a schema example, not a working environment.
+Keep real client secrets in an ignored, read-only mounted directory.

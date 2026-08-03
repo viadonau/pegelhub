@@ -1,37 +1,46 @@
-# mA Connector
+# mA connector
 
-The mA connector reads milliampere-based input signals from a Revolution Pi, converts them into Pegelhub measurements, and forwards them to Pegelhub Core.
+The mA connector reads milliampere-based inputs from a Revolution Pi process
+image, maps piCtory variable names to Core time series, and writes measurements
+to Core. It supports input into Core only and requires the RevPi device at
+runtime.
 
 ## Build
 
-```sh
-mvn -pl connectors/ma-connector -am -DskipTests package
+From the repository root:
+
+```bash
+mvn -B -ntp -pl connectors/ma-connector -am test
+scripts/build-connector-image.sh ma-connector
 ```
 
-The build also generates the JNI headers used by the native RevPi binding.
+The Maven build generates JNI headers. The multi-stage image build also
+compiles the native `libRevPiReader.so` library and tags the result
+`pegelhub-ma-connector:local`. Published images are built for `linux/arm64/v8`.
 
-## Configuration
+## Configure
 
-The connector accepts an optional first CLI argument pointing to the config directory. Without an argument it reads from `/app/config`.
+The first command-line argument selects the configuration directory; containers
+default to `/app/config`. The directory must contain `connector.yaml` and at
+least one mapping YAML file. Use [`examples/config/`](examples/config/) as the
+schema reference.
 
-The config directory must contain `connector.yaml` and a `mappings/` directory.
+Create a private working copy outside the repository:
 
-`connector.yaml`:
-
-```yaml
-core:
-  baseUrl: "http://localhost:8080/"
-  authentication:
-    tokenUrl: "http://localhost:8082/realms/pegelhub/protocol/openid-connect/token"
-    clientId: "connector"
-    clientSecret: "secret"
-polling:
-  interval: "30s"
-mappings:
-  directory: "mappings"
+```bash
+CONFIG_ROOT="${XDG_CONFIG_HOME:-$HOME/.config}/pegelhub"
+install -d -m 700 "$CONFIG_ROOT"
+test -d "$CONFIG_ROOT/ma-connector" || \
+  cp -R connectors/ma-connector/examples/config "$CONFIG_ROOT/ma-connector"
+chmod 700 "$CONFIG_ROOT/ma-connector"
+chmod 600 "$CONFIG_ROOT/ma-connector/connector.yaml"
 ```
 
-Each mapping file defines one RevPi input by its piCtory variable name:
+`connector.yaml` defines the Core URL and client-credentials authentication and
+a positive polling interval ending in `s`, `m`, or `h`.
+`mappings.directory` defaults to `mappings`.
+
+Each mapping names one piCtory input:
 
 ```yaml
 revInput: "InputValue_1"
@@ -39,33 +48,40 @@ timeSeriesId: "11111111-1111-1111-1111-111111111111"
 direction: "external-to-core"
 ```
 
-mA mappings only support `external-to-core`.
+Only `external-to-core` is accepted. Mapping files are loaded in sorted
+filename order, and duplicate input names or resolved offsets fail startup.
+The Keycloak client needs the `pegelhub-core-api` audience and the lowercase
+Core role `measurement:write`.
+It also needs the target source binding and grant described in the
+[library authorization prerequisites](../library/#core-authorization-prerequisites).
 
-## Docker Compose
+## Run on Revolution Pi
 
-An example compose file is checked in at `examples/docker/docker-compose.yaml`.
+Provide a prepared configuration directory and the LAN address of the
+Core/Keycloak host:
 
-```yaml
-services:
-  ma-connector:
-    image: ${MA_CONNECTOR_IMAGE:?Set MA_CONNECTOR_IMAGE}
-    restart: unless-stopped
-    devices:
-      - "/dev/piControl0:/dev/piControl0"
-    volumes:
-      - ./config:/app/config:ro
-    environment:
-      JAVA_TOOL_OPTIONS: "-DLOG_LEVEL=INFO"
+```bash
+CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/pegelhub/ma-connector"
+PEGELHUB_HOST_IP=192.0.2.10
+docker run --rm \
+  --device /dev/piControl0:/dev/piControl0 \
+  --add-host "pegelhub-keycloak.test:${PEGELHUB_HOST_IP}" \
+  -v "${CONFIG_DIR}:/app/config:ro" \
+  pegelhub-ma-connector:local
 ```
 
-When Core and Keycloak run on another machine in the same LAN, add a host mapping for the Keycloak hostname used by `connector.yaml`.
+Replace the documentation-only IP and edit the copied authentication values. The
+checked-in [`examples/docker/docker-compose.yaml`](examples/docker/docker-compose.yaml)
+shows the same device, host mapping, and read-only configuration mount for a
+managed container. Adapt its image and config path for the target host. Real
+credentials belong in an ignored directory, not in the image or repository.
 
-## Common Problems
+## Troubleshooting
 
-| Problem                         | Likely Cause                            | Action                                                                               |
-|---------------------------------| --------------------------------------- | ------------------------------------------------------------------------------------ |
-| `open(/dev/piControl0) failed`  | Device not mapped or permissions        | Map device in Docker and check `ls -l /dev/piControl0`                               |
-| `Short read: expected 2 bytes`  | RevPi process image not available       | Verify piControl driver and RevPi config                                             |
-| `Duplicate Input <name>`        | Same `revInput` in multiple files       | Keep one mapping per input                                                           |
-| `Duplicate resolved offset <n>` | Two names map to same offset            | Reconcile piCtory variable names                                                     |
-| No measurements arrive at Core  | Core unreachable or authentication invalid | Verify `core.baseUrl`, Core authentication, and network routing                   |
+| Symptom | Check |
+| --- | --- |
+| `open(/dev/piControl0) failed` | Device mapping, host permissions, and the piControl driver |
+| `Short read: expected 2 bytes` | RevPi process image and piControl configuration |
+| `Duplicate Input ...` | Keep one mapping per `revInput` |
+| `Duplicate resolved offset ...` | Reconcile piCtory names that resolve to the same offset |
+| Core receives no measurements | Core URL, issuer reachability, token audience/roles, and connector registration |

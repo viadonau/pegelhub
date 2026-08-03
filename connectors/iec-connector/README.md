@@ -1,40 +1,44 @@
-# IEC Connector
+# IEC connector
 
-The IEC connector exchanges telemetry and measurement data via IEC 60870-5-104.
+The IEC connector exchanges measurements with an IEC 60870-5-104 server. A
+mapping binds one IEC information object address (IOA) to one Core time series
+and selects the transfer direction.
 
 ## Build
 
-```sh
-mvn -pl connectors/iec-connector -am -DskipTests package
+From the repository root:
+
+```bash
+mvn -B -ntp -pl connectors/iec-connector -am test
+scripts/build-connector-image.sh iec-connector
 ```
 
-## Configuration
+The image is tagged `pegelhub-iec-connector:local`.
 
-The connector accepts an optional first CLI argument pointing to the config directory. Without an argument it reads from `/app/config`.
+## Configure
 
-The config directory must contain `connector.yaml` and a `mappings/` directory.
+The first command-line argument selects the configuration directory; containers
+default to `/app/config`. The directory must contain `connector.yaml` and at
+least one mapping YAML file. See [`examples/config/`](examples/config/) for the
+complete shape.
 
-`connector.yaml`:
+Create a private working copy outside the repository:
 
-```yaml
-core:
-  baseUrl: "http://localhost:8080/"
-  authentication:
-    tokenUrl: "http://localhost:8082/realms/pegelhub/protocol/openid-connect/token"
-    clientId: "connector"
-    clientSecret: "secret"
-polling:
-  interval: "30s"
-mappings:
-  directory: "mappings"
-iec:
-  server:
-    host: "127.0.0.1"
-    port: 2404
-    commonAddress: 1
+```bash
+CONFIG_ROOT="${XDG_CONFIG_HOME:-$HOME/.config}/pegelhub"
+install -d -m 700 "$CONFIG_ROOT"
+test -d "$CONFIG_ROOT/iec-connector" || \
+  cp -R connectors/iec-connector/examples/config "$CONFIG_ROOT/iec-connector"
+chmod 700 "$CONFIG_ROOT/iec-connector"
+chmod 600 "$CONFIG_ROOT/iec-connector/connector.yaml"
 ```
 
-Mapping files are read in sorted filename order:
+`connector.yaml` defines the Core URL and client-credentials authentication, a
+positive polling interval ending in `s`, `m`, or `h`, and the IEC server
+`host`, `port`, and `commonAddress`. `mappings.directory` defaults to
+`mappings`.
+
+Example mapping:
 
 ```yaml
 iecIoa: 66049
@@ -42,19 +46,29 @@ timeSeriesId: "11111111-1111-1111-1111-111111111111"
 direction: "external-to-core"
 ```
 
-Use `direction: "external-to-core"` for IEC values sent to Core and `direction: "core-to-external"` for Core measurements written to IEC.
+Use `external-to-core` for IEC values written to Core and `core-to-external`
+for Core measurements written to IEC. Mapping files are loaded in sorted
+filename order.
 
-## Docker
+Core authentication must produce a token for the `pegelhub-core-api` audience
+with the direction-appropriate lowercase role, such as `measurement:write` for
+inbound values or `measurement:read` for outbound values.
+The client also needs the registration and resource grants described in the
+[library authorization prerequisites](../library/#core-authorization-prerequisites).
 
-```sh
-scripts/build-connector-image.sh iec-connector
+## Run the image
 
-docker run --rm -d \
-  -v "$(pwd)/examples/config:/app/config:ro" \
+```bash
+CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/pegelhub/iec-connector"
+docker run --rm \
+  -v "${CONFIG_DIR}:/app/config:ro" \
   pegelhub-iec-connector:local
 ```
 
-## References
+Replace the illustrative endpoints and credentials in an ignored copy before
+running it against real systems.
 
-- [openmuc j60870](https://www.openmuc.org/j60870-release-1-5-0/)
-- [Beckhoff TF6500 documentation](https://infosys.beckhoff.com/english.php?content=../content/1033/tf6500_tc3_iec60870_5_10x/984065803.html&id=9038877514577555054)
+## Protocol dependency
+
+The implementation uses [OpenMUC j60870](https://www.openmuc.org/j60870/),
+currently versioned in this module's `pom.xml`.
