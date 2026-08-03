@@ -101,6 +101,20 @@ Core serves the generated OpenAPI contract in English and German:
 - English YAML: `http://localhost:8080/v3/api-docs.yaml?lang=en`
 - German YAML: `http://localhost:8080/v3/api-docs.yaml?lang=de`
 
+The staging Caddy configuration proxies the complete dedicated API hostname to
+Core, so the same documentation is available through these public routes when
+the staging stack and its DNS records are active:
+
+- Swagger UI: `https://${PEGELHUB_API_HOSTNAME}/swagger-ui.html`
+- English JSON: `https://${PEGELHUB_API_HOSTNAME}/v3/api-docs?lang=en`
+- German JSON: `https://${PEGELHUB_API_HOSTNAME}/v3/api-docs?lang=de`
+- English YAML: `https://${PEGELHUB_API_HOSTNAME}/v3/api-docs.yaml?lang=en`
+- German YAML: `https://${PEGELHUB_API_HOSTNAME}/v3/api-docs.yaml?lang=de`
+
+The concrete staging hostname is intentionally held in the ignored server
+`deploy/staging/.env`; the repository contains only the hostname contract and
+placeholder values. See the [staging topology](deploy/staging/#topology).
+
 Swagger UI and the system-time endpoint are public; protected API operations
 accept Keycloak bearer tokens. Core reads client roles for the
 `pegelhub-core-api` audience. Runtime role values are lowercase and
