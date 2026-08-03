@@ -1,41 +1,43 @@
-# TSTP Connector
+# TSTP connector
 
-This connector reads from or writes to a TSTP server and exchanges measurements with Pegelhub Core.
+The TSTP connector exchanges measurements between PegelHub Core and a TSTP
+server. One process can run inbound and outbound mappings while sharing its
+endpoint, Core client, catalog cache, scheduler, and shutdown lifecycle.
 
 ## Build
 
-```sh
-mvn -pl connectors/tstp-connector -am -DskipTests package
+From the repository root:
+
+```bash
+mvn -B -ntp -pl connectors/tstp-connector -am test
+scripts/build-connector-image.sh tstp-connector
 ```
 
-## Configuration
+The image is tagged `pegelhub-tstp-connector:local`.
 
-The connector accepts an optional first CLI argument pointing to the config directory. Without an argument it reads from `/app/config`.
+## Configure
 
-The config directory must contain `connector.yaml` and a `mappings/` directory with at least one mapping.
-Mapping files are loaded in filename order. One connector process may combine inbound and outbound mappings;
-the endpoint, Core client, catalog cache, scheduler, and shutdown lifecycle are shared for the whole process.
+The first command-line argument selects the configuration directory; containers
+default to `/app/config`. The directory must contain `connector.yaml` and at
+least one mapping YAML file. See [`examples/config/`](examples/config/) for the
+complete shape.
 
-`connector.yaml`:
+Create a private working copy outside the repository:
 
-```yaml
-core:
-  baseUrl: "http://localhost:8080/"
-  authentication:
-    tokenUrl: "http://localhost:8082/realms/pegelhub/protocol/openid-connect/token"
-    clientId: "connector"
-    clientSecret: "secret"
-polling:
-  interval: "30s"
-mappings:
-  directory: "mappings"
-tstp:
-  server:
-    host: "127.0.0.1"
-    port: 8030
+```bash
+CONFIG_ROOT="${XDG_CONFIG_HOME:-$HOME/.config}/pegelhub"
+install -d -m 700 "$CONFIG_ROOT"
+test -d "$CONFIG_ROOT/tstp-connector" || \
+  cp -R connectors/tstp-connector/examples/config "$CONFIG_ROOT/tstp-connector"
+chmod 700 "$CONFIG_ROOT/tstp-connector"
+chmod 600 "$CONFIG_ROOT/tstp-connector/connector.yaml"
 ```
 
-`mappings/10-inbound.yaml`:
+`connector.yaml` defines the Core URL and client-credentials authentication, a
+positive polling interval ending in `s`, `m`, or `h`, and the TSTP server host
+and port. `mappings.directory` defaults to `mappings`.
+
+Example mapping:
 
 ```yaml
 timeSeriesId: "11111111-1111-1111-1111-111111111111"
@@ -43,21 +45,36 @@ stationId: 123
 direction: "external-to-core"
 ```
 
-Use `direction: "external-to-core"` to read from TSTP into Core. Use `direction: "core-to-external"` to write Core measurements to TSTP.
+- `external-to-core` reads the TSTP station and writes the Core time series.
+- `core-to-external` reads the Core time series and writes the TSTP station.
 
-The connector continues processing other mappings after an individual failure, logs a cycle summary, and reports
-the collected failures after the cycle. Successful reads advance a per-mapping synchronization boundary. Core
-lookbacks overlap that boundary by one second and are then filtered to the new logical window, so time spent
-processing a cycle does not leave gaps or duplicate the boundary value before the next fixed-delay run. Duplicate
-outbound station targets, duplicate inbound Core targets, exact duplicates, and directed feedback cycles are rejected
-during startup.
+Mapping files are loaded in sorted filename order. Startup rejects exact
+duplicates, duplicate outbound station targets, duplicate inbound Core targets,
+and directed feedback cycles. A failed mapping does not prevent the remaining
+mappings in that polling cycle from running.
 
-## Docker
+Configure the Keycloak client for the `pegelhub-core-api` audience and only the
+direction-appropriate lowercase Core roles, such as `measurement:read` and
+`measurement:write`.
+The client also needs the registration and resource grants described in the
+[library authorization prerequisites](../library/#core-authorization-prerequisites).
 
-```sh
-scripts/build-connector-image.sh tstp-connector
+## Synchronization behavior
 
-docker run --rm -d \
-  -v "$(pwd)/examples/config:/app/config:ro" \
+Successful mapping runs advance a per-mapping synchronization boundary. Core
+lookbacks overlap the boundary by one second and filter back to the new logical
+window, avoiding gaps while preventing the boundary value from being sent
+twice. Polling uses fixed delay, so the next cycle begins after the prior cycle
+has completed and the configured interval has elapsed.
+
+## Run the image
+
+```bash
+CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/pegelhub/tstp-connector"
+docker run --rm \
+  -v "${CONFIG_DIR}:/app/config:ro" \
   pegelhub-tstp-connector:local
 ```
+
+Replace the checked-in illustrative endpoints and credentials in an ignored
+copy before connecting to real systems.

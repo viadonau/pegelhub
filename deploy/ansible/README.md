@@ -1,101 +1,105 @@
-# PegelHub Ansible Bootstrap
+# Staging host bootstrap
 
-This Ansible setup prepares a staging host so the backend repository workflows
-can SSH in and invoke the versioned staging deploy scripts. The frontend
-repository publishes its image and requests deployment through the backend.
+This Ansible playbook prepares a Debian or Ubuntu host for the repository's
+supported staging deployment. It installs Docker Engine and Compose, creates a
+deploy user, installs an optional SSH public key, checks out PegelHub, and
+initializes ignored staging directories and configuration.
 
-It owns host bootstrap only:
-
-- install Docker Engine and the Compose plugin
-- create the staging deploy user
-- install the deploy user's SSH public key when provided
-- clone/update the PegelHub repository
-- create ignored staging directories
-- create `deploy/staging/.env` from `.env.example` only when missing
-- append missing keys from `.env.example` to the host `.env`
-- initialize missing server-local staging secrets in `.env`
-
-It intentionally does not store secrets in GitHub or overwrite existing real
-host values. The playbook appends missing template keys and only replaces empty
-or placeholder secret values in `deploy/staging/.env`. Fill hostnames, the
-backend image tag, and `deploy/staging/ftp-config/` on the host after the
-bootstrap run.
-It does not import, reset, or provision Keycloak.
+It does not deploy application images, import or reset Keycloak, create an FTP
+client, or place runtime secrets in GitHub. Those operations belong to the
+[staging deployment guide](../staging/).
 
 ## Prerequisites
 
-Install Ansible locally:
+- Ansible on the control machine
+- SSH access to a Debian or Ubuntu host
+- an SSH user that can become root with `sudo`
+- `openssl` on the target host for server-local secret generation
 
-```sh
+For example:
+
+```bash
 python3 -m pip install --user ansible
 ```
 
-The target host should be Debian or Ubuntu with SSH access for a user that can
-become root through `sudo`.
+## Configure
 
-## Configure Inventory
+From the repository root, create ignored working copies:
 
-Copy the example inventory and variables:
-
-```sh
-cp deploy/ansible/inventory/staging.example.ini deploy/ansible/inventory/staging.ini
-cp deploy/ansible/group_vars/staging.example.yml deploy/ansible/group_vars/staging.yml
+```bash
+test -f deploy/ansible/inventory/staging.ini || \
+  cp deploy/ansible/inventory/staging.example.ini \
+    deploy/ansible/inventory/staging.ini
+test -f deploy/ansible/group_vars/staging.yml || \
+  cp deploy/ansible/group_vars/staging.example.yml \
+    deploy/ansible/group_vars/staging.yml
 ```
 
-Edit `staging.ini` with the staging host and SSH user used by Ansible.
+Set the target host and bootstrap SSH user in `staging.ini`. Review all values
+in `staging.yml`, especially:
 
-Edit `staging.yml`:
+- `pegelhub_staging_repo_version`: branch, tag, or commit initially checked out
+- `pegelhub_staging_deploy_authorized_key`: public half of the staging deploy key
+- `pegelhub_staging_repo_dir`: must match GitHub's `STAGING_REPO_DIR`
+- `pegelhub_staging_deploy_user`: must match GitHub's `STAGING_SSH_USER`
 
-- set `pegelhub_staging_repo_version`
-- set `pegelhub_staging_deploy_authorized_key` to the public key matching the
-  GitHub Environment secret `STAGING_SSH_PRIVATE_KEY`
-- keep `pegelhub_staging_repo_dir` aligned with GitHub Environment variable
-  `STAGING_REPO_DIR`
-- keep `pegelhub_staging_deploy_user` aligned with GitHub Environment variable
-  `STAGING_SSH_USER`
+Never put a private key or runtime credential in these files.
 
 ## Run
 
-```sh
-ansible-playbook -i deploy/ansible/inventory/staging.ini deploy/ansible/staging.yml
+Run the playbook on the Ansible control machine from the repository root. It
+connects to the configured staging host over SSH:
+
+```bash
+ansible-playbook \
+  -i deploy/ansible/inventory/staging.ini \
+  deploy/ansible/staging.yml
 ```
 
-After the playbook:
+The playbook is designed to preserve existing host values. It creates
+`deploy/staging/.env` from `.env.example` only when missing, appends newly added
+template keys without replacing existing values, and initializes empty or
+placeholder database and Keycloak secrets without printing them.
 
-1. Log out and back in as the deploy user if Docker group membership was just
-   added.
-2. Review `/opt/pegelhub/deploy/staging/.env`; database and Keycloak secrets
-   are generated automatically when placeholders are present.
-3. Fill the staging hostnames and backend image tag in
-   `/opt/pegelhub/deploy/staging/.env`. Frontend image versions are supplied to
-   `deploy-frontend.sh` and recorded under the ignored staging state directory.
-4. Create `/opt/pegelhub/deploy/staging/ftp-config/connector.yaml` after manually
-   enrolling the staging FTP client as described in `deploy/staging/README.md`.
-5. Create at least one mapping under `/opt/pegelhub/deploy/staging/ftp-config/mappings/`.
-6. Log in to GHCR on the staging host if images are private.
-7. Run `/opt/pegelhub/deploy/staging/scripts/deploy.sh --check sha-<short-sha>`.
+## Complete the host setup
 
-For a new or deliberately emptied Keycloak database, run
-`deploy/staging/scripts/bootstrap-keycloak.sh` separately while Keycloak is
-stopped. Never use that operation as part of routine Ansible or image deployment.
+Run the following completion steps on the staging host from the repository
+checkout, unless a step explicitly refers to GitHub.
 
-## GitHub Environment Values
+1. Log out and back in as the deploy user if Docker group membership is new.
+2. Review the host's `deploy/staging/.env`; replace hostname and image-tag
+   placeholders while keeping `PEGELHUB_ENVIRONMENT=staging` and
+   `PEGELHUB_DEPLOY_MARKER=pegelhub-staging`.
+3. Log in to GHCR on the host if the published packages require authentication.
+4. Enroll the FTP connector identity and create the ignored
+   `deploy/staging/ftp-config/connector.yaml` and `mappings/*.yaml` as described
+   in the [staging guide](../staging/#ftp-connector-configuration).
+5. Validate the host configuration with an image tag that exists in GHCR:
 
-For the default example variables, the backend GitHub `staging` environment
-should use:
-
-```text
-STAGING_REPO_DIR=/opt/pegelhub
-STAGING_SSH_PORT=22
-STAGING_SSH_USER=pegelhub-deploy
+```bash
+deploy/staging/scripts/deploy.sh --check sha-<short-sha>
 ```
 
-Set `STAGING_SSH_HOST`, `STAGING_SSH_PRIVATE_KEY`, and
-`STAGING_SSH_FINGERPRINT` for your actual host. `STAGING_SSH_FINGERPRINT` must
-contain exactly one `SHA256:...` host key fingerprint. See
-`deploy/staging/README.md` for the key-type note; the default staging setup uses
-the ECDSA fingerprint.
+For a new or deliberately emptied Keycloak database, use the explicit staging
+bootstrap procedure while Keycloak is stopped. Routine Ansible and image
+deployment must not import the realm.
 
-The backend `Deploy Frontend` workflow reuses this same `staging` environment.
-The frontend repository publishes an immutable image digest and requests that
-workflow through a repository dispatch event.
+## GitHub staging environment
+
+The backend `Images` and `Deploy Frontend` workflows use a GitHub Environment
+named `staging`. Configure these environment variables:
+
+- `STAGING_REPO_DIR`
+- `STAGING_SSH_HOST`
+- `STAGING_SSH_PORT` (normally `22`)
+- `STAGING_SSH_USER`
+
+Configure these environment secrets:
+
+- `STAGING_SSH_PRIVATE_KEY`
+- `STAGING_SSH_FINGERPRINT`, containing exactly one trusted `SHA256:...` host
+  key fingerprint
+
+The public key matching `STAGING_SSH_PRIVATE_KEY` belongs in the deploy user's
+`authorized_keys`; the private key belongs only in the GitHub Environment.
+Runtime database, Keycloak, and FTP secrets remain on the staging host.

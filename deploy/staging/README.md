@@ -1,26 +1,44 @@
-# PegelHub Staging Deployment
+# Staging deployment
 
-This directory owns the coherent PegelHub staging topology and its host-side
-deployment behavior. The backend repository publishes Core and connector
-images; the frontend repository publishes its own image. Each workflow invokes
-a versioned server-side script in this repository rather than embedding Compose
-mutation logic in GitHub Actions.
+This directory defines PegelHub's currently supported remote environment: a
+single-host Docker Compose staging stack. The backend repository publishes Core
+and connector images; the frontend repository publishes its own image. Both
+release paths invoke versioned scripts from this directory on the staging host.
 
-## Services
+This is staging documentation. The repository does not define a production
+environment or a production deployment workflow.
 
-- Caddy reverse proxy on ports `80` and `443`
-- Independently released frontend from `frontend.compose.yaml`
-- PegelHub Core from `ghcr.io/viadonau/pegelhub-core:${PEGELHUB_IMAGE_TAG}`
-- PostgreSQL metadata database
-- InfluxDB
-- Keycloak plus Keycloak PostgreSQL database
-- FTP connector from `ghcr.io/viadonau/pegelhub-ftp-connector:${PEGELHUB_IMAGE_TAG}`
+Unless noted otherwise, commands run from the repository root. Host preparation,
+deployment, rollback, Keycloak bootstrap, and smoke commands run on the staging
+host. Compose syntax and repository policy tests can run on a development or CI
+machine.
 
-Only Caddy publishes host ports. The frontend, Core, actuator, databases,
-InfluxDB, Keycloak management, and the FTP connector stay on the internal
-Compose network.
+## Prerequisites
 
-Public traffic uses separate hostnames:
+- a Debian or Ubuntu host prepared through [Ansible](../ansible/) or an
+  equivalent Docker Engine and Compose v2 installation
+- public DNS control for the frontend, API, and Keycloak hostnames
+- inbound ports `80` and `443` available for Caddy and certificate issuance
+- a repository checkout owned by the deploy user
+- GHCR read access on the host when packages are private
+- `curl` and `openssl` on the host
+
+## Topology
+
+The base [`compose.yaml`](compose.yaml) contains:
+
+- Caddy on host ports `80` and `443`
+- Core and its PostgreSQL metadata database
+- InfluxDB and the one-shot bucket policy reconciler
+- Keycloak and its PostgreSQL database
+- the FTP connector
+
+[`frontend.compose.yaml`](frontend.compose.yaml) adds the independently released
+frontend to the same Compose project and network. Only Caddy publishes host
+ports; application, management, database, Keycloak management, and connector
+traffic remains on the internal network.
+
+Three public DNS names route to the internal services:
 
 ```text
 PEGELHUB_FRONTEND_HOSTNAME -> frontend:80
@@ -28,509 +46,265 @@ PEGELHUB_API_HOSTNAME      -> core-app:8080
 PEGELHUB_KEYCLOAK_HOSTNAME -> keycloak:8080
 ```
 
-The frontend container is absent until the first frontend release. Caddy
-already owns the frontend hostname and returns a temporary `503` response while
-the `frontend` service is absent instead of exposing Core directly.
+Before the first frontend release, Caddy returns `503` for the frontend host
+instead of exposing Core. All runtime services use Docker's `json-file` logging
+driver with `10m` files and five rotations. The offline Keycloak importer is a
+separate one-shot operation. Named volumes hold Caddy, PostgreSQL, InfluxDB,
+and Keycloak state.
 
-## Host Bootstrap
+## Prepare a host
 
-The preferred bootstrap path is Ansible:
+Use the [Ansible bootstrap](../ansible/) for a Debian or Ubuntu host. It installs
+Docker, creates the deploy user, checks out the repository, creates the ignored
+runtime directories, and initializes missing server-local secrets.
 
-```sh
-ansible-playbook -i deploy/ansible/inventory/staging.ini deploy/ansible/staging.yml
-```
+For a manual checkout, create and initialize the ignored environment file:
 
-See `deploy/ansible/README.md` for inventory and variable setup. The Ansible
-playbook installs Docker, creates the deploy user, clones this repository,
-creates the ignored staging config directories, and initializes missing
-server-local secrets in `deploy/staging/.env`.
-
-Create DNS records for the frontend, API, and Keycloak hostnames from `.env` so
-all three names point to the staging host. Caddy uses those hostnames for
-routing and certificate issuance.
-
-If GHCR packages are private, log in once on the host with a token that can read
-packages:
-
-```sh
-echo "<github-token>" | docker login ghcr.io -u "<github-user>" --password-stdin
-```
-
-Clone this repository onto the staging host. The GitHub workflow expects
-`STAGING_REPO_DIR` to point to this checkout:
-
-```sh
-git clone https://github.com/viadonau/pegelhub.git /opt/pegelhub
-```
-
-If you bootstrap without Ansible, create or sync the staging env file and then
-initialize missing server-local secrets:
-
-```sh
+```bash
 deploy/staging/scripts/sync-env-template.sh
 deploy/staging/scripts/init-env-secrets.sh
 ```
 
-Replace the remaining hostnames and image placeholders in `.env`. Keep
-`PEGELHUB_ENVIRONMENT=staging` and
-`PEGELHUB_DEPLOY_MARKER=pegelhub-staging`; the deploy script checks those before
-it changes services. The init script does not overwrite existing real secret
-values and does not print generated secrets. The sync script appends missing
-keys from `.env.example` but preserves the values already present in `.env`.
-Neither host bootstrap nor a normal image deploy imports a Keycloak realm or
-provisions clients.
+These scripts preserve existing values. The sync script appends new keys from
+`.env.example`; the initialization script replaces empty or staging-placeholder
+secret values without printing generated secrets.
 
-## Metadata Schema Rollout
+In `deploy/staging/.env`:
 
-Core owns the metadata schema through Flyway. The staging env template keeps
-`FLYWAY_BASELINE_ON_MIGRATE=false`, and the sync script appends that setting to
-older host `.env` files without changing existing values.
+1. replace all three example hostnames and create matching DNS records;
+2. set an immutable backend tag such as `sha-<short-sha>` or `v0.1.0`;
+3. keep `PEGELHUB_ENVIRONMENT=staging` and
+   `PEGELHUB_DEPLOY_MARKER=pegelhub-staging`;
+4. keep `FLYWAY_BASELINE_ON_MIGRATE=false` except during the documented
+   one-time adoption of a verified legacy schema;
+5. review InfluxDB retention before the first data-bearing deploy.
 
-Before the first deployment against an existing Hibernate-created database,
-follow the complete [Flyway rollout procedure](../../core/docs/flyway.md). It
-requires a backup and schema/orphan preflight, enables the baseline setting for
-the first Flyway startup only, verifies the version 1 baseline and version 2
-migration history, and then disables the setting again.
+Log in to GHCR on the host if the packages are private. Runtime secrets remain
+in the host's ignored `.env` and `ftp-config/`; they are not copied into GitHub,
+the repository, or rendered Compose artifacts.
 
-## InfluxDB Retention
+## FTP connector configuration
 
-Staging configures measurement and telemetry retention independently:
+Create a private configuration directory on the host:
+
+```bash
+mkdir -p deploy/staging/ftp-config/mappings
+chmod 700 deploy/staging/ftp-config
+```
+
+It needs `connector.yaml` and exactly one mapping file. The in-stack addresses
+are Core at `http://core-app:8080/` and the public Keycloak token endpoint at
+`https://${PEGELHUB_KEYCLOAK_HOSTNAME}/realms/pegelhub/protocol/openid-connect/token`.
+Use the [FTP connector guide](../../connectors/ftp-connector/) for the complete
+schema.
+
+The staging realm seed deliberately contains no FTP client or client secret.
+While the connector is stopped, create a confidential service-account client
+with browser and direct-access flows disabled and full scope disabled. Remove
+inherited scopes; assign exactly `pegelhub-core-roles`,
+`pegelhub-core-audience`, and `pegelhub-client-actor` as default scopes, with no
+optional scopes. Assign only the Core roles `measurement:write` and
+`telemetry:write` to both the service account and its scope role mappings.
+Verify that its token:
+
+- has the configured issuer;
+- has only `pegelhub-core-api` as its audience;
+- identifies the expected client in `azp`;
+- contains only the lowercase Core roles above;
+- has `pegelhub_actor_type` set to `CLIENT`.
+
+Register the same client ID through Core's admin connector endpoint before
+starting ingestion. The target time series must name that Connector as its
+source and have a `WRITE` access grant for it. Write the client secret directly
+into the ignored `connector.yaml`, set that file to mode `0600`, and never place
+the secret in shell history, logs, tickets, or Git. The
+[Bruno write workflow](../../core/docs/api/bruno/#write-workflow) demonstrates
+the required metadata sequence.
+
+## Database and retention changes
+
+Flyway owns the metadata schema. Fresh databases use
+`FLYWAY_BASELINE_ON_MIGRATE=false`. Before the first Flyway deployment against
+an existing Hibernate-created schema, follow the backup, schema comparison,
+orphan check, one-start baseline, and verification steps in the
+[Flyway rollout guide](../../core/docs/flyway.md). A rollback does not undo
+Flyway migrations.
+
+Measurement and telemetry retention are independent:
 
 ```env
 INFLUX_DATA_RETENTION=60d
 INFLUX_TELEMETRY_RETENTION=60d
 ```
 
-Use `0s` for infinite retention. Other accepted values are positive whole
-hours, days, or weeks, such as `24h`, `60d`, or `8w`.
+Accepted values are `0s` for infinite retention or positive whole hours, days,
+or weeks such as `24h`, `60d`, or `8w`. Reducing retention can permanently
+expire older data; an image rollback cannot restore it. See the
+[InfluxDB guide](../../core/docs/influxdb.md).
 
-The `influx-bucket-setup` service reconciles both policies on fresh and existing
-InfluxDB volumes before Core starts. Reducing retention, including changing
-`0s` to a finite value, can permanently remove older points. Back up data that
-must be preserved before deploying such a change. An application rollback does
-not restore expired InfluxDB data.
+## Validate before deployment
 
-## Container Console Logs
+Compose syntax can be checked with the placeholder environment without
+printing resolved values:
 
-Every staging service, including the independently managed frontend and the
-one-shot `influx-bucket-setup` service, uses Docker's `json-file` logging driver
-with a maximum file size of `10m` and five files per container. This bounds
-Docker-managed stdout and stderr logs to approximately 50 MB per container. It
-does not change application log levels or retention inside databases and named
-volumes.
-
-Docker applies logging options when it creates a container. On the first deploy
-of this policy, `docker compose up -d` should detect the changed service
-configuration and recreate every active staging container, causing a brief
-service interruption while preserving named volumes. The idempotent
-`influx-bucket-setup` service runs again before Core starts. If deployment output
-shows that an existing container was not recreated, rerun the stack explicitly
-with the same immutable image tag:
-
-```sh
-PEGELHUB_IMAGE_TAG=sha-<short-sha> docker compose \
-  --env-file deploy/staging/.env \
-  -f deploy/staging/compose.yaml \
-  up -d --force-recreate
-deploy/staging/scripts/smoke.sh
-```
-
-## GitHub Staging Deploy Setup
-
-The `Images` workflow deploys backend releases. The `Deploy Frontend` workflow
-handles frontend release requests from the frontend repository. Both use the
-same staging Environment and deployment concurrency group.
-
-Configure a GitHub Environment named `staging`, then add these environment
-variables:
-
-- `STAGING_REPO_DIR`: repository checkout on the staging host, for example `/opt/pegelhub`
-- `STAGING_SSH_HOST`: staging host DNS name or IP
-- `STAGING_SSH_PORT`: SSH port, usually `22`
-- `STAGING_SSH_USER`: SSH user used for deployment
-
-Add these environment secrets:
-
-- `STAGING_SSH_PRIVATE_KEY`: private key for the staging deploy user
-- `STAGING_SSH_FINGERPRINT`: one SHA256 fingerprint of the staging host key
-
-Create a dedicated staging deploy key, then install the public key for the
-deploy user on the staging host:
-
-```sh
-ssh-keygen -t ed25519 -C "github-actions-pegelhub-staging" -f pegelhub-staging-deploy
-```
-
-Store the private key contents in `STAGING_SSH_PRIVATE_KEY`. Add the public key
-to the deploy user's `~/.ssh/authorized_keys` on the staging host.
-
-Generate the host fingerprints from a trusted machine:
-
-```sh
-ssh-keyscan -p <port> <host> 2>/dev/null | ssh-keygen -lf -
-```
-
-The output usually contains multiple host key types, for example RSA, ECDSA,
-and ED25519. Store exactly one fingerprint in `STAGING_SSH_FINGERPRINT`, with no
-quotes and no extra lines. Use the ECDSA `SHA256:...` fingerprint for the
-default staging setup.
-
-The staging deploy user needs access to Docker, the repository checkout, and the
-ignored staging files under `deploy/staging/`. If Docker access is granted
-through group membership, log out and back in on the host before testing the
-deploy user. Runtime secrets remain on the staging host in `.env` and
-`ftp-config/`; they are not copied into GitHub.
-
-Use GitHub Environment required reviewers if you want staging deployment to wait
-for manual approval after the image build succeeds.
-
-When the workflow runs from `main`, staging deploys the published
-`sha-<short-sha>` image tag for that commit. When the workflow runs from a
-release tag such as `v0.1.0`, staging deploys that tag. Manual workflow runs
-deploy to staging by default, but the `deploy_staging` input can be disabled for
-image-only tests.
-
-## FTP Connector Config
-
-Create the FTP config directory on the staging host:
-
-```sh
-mkdir -p deploy/staging/ftp-config
-chmod 700 deploy/staging/ftp-config
-```
-
-The directory must contain:
-
-- `connector.yaml`
-- `mappings/` with exactly one FTP mapping YAML file
-
-Use staging secrets in those files and do not commit them. After manually
-enrolling the FTP connector in Keycloak, a typical in-stack configuration is:
-
-```yaml
-core:
-  baseUrl: "http://core-app:8080/"
-  authentication:
-    tokenUrl: "https://auth-pegelhub-staging.example.com/realms/pegelhub/protocol/openid-connect/token"
-    clientId: "pegelhub-staging-ftp-connector"
-    clientSecret: "<generated-client-secret>"
-polling:
-  interval: "15m"
-mappings:
-  directory: "mappings"
-ftp:
-  server:
-    host: "ftp.example.com"
-    port: 21
-    authentication:
-      username: "pegelReader"
-      password: "replace-with-staging-secret"
-  source:
-    directory: "/"
-    parserType: "zrxp"
-```
-
-Keep the config directory at mode `0700` and `connector.yaml` at mode `0600`.
-Replace the example token hostname with `PEGELHUB_KEYCLOAK_HOSTNAME`. Enter the
-generated client secret directly with an editor on the staging host rather than
-placing it in shell history or command output. FTP and Keycloak credentials
-belong only in this ignored mounted config, not in `.env`, Git, or the Docker
-image. See the FTP connector README for the mapping file shape.
-
-## Frontend
-
-The base `compose.yaml` remains the Core, Keycloak, Caddy, database, and
-connector topology. `frontend.compose.yaml` adds only the frontend service and
-is always invoked with the base file, the same `COMPOSE_PROJECT_NAME`, and the
-same `pegelhub-staging` network. It does not create another Compose project or
-an external cross-project network.
-
-The frontend receives this runtime configuration from the overlay:
-
-```env
-PH_API_BASE_URL=/api/v1
-PH_KEYCLOAK_URL=https://${PEGELHUB_KEYCLOAK_HOSTNAME}
-PH_KEYCLOAK_REALM=pegelhub
-PH_KEYCLOAK_CLIENT_ID=pegelhub-frontend
-NGINX_API_UPSTREAM=http://core-app:8080
-```
-
-Deploy a published frontend image from the host with its full immutable image
-reference:
-
-```sh
-deploy/staging/scripts/deploy-frontend.sh \
-  ghcr.io/viadonau/pegelhub-frontend@sha256:<64-lowercase-hex>
-```
-
-The script accepts only digest-pinned references in the expected GHCR
-repository. It acquires the same host lock as backend deploys and Keycloak
-bootstrap, pulls and recreates only `frontend`, waits for Compose health, and
-checks the public frontend and API proxy routes. A failed activation restores
-the previous frontend image. A failed first release removes its container so
-Caddy returns the original undeployed `503` response.
-
-Successful releases are recorded in the ignored, non-secret
-`state/frontend-release.env` file. Backend deploys use the base Compose file
-with orphan removal disabled, so they preserve an already released frontend.
-
-## Keycloak Bootstrap
-
-Staging bind-mounts the login theme from
-`core/docker/keycloak/themes` into the Keycloak container, but it does not mount
-the local-development realm import. The dedicated staging seed is
-`deploy/staging/keycloak/pegelhub-realm.json`. It contains the API roles and
-token scopes, Core resource client, public frontend client, PegelHub login
-theme, and German locale. It contains no users, client secrets, `local-*`
-clients, or localhost origins.
-
-The offline importer lives only in `keycloak-bootstrap.compose.yaml`. Routine
-Compose and `deploy.sh` never load that file, so an inherited Compose profile
-cannot activate a realm import.
-
-The normal Keycloak command is only `start`. Image deploys and container
-recreation never import, overwrite, or migrate a realm. When deploying theme or
-container config changes, `--refresh-keycloak` only force-recreates Keycloak so
-the theme mount and production caches reload:
-
-```sh
-deploy/staging/scripts/deploy.sh --refresh-keycloak sha-<short-sha>
-```
-
-That option is not a realm migration and does not apply seed changes to an
-existing realm.
-
-For a new or deliberately emptied Keycloak database, stop Keycloak and run:
-
-```sh
-deploy/staging/scripts/bootstrap-keycloak.sh
-```
-
-The script refuses to run while Keycloak is online. It starts only the Keycloak
-database, performs an offline seed import with `--override=false`, starts
-Keycloak without startup import, and stops there. The frontend origin is derived
-from `https://${PEGELHUB_FRONTEND_HOSTNAME}` during that import. Re-running the
-offline import against an existing realm skips it rather than overwriting
-identity state. This follows the
-[Keycloak import/export lifecycle guidance](https://www.keycloak.org/server/importExport).
-The explicit scripts reject placeholder, loopback, or malformed public
-hostnames. Bootstrap and routine deploy serialize through
-`state/keycloak-bootstrap.lock`, so Compose cannot start Keycloak while an offline
-import is using its database. If a process is killed without running its cleanup
-trap, verify that neither operation is active before removing that stale lock
-directory.
-
-### Manual FTP Connector Enrollment
-
-The staging seed deliberately contains no FTP client or secret. After a fresh
-realm bootstrap, keep the FTP connector stopped and enroll it manually:
-
-1. In the Keycloak admin console, create the confidential client
-   `pegelhub-staging-ftp-connector`. Enable client authentication and service
-   accounts; disable standard, implicit, and direct-access grants.
-2. Disable full scope. Remove automatically inherited default and optional
-   scopes, then assign exactly `pegelhub-core-roles`,
-   `pegelhub-core-audience`, and `pegelhub-client-actor` as default scopes. Keep
-   optional scopes and client-specific protocol mappers empty.
-3. Assign only the Core client roles `measurement:write` and `telemetry:write`
-   under Service account roles. With full scope disabled, allow those same two
-   Core roles in the client's scope role mappings and no others. Do not assign
-   realm roles, groups, or roles from another client.
-4. Put the generated secret directly into the ignored
-   `ftp-config/connector.yaml` structure shown above. Keep the directory at mode
-   `0700` and the file at mode `0600`; do not paste the secret into commands,
-   logs, tickets, or Git.
-5. Before starting FTP, perform a client-credentials grant from the staging host
-   without shell tracing or credential output. Decode the token locally without
-   sending it to an external service. Verify `azp` is the FTP client, `aud`
-   contains only `pegelhub-core-api`, `pegelhub_actor_type` is `CLIENT`, Core
-   roles are exactly `measurement:write` and `telemetry:write`, and the token has
-   no realm or other-resource roles.
-6. Register the same client ID in Core, start the FTP connector, and verify one
-   authenticated write.
-
-Secret rotation follows the same manual Keycloak and server-local configuration
-procedure. Automated connector provisioning remains intentionally out of scope.
-
-### Deliberate Fresh Staging Reset
-
-This repository change does not reset live staging. After merge, schedule a
-maintenance window and perform the reset separately:
-
-1. Delete any legacy `deploy/staging/state/compose.rendered.yaml`; older deploy
-   scripts stored protected environment values there. Rotate those staging
-   values first if that file was readable beyond the intended deploy account.
-2. Back up the Keycloak PostgreSQL database and the ignored
-   `deploy/staging/ftp-config/connector.yaml`.
-3. Confirm the Compose project is the staging project and stop
-   `ftp-connector`, `core-app`, `keycloak`, and `keycloak-db`.
-4. Remove only the stopped Keycloak containers. Locate the volume carrying both
-   Compose labels `com.docker.compose.project=pegelhub-staging` and
-   `com.docker.compose.volume=keycloak-data`, verify it manually, and remove only
-   that volume. Do not use `docker compose down -v`.
-5. Run `deploy/staging/scripts/bootstrap-keycloak.sh`. It creates the fresh
-   database volume, imports the seed, and starts Keycloak without provisioning
-   any service clients.
-6. Verify the realm, complete the manual FTP connector enrollment above, then
-   deploy or start the remaining stack and run the staging smoke checks.
-
-The old staging realm is not migrated by this path. Its deletion is the
-separate, deliberate data-loss operation in step 4.
-
-## Validate
-
-Validate Compose without rendering environment values:
-
-```sh
+```bash
 docker compose --env-file deploy/staging/.env.example \
   -f deploy/staging/compose.yaml config --quiet
+
 PEGELHUB_FRONTEND_IMAGE=ghcr.io/viadonau/pegelhub-frontend@sha256:0000000000000000000000000000000000000000000000000000000000000000 \
-  docker compose --env-file deploy/staging/.env.example \
+docker compose --env-file deploy/staging/.env.example \
   -f deploy/staging/compose.yaml \
-  -f deploy/staging/frontend.compose.yaml \
-  config --quiet
+  -f deploy/staging/frontend.compose.yaml config --quiet
+
 docker compose --env-file deploy/staging/.env.example \
   -f deploy/staging/compose.yaml \
   -f deploy/staging/keycloak-bootstrap.compose.yaml \
   --profile keycloak-bootstrap config --quiet
 ```
 
-Run the checked backend validation path with the real host config:
+On the host, validate real configuration and an existing image tag without
+changing services:
 
-```sh
+```bash
 deploy/staging/scripts/deploy.sh --check sha-<short-sha>
 ```
 
-The validation rejects missing or placeholder image tags, missing FTP config,
-invalid InfluxDB retention values, production-unsafe public ports, and any
-`build:` section. It validates Compose quietly and never persists a rendered
-configuration containing values from the protected `.env`. The first non-check
-deploy after this change also deletes the legacy rendered artifact produced by
-older versions. A mutating deploy refuses to run while a Keycloak bootstrap
-holds the shared lock; `--check` remains read-only and can run concurrently.
+The deploy validation rejects staging markers or hostnames that are missing or
+placeholders, missing or known mutable/placeholder image tags, invalid
+retention values, missing FTP configuration, unexpected public ports, and
+`build:` sections. It validates Compose quietly and does not persist a rendered
+configuration.
 
-Run the dedicated policy checks:
+Repository policy tests are:
 
-```sh
+```bash
 deploy/staging/tests/keycloak-static-test.sh
 deploy/staging/tests/frontend-deployment-test.sh
 deploy/staging/tests/keycloak-bootstrap-integration.sh
 ```
 
-The integration check creates a unique disposable Compose project and removes
-only that project's containers and volumes.
+The Keycloak integration test creates and removes a unique disposable Compose
+project and its volumes.
 
-## Deploy From GitHub
+## Deploy and roll back backend images
 
-Push to backend `main`, run the backend `Images` workflow manually, or push a
-`v*` tag. After Core and connector images are published, GitHub SSHs into the
-staging host and runs:
+Deploy an immutable image tag from the host:
 
-```sh
-deploy/staging/scripts/deploy.sh <published-image-tag>
+```bash
+deploy/staging/scripts/deploy.sh sha-<short-sha>
 ```
 
-The frontend repository independently verifies and publishes its production
-image on a push to frontend `main`, then sends its manifest digest to the
-backend `Deploy Frontend` workflow. That workflow uses the backend repository's
-`staging` Environment, updates the server checkout to backend `main`, and
-invokes:
+The script validates configuration, pulls the base stack images, updates the
+services, records current and previous backend tags under the ignored `state/`
+directory, and runs staging smoke checks. It preserves the separately managed
+frontend service.
 
-```sh
+Force-recreate Keycloak only when a theme or container configuration change
+needs reloading:
+
+```bash
+deploy/staging/scripts/deploy.sh --refresh-keycloak sha-<short-sha>
+```
+
+This option does not import, migrate, or reset a realm.
+
+Roll back to the recorded previous backend tag, or deploy a known tag:
+
+```bash
+deploy/staging/scripts/deploy.sh --rollback
+deploy/staging/scripts/deploy.sh sha-<previous-short-sha>
+```
+
+Rollback changes images and services only. It does not remove volumes, reverse
+database migrations, or restore data expired by retention.
+
+## Deploy and roll back the frontend
+
+The frontend activation script accepts only a digest-pinned image from the
+expected GHCR repository:
+
+```bash
 deploy/staging/scripts/deploy-frontend.sh \
   ghcr.io/viadonau/pegelhub-frontend@sha256:<64-lowercase-hex>
 ```
 
-Backend and frontend releases share the `staging-deploy` concurrency group.
-The server-side lock also serializes automated releases with manual deployment
-and Keycloak bootstrap operations.
+It pulls and recreates only `frontend`, waits for health, then checks the public
+frontend and its API proxy. A failed activation restores the previous image; a
+failed first release removes the container so Caddy returns the undeployed
+`503`. Successful image references are stored in ignored `state/` data.
 
-## Deploy From The Host
+Roll back only the frontend:
 
-Deploy an image tag that already exists in GHCR:
-
-```sh
-deploy/staging/scripts/deploy.sh sha-<short-sha>
-```
-
-For a release tag:
-
-```sh
-deploy/staging/scripts/deploy.sh v0.1.0
-```
-
-The script validates Compose, pulls images, starts the stack,
-records the current and previous image tags under `deploy/staging/state/`, and
-runs the smoke script. It does not retain the rendered Compose model. Pass
-`--refresh-keycloak` only when the deployment needs to force-recreate the
-Keycloak container for theme or container-config reload.
-
-Frontend releases and rollbacks use `deploy-frontend.sh` as described in the
-Frontend section. Do not add the frontend image to `.env` or start it through
-the backend deploy script.
-
-## Smoke Checks
-
-Run smoke checks again after a deploy:
-
-```sh
-deploy/staging/scripts/smoke.sh
-```
-
-The smoke script checks:
-
-- Public API route through Caddy
-- Keycloak issuer discovery through Caddy
-- Core actuator health over the internal network
-- Keycloak management health over the internal network
-- FTP connector container is running
-
-The FTP connector can write measurements during normal operation. Treat this
-staging stack as a real ingestion environment once real FTP config is mounted.
-`deploy-frontend.sh` waits for frontend container health, then checks the public
-frontend root and Core's system-time endpoint through the frontend Nginx proxy.
-
-## Rollback
-
-Rollback to the previously recorded image tag:
-
-```sh
-deploy/staging/scripts/deploy.sh --rollback
-```
-
-Or deploy a specific known-good tag:
-
-```sh
-deploy/staging/scripts/deploy.sh sha-<previous-short-sha>
-```
-
-Rollback changes image tags and restarts services. It does not delete volumes,
-prune images, or undo Flyway migrations. Database rollback remains a deliberate
-backup/restore or forward-migration decision.
-
-Rollback only the frontend to its previously recorded image:
-
-```sh
+```bash
 deploy/staging/scripts/deploy-frontend.sh --rollback
 ```
 
-Frontend rollback changes only the frontend container and swaps current and
-previous image references so the replaced image remains available for recovery.
+## Keycloak bootstrap
 
-## Operational Notes
+Normal deployment never imports a realm. For a new or deliberately emptied
+Keycloak database, stop Keycloak and run the explicit offline bootstrap:
 
-- Do not run `docker compose down -v` unless you explicitly want to delete
-  staging data.
-- Keep the previous known-good backend and frontend images pulled on the host.
-- Never use `--remove-orphans` for the base Compose topology; the frontend is a
-  same-project service managed through its overlay.
-- Normal Keycloak startup never imports a realm. Use the explicit offline
-  bootstrap only with Keycloak stopped.
-- `--refresh-keycloak` recreates the Keycloak container for theme/config reload;
-  it is not a realm import, migration, reset, or database wipe.
-- Container logging options take effect only after container recreation; verify
-  that every active service is recreated on the first deployment of a logging
-  policy change.
-- Rotate any real FTP password that was ever committed or shared in examples.
-- Treat retention reductions as data migrations; image rollback does not undo
-  expired InfluxDB data.
+```bash
+deploy/staging/scripts/bootstrap-keycloak.sh
+```
+
+The script refuses to run while Keycloak is online. It starts the Keycloak
+database, imports [`keycloak/pegelhub-realm.json`](keycloak/pegelhub-realm.json)
+with overwrite disabled, and starts Keycloak without startup import. The seed
+contains the API roles/scopes, Core resource client, public frontend client,
+theme, and German locale; it contains no users, service-client secrets, local
+clients, or localhost origins.
+
+Bootstrap, backend deployment, and frontend deployment share a host lock.
+Re-running the importer skips an existing realm rather than overwriting
+identity state. Realm reset or database-volume deletion is a separate,
+deliberate data-loss operation and is never part of routine deployment.
+
+## Smoke checks
+
+Run the staging checks independently after a deploy:
+
+```bash
+deploy/staging/scripts/smoke.sh
+```
+
+They verify the public Core system-time route, public Keycloak discovery,
+internal Core and Keycloak health, and a running FTP connector container. The
+frontend deployment adds public frontend and frontend API-proxy checks.
+
+## GitHub workflows
+
+The backend [`Images`](../../.github/workflows/images.yml) workflow publishes
+Core and all five connector images. Pushes to backend `main`, `v*` tags, and
+eligible manual runs deploy the matching tag to the GitHub `staging`
+Environment. The separate
+[`Deploy Frontend`](../../.github/workflows/deploy-frontend.yml) workflow accepts
+the frontend repository's digest-pinned release request.
+
+Both paths use the same staging SSH configuration, GitHub Environment, workflow
+concurrency group, server checkout, and host lock. Required GitHub values are
+listed in the [Ansible guide](../ansible/#github-staging-environment). Use
+GitHub Environment required reviewers when a manual approval gate is desired.
+
+## Operational cautions
+
+- Never run `docker compose down -v` as part of routine operation.
+- Do not use `--remove-orphans`; the frontend is a separately managed service
+  in the same Compose project.
+- Keep known-good backend and frontend images available on the host.
+- Treat Flyway adoption and retention reductions as data changes, not ordinary
+  image configuration.
+- Normal Keycloak startup and deployment must not import or reset the realm.
+- The FTP connector may write real measurements whenever its mounted
+  configuration is active; staging smoke checks are not a data-isolation
+  boundary.
+
+## Troubleshooting
+
+| Symptom | Check |
+| --- | --- |
+| Caddy cannot obtain a certificate | All three DNS records, public reachability of ports `80`/`443`, and Caddy logs |
+| Image pull is denied | Host GHCR login and package read permission |
+| A service is unhealthy | `docker compose --env-file deploy/staging/.env -f deploy/staging/compose.yaml ps` and that service's logs |
+| Script reports another staging operation | Confirm no deploy or bootstrap is active before treating the directory under `deploy/staging/state/` as a stale lock |
+| Smoke fails on Core or Keycloak | Public DNS/TLS first, then internal actuator or Keycloak management health and container logs |
