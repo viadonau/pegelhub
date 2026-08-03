@@ -46,6 +46,22 @@ PEGELHUB_API_HOSTNAME      -> core-app:8080
 PEGELHUB_KEYCLOAK_HOSTNAME -> keycloak:8080
 ```
 
+The API virtual host is a complete reverse proxy to Core, not a route limited
+to `/api/v1`. When the stack and DNS records are active, it therefore exposes
+the public OpenAPI documentation at:
+
+```text
+https://${PEGELHUB_API_HOSTNAME}/swagger-ui.html
+https://${PEGELHUB_API_HOSTNAME}/v3/api-docs?lang=en
+https://${PEGELHUB_API_HOSTNAME}/v3/api-docs?lang=de
+https://${PEGELHUB_API_HOSTNAME}/v3/api-docs.yaml?lang=en
+https://${PEGELHUB_API_HOSTNAME}/v3/api-docs.yaml?lang=de
+```
+
+Swagger UI and these generated contracts do not require a bearer token. The
+real hostname is stored only in the ignored server `.env`; `.env.example`
+contains non-routable placeholders.
+
 Before the first frontend release, Caddy returns `503` for the frontend host
 instead of exposing Core. All runtime services use Docker's `json-file` logging
 driver with `10m` files and five rotations. The offline Keycloak importer is a
