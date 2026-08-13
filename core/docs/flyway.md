@@ -136,8 +136,8 @@ schema.
    scripts/local-stack.sh compose-up
    ```
 
-   On staging, run the normal checked deployment with the intended immutable
-   image tag:
+   On staging, run the normal checked deployment with the intended
+   release-specific image tag:
 
    ```sh
    deploy/staging/scripts/deploy.sh <image-tag>

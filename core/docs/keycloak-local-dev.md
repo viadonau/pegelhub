@@ -1,8 +1,10 @@
-# Local Keycloak Development
+# Local Keycloak development
 
-PegelHub local development uses a disposable Keycloak realm so Core and connectors can exercise OAuth2 client credentials without depending on production identity infrastructure.
+PegelHub local development uses a disposable Keycloak realm for browser login
+and OAuth 2.0 service-client authentication. It does not depend on shared or
+production identity infrastructure.
 
-## Stable Local Hostname
+## Stable local hostname
 
 Use this issuer everywhere in local development:
 
@@ -10,28 +12,34 @@ Use this issuer everywhere in local development:
 http://pegelhub-keycloak.test:8082/realms/pegelhub
 ```
 
-That hostname is configured as a Docker Compose network alias for the Keycloak container. Add a local hosts entry so host-side tools resolve the same name to the exposed local port:
+That hostname is configured as a Docker Compose network alias for the Keycloak
+container. Add a local hosts entry so host-side tools resolve the same name to
+the exposed local port:
 
 ```text
 127.0.0.1 pegelhub-keycloak.test
 ```
 
-Do not request tokens through `localhost` while Core validates `pegelhub-keycloak.test`; the JWT `iss` claim must exactly match Core's `KEYCLOAK_ISSUER_URI`.
+Do not request tokens through `localhost` while Core validates
+`pegelhub-keycloak.test`; the JWT `iss` claim must exactly match Core's
+`KEYCLOAK_ISSUER_URI`.
 
-## Start Local Keycloak
+## Start local Keycloak
 
 Copy `core/.env.example` to `core/.env` if needed, then start the local stack:
 
-```sh
-bash .agents/skills/pegelhub-local-dev/scripts/pegelhub-local-dev.sh compose-up
+```bash
+test -f core/.env || cp core/.env.example core/.env
+scripts/local-stack.sh compose-up
 ```
 
 The compose stack adds:
 
-- `keycloak-db`, a dedicated local Postgres database for Keycloak;
-- `keycloak`, exposed at `http://pegelhub-keycloak.test:8082`;
-- realm import from `core/docker/keycloak/import/pegelhub-realm.json`;
-- a bind-mounted local login theme from `core/docker/keycloak/themes` to `/opt/keycloak/themes`.
+- `keycloak-db`, a dedicated local Postgres database for Keycloak
+- `keycloak`, exposed at `http://pegelhub-keycloak.test:8082`
+- realm import from `core/docker/keycloak/import/pegelhub-realm.json`
+- a bind-mounted local login theme from `core/docker/keycloak/themes` to
+  `/opt/keycloak/themes`
 
 `PEGELHUB_FRONTEND_URL` defines the frontend origin used by the imported Keycloak
 client for redirects, web origins, and the login error page's **Back to
@@ -39,9 +47,10 @@ Application** link. Set it independently in each environment. Realm import runs
 only when the realm does not already exist, so changing this value does not
 update an existing realm.
 
-## Iterate On The Login Theme
+## Iterate on the login theme
 
-The local Keycloak container runs in `start-dev` mode with theme caches disabled:
+The local Keycloak container runs in `start-dev` mode with theme caches
+disabled:
 
 ```text
 --spi-theme-static-max-age=-1
@@ -55,15 +64,21 @@ Edit the theme files under:
 core/docker/keycloak/themes/pegelhub/login
 ```
 
-Then reload the browser tab that shows the Keycloak login page. You should not need to rebuild the image or restart Keycloak for ordinary CSS and FreeMarker template changes. If you change Docker Compose itself, recreate the Keycloak service once so the new command flags are applied:
+Then reload the browser tab that shows the Keycloak login page. Ordinary CSS
+and FreeMarker template changes do not require an image rebuild or Keycloak
+restart. If you change Docker Compose itself, recreate Keycloak once so the new
+command flags are applied:
 
-```sh
-docker compose -f core/docker-compose.yaml up -d --force-recreate keycloak
+```bash
+docker compose --env-file core/.env -f core/docker-compose.yaml \
+  up -d --force-recreate keycloak
 ```
 
-Realm import runs only when the realm does not already exist. If you need to recreate the local realm, stop and remove only the Keycloak database volume after explicitly accepting local identity data loss.
+Realm import runs only when the realm does not already exist. Recreating the
+local realm requires stopping the stack and removing the Keycloak database
+volume after explicitly accepting local identity data loss.
 
-## Local Realm Contents
+## Local realm contents
 
 Realm:
 
@@ -97,13 +112,23 @@ Local-only client-credentials clients:
 | `local-ma-connector` | `local-dev-ma-connector-secret-change-me` | Local RevPi mA connector development. |
 | `local-operator` | `local-dev-operator-secret-change-me` | Metadata/admin smoke tests. |
 
-These are throwaway local credentials. Never reuse them outside local development.
+These are throwaway local credentials. Never reuse them outside local
+development.
 
-## Request A Connector Token
+Local browser account:
+
+| Username | Password | Client | Core roles |
+| --- | --- | --- | --- |
+| `pegel` | `pegel` | `pegelhub-frontend` | `metadata:read`, `measurement:read` |
+
+This account and password are checked-in, disposable local fixtures. Never
+enable or reuse them in a shared, staging, or production realm.
+
+## Request a connector token
 
 Use the connector client credentials:
 
-```sh
+```bash
 curl -s \
   -d grant_type=client_credentials \
   -d client_id=local-connector-example \
@@ -111,34 +136,34 @@ curl -s \
   http://pegelhub-keycloak.test:8082/realms/pegelhub/protocol/openid-connect/token
 ```
 
-The response contains an `access_token`. Do not paste real tokens into docs, commits, or issue trackers.
+The response contains an `access_token`. Do not paste real tokens into docs,
+commits, or issue trackers.
 
-## Inspect A Token Without Printing Secrets
+## Verify token claims
 
-For local debugging, decode only the JWT payload:
-
-```sh
-TOKEN="<access token>"
-printf '%s' "$TOKEN" | cut -d. -f2 | base64 --decode 2>/dev/null
-```
+Inspect local tokens only with tooling you trust on your machine. Do not paste
+real tokens into third-party JWT decoders, documentation, commits, or issue
+trackers.
 
 Expected local connector token claims:
 
-- `iss` is `http://pegelhub-keycloak.test:8082/realms/pegelhub`;
-- `aud` contains `pegelhub-core-api`;
-- `azp` is `local-connector-example`;
-- `pegelhub_actor_type` is `CLIENT`;
-- `resource_access.pegelhub-core-api.roles` contains exactly `measurement:write` and `telemetry:write`;
-- `realm_access` is absent.
+- `iss` is `http://pegelhub-keycloak.test:8082/realms/pegelhub`
+- `aud` contains `pegelhub-core-api`
+- `azp` is `local-connector-example`
+- `pegelhub_actor_type` is `CLIENT`
+- `resource_access.pegelhub-core-api.roles` contains exactly
+  `measurement:write` and `telemetry:write`
+- `realm_access` is absent
 
-Service clients do not receive user-profile scopes or the custom user-subject mapper.
+Service clients do not receive user-profile scopes or the custom user-subject
+mapper.
 
 The browser client receives `pegelhub_actor_type: USER` and exactly
 `metadata:read` plus `measurement:read` under
 `resource_access.pegelhub-core-api.roles`. Every caller linked to the Core
 audience scope receives `aud: pegelhub-core-api`, independent of its roles.
 
-## Core Configuration
+## Core configuration
 
 Core receives these environment variables from Docker Compose:
 
@@ -146,12 +171,14 @@ Core receives these environment variables from Docker Compose:
 KEYCLOAK_ISSUER_URI=http://pegelhub-keycloak.test:8082/realms/pegelhub
 ```
 
-Spring Security must not disable issuer or audience validation to make local development easier. If token validation fails, first compare the token `iss` claim with `KEYCLOAK_ISSUER_URI` and verify that the token `aud` claim contains the fixed API audience `pegelhub-core-api`.
+Do not disable issuer or audience validation for local development. If token
+validation fails, compare the token `iss` claim with `KEYCLOAK_ISSUER_URI` and
+verify that `aud` contains the fixed API audience `pegelhub-core-api`.
 
-## First-Slice Revocation Rule
+## Token revocation behavior
 
-Core validates JWTs offline. Disabling a Keycloak client or rotating its secret stops future token issuance, but already issued access tokens remain usable until they expire. The local realm uses a short access-token lifetime to match the first-slice production expectation.
-
-## Legacy Token Schema Cleanup
-
-The app-managed PegelHub API token code path has been removed. Existing local or production databases may still contain the old token table or connector token column until explicit schema migration tooling is introduced. Treat those columns as unused legacy data; do not rely on Hibernate auto-update for destructive cleanup.
+Core validates signed JWTs locally rather than introspecting them with Keycloak
+on every request. Disabling a Keycloak client or rotating its secret stops
+future token issuance, but already issued access tokens remain usable until
+they expire. The imported local realm sets the access-token lifetime to 600
+seconds.

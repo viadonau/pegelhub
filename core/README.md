@@ -7,9 +7,9 @@ bilingual OpenAPI description.
 
 ## Requirements
 
-- Java 21 and Maven 3.8 or newer for host builds
+- Java 21 and Maven 3.9 for host builds, matching the repository's container builds
 - Docker Engine with Docker Compose v2 for the local stack and integration tests
-- `curl` for helper-script health checks
+- Bash and `curl` for the local-stack helper
 
 Commands below run from the repository root unless noted otherwise.
 
@@ -28,7 +28,7 @@ and waits for actuator health. The stack contains `core-app`, PostgreSQL
 `meta-db`, InfluxDB `data-db`, the one-shot `influx-bucket-setup`, Keycloak, and
 Keycloak's PostgreSQL database.
 
-| Service | Host address |
+| Service | Local address |
 | --- | --- |
 | Core API | `http://localhost:8080/api/v1` |
 | Actuator | `http://localhost:8081/actuator` |
@@ -161,17 +161,23 @@ The runtime role values are:
 | Role | Scope |
 | --- | --- |
 | `metadata:read` | Read metadata resources |
-| `metadata:write` | Create, update, or delete metadata resources |
+| `metadata:write` | Write metadata resources on routes that expose write operations |
 | `measurement:read` | Read time-series measurements |
 | `measurement:write` | Submit measurements as an authenticated connector |
 | `telemetry:read` | Read technical telemetry |
 | `telemetry:write` | Submit technical telemetry |
-| `system:admin` | Connector registration, protected management access, and explicit admin fallbacks on API reads/writes |
+| `system:admin` | Connector identity registration, protected actuator access, measurement-read bypass, and explicit metadata or telemetry route fallbacks |
 
 Connector measurement access also uses `pegelhub_actor_type`, the token client
 ID, active Connector metadata, time-series source ownership, and access grants.
 The [connector library guide](../connectors/library/#core-authorization-prerequisites)
 summarizes those prerequisites.
+
+`system:admin` is not a universal authorization bypass. In particular,
+`POST /api/v1/measurements` still requires `measurement:write`, a `CLIENT`
+actor, an active registered Connector, exact source ownership, and a direct
+TimeSeries `WRITE` grant. Telemetry writes permitted by `system:admin` still
+resolve an active Connector from the token client ID.
 
 Swagger UI, OpenAPI documents, the configured actuator health/info surface, and
 `/api/v1/measurements/system-time` are public. API authorization is enforced per

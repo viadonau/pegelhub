@@ -51,16 +51,36 @@ direction: "external-to-core"
 ```
 
 `direction` may be omitted because FTP defaults it to `external-to-core`; no
-other direction is accepted. `parameter` is optional and is used by ZRXP
-parsing. Mapping files are loaded in sorted filename order, although FTP
-requires exactly one.
+other direction is accepted. `stationId` is the integer `location` parsed from
+the source file, not a Core Station UUID. A non-negative value filters to that
+location; a negative value disables location filtering. Optional `parameter`
+matching is case-insensitive for both parsers. Mapping files are loaded in
+sorted filename order, although FTP requires exactly one.
+
+ZRXP timestamps are interpreted as UTC. ASC timestamps have no source offset
+and are interpreted in the connector JVM's default timezone. Set and verify the
+runtime timezone when importing ASC files.
 
 The Keycloak client needs a token for the `pegelhub-core-api` audience and the
 Core role `measurement:write`. Register the same client ID as Connector
-metadata in Core before ingesting measurements. The staging identity policy
-also grants `telemetry:write`; this connector currently submits measurements.
-Core also requires the target time series source binding and `WRITE` grant
+metadata in Core before ingesting measurements. This connector does not submit
+telemetry and does not need `telemetry:write`. Core also requires the target
+time series source binding and `WRITE` grant
 described in the [library authorization prerequisites](../library/#core-authorization-prerequisites).
+
+## Import behavior
+
+Each poll considers regular files with a case-sensitive `.asc` or `.zrxp`
+suffix whose FTP modification time is strictly newer than one polling interval
+before that poll. Processed filenames are kept only in process memory. A file
+whose content or modification time changes under an already processed filename
+is not reconsidered until the connector restarts.
+
+A filename is marked processed after parsing and before the batch is submitted
+to Core. A Core submission failure is therefore not retried for that file by
+the same process. Restarting clears the processed-name set and can replay a
+still-recent file. This connector is not a durable or exactly-once import queue;
+monitor failed submissions and reconcile them operationally.
 
 ## Run the image
 
@@ -71,8 +91,10 @@ docker run --rm \
   pegelhub-ftp-connector:local
 ```
 
-Edit the copied schema before running. Its placeholder authentication and FTP
-values are not usable credentials. Never commit real client or FTP secrets.
+Edit the copied schema before running. Its `.invalid` endpoints and placeholder
+credentials are intentionally unusable. Core, Keycloak, and FTP addresses must
+be resolvable and reachable from inside the connector container. Never commit
+real client or FTP secrets.
 
 Staging runs this connector inside the supported Compose topology. Its
 server-local configuration and manual Keycloak enrollment are documented in

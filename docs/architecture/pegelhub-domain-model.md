@@ -1,20 +1,25 @@
 # PegelHub Domain Model
 
-This document describes the current branch state after the domain migration. It intentionally shows remaining legacy pieces where they still exist, especially connector contact metadata and telemetry.
+This document describes the domain model and HTTP surface implemented in the
+current repository. It shows retained legacy structures where they still
+exist, especially connector contact metadata and telemetry.
 
 ## Logical Model
 
-The relational metadata schema is owned by Flyway and Hibernate validates the resulting shape at startup. The polymorphic AccessGrant target and legacy Connector contact shape remain deliberate exceptions to otherwise explicit metadata relationships.
+Flyway owns the relational metadata schema, and Hibernate validates the
+resulting shape at startup. The polymorphic AccessGrant target and legacy
+Connector contact shape remain deliberate exceptions to otherwise explicit
+metadata relationships.
 
 ```mermaid
 erDiagram
     StationOwner ||--o{ Station : owns
     Station ||--o{ MeasuringPoint : contains
     MeasuringPoint ||--o{ TimeSeries : groups
-    Connector ||--o{ TimeSeries : "optional source"
+    Connector o|--o{ TimeSeries : "optional source"
     Connector ||--o{ AccessGrant : "is subject of"
-    AccessGrant }o--|| Station : "targets when resourceType=STATION"
-    AccessGrant }o--|| TimeSeries : "targets when resourceType=TIME_SERIES"
+    AccessGrant }o--o| Station : "targets when resourceType=STATION"
+    AccessGrant }o--o| TimeSeries : "targets when resourceType=TIME_SERIES"
     Connector ||--o{ Measurement : submits
     TimeSeries ||--o{ Measurement : identifies
 
@@ -32,7 +37,7 @@ erDiagram
 
     Station {
         uuid id PK
-        uuid ownerId "logical StationOwner reference"
+        uuid ownerId FK
         string stationNumber "unique"
         string name
         string waterBody
@@ -59,12 +64,12 @@ erDiagram
         string observedProperty "e.g. water-level"
         string unit "e.g. cm"
         string externalCode "optional connector mapping"
-        uuid sourceConnectorId "optional source Connector"
+        uuid sourceConnectorId "optional Connector FK"
     }
 
     AccessGrant {
         uuid id PK
-        uuid connectorId "logical Connector reference"
+        uuid connectorId FK
         enum resourceType "STATION | TIME_SERIES"
         uuid resourceId "polymorphic resource reference"
         enum permission "READ | WRITE"
@@ -132,7 +137,10 @@ erDiagram
 
 ## Deferred Model Cleanup
 
-The current connector/contact shape is intentionally still legacy-shaped. `Contact` is still a standalone resource and `Connector` still owns four required contact references. The preferred follow-up direction is to replace that with connector-owned, role-based contact points through a separate staged migration.
+The current connector/contact shape is intentionally still legacy-shaped.
+`Contact` remains a standalone resource, and `Connector` owns four required
+contact references. The preferred follow-up direction is to replace that with
+connector-owned, role-based contact points through a separate staged migration.
 
 ```mermaid
 flowchart LR
@@ -159,23 +167,27 @@ flowchart TD
     stationSeries --> read[Can read]
 
     perm -->|READ| read
-    perm -->|WRITE| writeCheck{sourceConnectorId set?}
-    writeCheck -->|no| write[Can write if direct grant exists]
-    writeCheck -->|yes| sameSource{connector is source?}
+    perm -->|WRITE| directWrite{direct TimeSeries grant?}
+    directWrite -->|no| deny[Deny]
+    directWrite -->|yes| sameSource{connector is sourceConnectorId?}
     sameSource -->|yes| write
-    sameSource -->|no| deny[Deny]
+    sameSource -->|no| deny
 ```
 
-Station grants are read-only and cover all TimeSeries below the Station's MeasuringPoints. Direct TimeSeries `WRITE` grants are rejected when the TimeSeries has a different `sourceConnectorId`.
+Station grants are read-only and cover all TimeSeries below the Station's
+MeasuringPoints. A measurement write requires both a direct TimeSeries `WRITE`
+grant and an exact match between the active Connector and the TimeSeries
+`sourceConnectorId`. A missing or different source denies the write.
 
 ## Measurement Write Path
 
 ```mermaid
 sequenceDiagram
     participant C as Connector client
-    participant MC as HttpMeasurementController
-    participant CA as CurrentActor
+    participant MC as MeasurementController
     participant MS as MeasurementServiceImpl
+    participant AP as MeasurementAuthorizationPolicy
+    participant CA as CurrentActor
     participant CR as ConnectorRepository
     participant TS as TimeSeriesService
     participant AA as AccessAuthorizationService
@@ -183,29 +195,35 @@ sequenceDiagram
 
     C->>MC: POST /api/v1/measurements<br/>{ measurements: [{ timeSeriesId, observedAt, value }] }
     MC->>MS: writeMeasurements(WriteMeasurements)
-    MS->>CA: get()
-    CA-->>MS: PegelHubActor(clientId, authorities)
-    MS->>CR: findByKeycloakClientId(clientId)
-    CR-->>MS: Connector or missing
-    MS->>MS: Require Connector status ACTIVE
+    MS->>AP: requireWriteBatch(timeSeriesIds)
+    AP->>CA: get()
+    CA-->>AP: PegelHubActor(clientId, type, authorities)
+    AP->>AP: Require measurement:write and actor type CLIENT
+    AP->>CR: findByKeycloakClientId(clientId)
+    CR-->>AP: Connector or missing
+    AP->>AP: Require Connector status ACTIVE
 
     loop each measurement
-        MS->>TS: get(timeSeriesId)
-        TS-->>MS: TimeSeries or 404
-        MS->>MS: If sourceConnectorId is set, require same Connector
-        MS->>AA: isAllowed(connectorId, timeSeriesRef, WRITE)
-        AA-->>MS: true/false
+        AP->>TS: get(timeSeriesId)
+        TS-->>AP: TimeSeries or 404
+        AP->>AP: Require Connector == sourceConnectorId
+        AP->>AA: isAllowed(connectorId, timeSeriesRef, WRITE)
+        AA-->>AP: true/false
     end
 
+    AP-->>MS: ConnectorId
     MS->>MR: storeMeasurements([{ timeSeriesId, observedAt, receivedAt, value, submittedByConnectorId }])
     MR-->>MS: ok
     MS-->>MC: ok
-    MC-->>C: 200
+    MC-->>C: 204 No Content
 ```
 
 ## Measurement Read Path
 
-Raw reads always use a bounded relative or explicit time window, deterministic ordering, and a limit of at most 10,000 points. When the response sets `truncated`, the requested window contains additional points and callers should narrow that time window. Chart reads use the bucket endpoint instead.
+Raw reads always use a bounded relative or explicit time window, deterministic
+ordering, and a limit of at most 10,000 points. When a response sets
+`truncated`, the requested window contains additional points; callers should
+narrow that time window. Chart reads use the bucket endpoint instead.
 
 ```mermaid
 flowchart TD
@@ -217,9 +235,13 @@ flowchart TD
 
     MS --> TS["TimeSeriesService: validate TimeSeries exists"]
     MS --> Actor["CurrentActor"]
-    Actor --> Admin{SYSTEM_ADMIN?}
+    Actor --> Admin{system:admin?}
     Admin -->|yes| MR
-    Admin -->|no| ConnectorLookup["ConnectorRepository: find by clientId"]
+    Admin -->|no| ReadRole{measurement:read?}
+    ReadRole -->|no| Denied[Deny]
+    ReadRole -->|yes| User{actor type USER?}
+    User -->|yes| MR
+    User -->|no| ConnectorLookup["ConnectorRepository: find by clientId"]
     ConnectorLookup --> Active["Require Connector ACTIVE"]
     Active --> Auth["AccessAuthorizationService: READ"]
     Auth --> MR
@@ -227,43 +249,45 @@ flowchart TD
 
 ## API Surface
 
-The security column names the effective Spring Security rule. Most metadata routes accept `METADATA_READ`, `METADATA_WRITE`, or `SYSTEM_ADMIN` for reads, and `METADATA_WRITE` or `SYSTEM_ADMIN` for writes/deletes.
+The security column names the effective Spring Security rule. Most metadata
+routes accept `metadata:read`, `metadata:write`, or `system:admin` for reads,
+and `metadata:write` or `system:admin` for writes and deletes.
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| POST | `/api/v1/measurements` | `MEASUREMENT_WRITE` | Write measurements |
-| GET | `/api/v1/time-series/{timeSeriesId}/measurements?last={duration}` | `MEASUREMENT_READ` or `SYSTEM_ADMIN` | Raw TimeSeries measurements in a relative window |
-| GET | `/api/v1/time-series/{timeSeriesId}/measurements?from={instant}&to={instant}` | `MEASUREMENT_READ` or `SYSTEM_ADMIN` | Raw TimeSeries measurements in an explicit window |
-| GET | `/api/v1/time-series/{timeSeriesId}/measurements?last={duration}&order=desc&limit=1` | `MEASUREMENT_READ` or `SYSTEM_ADMIN` | Latest value for TimeSeries through the bounded raw query |
-| GET | `/api/v1/time-series/{timeSeriesId}/measurements/buckets?last={duration}` | `MEASUREMENT_READ` or `SYSTEM_ADMIN` | Average buckets for chart-ready TimeSeries reads |
+| POST | `/api/v1/measurements` | `measurement:write` | Write measurements |
+| GET | `/api/v1/time-series/{timeSeriesId}/measurements?last={duration}` | `measurement:read` or `system:admin` | Raw TimeSeries measurements in a relative window |
+| GET | `/api/v1/time-series/{timeSeriesId}/measurements?from={instant}&to={instant}` | `measurement:read` or `system:admin` | Raw TimeSeries measurements in an explicit window |
+| GET | `/api/v1/time-series/{timeSeriesId}/measurements?last={duration}&order=desc&limit=1` | `measurement:read` or `system:admin` | Latest value for TimeSeries through the bounded raw query |
+| GET | `/api/v1/time-series/{timeSeriesId}/measurements/buckets?last={duration}` | `measurement:read` or `system:admin` | Average buckets for chart-ready TimeSeries reads |
 | GET | `/api/v1/measurements/system-time` | public | InfluxDB system time |
-| POST | `/api/v1/admin/connectors` | `SYSTEM_ADMIN` | Register connector identity binding |
-| POST | `/api/v1/connectors` | `METADATA_WRITE` or `SYSTEM_ADMIN` | Create connector metadata |
-| GET | `/api/v1/connectors` | `METADATA_READ`, `METADATA_WRITE`, or `SYSTEM_ADMIN` | List connectors |
-| GET | `/api/v1/connectors/{uuid}` | `METADATA_READ`, `METADATA_WRITE`, or `SYSTEM_ADMIN` | Get connector |
-| DELETE | `/api/v1/connectors/{uuid}` | `METADATA_WRITE` or `SYSTEM_ADMIN` | Delete connector |
-| POST | `/api/v1/contact` | `METADATA_WRITE` or `SYSTEM_ADMIN` | Create legacy contact |
-| GET | `/api/v1/contact` | `METADATA_READ`, `METADATA_WRITE`, or `SYSTEM_ADMIN` | List legacy contacts |
-| GET | `/api/v1/contact/{uuid}` | `METADATA_READ`, `METADATA_WRITE`, or `SYSTEM_ADMIN` | Get legacy contact |
-| DELETE | `/api/v1/contact/{uuid}` | `METADATA_WRITE` or `SYSTEM_ADMIN` | Delete legacy contact |
-| POST | `/api/v1/station-owners` | `METADATA_WRITE` or `SYSTEM_ADMIN` | Create station owner |
-| GET | `/api/v1/station-owners` | `METADATA_READ`, `METADATA_WRITE`, or `SYSTEM_ADMIN` | List station owners |
-| GET | `/api/v1/station-owners/{id}` | `METADATA_READ`, `METADATA_WRITE`, or `SYSTEM_ADMIN` | Get station owner |
-| POST | `/api/v1/stations` | `METADATA_WRITE` or `SYSTEM_ADMIN` | Create station |
-| GET | `/api/v1/stations` | `METADATA_READ`, `METADATA_WRITE`, or `SYSTEM_ADMIN` | List stations |
-| GET | `/api/v1/stations/{id}` | `METADATA_READ`, `METADATA_WRITE`, or `SYSTEM_ADMIN` | Get station |
-| POST | `/api/v1/measuring-points` | `METADATA_WRITE` or `SYSTEM_ADMIN` | Create measuring point |
-| GET | `/api/v1/measuring-points` | `METADATA_READ`, `METADATA_WRITE`, or `SYSTEM_ADMIN` | List measuring points, optionally filtered by `stationId` |
-| GET | `/api/v1/measuring-points/{id}` | `METADATA_READ`, `METADATA_WRITE`, or `SYSTEM_ADMIN` | Get measuring point |
-| POST | `/api/v1/time-series` | `METADATA_WRITE` or `SYSTEM_ADMIN` | Create time series |
-| GET | `/api/v1/time-series` | `METADATA_READ`, `METADATA_WRITE`, or `SYSTEM_ADMIN` | List time series, optionally filtered by `measuringPointId` or `stationId` |
-| GET | `/api/v1/time-series/{id}` | `METADATA_READ`, `METADATA_WRITE`, or `SYSTEM_ADMIN` | Get time series |
-| POST | `/api/v1/access-grants` | `METADATA_WRITE` or `SYSTEM_ADMIN` | Create access grant |
-| GET | `/api/v1/access-grants` | `METADATA_READ`, `METADATA_WRITE`, or `SYSTEM_ADMIN` | List access grants, optionally filtered by `connectorId` |
-| GET | `/api/v1/access-grants/{id}` | `METADATA_READ`, `METADATA_WRITE`, or `SYSTEM_ADMIN` | Get access grant |
-| POST | `/api/v1/telemetry` | `TELEMETRY_WRITE` or `SYSTEM_ADMIN` | Write technical telemetry |
-| GET | `/api/v1/telemetry/{range}` | `TELEMETRY_READ` or `SYSTEM_ADMIN` | Query telemetry by range |
-| GET | `/api/v1/telemetry/last/{uuid}` | `TELEMETRY_READ` or `SYSTEM_ADMIN` | Query latest telemetry for id |
+| POST | `/api/v1/admin/connectors` | `system:admin` | Register connector identity binding |
+| POST | `/api/v1/connectors` | `metadata:write` or `system:admin` | Create connector metadata |
+| GET | `/api/v1/connectors` | `metadata:read`, `metadata:write`, or `system:admin` | List connectors |
+| GET | `/api/v1/connectors/{uuid}` | `metadata:read`, `metadata:write`, or `system:admin` | Get connector |
+| DELETE | `/api/v1/connectors/{uuid}` | `metadata:write` or `system:admin` | Delete connector |
+| POST | `/api/v1/contact` | `metadata:write` or `system:admin` | Create legacy contact |
+| GET | `/api/v1/contact` | `metadata:read`, `metadata:write`, or `system:admin` | List legacy contacts |
+| GET | `/api/v1/contact/{uuid}` | `metadata:read`, `metadata:write`, or `system:admin` | Get legacy contact |
+| DELETE | `/api/v1/contact/{uuid}` | `metadata:write` or `system:admin` | Delete legacy contact |
+| POST | `/api/v1/station-owners` | `metadata:write` or `system:admin` | Create station owner |
+| GET | `/api/v1/station-owners` | `metadata:read`, `metadata:write`, or `system:admin` | List station owners |
+| GET | `/api/v1/station-owners/{id}` | `metadata:read`, `metadata:write`, or `system:admin` | Get station owner |
+| POST | `/api/v1/stations` | `metadata:write` or `system:admin` | Create station |
+| GET | `/api/v1/stations` | `metadata:read`, `metadata:write`, or `system:admin` | List stations |
+| GET | `/api/v1/stations/{id}` | `metadata:read`, `metadata:write`, or `system:admin` | Get station |
+| POST | `/api/v1/measuring-points` | `metadata:write` or `system:admin` | Create measuring point |
+| GET | `/api/v1/measuring-points` | `metadata:read`, `metadata:write`, or `system:admin` | List measuring points, optionally filtered by `stationId` |
+| GET | `/api/v1/measuring-points/{id}` | `metadata:read`, `metadata:write`, or `system:admin` | Get measuring point |
+| POST | `/api/v1/time-series` | `metadata:write` or `system:admin` | Create time series |
+| GET | `/api/v1/time-series` | `metadata:read`, `metadata:write`, or `system:admin` | List time series, optionally filtered by `measuringPointId` or `stationId` |
+| GET | `/api/v1/time-series/{id}` | `metadata:read`, `metadata:write`, or `system:admin` | Get time series |
+| POST | `/api/v1/access-grants` | `metadata:write` or `system:admin` | Create access grant |
+| GET | `/api/v1/access-grants` | `metadata:read`, `metadata:write`, or `system:admin` | List access grants, optionally filtered by `connectorId` |
+| GET | `/api/v1/access-grants/{id}` | `metadata:read`, `metadata:write`, or `system:admin` | Get access grant |
+| POST | `/api/v1/telemetry` | `telemetry:write` or `system:admin` | Write technical telemetry |
+| GET | `/api/v1/telemetry/{range}` | `telemetry:read` or `system:admin` | Query telemetry by range |
+| GET | `/api/v1/telemetry/last/{uuid}` | `telemetry:read` or `system:admin` | Query latest telemetry for id |
 
 ## Package Structure
 
@@ -280,10 +304,10 @@ core/src/main/java/at/pegelhub/
 ├── telemetry/          Technical telemetry, still domain-as-API
 ├── security/           Keycloak resource server, authority mapping, current actor
 └── shared/
-    ├── influx/         InfluxDB configuration, query helpers, point helpers
+    ├── influx/         Shared InfluxDB client, bucket configuration, and operations
     ├── persistence/    Legacy Contact entity/domain converters
     ├── validation/     Validation and normalization helpers
-    └── web/            Legacy Contact DTO/domain converters
+    └── web/            Shared web configuration, OpenAPI localization, and legacy Contact converters
 ```
 
 ## Known Follow-Up Areas

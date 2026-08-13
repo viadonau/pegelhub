@@ -11,7 +11,8 @@ client, or place runtime secrets in GitHub. Those operations belong to the
 
 ## Prerequisites
 
-- Ansible on the control machine
+- `ansible-core` 2.15 or newer on the control machine; the playbook uses
+  `ansible.builtin.deb822_repository`, introduced in 2.15
 - SSH access to a Debian or Ubuntu host
 - an SSH user that can become root with `sudo`
 - `openssl` on the target host for server-local secret generation
@@ -19,8 +20,12 @@ client, or place runtime secrets in GitHub. Those operations belong to the
 For example:
 
 ```bash
-python3 -m pip install --user ansible
+python3 -m pip install --user 'ansible-core>=2.15'
+ansible --version
 ```
+
+The playbook installs `python3-debian` on the target before it configures the
+Docker deb822 repository.
 
 ## Configure
 
@@ -74,7 +79,8 @@ checkout, unless a step explicitly refers to GitHub.
 4. Enroll the FTP connector identity and create the ignored
    `deploy/staging/ftp-config/connector.yaml` and `mappings/*.yaml` as described
    in the [staging guide](../staging/#ftp-connector-configuration).
-5. Validate the host configuration with an image tag that exists in GHCR:
+5. Validate the host configuration with the intended image tag. This check does
+   not verify that the tag exists in GHCR:
 
 ```bash
 deploy/staging/scripts/deploy.sh --check sha-<short-sha>

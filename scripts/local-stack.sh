@@ -141,26 +141,21 @@ health() {
 
 api_get() {
   local path="${1:-}"
-  [[ -n "$path" ]] || fail "api-get requires a path, for example /api/v1/connector"
+  [[ -n "$path" ]] || fail "api-get requires a path, for example /api/v1/measurements/system-time"
   [[ "$path" == /* ]] || path="/$path"
   curl -fsS "$CORE_BASE_URL$path"
   printf '\n'
 }
 
 smoke() {
-  local connector_payload=""
-
   if [[ "${1:-}" == "--raw" ]]; then
     printf 'Actuator health:\n'
     health
 
     printf '\nCore system time:\n'
-    curl -fsS "$CORE_BASE_URL/api/v1/measurement/systemTime"
+    curl -fsS "$CORE_BASE_URL/api/v1/measurements/system-time"
     printf '\n'
 
-    printf '\nConnector list:\n'
-    curl -fsS "$CORE_BASE_URL/api/v1/connector"
-    printf '\n'
     return
   fi
 
@@ -172,20 +167,12 @@ smoke() {
   fi
 
   printf 'systemTime: '
-  if curl -fs -o /dev/null "$CORE_BASE_URL/api/v1/measurement/systemTime"; then
+  if curl -fs -o /dev/null "$CORE_BASE_URL/api/v1/measurements/system-time"; then
     printf 'reachable\n'
   else
     printf 'unreachable\n'
   fi
 
-  connector_payload="$(mktemp)"
-  trap "rm -f -- '$connector_payload'" RETURN
-  printf 'connector endpoint: '
-  if curl -fs -o "$connector_payload" "$CORE_BASE_URL/api/v1/connector"; then
-    printf 'reachable (%s bytes)\n' "$(wc -c < "$connector_payload" | tr -d ' ')"
-  else
-    printf 'unreachable\n'
-  fi
 }
 
 status() {

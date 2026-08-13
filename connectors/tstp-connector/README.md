@@ -35,7 +35,8 @@ chmod 600 "$CONFIG_ROOT/tstp-connector/connector.yaml"
 
 `connector.yaml` defines the Core URL and client-credentials authentication, a
 positive polling interval ending in `s`, `m`, or `h`, and the TSTP server host
-and port. `mappings.directory` defaults to `mappings`.
+and port. The implementation constructs a plain HTTP endpoint; it does not
+support an HTTPS scheme setting. `mappings.directory` defaults to `mappings`.
 
 Example mapping:
 
@@ -53,6 +54,10 @@ duplicates, duplicate outbound station targets, duplicate inbound Core targets,
 and directed feedback cycles. A failed mapping does not prevent the remaining
 mappings in that polling cycle from running.
 
+For every station, the connector queries the TSTP catalog with
+`Parameter=Wasserstand` and `Hauptreihe=true`, then uses the first returned
+ZRID. Catalog responses are cached in memory for 24 hours.
+
 Configure the Keycloak client for the `pegelhub-core-api` audience and only the
 direction-appropriate lowercase Core roles, such as `measurement:read` and
 `measurement:write`.
@@ -61,11 +66,18 @@ The client also needs the registration and resource grants described in the
 
 ## Synchronization behavior
 
-Successful mapping runs advance a per-mapping synchronization boundary. Core
-lookbacks overlap the boundary by one second and filter back to the new logical
-window, avoiding gaps while preventing the boundary value from being sent
-twice. Polling uses fixed delay, so the next cycle begins after the prior cycle
-has completed and the configured interval has elapsed.
+Successful mapping runs advance a per-mapping synchronization boundary. After
+the initial inclusive window, each logical window is
+`(previous boundary, current cycle boundary]`. Core lookbacks request one extra
+second and are filtered back to that logical window. Polling uses fixed delay,
+so the next cycle begins after the prior cycle has completed and the configured
+interval has elapsed.
+
+The catalog cache and synchronization boundaries exist only in process memory.
+After restart, each mapping starts again with a window equal to one polling
+interval, which can replay values that were already transferred. Failed
+mappings keep their previous boundary for the next cycle. There is no durable
+checkpoint or exactly-once guarantee.
 
 ## Run the image
 
@@ -77,4 +89,5 @@ docker run --rm \
 ```
 
 Replace the checked-in illustrative endpoints and credentials in an ignored
-copy before connecting to real systems.
+copy before connecting to real systems. Core, Keycloak, and TSTP addresses must
+be reachable from inside the connector container.
