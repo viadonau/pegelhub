@@ -1,9 +1,10 @@
 # Staging deployment
 
 This directory defines PegelHub's currently supported remote environment: a
-single-host Docker Compose staging stack. The backend repository publishes Core
-and connector images; the frontend repository publishes its own image. Both
-release paths invoke versioned scripts from this directory on the staging host.
+single-host Docker Compose staging stack. The repository publishes Core,
+connector, and frontend images; the frontend remains an independently released
+deployable. Each release path invokes a versioned script from this directory on
+the staging host.
 
 This is staging documentation. The repository does not define a production
 environment or a production deployment workflow.
@@ -310,12 +311,12 @@ frontend deployment adds public frontend and frontend API-proxy checks.
 
 ## GitHub workflows
 
-The backend [`Images`](../../.github/workflows/images.yml) workflow publishes
-Core and all five connector images. Pushes to backend `main`, `v*` tags, and
-eligible manual runs deploy the matching tag to the GitHub `staging`
-Environment. The separate
-[`Deploy Frontend`](../../.github/workflows/deploy-frontend.yml) workflow accepts
-the frontend repository's digest-pinned release request.
+The [`Images`](../../.github/workflows/images.yml) workflow publishes Core and
+all five connector images when backend paths change, and deploys matching tags
+to the GitHub `staging` Environment. The
+[`Frontend Delivery`](../../.github/workflows/frontend-delivery.yml) workflow
+publishes the frontend image when `frontend/` changes, then invokes the same
+staging deployment action with its digest.
 
 Both paths use the same staging SSH configuration, GitHub Environment, workflow
 concurrency group, server checkout, and host lock. Required GitHub values are

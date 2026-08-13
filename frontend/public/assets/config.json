@@ -1,0 +1,8 @@
+{
+  "apiBaseUrl": "/api/v1",
+  "keycloak": {
+    "url": "http://pegelhub-keycloak.test:8082",
+    "realm": "pegelhub",
+    "clientId": "pegelhub-frontend"
+  }
+}

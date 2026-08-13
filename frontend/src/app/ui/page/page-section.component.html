@@ -1,0 +1,5 @@
+<section class="ph-page-section" [attr.aria-label]="ariaLabel()" [attr.aria-busy]="loading()">
+  <ph-content-state [loading]="loading()" [error]="error()">
+    <ng-content />
+  </ph-content-state>
+</section>

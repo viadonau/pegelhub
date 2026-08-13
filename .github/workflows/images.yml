@@ -13,6 +13,22 @@ on:
       - main
     tags:
       - 'v*'
+    paths:
+      - 'core/**'
+      - 'connectors/**'
+      - '.dockerignore'
+      - 'pom.xml'
+      - '**/pom.xml'
+      - 'deploy/**/*.yaml'
+      - 'deploy/**/*.yml'
+      - 'deploy/**/*.sh'
+      - 'scripts/build-connector-image.sh'
+      - '.github/actions/docker-image/**'
+      - '.github/actions/staging-deploy/**'
+      - '.github/workflows/images.yml'
+      - '!core/README.md'
+      - '!core/docs/**'
+      - '!connectors/**/*.md'
 
 permissions:
   contents: read

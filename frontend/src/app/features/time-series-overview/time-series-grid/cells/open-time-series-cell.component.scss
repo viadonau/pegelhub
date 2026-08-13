@@ -1,0 +1,41 @@
+:host {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  align-items: center;
+  justify-content: center;
+}
+
+.ph-open-time-series-cell {
+  display: inline-flex;
+  width: 2.75rem;
+  height: 2.75rem;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: var(--p-border-radius-md);
+  background: transparent;
+  color: var(--ph-text-subtle);
+  cursor: pointer;
+  transition:
+    background-color 150ms ease-out,
+    color 150ms ease-out;
+}
+
+.ph-open-time-series-cell:hover {
+  background: var(--ph-primary-soft);
+  color: var(--p-primary-color);
+}
+
+.ph-open-time-series-cell:focus-visible {
+  outline: 2px solid var(--p-primary-color);
+  outline-offset: -2px;
+}
+
+.ph-open-time-series-cell:active {
+  background: var(--ph-surface-hover);
+}
+
+.ph-open-time-series-cell .pi {
+  font-size: 0.75rem;
+}

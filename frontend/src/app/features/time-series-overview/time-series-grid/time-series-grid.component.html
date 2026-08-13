@@ -1,0 +1,8 @@
+<ph-data-grid
+  ariaLabel="Messreihen und aktuelle Messwerte"
+  [rows]="rows()"
+  [columnDefs]="columnDefs"
+  [emptyMessage]="emptyMessage()"
+  [visibleFrom]="visibleFrom"
+  (visibleCountChange)="visibleCountChange.emit($event)"
+/>

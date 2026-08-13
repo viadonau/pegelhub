@@ -194,7 +194,7 @@
       ansible.builtin.debug:
         msg:
           - "Staging host bootstrap complete."
-          - "Review {{ pegelhub_staging_repo_dir }}/deploy/staging/.env and fill hostnames and the backend image tag."
+          - "Review {{ pegelhub_staging_repo_dir }}/deploy/staging/.env and fill hostnames and the Core image tag."
           - "Missing keys from .env.example are appended without overwriting existing values."
           - "Server-local database and Keycloak secrets are initialized automatically when placeholders are present."
           - "After manually enrolling the staging FTP client, create connector.yaml and mappings/*.yaml under {{ pegelhub_staging_repo_dir }}/deploy/staging/ftp-config."

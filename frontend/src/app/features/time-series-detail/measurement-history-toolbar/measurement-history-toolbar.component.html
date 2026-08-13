@@ -1,0 +1,37 @@
+<div class="ph-history-actions">
+  @if (referenceLevelsAvailable()) {
+    <label class="ph-history-reference-levels" for="ph-reference-levels-toggle">
+      <span>RNW / HSW</span>
+      <p-toggleswitch
+        inputId="ph-reference-levels-toggle"
+        ariaLabel="RNW- und HSW-Referenzlinien anzeigen"
+        [ngModel]="referenceLevelsVisible()"
+        (ngModelChange)="setReferenceLevelsVisible($event)"
+      />
+    </label>
+  }
+
+  <p-select
+    class="ph-history-range-select"
+    inputId="ph-history-range-select"
+    size="small"
+    ariaLabel="Zeitraum auswählen"
+    [options]="ranges"
+    optionLabel="label"
+    optionValue="value"
+    [ngModel]="selectedRange()"
+    [disabled]="loading()"
+    (ngModelChange)="selectRange($event)"
+  />
+
+  <button
+    type="button"
+    aria-label="Messdaten aktualisieren"
+    title="Messdaten aktualisieren"
+    [disabled]="loading()"
+    [class.is-loading]="loading()"
+    (click)="reload()"
+  >
+    <i class="pi pi-refresh" aria-hidden="true"></i>
+  </button>
+</div>

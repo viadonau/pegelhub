@@ -1,0 +1,32 @@
+<section class="ph-data-grid-shell" [attr.aria-label]="ariaLabel()">
+  <ag-grid-angular
+    class="ph-data-grid"
+    [style.height]="gridHeight()"
+    [modules]="modules"
+    [theme]="theme"
+    [localeText]="localeText"
+    [rowData]="gridRows()"
+    [columnDefs]="gridColumnDefs()"
+    [defaultColDef]="defaultColDef"
+    [getRowId]="getRowId"
+    [rowHeight]="rowHeight"
+    [animateRows]="false"
+    [enableCellTextSelection]="true"
+    [ensureDomOrder]="true"
+    [suppressOverlays]="suppressedOverlays"
+    (modelUpdated)="onModelUpdated($event)"
+    (gridSizeChanged)="onGridSizeChanged($event)"
+  />
+
+  @if (isEmpty()) {
+    <div class="ph-data-grid-empty" role="status">
+      <i
+        class="pi"
+        [class.pi-filter]="isFilteredEmpty()"
+        [class.pi-inbox]="!isFilteredEmpty()"
+        aria-hidden="true"
+      ></i>
+      <span>{{ emptyMessage() }}</span>
+    </div>
+  }
+</section>

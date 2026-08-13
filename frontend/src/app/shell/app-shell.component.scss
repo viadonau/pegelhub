@@ -1,0 +1,229 @@
+:host {
+  --ph-content-max-width: 1180px;
+}
+
+.ph-app-shell {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  min-height: 100dvh;
+  background: var(--ph-page-background);
+}
+
+.ph-skip-link {
+  position: absolute;
+  top: 0.5rem;
+  left: 0.5rem;
+  z-index: 1000;
+  padding: 0.625rem 1rem;
+  border-radius: var(--p-border-radius-md);
+  background: var(--p-primary-color);
+  color: var(--p-primary-contrast-color);
+  font-size: 0.875rem;
+  font-weight: 600;
+  text-decoration: none;
+  transform: translateY(-150%);
+  transition: transform 150ms ease-out;
+}
+
+.ph-skip-link:focus-visible {
+  transform: translateY(0);
+  outline: 2px solid var(--p-primary-contrast-color);
+  outline-offset: 2px;
+}
+
+:host ::ng-deep .p-toolbar {
+  border: 0;
+  border-bottom: 1px solid var(--ph-border);
+  border-radius: 0;
+  background: var(--ph-surface);
+}
+
+.ph-shell-main {
+  width: min(100%, var(--ph-content-max-width));
+  margin-inline: auto;
+  padding: 2rem;
+}
+
+.ph-shell-main:focus {
+  outline: none;
+}
+
+.ph-brand-lockup,
+.ph-brand {
+  display: inline-flex;
+  align-items: center;
+}
+
+.ph-brand-lockup {
+  gap: 0.875rem;
+  min-width: 0;
+}
+
+.ph-brand {
+  gap: 0.75rem;
+  text-decoration: none;
+  color: inherit;
+  border-radius: var(--p-border-radius-md);
+}
+
+.ph-brand:focus-visible {
+  outline: 2px solid var(--p-primary-color);
+  outline-offset: 4px;
+}
+
+.ph-brand-logo {
+  display: block;
+  height: 2.625rem;
+  width: auto;
+  filter: var(--ph-logo-filter);
+  user-select: none;
+}
+
+.ph-brand-partners {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.875rem;
+  min-height: 2.625rem;
+  padding-inline-start: 0.875rem;
+  border-left: 1px solid var(--ph-border);
+}
+
+.ph-partner-logo {
+  display: block;
+  width: auto;
+  height: 1.25rem;
+  object-fit: contain;
+  user-select: none;
+}
+
+.ph-partner-logo.is-dhk {
+  box-sizing: content-box;
+  padding: 0.125rem 0.25rem;
+  border-radius: var(--p-border-radius-sm);
+  background: #fff;
+}
+
+.ph-shell-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.ph-theme-toggle {
+  display: inline-flex;
+}
+
+:host ::ng-deep .ph-theme-toggle .p-button {
+  width: 2.5rem;
+  height: 2.5rem;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--p-border-radius-md);
+  color: var(--ph-text-muted);
+}
+
+:host ::ng-deep .ph-theme-toggle .p-button:hover {
+  border-color: var(--ph-border);
+  background: var(--ph-surface-muted);
+  color: var(--ph-text);
+}
+
+.ph-account {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  min-width: 0;
+  height: 2.5rem;
+  padding: 0.25rem;
+  border: 1px solid var(--ph-border);
+  border-radius: var(--p-border-radius-md);
+  background: var(--ph-surface-subtle);
+  color: var(--ph-text-secondary);
+}
+
+.ph-account-avatar {
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 1.875rem;
+  height: 1.875rem;
+  border-radius: 50%;
+  background: var(--ph-primary-soft);
+  color: var(--ph-primary-soft-text);
+  font-size: 0.75rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.ph-account-name {
+  max-width: 16rem;
+  overflow: hidden;
+  padding-inline: 0.25rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ph-account-divider {
+  width: 1px;
+  height: 1.5rem;
+  margin-inline: 0.125rem;
+  background: var(--ph-border);
+}
+
+.ph-account-sign-out {
+  display: inline-flex;
+}
+
+:host ::ng-deep .ph-account-sign-out .p-button {
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  border-radius: var(--p-border-radius-sm);
+  color: var(--ph-text-muted);
+}
+
+:host ::ng-deep .ph-account-sign-out .p-button:hover {
+  background: var(--ph-border);
+  color: var(--ph-text);
+}
+
+@media (width < 56rem) {
+  .ph-brand-lockup {
+    gap: 0.625rem;
+  }
+
+  .ph-brand-partners {
+    gap: 0.5rem;
+    min-height: 2rem;
+    padding-inline-start: 0.625rem;
+  }
+
+  .ph-partner-logo {
+    height: 0.8125rem;
+  }
+}
+
+@media (width < 40rem) {
+  .ph-shell-main {
+    padding: 1.25rem;
+  }
+
+  .ph-brand-logo {
+    height: 2rem;
+  }
+
+  .ph-account-avatar,
+  .ph-account-name,
+  .ph-account-divider {
+    display: none;
+  }
+}
+
+@media (width < 22.25rem) {
+  .ph-brand-partners {
+    display: none;
+  }
+}

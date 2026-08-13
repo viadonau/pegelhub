@@ -87,7 +87,7 @@ grep -F 'keycloak-bootstrap.lock' "$DEPLOY_SCRIPT" >/dev/null \
   || fail "Frontend deploys must share the staging operation lock."
 for workflow in \
   "$REPO_DIR/.github/workflows/images.yml" \
-  "$REPO_DIR/.github/workflows/deploy-frontend.yml"; do
+  "$REPO_DIR/.github/workflows/frontend-delivery.yml"; do
   grep -F 'uses: ./.github/actions/staging-deploy' "$workflow" >/dev/null \
     || fail "Staging workflows must share the remote deployment action."
 done

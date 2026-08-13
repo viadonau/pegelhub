@@ -1,0 +1,66 @@
+<ph-page>
+  <a class="ph-time-series-back-link" routerLink="/overview">
+    <i class="pi pi-arrow-left" aria-hidden="true"></i>
+    <span>Messreihen</span>
+  </a>
+
+  <ph-content-state [loading]="timeSeriesResource.isLoading()" [error]="timeSeriesError()">
+    @if (timeSeries()) {
+      <ph-content-state [loading]="measuringPointResource.isLoading()" [error]="pointError()">
+        @if (measuringPoint(); as point) {
+          <div class="ph-time-series-detail">
+            <header class="ph-time-series-heading">
+              <div class="ph-time-series-heading-copy">
+                <p class="ph-time-series-heading-kicker">Messreihe</p>
+                <h1>{{ point.name }}</h1>
+                @if (headingContext()) {
+                  <p class="ph-time-series-heading-context">{{ headingContext() }}</p>
+                }
+              </div>
+
+              <div
+                class="ph-time-series-current-reading"
+                [attr.aria-busy]="measurements.latestLoading()"
+              >
+                @if (measurements.latestReading(); as reading) {
+                  <ph-current-reading
+                    label="Letzter Messwert"
+                    [value]="reading.value"
+                    [unit]="reading.unit"
+                    [timestamp]="reading.timestamp"
+                    [relativeTimestamp]="reading.relativeTimestamp"
+                  />
+                } @else if (measurements.latestLoading()) {
+                  <p class="ph-time-series-current-status" role="status">Messwert wird geladen.</p>
+                } @else if (measurements.latestError()) {
+                  <p class="ph-time-series-current-status is-error">
+                    Letzter Messwert nicht verfügbar.
+                  </p>
+                } @else {
+                  <p class="ph-time-series-current-status">
+                    Kein Messwert in den letzten 365 Tagen.
+                  </p>
+                }
+              </div>
+            </header>
+
+            @if (stationError(); as error) {
+              <ph-message severity="warn" [text]="error" />
+            }
+
+            @if (ownerError(); as error) {
+              <ph-message severity="warn" [text]="error" />
+            }
+
+            <ph-time-series-metadata
+              [measuringPointFacts]="pointFacts()"
+              [timeSeriesFacts]="seriesFacts()"
+            />
+
+            <ph-time-series-measurements [referenceLines]="referenceLines()" />
+          </div>
+        }
+      </ph-content-state>
+    }
+  </ph-content-state>
+</ph-page>

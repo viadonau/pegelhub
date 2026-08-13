@@ -1,0 +1,70 @@
+<div class="ph-app-shell">
+  <a class="ph-skip-link" href="#ph-main-content">Zum Hauptinhalt springen</a>
+  <p-toolbar>
+    <ng-template #start>
+      <div class="ph-brand-lockup">
+        <a class="ph-brand" routerLink="/" aria-label="PegelHub Startseite">
+          <img src="brand/pegelhub-logo.png" alt="" class="ph-brand-logo" width="64" height="48" />
+        </a>
+
+        <div class="ph-brand-partners">
+          <img
+            src="brand/viadonau-logo.svg"
+            alt="viadonau"
+            class="ph-partner-logo"
+            width="200"
+            height="40"
+          />
+          <img
+            src="brand/dhk-logo.jpg"
+            alt="DHK – Donau Hochwasserschutz Konkurrenz"
+            class="ph-partner-logo is-dhk"
+            width="470"
+            height="95"
+          />
+        </div>
+      </div>
+    </ng-template>
+
+    <ng-template #end>
+      <div class="ph-shell-actions">
+        <span class="ph-theme-toggle">
+          <p-button
+            [text]="true"
+            severity="secondary"
+            [icon]="theme.toggleIcon()"
+            [ariaLabel]="theme.toggleLabel()"
+            [pTooltip]="theme.toggleLabel()"
+            tooltipPosition="bottom"
+            (onClick)="theme.toggle()"
+          />
+        </span>
+
+        <div
+          class="ph-account"
+          role="group"
+          [attr.aria-label]="'Angemeldet als ' + auth.userName()"
+        >
+          <span class="ph-account-avatar" aria-hidden="true">{{ userInitials() }}</span>
+          <span class="ph-account-name" [title]="auth.userName()">{{ auth.userName() }}</span>
+          <span class="ph-account-divider" aria-hidden="true"></span>
+          <span class="ph-account-sign-out">
+            <p-button
+              [text]="true"
+              icon="pi pi-sign-out"
+              severity="secondary"
+              ariaLabel="Abmelden"
+              pTooltip="Abmelden"
+              tooltipPosition="bottom"
+              (onClick)="logout()"
+            />
+          </span>
+        </div>
+      </div>
+    </ng-template>
+  </p-toolbar>
+
+  <main id="ph-main-content" class="ph-shell-main" tabindex="-1">
+    <router-outlet />
+  </main>
+</div>

@@ -1,0 +1,33 @@
+@if (measuringPointFacts().length > 0 || timeSeriesFacts().length > 0) {
+  <section class="ph-time-series-metadata" aria-label="Metadaten der Messreihe und des Messpunkts">
+    @if (measuringPointFacts().length > 0) {
+      <div class="ph-time-series-metadata-group">
+        <h2>Messpunkt</h2>
+
+        <dl>
+          @for (fact of measuringPointFacts(); track fact.label) {
+            <div>
+              <dt>{{ fact.label }}</dt>
+              <dd>{{ fact.value }}</dd>
+            </div>
+          }
+        </dl>
+      </div>
+    }
+
+    @if (timeSeriesFacts().length > 0) {
+      <div class="ph-time-series-metadata-group is-series">
+        <h2>Messreihe</h2>
+
+        <dl>
+          @for (fact of timeSeriesFacts(); track fact.label) {
+            <div>
+              <dt>{{ fact.label }}</dt>
+              <dd [title]="fact.value">{{ fact.value }}</dd>
+            </div>
+          }
+        </dl>
+      </div>
+    }
+  </section>
+}
