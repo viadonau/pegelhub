@@ -9,10 +9,10 @@ inputs:
     description: Image tag or immutable image reference passed to the deploy script.
     required: true
   deploy_ref:
-    description: Backend repository branch or tag to deploy.
+    description: Repository branch or tag to deploy.
     required: true
   repo_dir:
-    description: Backend repository path on the staging host.
+    description: Repository path on the staging host.
     required: true
   host:
     description: Staging SSH host.

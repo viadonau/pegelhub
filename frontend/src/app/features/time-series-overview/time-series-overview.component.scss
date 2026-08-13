@@ -1,0 +1,16 @@
+:host {
+  display: block;
+  min-width: 0;
+}
+
+ph-message + ph-time-series-grid {
+  margin-block-start: 1rem;
+}
+
+.ph-overview-result-summary {
+  margin: 0;
+  color: var(--ph-text-muted);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  line-height: 1.35;
+}

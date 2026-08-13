@@ -1,0 +1,29 @@
+<div class="ph-measurement-chart-toolbar">
+  <div class="ph-measurement-chart-heading">
+    <h2 class="ph-measurement-chart-title">{{ title() }}</h2>
+    <p>{{ pointCountLabel() }}</p>
+  </div>
+
+  <ng-content select="[ph-measurement-chart-actions]" />
+</div>
+
+<div class="ph-measurement-chart-body">
+  <ph-line-chart
+    [height]="height()"
+    [series]="series()"
+    [referenceLines]="referenceLines()"
+    [yLabel]="yLabel()"
+    [unit]="unit()"
+    [emptyMessage]="emptyMessage()"
+    [ariaLabel]="ariaLabel()"
+  />
+
+  @if (loading()) {
+    <div class="ph-measurement-chart-updating" role="status" aria-live="polite">
+      <span class="ph-measurement-chart-updating-indicator">
+        <span class="ph-measurement-chart-updating-spinner" aria-hidden="true"></span>
+        <span>{{ updateLabel }}</span>
+      </span>
+    </div>
+  }
+</div>

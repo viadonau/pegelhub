@@ -2,15 +2,15 @@
   <img src="core/docker/keycloak/themes/pegelhub/login/resources/img/pegelhub-logo.png" alt="PegelHub" width="300">
 </p>
 
-# PegelHub Backend
+# PegelHub
 
 [![CI](https://github.com/viadonau/pegelhub/actions/workflows/ci.yml/badge.svg)](https://github.com/viadonau/pegelhub/actions/workflows/ci.yml)
 
-PegelHub is a backend for hydrological station metadata and time-series
+PegelHub is an application for hydrological station metadata and time-series
 measurements. This repository contains the Core HTTP API, protocol-specific
-connectors, local infrastructure, and the repository-owned staging deployment.
-The companion web application lives in the
-[PegelHub frontend repository](https://github.com/viadonau/pegelhub-fe).
+connectors, Angular monitoring frontend, local infrastructure, and the
+repository-owned staging deployment. Core and the frontend remain separate
+deployables with independent toolchains and container images.
 
 > **Deployment scope:** the repository defines local development and a
 > single-host staging topology. It does not currently define a production
@@ -21,6 +21,7 @@ The companion web application lives in the
 ### Prerequisites
 
 - Java 21 and Maven 3.9 for host-side builds
+- Node.js 24 and npm 11.12.1 for frontend development
 - Docker with Docker Compose v2
 - Bash and `curl` for the local-stack helper
 
@@ -38,6 +39,16 @@ any shared or remotely reachable environment.
 Host-side browser and token flows use the same issuer hostname that Core
 validates. Add `127.0.0.1 pegelhub-keycloak.test` to the local hosts file; do
 not substitute `localhost` in the issuer URL.
+
+With Core running, start the frontend in a second terminal:
+
+```bash
+npm --prefix frontend ci
+npm --prefix frontend start
+```
+
+Open <http://localhost:4200/overview> and sign in with the local browser user
+from the [Keycloak guide](core/docs/keycloak-local-dev.md#local-realm-contents).
 
 The helper builds Core and starts PostgreSQL, InfluxDB, Keycloak, and Core. The
 default local addresses are:
@@ -89,6 +100,7 @@ by browser and service clients.
 | [`connectors/iec-connector/`](connectors/iec-connector/) | Exchanges measurements with IEC 60870-5-104 systems |
 | [`connectors/ma-connector/`](connectors/ma-connector/) | Reads raw process-image input values from Revolution Pi hardware |
 | [`connectors/tstp-connector/`](connectors/tstp-connector/) | Exchanges measurements with the TSTP HTTP API |
+| [`frontend/`](frontend/) | Angular monitoring application, browser runtime configuration, and frontend image |
 | [`deploy/staging/`](deploy/staging/) | Single-host staging deployment, policy checks, bootstrap, smoke tests, and rollback scripts |
 | [`deploy/ansible/`](deploy/ansible/) | Debian/Ubuntu staging-host provisioning |
 | [`scripts/`](scripts/) | Local stack helpers and connector image builds |
@@ -116,6 +128,14 @@ Validate the local Compose model without starting it:
 
 ```bash
 docker compose --env-file core/.env.example -f core/docker-compose.yaml config --quiet
+```
+
+Frontend checks use the Node toolchain in `frontend/`:
+
+```bash
+npm --prefix frontend ci
+npm --prefix frontend run check
+npm --prefix frontend run build
 ```
 
 Build one connector image with `scripts/build-connector-image.sh <connector>`.
@@ -163,6 +183,7 @@ model.
 ## Documentation
 
 - [Core development and API guide](core/README.md)
+- [Frontend development and monitoring guide](frontend/README.md)
 - [Current domain model and HTTP surface](docs/architecture/pegelhub-domain-model.md)
 - [Local Keycloak realm and OAuth clients](core/docs/keycloak-local-dev.md)
 - [InfluxDB buckets, retention, and time handling](core/docs/influxdb.md)

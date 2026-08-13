@@ -1,0 +1,23 @@
+<ph-page>
+  <ph-page-header title="Messreihen">
+    <p ph-page-description class="ph-overview-result-summary" aria-live="polite">
+      {{ resultSummary() }}
+    </p>
+  </ph-page-header>
+
+  <ph-page-section
+    ariaLabel="Messreihenübersicht"
+    [loading]="isInitialLoading()"
+    [error]="errorMessage()"
+  >
+    @if (supportingError(); as error) {
+      <ph-message severity="warn" [text]="error" />
+    }
+
+    <ph-time-series-grid
+      [rows]="rows()"
+      [emptyMessage]="emptyMessage()"
+      (visibleCountChange)="updateVisibleRowCount($event)"
+    />
+  </ph-page-section>
+</ph-page>

@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <title>PegelHub · viadonau</title>
+    <meta
+      name="description"
+      content="PegelHub-Monitoring für Pegelstellen und Messreihen der viadonau."
+    />
+    <meta name="theme-color" content="#ffffff" />
+    <meta name="color-scheme" content="light dark" />
+    <style>
+      html {
+        background: #f6f8fa;
+      }
+
+      html.ph-dark {
+        background: #0b1820;
+      }
+    </style>
+    <script>
+      (() => {
+        // Runs before Angular to prevent the first paint from using the wrong theme.
+        const storageKey = 'pegelhub.theme';
+        const darkModeQuery = '(prefers-color-scheme: dark)';
+        const root = document.documentElement;
+        let storedMode = null;
+
+        try {
+          storedMode = localStorage.getItem(storageKey);
+        } catch {
+          // A blocked storage API falls back to the operating-system preference.
+        }
+
+        const prefersDark = window.matchMedia?.(darkModeQuery).matches ?? false;
+        const isDark = storedMode === 'dark' || (storedMode !== 'light' && prefersDark);
+
+        root.classList.toggle('ph-dark', isDark);
+        root.style.colorScheme = isDark ? 'dark' : 'light';
+        document
+          .querySelector('meta[name="theme-color"]')
+          ?.setAttribute('content', isDark ? '#0b1820' : '#ffffff');
+      })();
+    </script>
+    <base href="/" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="icon" type="image/svg+xml" href="brand/pegelhub-mark.svg" />
+    <link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png" />
+    <link rel="icon" type="image/x-icon" href="favicon.ico" />
+  </head>
+  <body>
+    <app-root></app-root>
+  </body>
+</html>

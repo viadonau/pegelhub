@@ -1,0 +1,37 @@
+:host {
+  display: block;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+:host ::ng-deep .p-chart,
+:host ::ng-deep .p-chart canvas {
+  display: block;
+  max-width: 100%;
+}
+
+.ph-chart-empty {
+  display: flex;
+  flex-direction: column;
+  min-height: 20rem;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  background: var(--ph-surface-subtle);
+  color: var(--ph-text-muted);
+  padding: 2rem;
+  font-size: 0.9375rem;
+  text-align: center;
+}
+
+.ph-chart-empty .pi {
+  font-size: 1.25rem;
+  color: var(--p-primary-color);
+}
+
+.ph-chart-empty p {
+  margin: 0;
+  max-width: 36ch;
+  text-wrap: pretty;
+}

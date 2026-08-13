@@ -92,8 +92,8 @@ deployment must not import the realm.
 
 ## GitHub staging environment
 
-The backend `Images` and `Deploy Frontend` workflows use a GitHub Environment
-named `staging`. Configure these environment variables:
+The `Images` and `Frontend Delivery` workflows use a GitHub Environment named
+`staging`. Configure these environment variables:
 
 - `STAGING_REPO_DIR`
 - `STAGING_SSH_HOST`

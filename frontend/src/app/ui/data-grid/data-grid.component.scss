@@ -1,0 +1,80 @@
+:host {
+  display: block;
+  min-width: 0;
+}
+
+.ph-data-grid-shell {
+  position: relative;
+  min-width: 0;
+}
+
+.ph-data-grid {
+  display: block;
+  width: 100%;
+  min-width: 0;
+}
+
+.ph-data-grid .ag-cell {
+  display: flex;
+  align-items: center;
+}
+
+.ph-data-grid .ag-cell:not(.ph-data-grid-cell-action) {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ph-data-grid .ph-data-grid-cell-primary {
+  color: var(--ph-text-strong);
+  font-weight: 600;
+}
+
+.ph-data-grid .ph-data-grid-cell-secondary {
+  color: var(--ph-text-muted);
+}
+
+.ph-data-grid .ph-data-grid-cell-emphasis {
+  color: var(--ph-text-strong);
+  font-variant-numeric: tabular-nums;
+  font-weight: 650;
+}
+
+.ph-data-grid .ph-data-grid-cell-action {
+  padding: 0;
+}
+
+.ph-data-grid .ag-header-cell-text {
+  line-height: 1.25;
+}
+
+.ph-data-grid-empty {
+  position: absolute;
+  inset: 45px 1px 1px;
+  z-index: 1;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 0.625rem;
+  padding: 1.5rem;
+  background: var(--ph-surface);
+  color: var(--ph-text-muted);
+  text-align: center;
+}
+
+.ph-data-grid-empty .pi {
+  color: var(--ph-text-subtle);
+  font-size: 1.125rem;
+}
+
+.ph-data-grid-empty span {
+  color: var(--ph-text-subtle);
+  font-size: 0.875rem;
+}
+
+@media (width < 40rem) {
+  .ph-data-grid .ag-header-cell-filter-button {
+    display: none;
+  }
+}

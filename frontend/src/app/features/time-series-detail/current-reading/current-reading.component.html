@@ -1,0 +1,20 @@
+@if (label(); as label) {
+  <p class="ph-current-reading-label">{{ label }}</p>
+}
+
+<p class="ph-current-reading-value">
+  <span class="ph-current-reading-number">{{ value() }}</span>
+  @if (unit(); as unit) {
+    <span class="ph-current-reading-unit">{{ unit }}</span>
+  }
+</p>
+
+@if (timestamp(); as timestamp) {
+  <p class="ph-current-reading-meta">
+    <span>Stand {{ timestamp }}</span>
+    @if (relativeTimestamp(); as relativeTimestamp) {
+      <span aria-hidden="true">·</span>
+      <span>{{ relativeTimestamp }}</span>
+    }
+  </p>
+}

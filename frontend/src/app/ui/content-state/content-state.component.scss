@@ -1,0 +1,30 @@
+:host {
+  display: block;
+  min-width: 0;
+}
+
+.ph-content-loading {
+  display: flex;
+  min-height: 7rem;
+  align-items: center;
+  gap: 0.875rem;
+  color: var(--ph-text-secondary);
+  font-size: 0.9375rem;
+}
+
+.ph-content-loading-spinner {
+  width: 1.75rem;
+  height: 1.75rem;
+}
+
+:host ::ng-deep .ph-content-loading-spinner .p-progressspinner-circle {
+  stroke: var(--p-primary-color);
+  animation-duration: 1.4s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :host ::ng-deep .ph-content-loading-spinner .p-progressspinner-circle,
+  :host ::ng-deep .ph-content-loading-spinner svg {
+    animation: none;
+  }
+}
