@@ -1,9 +1,10 @@
 # mA connector
 
-The mA connector reads milliampere-based inputs from a Revolution Pi process
-image, maps piCtory variable names to Core time series, and writes measurements
+The mA connector reads raw 16-bit input values from a Revolution Pi process
+image, maps piCtory variable names to Core time series, and writes those values
 to Core. It supports input into Core only and requires the RevPi device at
-runtime.
+runtime. Despite the connector name, the current implementation does not
+convert raw values to milliamperes or apply calibration.
 
 ## Build
 
@@ -55,6 +56,16 @@ Core role `measurement:write`.
 It also needs the target source binding and grant described in the
 [library authorization prerequisites](../library/#core-authorization-prerequisites).
 
+## Read behavior
+
+At startup, the native reader resolves configured piCtory variables to byte
+offsets. Each polling cycle reads an unsigned, little-endian two-byte value from
+every offset in `/dev/piControl0`. All values in a cycle receive the same
+connector timestamp and are submitted to Core one at a time. A failed read or
+Core submission is logged for that offset. It is not retained or retried; a
+later poll takes a new sample with a new timestamp. There is no durable sample
+queue.
+
 ## Run on Revolution Pi
 
 Provide a prepared configuration directory and the LAN address of the
@@ -70,7 +81,10 @@ docker run --rm \
   pegelhub-ma-connector:local
 ```
 
-Replace the documentation-only IP and edit the copied authentication values. The
+Replace the documentation-only IP and edit `core.baseUrl` in the copied YAML to
+an address reachable from the container. Also set its Keycloak token URL to the
+`pegelhub-keycloak.test` hostname mapped by `--add-host`, then replace the
+placeholder authentication values. The
 checked-in [`examples/docker/docker-compose.yaml`](examples/docker/docker-compose.yaml)
 shows the same device, host mapping, and read-only configuration mount for a
 managed container. Adapt its image and config path for the target host. Real
@@ -84,4 +98,4 @@ credentials belong in an ignored directory, not in the image or repository.
 | `Short read: expected 2 bytes` | RevPi process image and piControl configuration |
 | `Duplicate Input ...` | Keep one mapping per `revInput` |
 | `Duplicate resolved offset ...` | Reconcile piCtory names that resolve to the same offset |
-| Core receives no measurements | Core URL, issuer reachability, token audience/roles, and connector registration |
+| Core receives no measurements | Core URL, issuer reachability, token audience/role, active connector registration, source binding, and `WRITE` grant |

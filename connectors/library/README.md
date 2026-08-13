@@ -86,9 +86,11 @@ Shared conventions are:
 - timestamps: `Instant`, serialized as ISO-8601 UTC such as
   `2026-04-25T10:15:30Z`
 
-Protocol timestamps without an explicit offset must be assigned a timezone at
-the protocol parsing boundary. Consult the connector-specific README for its
-required configuration fields, mapping cardinality, and supported directions.
+Protocol-specific parsers decide how an offset-free timestamp becomes an
+`Instant`; this is not normalized by the shared library. Verify those semantics
+before deployment. For example, the FTP ZRXP parser uses UTC while its ASC
+parser uses the connector JVM's default timezone. Consult the connector-specific
+README for configuration fields, mapping cardinality, and supported directions.
 
 ## Core authorization prerequisites
 
@@ -96,9 +98,11 @@ A role-bearing token is necessary but not sufficient for connector access.
 Measurement clients need `pegelhub_actor_type: CLIENT` and a client ID in `azp`
 or `client_id`. Core measurement policies also require that client ID to match
 an active Connector record. Measurement writes require that Connector to be
-the time series' `sourceConnectorId` and to hold a `WRITE` access grant for the
-time series. Measurement reads by a non-admin connector client require a
-covering `READ` grant; `system:admin` bypasses that connector grant check.
+the time series' `sourceConnectorId` and to hold a direct TimeSeries `WRITE`
+grant. Measurement reads by a non-admin connector client require a
+covering `READ` grant. For measurement reads, `system:admin` bypasses connector
+registration, status, and grant checks after Core verifies that the TimeSeries
+exists.
 The [Bruno write workflow](../../core/docs/api/bruno/#write-workflow) shows the
 registration and metadata sequence.
 
@@ -108,8 +112,8 @@ registration and metadata sequence.
 | --- | --- |
 | Token request fails | Token URL reachability, confidential-client settings, client ID, and secret |
 | Core returns `401` | Exact issuer match and the `pegelhub-core-api` token audience |
-| Core returns `403` | Lowercase Core role plus the source binding and access grant for the requested time series |
-| Core reports connector not registered | Active Connector metadata whose `keycloakClientId` matches token `azp` |
+| Core returns `403` | Required lowercase role and active Connector; writes also need exact source binding plus a direct `WRITE` grant, while connector reads need an applicable `READ` grant |
+| Core reports connector not registered | Connector metadata whose `keycloakClientId` matches token `azp` |
 | Connector exits during startup | `connector.yaml`, mapping count/directions, UUIDs, and polling interval syntax |
 | Container cannot reach `localhost` endpoints | Use host-reachable names, `host.docker.internal` on Docker Desktop, or service names on a shared Docker network |
 | Protocol cycle fails | Protocol endpoint reachability and connector logs for the affected mapping |

@@ -1,9 +1,9 @@
 core:
-  baseUrl: "http://localhost:8080/"
+  baseUrl: "http://core.example.invalid:8080/"
   authentication:
-    tokenUrl: "http://localhost:8082/realms/pegelhub/protocol/openid-connect/token"
-    clientId: "connector"
-    clientSecret: "secret"
+    tokenUrl: "https://identity.example.invalid/realms/pegelhub/protocol/openid-connect/token"
+    clientId: "replace-with-connector-client-id"
+    clientSecret: "replace-with-connector-client-secret"
 polling:
   interval: "30s"
 mappings:

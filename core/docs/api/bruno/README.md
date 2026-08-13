@@ -6,8 +6,9 @@ document at `/v3/api-docs?lang=en` remains the authoritative HTTP contract.
 
 ## Requirements
 
-- Bruno Desktop or CLI 3.0 or newer; CI-facing tests currently verify the
-  collection format and operations rather than invoking Bruno
+- Bruno Desktop or the `bru` CLI 3.0 or newer; OpenCollection YAML support was
+  introduced in 3.0. CI parses the YAML and compares request coverage but does
+  not invoke Bruno
 - reachable Core and Keycloak endpoints
 - a hosts entry for `pegelhub-keycloak.test` when using the local environment
 
@@ -92,5 +93,7 @@ list request verifies and captures it.
 ## Contract coverage
 
 `OpenApiDocumentationWebMvcTest#brunoCollectionMatchesEnglishOpenApiOperationsAndQueryParameters`
-compares the collection with generated English OpenAPI operations and query
-parameters. It rejects missing, stale, or duplicate request coverage.
+parses the collection and compares its HTTP operations and query parameters
+with the generated English OpenAPI document. It rejects missing, stale, or
+duplicate operation coverage; it does not execute requests or validate their
+response behavior.

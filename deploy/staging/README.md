@@ -21,7 +21,7 @@ machine.
 - inbound ports `80` and `443` available for Caddy and certificate issuance
 - a repository checkout owned by the deploy user
 - GHCR read access on the host when packages are private
-- `curl` and `openssl` on the host
+- `curl` and `openssl` on the host; repository policy tests also require `jq`
 
 ## Topology
 
@@ -88,7 +88,7 @@ secret values without printing generated secrets.
 In `deploy/staging/.env`:
 
 1. replace all three example hostnames and create matching DNS records;
-2. set an immutable backend tag such as `sha-<short-sha>` or `v0.1.0`;
+2. set a release-specific backend tag such as `sha-<short-sha>` or `v0.1.0`;
 3. keep `PEGELHUB_ENVIRONMENT=staging` and
    `PEGELHUB_DEPLOY_MARKER=pegelhub-staging`;
 4. keep `FLYWAY_BASELINE_ON_MIGRATE=false` except during the documented
@@ -119,14 +119,15 @@ While the connector is stopped, create a confidential service-account client
 with browser and direct-access flows disabled and full scope disabled. Remove
 inherited scopes; assign exactly `pegelhub-core-roles`,
 `pegelhub-core-audience`, and `pegelhub-client-actor` as default scopes, with no
-optional scopes. Assign only the Core roles `measurement:write` and
-`telemetry:write` to both the service account and its scope role mappings.
+optional scopes. Assign only the Core role `measurement:write` to both the
+service account and its scope role mappings. The FTP connector does not submit
+telemetry and must not receive `telemetry:write`.
 Verify that its token:
 
 - has the configured issuer;
 - has only `pegelhub-core-api` as its audience;
 - identifies the expected client in `azp`;
-- contains only the lowercase Core roles above;
+- contains only the lowercase Core role above;
 - has `pegelhub_actor_type` set to `CLIENT`.
 
 Register the same client ID through Core's admin connector endpoint before
@@ -178,18 +179,18 @@ docker compose --env-file deploy/staging/.env.example \
   --profile keycloak-bootstrap config --quiet
 ```
 
-On the host, validate real configuration and an existing image tag without
-changing services:
+On the host, validate real configuration and a candidate image tag without
+changing services or checking the registry:
 
 ```bash
 deploy/staging/scripts/deploy.sh --check sha-<short-sha>
 ```
 
 The deploy validation rejects staging markers or hostnames that are missing or
-placeholders, missing or known mutable/placeholder image tags, invalid
-retention values, missing FTP configuration, unexpected public ports, and
-`build:` sections. It validates Compose quietly and does not persist a rendered
-configuration.
+placeholders, missing tags, the explicit `latest` tag, known placeholder tags,
+invalid retention values, missing FTP configuration, unexpected public ports,
+and `build:` sections. It validates Compose quietly and does not persist a
+rendered configuration.
 
 Repository policy tests are:
 
@@ -204,7 +205,7 @@ project and its volumes.
 
 ## Deploy and roll back backend images
 
-Deploy an immutable image tag from the host:
+Deploy a release-specific image tag from the host:
 
 ```bash
 deploy/staging/scripts/deploy.sh sha-<short-sha>
@@ -214,6 +215,19 @@ The script validates configuration, pulls the base stack images, updates the
 services, records current and previous backend tags under the ignored `state/`
 directory, and runs staging smoke checks. It preserves the separately managed
 frontend service.
+
+Backend images are referenced by tags, not digests. The script rejects
+`latest`, but it cannot prove that another registry tag will not move. Keeping
+release tags non-moving and retained in GHCR is an external operational
+requirement. Deployment and rollback both pull the tag's current registry
+manifest.
+
+A backend smoke-check failure stops the script before release state is updated,
+but it does not automatically restore the last successful containers. Inspect
+the failed deployment, then explicitly redeploy the last successful
+`PEGELHUB_IMAGE_TAG` recorded in `state/current-release.env`, or another known
+tag. Do not assume `--rollback` selects that last successful current tag; it
+selects the recorded previous tag.
 
 Force-recreate Keycloak only when a theme or container configuration change
 needs reloading:
@@ -231,8 +245,10 @@ deploy/staging/scripts/deploy.sh --rollback
 deploy/staging/scripts/deploy.sh sha-<previous-short-sha>
 ```
 
-Rollback changes images and services only. It does not remove volumes, reverse
-database migrations, or restore data expired by retention.
+Rollback changes images and services only. It selects the previously recorded
+tag and pulls whatever manifest that tag currently identifies. It does not
+remove volumes, reverse database migrations, or restore data expired by
+retention.
 
 ## Deploy and roll back the frontend
 
@@ -245,15 +261,19 @@ deploy/staging/scripts/deploy-frontend.sh \
 ```
 
 It pulls and recreates only `frontend`, waits for health, then checks the public
-frontend and its API proxy. A failed activation restores the previous image; a
-failed first release removes the container so Caddy returns the undeployed
-`503`. Successful image references are stored in ignored `state/` data.
+frontend and its API proxy. A failed activation attempts to restore the previous
+image; a failed first release attempts to remove the container so Caddy returns
+the undeployed `503`. A failed restoration is reported as an error. Successful
+image references are stored in ignored `state/` data.
 
 Roll back only the frontend:
 
 ```bash
 deploy/staging/scripts/deploy-frontend.sh --rollback
 ```
+
+The rollback branch skips the script's explicit `docker compose pull` step.
+Retain the prior digest in GHCR and, where possible, in the host's image cache.
 
 ## Keycloak bootstrap
 
@@ -307,7 +327,8 @@ GitHub Environment required reviewers when a manual approval gate is desired.
 - Never run `docker compose down -v` as part of routine operation.
 - Do not use `--remove-orphans`; the frontend is a separately managed service
   in the same Compose project.
-- Keep known-good backend and frontend images available on the host.
+- Keep known-good backend tags and frontend digests available in GHCR, and keep
+  prior frontend digests in the host's image cache where possible.
 - Treat Flyway adoption and retention reductions as data changes, not ordinary
   image configuration.
 - Normal Keycloak startup and deployment must not import or reset the realm.

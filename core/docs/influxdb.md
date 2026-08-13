@@ -1,181 +1,138 @@
-# InfluxDB Configuration
+# InfluxDB configuration
 
-Pegelhub stores time-series data in InfluxDB and uses two buckets in one organization:
+PegelHub stores time-series values in two InfluxDB buckets in one organization:
 
-- `INFLUX_DATA_BUCKET` for measurement data, with retention configured by
-  `INFLUX_DATA_RETENTION`
-- `INFLUX_TELEMETRY_BUCKET` for telemetry data, with retention configured by
-  `INFLUX_TELEMETRY_RETENTION`
+- `INFLUX_DATA_BUCKET` stores measurements and uses
+  `INFLUX_DATA_RETENTION`.
+- `INFLUX_TELEMETRY_BUCKET` stores technical telemetry and uses
+  `INFLUX_TELEMETRY_RETENTION`.
 
-Both retention settings default to `60d`. Set either one to `0s` to retain that
-bucket indefinitely.
+Both retention settings default to `60d`. Use `0s` for infinite retention.
 
-The application does not read a generated token file anymore. Runtime configuration comes from environment variables through the `pegelhub.influx.*` Spring properties.
+## Local stack
 
-## Local Docker Compose
-
-From `core/`:
+From the repository root:
 
 ```bash
-cp .env.example .env
-docker compose up --build -d
+test -f core/.env || cp core/.env.example core/.env
+scripts/local-stack.sh compose-up
 ```
 
-For local first-start setup, `.env` is the source of truth for `INFLUX_TOKEN`. If the InfluxDB volume already exists and was initialized with a different token, either update `.env` to match that existing token or recreate the local volume intentionally.
+The stack exposes InfluxDB at <http://localhost:8111>. The one-shot
+`influx-bucket-setup` service waits for InfluxDB, creates missing application
+buckets, and updates existing buckets to the requested retention before Core
+starts.
 
-The compose setup starts:
+The provisioner accepts `0s` or a positive whole number of hours, days, or
+weeks, such as `24h`, `60d`, or `8w`. The internal, measurement, and telemetry
+bucket names must all be different.
 
-- `meta-db` on host port `5444`
-- `data-db` on host port `8111`
-- `influx-bucket-setup` as a one-shot provisioning service
-- `core-app` on `8080` and actuator on `8081`
+Reducing finite retention, or changing from infinite to finite retention, can
+permanently remove older points. InfluxDB applies expiry asynchronously;
+restoring the previous setting does not restore deleted data.
 
-`influx-bucket-setup` waits for InfluxDB, creates missing application buckets,
-and updates existing buckets to the configured retention. Core starts only
-after this service succeeds. This works for both fresh and existing InfluxDB
-volumes; bucket provisioning is no longer limited to first initialization.
+`core/.env` is the source of truth for the local `INFLUX_TOKEN`. An existing
+InfluxDB volume retains the token used at first initialization. If that token
+differs from the environment file, either make the file match the existing
+volume or deliberately recreate the local data volume.
 
-The provisioner accepts `0s` for infinite retention or a positive whole number
-of hours, days, or weeks, such as `24h`, `60d`, or `8w`. It validates both
-policies and requires all three bucket names to be different before changing
-either application bucket.
+## Runtime configuration
 
-Changing a bucket from infinite to finite retention, or reducing its finite
-retention, can permanently remove older data. InfluxDB applies expiry
-asynchronously, and reverting the environment value cannot restore deleted
-points.
+Core reads:
 
-## Runtime Config
+| Variable | Purpose |
+| --- | --- |
+| `INFLUX_URL` | InfluxDB HTTP endpoint |
+| `INFLUX_ORG` | Organization containing the buckets |
+| `INFLUX_TOKEN` | Token used by the shared client |
+| `INFLUX_DATA_BUCKET` | Measurement bucket |
+| `INFLUX_TELEMETRY_BUCKET` | Technical telemetry bucket |
+| `INFLUX_LATEST_RANGE` | Latest-telemetry search horizon; defaults to `72h` |
 
-The app expects these variables:
+Compose provisioning additionally reads `INFLUX_INTERNAL_BUCKET`,
+`INFLUX_DATA_RETENTION`, and `INFLUX_TELEMETRY_RETENTION`.
+`INFLUX_INTERNAL_BUCKET` is the first-start bucket required by the official
+InfluxDB image; Core does not use it.
 
-- `INFLUX_URL`
-- `INFLUX_ORG`
-- `INFLUX_TOKEN`
-- `INFLUX_DATA_BUCKET`
-- `INFLUX_TELEMETRY_BUCKET`
-- `INFLUX_LATEST_RANGE` (optional, defaults to `72h`)
+Both repository Compose topologies currently pass `INFLUX_TOKEN` as the
+InfluxDB first-start admin token and as Core's runtime token. They do not
+provision a separate least-privilege runtime token. Treat that token as an
+administrative secret and do not expose InfluxDB publicly.
 
-Compose provisioning additionally uses:
+## Application and query model
 
-- `INFLUX_INTERNAL_BUCKET`, the first-start bucket required by the official
-  InfluxDB image and not used by Core
-- `INFLUX_DATA_RETENTION` (optional, defaults to `60d`)
-- `INFLUX_TELEMETRY_RETENTION` (optional, defaults to `60d`)
+`InfluxProperties` binds and validates `pegelhub.influx.*`.
+`InfluxDBConfiguration` creates one shared `InfluxDBClient` and two
+bucket-specific `InfluxBucketOperations` objects. Measurement and telemetry
+repositories use their respective bucket operations, query builders, point
+mappers, and row mappers.
 
-`InfluxDBConfiguration` creates one shared client from `INFLUX_URL`, `INFLUX_ORG`, and `INFLUX_TOKEN`.
-Repository operations pass the target bucket explicitly, so the data and telemetry buckets do not need separate client instances.
-The actuator Influx health check pings the server and performs a tiny read query against both configured buckets.
-Latest-value endpoints use `INFLUX_LATEST_RANGE` to define how far back they search.
-This query horizon is independent of both retention settings.
+Relative API ranges and `INFLUX_LATEST_RANGE` are validated as
+`PegelhubDurationLiteral` values before Flux is built. They consist of one or
+more positive integer parts with `s`, `m`, `h`, `d`, or `w`, for example `5m`,
+`72h`, `7d`, or `1h30m`. Measurement and telemetry repositories construct Flux
+through `MeasurementFluxQueryBuilder` and `TelemetryFluxQueryBuilder`.
 
-In local Compose, the same declared token is passed both to InfluxDB first-start setup and to `core-app`. In production, the app should use a dedicated least-privilege token instead of an admin token.
+Only the latest-telemetry query uses `INFLUX_LATEST_RANGE`. Raw and bucketed
+measurement APIs use an explicit `last` duration or `from`/`to` window supplied
+by the caller. The connector library's latest-measurement helper independently
+uses a fixed 365-day query window.
 
-## Application Model
+The actuator Influx health indicator pings the server and validates that both
+application buckets can be queried.
 
-The core application treats InfluxDB as one server connection with multiple buckets:
+## Time handling
 
-- `InfluxProperties` binds and validates `pegelhub.influx.*`.
-- `InfluxDBConfiguration` creates one shared `InfluxDBClient`.
-- `DatabaseProperties` describes a concrete bucket plus the shared organization/token.
-- Repositories pass bucket and organization explicitly for every write and query.
-- `ConnectionHelper` is the only place that translates Flux `FluxTable`/`FluxRecord` rows into PegelHub's internal `InfluxPoint` representation.
-
-This avoids one client per bucket and keeps the bucket choice visible at each repository boundary.
-
-## Query Model
-
-Flux query strings are built through `FluxQueries`, not directly in repositories.
-All relative user-facing ranges are parsed as `FluxDuration` before a query is built.
-
-Accepted durations are positive Flux durations such as:
-
-- `5m`
-- `72h`
-- `7d`
-- `1h30m`
-
-Invalid ranges fail before the query reaches InfluxDB. This keeps syntax errors and query injection attempts out of the Flux layer.
-
-Latest endpoints use the configured `INFLUX_LATEST_RANGE` instead of an embedded repository constant. If a valid station has older data than that range, latest endpoints intentionally report no latest value in the configured search window.
-
-## Time Handling
-
-Core API and domain timestamps for measurement and telemetry values are absolute UTC instants:
+Core measurement and telemetry timestamps are absolute `Instant` values. API
+payloads therefore require an offset, normally UTC `Z`, for example:
 
 ```json
 {
-  "timestamp": "2026-04-25T10:15:30Z"
+  "observedAt": "2026-04-25T10:15:30Z"
 }
 ```
 
-Offset-free timestamps such as `2026-04-25T10:15:30` are no longer accepted by the core API for Influx-backed values.
-This is intentional because offset-free local date-times cannot be safely written to a shared time-series database without guessing a timezone.
+Offset-free timestamps such as `2026-04-25T10:15:30` are rejected. Influx
+writes pass `Instant` values to the Java client with millisecond precision, and
+reads map Influx `_time` values back to `Instant`. Timestamps in bucketed query
+results come from Flux aggregate-window boundaries. The public
+`/api/v1/measurements/system-time` route returns the InfluxDB system time.
 
-The conversion rules are:
+The connector library serializes measurement `Instant` values as ISO-8601.
+Protocol parsers still own the conversion of offset-free source timestamps;
+those semantics vary by connector and must be verified in its guide or source.
 
-- Incoming measurement write DTOs use `Instant`.
-- Incoming telemetry payloads use `Instant`.
-- Influx writes pass `Instant` directly to the Java client with millisecond precision.
-- Influx reads expose record `_time` directly as `Instant`.
-- Aggregate measurement queries without `_time`, such as averages, receive the current UTC `Instant` as their response timestamp.
-- `/api/v1/measurement/systemTime` returns the Influx server time as an `Instant`.
+## Host application run
 
-Connector-library measurement and telemetry models also use `Instant`.
-Connectors that parse offset-free protocol timestamps convert them to UTC at the protocol boundary before sending data to Core.
-The connector library expects HTTP timestamp values to be ISO-8601 instant strings and writes outbound connector payloads in that same format.
-
-## Manual Dev Profile
-
-For a non-container app run, start local dependencies through the helper, then run `core-app` with the `dev` Spring profile:
+To run Core on the host while its dependencies stay in Docker:
 
 ```bash
-bash .agents/skills/pegelhub-local-dev/scripts/pegelhub-local-dev.sh compose-up-deps
+test -f core/.env || cp core/.env.example core/.env
+docker compose --env-file core/.env -f core/docker-compose.yaml \
+  up -d meta-db data-db influx-bucket-setup keycloak-db keycloak
+SPRING_PROFILES_ACTIVE=dev mvn -B -ntp -f core/pom.xml spring-boot:run
 ```
 
-The `dev` Spring profile defaults to:
+The `dev` profile defaults match `core/.env.example`. If values in `core/.env`
+change, export matching application environment variables before starting
+Maven.
 
-```yaml
-pegelhub:
-  influx:
-    url: ${INFLUX_URL:http://localhost:8111/}
-    org: ${INFLUX_ORG:pegelhub}
-    token: ${INFLUX_TOKEN:local-dev-influx-token-change-me-000000000000000000000000000000}
-    data-bucket: ${INFLUX_DATA_BUCKET:pegelhub-data}
-    telemetry-bucket: ${INFLUX_TELEMETRY_BUCKET:pegelhub-telemetry}
-    latest-range: ${INFLUX_LATEST_RANGE:72h}
-```
-
-Override those variables if your local InfluxDB uses different values.
-
-To reconcile bucket policies explicitly after changing local retention values,
-run:
+To reconcile bucket retention explicitly after editing `core/.env`:
 
 ```bash
-docker compose up --force-recreate influx-bucket-setup
-docker compose up -d core-app
+docker compose --env-file core/.env -f core/docker-compose.yaml \
+  up --force-recreate influx-bucket-setup
+docker compose --env-file core/.env -f core/docker-compose.yaml up -d core-app
 ```
 
-## Tests
+## Provisioning test
 
-The provisioning integration test starts a real InfluxDB container and verifies
-bucket creation, finite and infinite updates, repeated execution, and invalid
-configuration handling:
+The Docker-backed integration test verifies bucket creation, finite and
+infinite retention updates, repeated execution, and invalid configuration:
 
 ```bash
-mvn -f core/pom.xml -Pintegration \
+mvn -B -ntp -f core/pom.xml -Pintegration \
   -Dtest=NoUnitTests \
   -Dsurefire.failIfNoSpecifiedTests=false \
   -Dit.test=InfluxBucketProvisioningIntegrationTest verify
 ```
-
-## Previous Setup
-
-The old flow used:
-
-- `testenvironment.vars`
-- `init-influxdb.sh`
-- `.datastoreconfig/storeapp.yaml`
-- `INFLUX_FILE`
-
-That setup generated a token at container startup, wrote it to a mounted YAML file, and made the app read that file. The current setup removes that generated-file handoff and uses normal environment-based Spring configuration instead.

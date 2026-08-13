@@ -27,7 +27,7 @@ class FtpConnectorModuleTest {
         FtpConnectorConfig config = new FtpConnectorConfigLoader().load(
                 ConnectorConfigDirectory.at(Path.of("examples/config")));
 
-        assertEquals("ftp.viadonau.org", config.server().host());
+        assertEquals("ftp.example.invalid", config.server().host());
         assertEquals(ParserType.ZRXP, config.source().parserType());
     }
 
