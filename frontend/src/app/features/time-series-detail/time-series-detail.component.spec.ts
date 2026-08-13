@@ -1,4 +1,4 @@
-import { signal } from '@angular/core';
+import { Injector, signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -109,6 +109,15 @@ describe('TimeSeriesDetailComponent', () => {
     expect(api.timeSeriesResource).toHaveBeenCalledOnce();
     expect(fixture.nativeElement.querySelector('ph-time-series-selector')).toBeNull();
     expect(fixture.nativeElement.querySelectorAll('ph-time-series-measurements')).toHaveLength(1);
+  });
+
+  it('creates resources in the detail component injector', () => {
+    const api = TestBed.inject(TimeSeriesApiService);
+    const fixture = createComponent();
+    const resourceInjector = fixture.componentRef.injector.get(Injector);
+
+    expect(resourceInjector).not.toBe(TestBed.inject(Injector));
+    expect(api.timeSeriesResource).toHaveBeenCalledWith(expect.anything(), resourceInjector);
   });
 });
 

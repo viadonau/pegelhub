@@ -4,25 +4,22 @@
     <span>Messreihen</span>
   </a>
 
-  <ph-content-state [loading]="timeSeriesResource.isLoading()" [error]="timeSeriesError()">
-    @if (timeSeries()) {
-      <ph-content-state [loading]="measuringPointResource.isLoading()" [error]="pointError()">
-        @if (measuringPoint(); as point) {
+  <ph-content-state [loading]="detail.timeSeriesLoading()" [error]="detail.timeSeriesError()">
+    @if (detail.view().timeSeries) {
+      <ph-content-state [loading]="detail.pointLoading()" [error]="detail.pointError()">
+        @if (detail.view().measuringPoint; as point) {
           <div class="ph-time-series-detail">
             <header class="ph-time-series-heading">
               <div class="ph-time-series-heading-copy">
                 <p class="ph-time-series-heading-kicker">Messreihe</p>
                 <h1>{{ point.name }}</h1>
-                @if (headingContext()) {
-                  <p class="ph-time-series-heading-context">{{ headingContext() }}</p>
+                @if (detail.view().headingContext) {
+                  <p class="ph-time-series-heading-context">{{ detail.view().headingContext }}</p>
                 }
               </div>
 
-              <div
-                class="ph-time-series-current-reading"
-                [attr.aria-busy]="measurements.latestLoading()"
-              >
-                @if (measurements.latestReading(); as reading) {
+              <div class="ph-time-series-current-reading" [attr.aria-busy]="detail.latestLoading()">
+                @if (detail.latestReading(); as reading) {
                   <ph-current-reading
                     label="Letzter Messwert"
                     [value]="reading.value"
@@ -30,9 +27,9 @@
                     [timestamp]="reading.timestamp"
                     [relativeTimestamp]="reading.relativeTimestamp"
                   />
-                } @else if (measurements.latestLoading()) {
+                } @else if (detail.latestLoading()) {
                   <p class="ph-time-series-current-status" role="status">Messwert wird geladen.</p>
-                } @else if (measurements.latestError()) {
+                } @else if (detail.latestError()) {
                   <p class="ph-time-series-current-status is-error">
                     Letzter Messwert nicht verfügbar.
                   </p>
@@ -44,20 +41,20 @@
               </div>
             </header>
 
-            @if (stationError(); as error) {
+            @if (detail.stationError(); as error) {
               <ph-message severity="warn" [text]="error" />
             }
 
-            @if (ownerError(); as error) {
+            @if (detail.ownerError(); as error) {
               <ph-message severity="warn" [text]="error" />
             }
 
             <ph-time-series-metadata
-              [measuringPointFacts]="pointFacts()"
-              [timeSeriesFacts]="seriesFacts()"
+              [measuringPointFacts]="detail.view().pointFacts"
+              [timeSeriesFacts]="detail.view().seriesFacts"
             />
 
-            <ph-time-series-measurements [referenceLines]="referenceLines()" />
+            <ph-time-series-measurements [referenceLines]="detail.view().referenceLines" />
           </div>
         }
       </ph-content-state>

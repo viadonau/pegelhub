@@ -4,6 +4,7 @@ import {
   formatMeasurementNumber,
   formatMeasurementTimestamp,
   formatRelativeMeasurementAge,
+  UI_LOCALE,
 } from '../../../core/measurement/measurement-format';
 import { observedPropertyLabel } from '../../../core/time-series/parameter-legend';
 
@@ -19,7 +20,6 @@ export interface LatestMeasurementView {
   value: string;
 }
 
-const UI_LOCALE = 'de-AT';
 const compactTimeFormatter = new Intl.DateTimeFormat(UI_LOCALE, {
   month: 'short',
   day: '2-digit',

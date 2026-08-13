@@ -7,16 +7,15 @@ import { TimeSeriesDto } from './time-series.dto';
 @Injectable({ providedIn: 'root' })
 export class TimeSeriesApiService {
   private readonly apiUrl = inject(CoreApiUrlService);
-  private readonly injector = inject(Injector);
 
-  timeSeriesListResource() {
+  timeSeriesListResource(injector: Injector) {
     return httpResource<TimeSeriesDto[]>(() => this.apiUrl.url('/time-series'), {
       defaultValue: [],
-      injector: this.injector,
+      injector,
     });
   }
 
-  timeSeriesResource(timeSeriesId: Signal<string>) {
+  timeSeriesResource(timeSeriesId: Signal<string>, injector: Injector) {
     return httpResource<TimeSeriesDto | null>(
       () => {
         const id = timeSeriesId().trim();
@@ -25,7 +24,7 @@ export class TimeSeriesApiService {
       },
       {
         defaultValue: null,
-        injector: this.injector,
+        injector,
       },
     );
   }

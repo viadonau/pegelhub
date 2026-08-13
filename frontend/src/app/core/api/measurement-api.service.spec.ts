@@ -1,6 +1,6 @@
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
-import { signal } from '@angular/core';
+import { Injector, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
@@ -39,7 +39,11 @@ describe('MeasurementApiService HTTP contract', () => {
   });
 
   it('loads chart data from the bucket endpoint', () => {
-    const resource = service.measurementBucketsResource(signal('series-id'), signal('7d'));
+    const resource = service.measurementBucketsResource(
+      signal('series-id'),
+      signal('7d'),
+      TestBed.inject(Injector),
+    );
     TestBed.tick();
 
     const request = http.expectOne(
@@ -61,7 +65,10 @@ describe('MeasurementApiService HTTP contract', () => {
   });
 
   it('loads the latest value independently from the selected history range', () => {
-    const resource = service.latestMeasurementResource(signal('series-id'));
+    const resource = service.latestMeasurementResource(
+      signal('series-id'),
+      TestBed.inject(Injector),
+    );
     TestBed.tick();
 
     const request = http.expectOne(

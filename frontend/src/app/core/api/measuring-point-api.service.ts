@@ -7,16 +7,15 @@ import { MeasuringPointDto } from './measuring-point.dto';
 @Injectable({ providedIn: 'root' })
 export class MeasuringPointApiService {
   private readonly apiUrl = inject(CoreApiUrlService);
-  private readonly injector = inject(Injector);
 
-  measuringPointsResource() {
+  measuringPointsResource(injector: Injector) {
     return httpResource<MeasuringPointDto[]>(() => this.apiUrl.url('/measuring-points'), {
       defaultValue: [],
-      injector: this.injector,
+      injector,
     });
   }
 
-  measuringPointResource(measuringPointId: Signal<string>) {
+  measuringPointResource(measuringPointId: Signal<string>, injector: Injector) {
     return httpResource<MeasuringPointDto | null>(
       () => {
         const id = measuringPointId().trim();
@@ -25,7 +24,7 @@ export class MeasuringPointApiService {
       },
       {
         defaultValue: null,
-        injector: this.injector,
+        injector,
       },
     );
   }

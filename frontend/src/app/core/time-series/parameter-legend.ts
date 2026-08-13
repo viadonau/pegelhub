@@ -5,8 +5,7 @@ export type StationParameterCode = 'W' | 'WT' | 'Q';
  * catalogue (see docs/operator-station-metadata.md).
  *
  * The codes themselves (`W`, `WT`, `Q`) are the operator vocabulary and stay
- * verbatim in the UI; the labels are exposed as tooltips and as the
- * humanised name on the detail-page parameter switcher.
+ * verbatim in the API contract; labels are used for the operator-facing view.
  */
 export interface StationParameterMeta {
   code: StationParameterCode;
@@ -55,26 +54,6 @@ export function humanizeObservedProperty(value: string): string {
   }
 
   return spaced.charAt(0).toUpperCase() + spaced.slice(1).toLowerCase();
-}
-
-export function observedPropertyBadge(value: string): string {
-  const code = detectParameterCode(value);
-
-  if (code) {
-    return code;
-  }
-
-  const words = humanizeObservedProperty(value).split(/\s+/).filter(Boolean);
-
-  if (words.length === 0) {
-    return value;
-  }
-
-  return words
-    .slice(0, 2)
-    .map((word) => word.charAt(0))
-    .join('')
-    .toUpperCase();
 }
 
 export function observedPropertyLabel(value: string): string {

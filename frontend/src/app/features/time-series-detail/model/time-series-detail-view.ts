@@ -1,15 +1,62 @@
 import { MeasuringPointDto } from '../../../core/api/measuring-point.dto';
 import { StationDto, StationOwnerDto } from '../../../core/api/station.dto';
 import { TimeSeriesDto } from '../../../core/api/time-series.dto';
-import { detectParameterCode } from '../../../core/time-series/parameter-legend';
-import { waterLevelReferenceLabel } from './water-level-reference';
+import { formatMeasurementNumber, UI_LOCALE } from '../../../core/measurement/measurement-format';
+import {
+  detectParameterCode,
+  observedPropertyLabel,
+} from '../../../core/time-series/parameter-legend';
+import {
+  WaterLevelReference,
+  waterLevelChartReferences,
+  waterLevelReferenceLabel,
+} from './water-level-reference';
 
 export interface TimeSeriesDetailFact {
   label: string;
   value: string;
 }
 
-const UI_LOCALE = 'de-AT';
+export interface TimeSeriesDetailView {
+  timeSeries: TimeSeriesDto | null;
+  measuringPoint: MeasuringPointDto | null;
+  station: StationDto | null;
+  stationOwner: StationOwnerDto | undefined;
+  measurementTypeLabel: string;
+  headingContext: string;
+  pointFacts: readonly TimeSeriesDetailFact[];
+  seriesFacts: readonly TimeSeriesDetailFact[];
+  referenceLines: readonly WaterLevelReference[];
+}
+
+export function timeSeriesDetailView(
+  timeSeries: TimeSeriesDto | null,
+  measuringPoint: MeasuringPointDto | null,
+  station: StationDto | null,
+  stationOwner: StationOwnerDto | undefined,
+): TimeSeriesDetailView {
+  const measurementTypeLabel = timeSeries ? observedPropertyLabel(timeSeries.observedProperty) : '';
+  const headingContext = measuringPoint
+    ? station
+      ? timeSeriesHeadingContext(station, measuringPoint.name, measurementTypeLabel)
+      : measurementTypeLabel
+    : '';
+
+  return {
+    timeSeries,
+    measuringPoint,
+    station,
+    stationOwner,
+    measurementTypeLabel,
+    headingContext,
+    pointFacts: measuringPoint
+      ? measuringPointFacts(measuringPoint, stationOwner, referenceValueUnit(timeSeries))
+      : [],
+    seriesFacts: timeSeries ? timeSeriesContextFacts(timeSeries) : [],
+    referenceLines:
+      measuringPoint && timeSeries ? waterLevelChartReferences(measuringPoint, timeSeries) : [],
+  };
+}
 
 export function measuringPointContext(station: StationDto, measuringPointName: string): string {
   const stationName = sameName(station.name, measuringPointName) ? null : station.name;
@@ -109,9 +156,7 @@ function formatWithUnit(value: number | null | undefined, unit: string | null): 
     return null;
   }
 
-  return unit ? `${formatNumber(value)} ${unit}` : formatNumber(value);
-}
+  const formatted = formatMeasurementNumber(value);
 
-function formatNumber(value: number): string {
-  return new Intl.NumberFormat(UI_LOCALE, { maximumFractionDigits: 3 }).format(value);
+  return unit ? `${formatted} ${unit}` : formatted;
 }

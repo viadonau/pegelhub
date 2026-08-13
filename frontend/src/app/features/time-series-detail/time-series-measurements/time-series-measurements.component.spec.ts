@@ -3,13 +3,16 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { MeasurementApiService } from '../../../core/api/measurement-api.service';
+import { MeasuringPointApiService } from '../../../core/api/measuring-point-api.service';
 import {
   EMPTY_MEASUREMENT_BUCKET_LIST,
   EMPTY_MEASUREMENT_LIST,
 } from '../../../core/api/measurement.dto';
 import { TimeSeriesDto } from '../../../core/api/time-series.dto';
+import { StationApiService } from '../../../core/api/station-api.service';
+import { TimeSeriesApiService } from '../../../core/api/time-series-api.service';
 import { MemoryStorage } from '../../../../testing/memory-storage';
-import { TimeSeriesDetailMeasurementsStore } from '../data-access/time-series-detail-measurements.store';
+import { TimeSeriesDetailState } from '../data-access/time-series-detail.state';
 
 import { PhTimeSeriesMeasurementsComponent } from './time-series-measurements.component';
 
@@ -23,6 +26,7 @@ const TIME_SERIES: TimeSeriesDto = {
 describe('PhTimeSeriesMeasurementsComponent', () => {
   let latest: ReturnType<typeof fakeResource>;
   let buckets: ReturnType<typeof fakeResource>;
+  let timeSeriesResource: ReturnType<typeof fakeResource>;
   let storage: Storage;
   let measurementsApi: {
     latestMeasurementResource: ReturnType<typeof vi.fn>;
@@ -34,6 +38,7 @@ describe('PhTimeSeriesMeasurementsComponent', () => {
     Object.defineProperty(window, 'localStorage', { configurable: true, value: storage });
     latest = fakeResource(EMPTY_MEASUREMENT_LIST);
     buckets = fakeResource(EMPTY_MEASUREMENT_BUCKET_LIST);
+    timeSeriesResource = fakeResource(TIME_SERIES);
     measurementsApi = {
       latestMeasurementResource: vi.fn(() => latest),
       measurementBucketsResource: vi.fn(() => buckets),
@@ -41,14 +46,29 @@ describe('PhTimeSeriesMeasurementsComponent', () => {
 
     TestBed.configureTestingModule({
       providers: [
-        TimeSeriesDetailMeasurementsStore,
+        TimeSeriesDetailState,
+        {
+          provide: MeasuringPointApiService,
+          useValue: { measuringPointResource: vi.fn(() => fakeResource(null)) },
+        },
+        {
+          provide: StationApiService,
+          useValue: {
+            stationResource: vi.fn(() => fakeResource(null)),
+            stationOwnerResource: vi.fn(() => fakeResource(null)),
+          },
+        },
+        {
+          provide: TimeSeriesApiService,
+          useValue: { timeSeriesResource: vi.fn(() => timeSeriesResource) },
+        },
         { provide: MeasurementApiService, useValue: measurementsApi },
       ],
     });
   });
 
   it('renders the chart workflow without requesting or displaying raw measurements', () => {
-    const fixture = createComponent();
+    const fixture = createComponent(timeSeriesResource);
     const text = normalizedText(fixture);
 
     expect(text).toContain('Messverlauf');
@@ -58,7 +78,7 @@ describe('PhTimeSeriesMeasurementsComponent', () => {
   });
 
   it('reloads the current value and chart from one refresh action', () => {
-    const fixture = createComponent();
+    const fixture = createComponent(timeSeriesResource);
     const refresh = fixture.nativeElement.querySelector(
       'button[aria-label="Messdaten aktualisieren"]',
     ) as HTMLButtonElement;
@@ -70,8 +90,9 @@ describe('PhTimeSeriesMeasurementsComponent', () => {
   });
 
   it('never exposes a retained latest reading for another time series', () => {
-    const store = TestBed.inject(TimeSeriesDetailMeasurementsStore);
-    store.setTimeSeries(TIME_SERIES);
+    createComponent(timeSeriesResource);
+    const store = TestBed.inject(TimeSeriesDetailState);
+    timeSeriesResource.value.set(TIME_SERIES);
     latest.value.set({
       ...EMPTY_MEASUREMENT_LIST,
       timeSeriesId: TIME_SERIES.id,
@@ -81,7 +102,7 @@ describe('PhTimeSeriesMeasurementsComponent', () => {
 
     expect(store.latestReading()?.value).toBe('312,5');
 
-    store.setTimeSeries({
+    timeSeriesResource.value.set({
       ...TIME_SERIES,
       id: 'series-2',
       observedProperty: 'discharge',
@@ -92,7 +113,7 @@ describe('PhTimeSeriesMeasurementsComponent', () => {
   });
 
   it('offers and persists reference-level visibility when references are available', () => {
-    const fixture = createComponent();
+    const fixture = createComponent(timeSeriesResource);
     fixture.componentRef.setInput('referenceLines', [
       { label: 'RNW 2020', value: 162, tone: 'lower' },
       { label: 'HSW 2020', value: 480, tone: 'upper' },
@@ -112,8 +133,12 @@ describe('PhTimeSeriesMeasurementsComponent', () => {
   });
 });
 
-function createComponent(): ComponentFixture<PhTimeSeriesMeasurementsComponent> {
-  TestBed.inject(TimeSeriesDetailMeasurementsStore).setTimeSeries(TIME_SERIES);
+function createComponent(
+  timeSeriesResource: ReturnType<typeof fakeResource>,
+): ComponentFixture<PhTimeSeriesMeasurementsComponent> {
+  const state = TestBed.inject(TimeSeriesDetailState);
+  state.connect(signal(TIME_SERIES.id));
+  timeSeriesResource.value.set(TIME_SERIES);
 
   const fixture = TestBed.createComponent(PhTimeSeriesMeasurementsComponent);
   fixture.detectChanges();
@@ -124,6 +149,7 @@ function createComponent(): ComponentFixture<PhTimeSeriesMeasurementsComponent> 
 function fakeResource<T>(initialValue: T) {
   return {
     value: signal(initialValue),
+    hasValue: () => true,
     status: signal('resolved'),
     isLoading: signal(false),
     reload: vi.fn(),

@@ -15,7 +15,6 @@ import {
 export class MeasurementApiService {
   private readonly apiUrl = inject(CoreApiUrlService);
   private readonly http = inject(HttpClient);
-  private readonly injector = inject(Injector);
 
   latestMeasurement(timeSeriesId: string): Observable<MeasurementPointDto | null> {
     return this.http
@@ -29,7 +28,7 @@ export class MeasurementApiService {
       .pipe(map((response) => response.measurements[0] ?? null));
   }
 
-  latestMeasurementResource(timeSeriesId: Signal<string | null>) {
+  latestMeasurementResource(timeSeriesId: Signal<string | null>, injector: Injector) {
     return httpResource<MeasurementListDto>(
       () => {
         const id = timeSeriesId();
@@ -49,12 +48,16 @@ export class MeasurementApiService {
       },
       {
         defaultValue: EMPTY_MEASUREMENT_LIST,
-        injector: this.injector,
+        injector,
       },
     );
   }
 
-  measurementBucketsResource(timeSeriesId: Signal<string | null>, range: Signal<string>) {
+  measurementBucketsResource(
+    timeSeriesId: Signal<string | null>,
+    range: Signal<string>,
+    injector: Injector,
+  ) {
     return httpResource<MeasurementBucketListDto>(
       () => {
         const id = timeSeriesId();
@@ -73,7 +76,7 @@ export class MeasurementApiService {
       },
       {
         defaultValue: EMPTY_MEASUREMENT_BUCKET_LIST,
-        injector: this.injector,
+        injector,
       },
     );
   }

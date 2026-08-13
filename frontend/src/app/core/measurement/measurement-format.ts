@@ -1,4 +1,4 @@
-const UI_LOCALE = 'de-AT';
+export const UI_LOCALE = 'de-AT';
 const dateTimeFormatter = new Intl.DateTimeFormat(UI_LOCALE, {
   dateStyle: 'medium',
   timeStyle: 'short',

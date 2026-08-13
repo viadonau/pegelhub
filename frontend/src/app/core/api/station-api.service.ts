@@ -7,16 +7,15 @@ import { StationDto, StationOwnerDto } from './station.dto';
 @Injectable({ providedIn: 'root' })
 export class StationApiService {
   private readonly apiUrl = inject(CoreApiUrlService);
-  private readonly injector = inject(Injector);
 
-  stationsResource() {
+  stationsResource(injector: Injector) {
     return httpResource<StationDto[]>(() => this.apiUrl.url('/stations'), {
       defaultValue: [],
-      injector: this.injector,
+      injector,
     });
   }
 
-  stationResource(stationId: Signal<string>) {
+  stationResource(stationId: Signal<string>, injector: Injector) {
     return httpResource<StationDto | null>(
       () => {
         const id = stationId().trim();
@@ -25,12 +24,12 @@ export class StationApiService {
       },
       {
         defaultValue: null,
-        injector: this.injector,
+        injector,
       },
     );
   }
 
-  stationOwnerResource(ownerId: Signal<string | null>) {
+  stationOwnerResource(ownerId: Signal<string | null>, injector: Injector) {
     return httpResource<StationOwnerDto | null>(
       () => {
         const id = ownerId();
@@ -39,7 +38,7 @@ export class StationApiService {
       },
       {
         defaultValue: null,
-        injector: this.injector,
+        injector,
       },
     );
   }
