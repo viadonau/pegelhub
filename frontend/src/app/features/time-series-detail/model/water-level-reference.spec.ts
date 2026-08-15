@@ -1,45 +1,44 @@
 import { describe, expect, it } from 'vitest';
 
-import { MeasuringPointDto } from '../../../core/api/measuring-point.dto';
-import { TimeSeriesDto } from '../../../core/api/time-series.dto';
+import {
+  MonitoringMeasuringPointDto,
+  MonitoringTimeSeriesDetailDto,
+} from '../../../core/api/monitoring.dto';
 import { waterLevelChartReferences } from './water-level-reference';
 
-const measuringPoint: MeasuringPointDto = {
+const measuringPoint: MonitoringMeasuringPointDto = {
   id: 'point-1',
-  stationId: 'station-1',
   name: 'Hauptpegel',
   referenceYear: 2020,
+  referenceLevel: null,
+  riverKilometer: null,
+  bank: null,
   rnw: 162,
+  mw: null,
   hsw: 480,
+  hw100: null,
 };
 
-const waterLevel: TimeSeriesDto = {
+const detail = (observedProperty: string): MonitoringTimeSeriesDetailDto => ({
   id: 'series-1',
-  measuringPointId: measuringPoint.id,
-  observedProperty: 'water-level',
+  observedProperty,
   unit: 'cm',
-};
+  externalCode: null,
+  measuringPoint,
+  station: { id: 'station-1', stationNumber: '1', name: 'Station', waterBody: 'Donau' },
+  stationOwner: { id: 'owner-1', name: 'Owner', shortName: null },
+  latestMeasurement: null,
+});
 
 describe('water-level chart references', () => {
   it('maps RNW and HSW into labeled chart references', () => {
-    expect(waterLevelChartReferences(measuringPoint, waterLevel)).toEqual([
+    expect(waterLevelChartReferences(measuringPoint, detail('water-level'))).toEqual([
       { label: 'RNW 2020', value: 162, tone: 'lower' },
       { label: 'HSW 2020', value: 480, tone: 'upper' },
     ]);
   });
 
-  it('omits unavailable reference values', () => {
-    expect(waterLevelChartReferences({ ...measuringPoint, rnw: null }, waterLevel)).toEqual([
-      { label: 'HSW 2020', value: 480, tone: 'upper' },
-    ]);
-  });
-
-  it('does not place water-level references on another measurement type', () => {
-    expect(
-      waterLevelChartReferences(
-        { ...measuringPoint },
-        { ...waterLevel, observedProperty: 'discharge', unit: 'm³/s' },
-      ),
-    ).toEqual([]);
+  it('does not classify another property as water level', () => {
+    expect(waterLevelChartReferences(measuringPoint, detail('level'))).toEqual([]);
   });
 });

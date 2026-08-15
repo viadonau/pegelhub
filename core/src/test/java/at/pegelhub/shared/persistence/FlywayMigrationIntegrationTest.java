@@ -87,9 +87,9 @@ final class FlywayMigrationIntegrationTest {
                         values (?, ?, ?, ?, ?)
                         """,
                 stationId, ownerId, "backfill-station", "Kienstock", "Danube");
-        insertLegacyTimeSeries(jdbc, firstTimeSeriesId, stationId, "water-level", "cm", 120.0, "R");
-        insertLegacyTimeSeries(jdbc, secondTimeSeriesId, stationId, "discharge", "m3-s", 120.0, "R");
-        insertLegacyTimeSeries(jdbc, distinctTimeSeriesId, stationId, "water-temperature", "celsius", 121.0, "L");
+        insertLegacyTimeSeries(jdbc, firstTimeSeriesId, stationId, "water-level", "cm", 120.0, "right");
+        insertLegacyTimeSeries(jdbc, secondTimeSeriesId, stationId, "discharge", "m3-s", 120.0, "right");
+        insertLegacyTimeSeries(jdbc, distinctTimeSeriesId, stationId, "water-temperature", "celsius", 121.0, "left");
 
         migrateThrough(schema, "3");
 
@@ -116,7 +116,7 @@ final class FlywayMigrationIntegrationTest {
                 .containsEntry("reference_level", 120.0)
                 .containsEntry("reference_year", 2010)
                 .containsEntry("river_kilometer", 1921.34)
-                .containsEntry("bank", "R")
+                .containsEntry("bank", "right")
                 .containsEntry("rnw", 162.0)
                 .containsEntry("mw", 295.0)
                 .containsEntry("hsw", 480.0)
@@ -219,7 +219,7 @@ final class FlywayMigrationIntegrationTest {
                 "water-level",
                 "cm",
                 120.12345678901234,
-                "R");
+                "right");
 
         migrateThrough(schema, "3", initSql);
 
@@ -417,6 +417,14 @@ final class FlywayMigrationIntegrationTest {
                 UUID.randomUUID(), UUID.randomUUID(), "Orphan point"))
                 .isInstanceOf(DataIntegrityViolationException.class)
                 .hasMessageContaining("fk_measuring_point_station");
+
+        assertThatThrownBy(() -> jdbc.update("""
+                        insert into measuring_point (id, station_id, name, bank)
+                        values (?, ?, ?, ?)
+                        """,
+                UUID.randomUUID(), stationId, "Invalid bank", "north"))
+                .isInstanceOf(DataIntegrityViolationException.class)
+                .hasMessageContaining("ck_measuring_point_bank_side");
 
         jdbc.update("insert into measuring_point (id, station_id, name) values (?, ?, ?)",
                 measuringPointId, stationId, "Main gauge");

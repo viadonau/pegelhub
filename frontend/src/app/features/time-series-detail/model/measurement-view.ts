@@ -1,9 +1,10 @@
-import { MeasurementBucketListDto, MeasurementListDto } from '../../../core/api/measurement.dto';
-import { TimeSeriesDto } from '../../../core/api/time-series.dto';
+import { MonitoringLatestMeasurementDto } from '../../../core/api/monitoring.dto';
+import { MeasurementBucketListDto } from '../../../core/api/measurement.dto';
 import {
   formatMeasurementNumber,
   formatMeasurementTimestamp,
   formatRelativeMeasurementAge,
+  UI_LOCALE,
 } from '../../../core/measurement/measurement-format';
 import { observedPropertyLabel } from '../../../core/time-series/parameter-legend';
 
@@ -19,7 +20,6 @@ export interface LatestMeasurementView {
   value: string;
 }
 
-const UI_LOCALE = 'de-AT';
 const compactTimeFormatter = new Intl.DateTimeFormat(UI_LOCALE, {
   month: 'short',
   day: '2-digit',
@@ -28,42 +28,40 @@ const compactTimeFormatter = new Intl.DateTimeFormat(UI_LOCALE, {
 });
 
 export function latestMeasurementView(
-  response: MeasurementListDto,
-  timeSeries: TimeSeriesDto,
+  response: MonitoringLatestMeasurementDto | null,
+  unit: string,
 ): LatestMeasurementView | null {
-  const latest = response.measurements[0];
-
-  if (!latest) {
+  if (!response) {
     return null;
   }
 
   return {
-    timestamp: formatMeasurementTimestamp(latest.observedAt),
-    relativeTimestamp: formatRelativeMeasurementAge(latest.observedAt),
-    unit: timeSeries.unit || null,
-    value: formatMeasurementNumber(latest.value),
+    timestamp: formatMeasurementTimestamp(response.observedAt),
+    relativeTimestamp: formatRelativeMeasurementAge(response.observedAt),
+    unit: unit || null,
+    value: formatMeasurementNumber(response.value),
   };
 }
 
 export function measurementChartSeries(
   response: MeasurementBucketListDto,
-  timeSeries: TimeSeriesDto,
+  observedProperty: string,
 ): MeasurementChartSeries | null {
   if (response.points.length === 0) {
     return null;
   }
 
   return {
-    name: observedPropertyLabel(timeSeries.observedProperty),
+    name: observedPropertyLabel(observedProperty),
     points: response.points.map((point) => ({
-      label: formatTimestamp(point.from, compactTimeFormatter),
+      label: formatTimestamp(point.from),
       value: point.value,
     })),
   };
 }
 
-function formatTimestamp(value: string, formatter: Intl.DateTimeFormat): string {
+function formatTimestamp(value: string): string {
   const date = new Date(value);
 
-  return Number.isNaN(date.getTime()) ? value : formatter.format(date);
+  return Number.isNaN(date.getTime()) ? value : compactTimeFormatter.format(date);
 }

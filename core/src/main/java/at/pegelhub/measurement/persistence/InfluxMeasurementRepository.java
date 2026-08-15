@@ -7,6 +7,8 @@ import at.pegelhub.measurement.application.MeasurementBucketQuery;
 import at.pegelhub.measurement.application.MeasurementList;
 import at.pegelhub.measurement.application.MeasurementListQuery;
 import at.pegelhub.measurement.application.MeasurementReadRow;
+import at.pegelhub.measurement.application.LatestMeasurement;
+import at.pegelhub.measurement.application.MeasurementLatestQuery;
 import at.pegelhub.measurement.domain.Measurement;
 import at.pegelhub.measurement.domain.MeasurementBucket;
 import at.pegelhub.shared.influx.InfluxBucketOperations;
@@ -87,6 +89,12 @@ public class InfluxMeasurementRepository implements MeasurementRepository {
                         counts.get(entry.getKey())))
                 .toList();
         return new MeasurementBucketList(bucketQuery, buckets);
+    }
+
+    @Override
+    public List<LatestMeasurement> listLatestMeasurements(MeasurementLatestQuery latestQuery) {
+        String query = queryBuilder.latestMeasurements(latestQuery);
+        return rowMapper.latestMeasurementRows(influx.query(query));
     }
 
     @Override

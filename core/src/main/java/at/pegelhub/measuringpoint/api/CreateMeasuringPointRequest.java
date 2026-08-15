@@ -31,7 +31,7 @@ public record CreateMeasuringPointRequest(
         @Schema(description = "openapi.measuringpoint.create-measuring-point-request.optional-river-kilometer", example = "1933.2", nullable = true)
         Double riverKilometer,
 
-        @Schema(description = "openapi.measuringpoint.create-measuring-point-request.optional-bank-description-or-code", maxLength = 40, example = "left", nullable = true)
+        @Schema(description = "openapi.measuringpoint.create-measuring-point-request.optional-bank-description-or-code", allowableValues = {"left", "right"}, maxLength = 40, example = "left", nullable = true)
         @Size(max = 40)
         String bank,
 

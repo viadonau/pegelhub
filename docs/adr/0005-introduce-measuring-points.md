@@ -39,9 +39,11 @@ cannot safely infer that they describe the same physical position.
 
 ## Consequences
 
-The operator frontend can present one MeasuringPoint per overview row and let
-operators switch among that point's TimeSeries in the detail view. It no longer
-needs to promote an arbitrary observed property as the identity of a row.
+The operator frontend uses TimeSeries as the monitoring row and route identity.
+Each row still presents its MeasuringPoint metadata, and the detail view
+resolves the TimeSeries through its MeasuringPoint. It no longer promotes an
+arbitrary observed property as the identity of a row, nor does it make a
+MeasuringPoint the route target.
 
 Creating a TimeSeries now requires an existing MeasuringPoint. Clients that
 create metadata must create or select the point first. Connector measurement

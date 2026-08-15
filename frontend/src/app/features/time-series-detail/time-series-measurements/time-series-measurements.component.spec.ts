@@ -1,94 +1,71 @@
-import { signal } from '@angular/core';
+import { signal, type Signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { By } from '@angular/platform-browser';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { MeasurementApiService } from '../../../core/api/measurement-api.service';
-import {
-  EMPTY_MEASUREMENT_BUCKET_LIST,
-  EMPTY_MEASUREMENT_LIST,
-} from '../../../core/api/measurement.dto';
-import { TimeSeriesDto } from '../../../core/api/time-series.dto';
+import { MeasurementBucketListDto } from '../../../core/api/measurement.dto';
 import { MemoryStorage } from '../../../../testing/memory-storage';
-import { TimeSeriesDetailMeasurementsStore } from '../data-access/time-series-detail-measurements.store';
-
+import { PhMeasurementHistoryToolbarComponent } from '../measurement-history-toolbar/measurement-history-toolbar.component';
 import { PhTimeSeriesMeasurementsComponent } from './time-series-measurements.component';
 
-const TIME_SERIES: TimeSeriesDto = {
-  id: 'series-1',
-  measuringPointId: 'point-1',
-  observedProperty: 'water-level',
-  unit: 'cm',
-};
-
 describe('PhTimeSeriesMeasurementsComponent', () => {
-  let latest: ReturnType<typeof fakeResource>;
-  let buckets: ReturnType<typeof fakeResource>;
+  let buckets: ReturnType<typeof fakeResource<MeasurementBucketListDto>>;
+  let measurementsApi: { measurementBucketsResource: ReturnType<typeof vi.fn> };
   let storage: Storage;
-  let measurementsApi: {
-    latestMeasurementResource: ReturnType<typeof vi.fn>;
-    measurementBucketsResource: ReturnType<typeof vi.fn>;
-  };
 
   beforeEach(() => {
     storage = new MemoryStorage();
     Object.defineProperty(window, 'localStorage', { configurable: true, value: storage });
-    latest = fakeResource(EMPTY_MEASUREMENT_LIST);
-    buckets = fakeResource(EMPTY_MEASUREMENT_BUCKET_LIST);
-    measurementsApi = {
-      latestMeasurementResource: vi.fn(() => latest),
-      measurementBucketsResource: vi.fn(() => buckets),
-    };
+    buckets = fakeResource(emptyBuckets('series-1'));
+    measurementsApi = { measurementBucketsResource: vi.fn(() => buckets) };
 
     TestBed.configureTestingModule({
-      providers: [
-        TimeSeriesDetailMeasurementsStore,
-        { provide: MeasurementApiService, useValue: measurementsApi },
-      ],
+      imports: [PhTimeSeriesMeasurementsComponent],
+      providers: [{ provide: MeasurementApiService, useValue: measurementsApi }],
     });
   });
 
-  it('renders the chart workflow without requesting or displaying raw measurements', () => {
+  it('owns the ranged bucket resource for its time series', () => {
     const fixture = createComponent();
-    const text = normalizedText(fixture);
+    const id = measurementsApi.measurementBucketsResource.mock.calls[0][0] as Signal<string>;
+    const range = measurementsApi.measurementBucketsResource.mock.calls[0][1] as Signal<string>;
 
-    expect(text).toContain('Messverlauf');
-    expect(text).not.toContain('Einzelmesswerte');
-    expect(measurementsApi.latestMeasurementResource).toHaveBeenCalledOnce();
-    expect(measurementsApi.measurementBucketsResource).toHaveBeenCalledOnce();
+    expect(id()).toBe('series-1');
+    expect(range()).toBe('24h');
+    expect(normalizedText(fixture)).toContain('Messverlauf · Wasserstand (cm)');
   });
 
-  it('reloads the current value and chart from one refresh action', () => {
+  it('reloads buckets and asks the page to refresh its snapshot', () => {
     const fixture = createComponent();
-    const refresh = fixture.nativeElement.querySelector(
-      'button[aria-label="Messdaten aktualisieren"]',
-    ) as HTMLButtonElement;
+    const refresh = vi.fn();
+    fixture.componentInstance.refresh.subscribe(refresh);
 
-    refresh.click();
+    clickRefresh(fixture);
 
-    expect(latest.reload).toHaveBeenCalledOnce();
     expect(buckets.reload).toHaveBeenCalledOnce();
+    expect(refresh).toHaveBeenCalledOnce();
   });
 
-  it('never exposes a retained latest reading for another time series', () => {
-    const store = TestBed.inject(TimeSeriesDetailMeasurementsStore);
-    store.setTimeSeries(TIME_SERIES);
-    latest.value.set({
-      ...EMPTY_MEASUREMENT_LIST,
-      timeSeriesId: TIME_SERIES.id,
-      measurements: [{ observedAt: '2026-07-19T10:00:00Z', value: 312.5 }],
-    });
-    TestBed.flushEffects();
+  it('reloads only buckets when the range changes', () => {
+    const fixture = createComponent();
+    const range = measurementsApi.measurementBucketsResource.mock.calls[0][1] as Signal<string>;
+    const toolbar = fixture.debugElement.query(By.directive(PhMeasurementHistoryToolbarComponent))
+      .componentInstance as PhMeasurementHistoryToolbarComponent;
 
-    expect(store.latestReading()?.value).toBe('312,5');
+    toolbar.rangeChange.emit('7d');
+    fixture.detectChanges();
 
-    store.setTimeSeries({
-      ...TIME_SERIES,
-      id: 'series-2',
-      observedProperty: 'discharge',
-      unit: 'm³/s',
-    });
+    expect(range()).toBe('7d');
+    expect(buckets.reload).not.toHaveBeenCalled();
+  });
 
-    expect(store.latestReading()).toBeNull();
+  it('does not read an errored bucket response', () => {
+    const fixture = createComponent();
+    buckets.status.set('error');
+
+    expect(() => fixture.detectChanges()).not.toThrow();
+    expect(normalizedText(fixture)).toContain('Der Messverlauf konnte nicht geladen werden.');
   });
 
   it('offers and persists reference-level visibility when references are available', () => {
@@ -102,29 +79,50 @@ describe('PhTimeSeriesMeasurementsComponent', () => {
     const toggle = fixture.nativeElement.querySelector(
       '#ph-reference-levels-toggle',
     ) as HTMLInputElement;
-
     expect(toggle).not.toBeNull();
-
     toggle.click();
     fixture.detectChanges();
-
     expect(storage.getItem('pegelhub.chart.referenceLevels')).toBe('true');
   });
 });
 
 function createComponent(): ComponentFixture<PhTimeSeriesMeasurementsComponent> {
-  TestBed.inject(TimeSeriesDetailMeasurementsStore).setTimeSeries(TIME_SERIES);
-
   const fixture = TestBed.createComponent(PhTimeSeriesMeasurementsComponent);
+  fixture.componentRef.setInput('timeSeriesId', 'series-1');
+  fixture.componentRef.setInput('observedProperty', 'water-level');
+  fixture.componentRef.setInput('unit', 'cm');
   fixture.detectChanges();
-
   return fixture;
 }
 
+function clickRefresh(fixture: ComponentFixture<unknown>): void {
+  const refresh = fixture.nativeElement.querySelector(
+    'button[aria-label="Messdaten aktualisieren"]',
+  ) as HTMLButtonElement;
+  refresh.click();
+}
+
+function emptyBuckets(timeSeriesId: string): MeasurementBucketListDto {
+  return { timeSeriesId, window: null, resolution: null, points: [] };
+}
+
 function fakeResource<T>(initialValue: T) {
+  const valueState = signal(initialValue);
+  const status = signal('resolved');
+  const value = Object.assign(
+    () => {
+      if (status() === 'error') {
+        throw new Error('Resource value read while errored');
+      }
+      return valueState();
+    },
+    { set: (nextValue: T) => valueState.set(nextValue) },
+  );
+
   return {
-    value: signal(initialValue),
-    status: signal('resolved'),
+    value,
+    hasValue: () => status() !== 'error',
+    status,
     isLoading: signal(false),
     reload: vi.fn(),
   };

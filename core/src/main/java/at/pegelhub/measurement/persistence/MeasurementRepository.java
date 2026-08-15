@@ -4,6 +4,8 @@ import at.pegelhub.measurement.application.MeasurementBucketList;
 import at.pegelhub.measurement.application.MeasurementBucketQuery;
 import at.pegelhub.measurement.application.MeasurementList;
 import at.pegelhub.measurement.application.MeasurementListQuery;
+import at.pegelhub.measurement.application.LatestMeasurement;
+import at.pegelhub.measurement.application.MeasurementLatestQuery;
 import at.pegelhub.measurement.domain.Measurement;
 
 import java.time.Instant;
@@ -24,6 +26,8 @@ public interface MeasurementRepository {
     MeasurementList listMeasurements(MeasurementListQuery query);
 
     MeasurementBucketList listMeasurementBuckets(MeasurementBucketQuery query);
+
+    List<LatestMeasurement> listLatestMeasurements(MeasurementLatestQuery query);
 
     Instant getSystemTime();
 }

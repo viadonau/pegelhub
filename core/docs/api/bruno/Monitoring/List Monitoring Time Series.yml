@@ -1,0 +1,23 @@
+info:
+  name: List Monitoring Time Series
+  type: http
+  seq: 1
+
+http:
+  method: GET
+  url: "{{baseUrl}}/{{apiPath}}/monitoring/time-series?latestWithin=365d"
+  params:
+    - name: latestWithin
+      value: 365d
+      type: query
+  headers:
+    - name: X-Auth-Profile
+      value: operator
+  auth: inherit
+
+runtime:
+  scripts:
+    - type: after-response
+      code: test('status is 200', () => expect(res.getStatus()).to.equal(200));
+
+docs: Reads the complete operator monitoring catalog and one latest measurement per time series.

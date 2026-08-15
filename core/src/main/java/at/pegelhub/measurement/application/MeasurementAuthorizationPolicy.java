@@ -12,4 +12,6 @@ public interface MeasurementAuthorizationPolicy {
     ConnectorId requireWriteBatch(Collection<TimeSeriesId> timeSeriesIds);
 
     void requireRead(TimeSeriesId timeSeriesId);
+
+    void requireReadBatch(Collection<TimeSeriesId> timeSeriesIds);
 }

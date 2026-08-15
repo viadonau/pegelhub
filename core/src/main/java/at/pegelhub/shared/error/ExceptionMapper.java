@@ -1,5 +1,6 @@
 package at.pegelhub.shared.error;
 
+import com.influxdb.exceptions.InfluxException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpHeaders;
@@ -45,6 +46,17 @@ public class ExceptionMapper extends ResponseEntityExceptionHandler {
         LOGGER.error("Invalid Arguments", ex);
         String bodyOfResponse = ex.getMessage();
         return handleExceptionInternal(ex, bodyOfResponse, new HttpHeaders(), HttpStatus.BAD_REQUEST, request);
+    }
+
+    @ExceptionHandler(value = {InfluxException.class})
+    protected ResponseEntity<Object> handleInfluxException(InfluxException ex, WebRequest request) {
+        LOGGER.error("Measurement store unavailable", ex);
+        return handleExceptionInternal(
+                ex,
+                "Measurement store unavailable",
+                new HttpHeaders(),
+                HttpStatus.SERVICE_UNAVAILABLE,
+                request);
     }
 
     @ExceptionHandler(value = {RuntimeException.class})

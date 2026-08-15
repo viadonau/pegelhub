@@ -4,7 +4,6 @@ import at.pegelhub.station.domain.StationId;
 
 import java.util.UUID;
 
-import static at.pegelhub.shared.validation.Validations.normalizeOptional;
 import static at.pegelhub.shared.validation.Validations.normalizeRequired;
 import static java.util.Objects.requireNonNull;
 
@@ -15,7 +14,7 @@ public record MeasuringPoint(
         Double referenceLevel,
         Integer referenceYear,
         Double riverKilometer,
-        String bank,
+        BankSide bank,
         Double rnw,
         Double mw,
         Double hsw,
@@ -29,7 +28,6 @@ public record MeasuringPoint(
         referenceLevel = requireFiniteOptional(referenceLevel, "referenceLevel");
         referenceYear = requireReferenceYear(referenceYear);
         riverKilometer = requireFiniteOptional(riverKilometer, "riverKilometer");
-        bank = normalizeOptional(bank);
         rnw = requireFiniteOptional(rnw, "rnw");
         mw = requireFiniteOptional(mw, "mw");
         hsw = requireFiniteOptional(hsw, "hsw");
@@ -42,7 +40,7 @@ public record MeasuringPoint(
             Double referenceLevel,
             Integer referenceYear,
             Double riverKilometer,
-            String bank,
+            BankSide bank,
             Double rnw,
             Double mw,
             Double hsw,

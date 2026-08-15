@@ -1,6 +1,7 @@
 package at.pegelhub.measuringpoint.api;
 
 import at.pegelhub.measuringpoint.application.CreateMeasuringPointCommand;
+import at.pegelhub.measuringpoint.domain.BankSide;
 import at.pegelhub.measuringpoint.domain.MeasuringPoint;
 import at.pegelhub.station.domain.StationId;
 
@@ -16,7 +17,7 @@ final class MeasuringPointMapper {
                 request.referenceLevel(),
                 request.referenceYear(),
                 request.riverKilometer(),
-                request.bank(),
+                BankSide.fromNullable(request.bank()),
                 request.rnw(),
                 request.mw(),
                 request.hsw(),
@@ -31,7 +32,7 @@ final class MeasuringPointMapper {
                 measuringPoint.referenceLevel(),
                 measuringPoint.referenceYear(),
                 measuringPoint.riverKilometer(),
-                measuringPoint.bank(),
+                measuringPoint.bank() == null ? null : measuringPoint.bank().value(),
                 measuringPoint.rnw(),
                 measuringPoint.mw(),
                 measuringPoint.hsw(),

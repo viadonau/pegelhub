@@ -1,5 +1,6 @@
 package at.pegelhub.measuringpoint.persistence;
 
+import at.pegelhub.measuringpoint.domain.BankSide;
 import at.pegelhub.measuringpoint.domain.MeasuringPoint;
 import at.pegelhub.measuringpoint.domain.MeasuringPointId;
 import at.pegelhub.station.domain.StationId;
@@ -54,7 +55,7 @@ class MeasuringPointRepositoryAdapter implements MeasuringPointRepository {
                 measuringPoint.referenceLevel(),
                 measuringPoint.referenceYear(),
                 measuringPoint.riverKilometer(),
-                measuringPoint.bank(),
+                measuringPoint.bank() == null ? null : measuringPoint.bank().value(),
                 measuringPoint.rnw(),
                 measuringPoint.mw(),
                 measuringPoint.hsw(),
@@ -69,7 +70,7 @@ class MeasuringPointRepositoryAdapter implements MeasuringPointRepository {
                 measuringPoint.referenceLevel(),
                 measuringPoint.referenceYear(),
                 measuringPoint.riverKilometer(),
-                measuringPoint.bank(),
+                BankSide.fromNullable(measuringPoint.bank()),
                 measuringPoint.rnw(),
                 measuringPoint.mw(),
                 measuringPoint.hsw(),

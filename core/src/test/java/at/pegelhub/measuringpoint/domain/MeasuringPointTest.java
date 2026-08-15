@@ -43,7 +43,7 @@ final class MeasuringPointTest {
                 760.0);
 
         assertThat(measuringPoint.name()).isEqualTo("Main gauge");
-        assertThat(measuringPoint.bank()).isEqualTo("left");
+        assertThat(measuringPoint.bank()).isEqualTo(BankSide.LEFT);
         assertThat(point(ID, STATION_ID, "Main gauge", null, null, null, " ", null, null, null, null).bank())
                 .isNull();
     }
@@ -115,7 +115,7 @@ final class MeasuringPointTest {
                 referenceLevel,
                 referenceYear,
                 riverKilometer,
-                bank,
+                BankSide.fromNullable(bank),
                 rnw,
                 mw,
                 hsw,
