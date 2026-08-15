@@ -1,12 +1,18 @@
-# PegelHub Frontend
+<p align="center">
+  <img src="public/brand/pegelhub-logo.png" alt="PegelHub" width="220">
+</p>
 
-<img src="public/brand/pegelhub-logo.png" alt="PegelHub" width="220">
+# PegelHub Frontend
 
 [![Frontend Delivery](https://github.com/viadonau/pegelhub/actions/workflows/frontend-delivery.yml/badge.svg)](https://github.com/viadonau/pegelhub/actions/workflows/frontend-delivery.yml)
 
-PegelHub Frontend is the authenticated monitoring interface for viadonau operators. This Angular 21
-application presents station, measuring-point, time-series, and measurement data supplied by
-[PegelHub Core](../core/README.md); it does not own or persist that data.
+The frontend is PegelHub's authenticated monitoring interface for viadonau operators. This Angular
+21 application presents station, measuring-point, time-series, and measurement data supplied by
+[PegelHub Core](../core/README.md); it does not own or persist domain data.
+
+The frontend is developed in the PegelHub monorepo but retains its own npm toolchain, container
+image, runtime configuration, health check, and deployment path. Start with the
+[repository README](../README.md) for the system architecture and full-stack workflow.
 
 The implemented product scope is intentionally limited to monitoring: a filterable time-series
 overview and a single-series detail view with metadata, the most recent reading returned from a
@@ -14,23 +20,21 @@ trailing-365-day query, and bucketed chart history. Metadata administration and 
 configuration workflows are not implemented. The user interface is German; source code and
 technical documentation are English.
 
-## Quick Start
+## Quick start
 
 ### Prerequisites
 
-- Node.js 24, matching CI and the Docker build stage;
-- npm 11.12.1, declared by the repository's `packageManager` field;
-- Bash and standard POSIX command-line tools for the documented repository and Core helper scripts;
-- Docker for the
-  [PegelHub Core local stack](../README.md#start-locally) and container image
-  validation;
-- `curl` for the Core startup helper and container image validation.
+- Node.js 24, matching CI and the Docker build stage
+- npm 11.12.1, declared by the repository's `packageManager` field
+- Bash and standard POSIX command-line tools for repository scripts
+- Docker for the [Core local stack](../README.md#start-locally) and image validation
+- `curl` for Core startup and image validation
 
-The shell examples assume macOS, Linux, or a comparable POSIX environment such as WSL. The checked-in
-`package-lock.json` is the dependency source of truth; use `npm ci` for a clean install that fails
-rather than changing it.
+The shell examples assume macOS, Linux, or a comparable POSIX environment such as WSL. The
+checked-in `package-lock.json` is the dependency source of truth; use `npm ci` for a clean install
+that fails rather than changing it. Commands in this quick start run from the repository root.
 
-### Run the Stack
+### Run the stack
 
 The browser must be able to resolve the same Keycloak hostname that Core uses as the token issuer.
 With administrative privileges, add this entry to `/etc/hosts` on macOS/Linux or to the equivalent
@@ -45,14 +49,15 @@ From the repository root, start Core and its local dependencies:
 ```bash
 test -f core/.env || cp core/.env.example core/.env
 scripts/local-stack.sh compose-up
+scripts/local-stack.sh health
 ```
 
 The imported disposable realm includes a browser user authorized for this monitoring UI. Obtain its
 local-only sign-in details from the repository's
 [local Keycloak guide](../core/docs/keycloak-local-dev.md#local-realm-contents).
-Custom browser users need the Core `metadata:read` and `measurement:read` client roles. The Core
-repository owns identities and realm-import behavior; do not put credentials in frontend
-configuration or duplicate them here.
+Custom browser users need the Core `metadata:read` and `measurement:read` client roles. Keycloak
+owns identities; the local realm definition and operational guidance live under `core/`. Do not put
+credentials in frontend configuration or duplicate them here.
 
 Then, from the repository root, start the frontend:
 
@@ -69,14 +74,14 @@ The development server binds to `localhost:4200`. It serves the committed runtim
 proxies `/api` to `http://localhost:8080`. To use another Core address:
 
 ```bash
-PEGELHUB_API_PROXY_TARGET=http://localhost:8090 npm start
+PEGELHUB_API_PROXY_TARGET=http://localhost:8090 npm --prefix frontend start
 ```
 
-`npm run start:4201` is available when port 4200 is occupied, but it requires a matching Keycloak
-browser origin. Core's default local realm is configured for `http://localhost:4200`; see
-[Authentication](#authentication) before changing the port.
+`npm --prefix frontend run start:4201` is available when port 4200 is occupied, but it requires a
+matching Keycloak browser origin. Core's default local realm is configured for
+`http://localhost:4200`; see [Authentication](#authentication) before changing the port.
 
-## Product Surface
+## Product surface
 
 | Route                     | Behavior                                                                                       |
 | ------------------------- | ---------------------------------------------------------------------------------------------- |
@@ -87,7 +92,7 @@ browser origin. Core's default local realm is configured for `http://localhost:4
 
 Water-level detail charts can optionally show RNW and HSW reference levels when the API supplies
 them. The application also provides persistent light/dark theme selection and responsive grid
-columns. See [PRODUCT.md](PRODUCT.md) for the product and design decisions behind this scope.
+columns.
 
 ## Authentication
 
@@ -106,7 +111,7 @@ not rewrite an already imported realm.
 
 ## Configuration
 
-### Browser Runtime Config
+### Browser runtime configuration
 
 The application fetches `/assets/config.json` with `cache: no-store` before Angular bootstrap. All
 four values are required and must be non-empty strings:
@@ -143,7 +148,7 @@ and produces a dedicated startup error page. The loader does not otherwise valid
 values. A malformed Keycloak URL can fail during application configuration; other incorrect API or
 Keycloak values fail when the corresponding service is used.
 
-### API Proxies
+### API proxies
 
 Local development and the deployment container use different proxy implementations:
 
@@ -176,7 +181,7 @@ scripts/                                 image validation and live-stack smoke c
 
 Feature `model/` directories contain presentation projections and pure formatting logic, not a
 second backend domain model. Shared UI stays domain-neutral; feature adapters own domain-specific
-columns and behavior. More detail lives in [PRODUCT.md](PRODUCT.md).
+columns and behavior.
 
 ## Commands
 
@@ -193,7 +198,7 @@ when working from the repository root.
 | `npm run format:check`   | Check repository formatting with Prettier.                                      |
 | `npm run format`         | Rewrite supported files with Prettier.                                          |
 | `npm run check`          | Run formatting, both TypeScript checks, and the unit suite, as CI does.         |
-| `npm run build`          | Create the production bundle under `dist/pegelhub-frontend-next/browser/`.      |
+| `npm run build`          | Create the production bundle under `dist/`.                                     |
 | `npm run image:validate` | Build and exercise the deployment image; requires running Docker and `curl`.    |
 | `npm run smoke:live`     | Check a running local frontend, Keycloak, Core proxy, auth gate, and API reads. |
 
@@ -201,9 +206,9 @@ when working from the repository root.
 client-credentials service client. That smoke-test client is separate from the public
 `pegelhub-frontend` browser client described under [Authentication](#authentication). Its optional
 inputs are `FRONTEND_BASE_URL`, `LOCAL_OPERATOR_CLIENT_ID`, `LOCAL_OPERATOR_CLIENT_SECRET`, and
-`LIVE_STACK_SMOKE_TIMEOUT_MS`. The repository's
-[local Keycloak guide](../core/docs/keycloak-local-dev.md#local-realm-contents)
-owns its provisioning. Supply sensitive overrides only through the environment; do not commit them.
+`LIVE_STACK_SMOKE_TIMEOUT_MS`. Provisioning is documented in the
+[local Keycloak guide](../core/docs/keycloak-local-dev.md#local-realm-contents). Supply sensitive
+overrides only through the environment; do not commit them.
 
 Before opening a pull request, run at least:
 
@@ -216,7 +221,7 @@ Run `npm run image:validate` as well for changes to the Dockerfile, entrypoint, 
 Nginx behavior. Run `npm run smoke:live` when a Core stack and frontend server are already
 available.
 
-## Deployment Container
+## Deployment container
 
 Deployment operators should use the repository's
 [staging frontend runbook](../deploy/staging/README.md#deploy-and-roll-back-the-frontend).
@@ -234,7 +239,7 @@ start period, and twelve retries. A healthy container therefore confirms that Ng
 application root. Frontend deployment smoke checks also exercise the public app and proxied Core
 system-time route; they do not perform a Keycloak login or discovery check.
 
-## Delivery and Staging
+## Delivery and staging
 
 The [Frontend Delivery workflow](../.github/workflows/frontend-delivery.yml) owns the frontend
 image delivery path:
@@ -251,7 +256,7 @@ The repository owns the `staging` GitHub Environment, SSH and Compose topology, 
 frontend and Core-proxy smoke checks, release state, and the attempted restoration of the previous
 digest after a failed activation. See the
 [staging frontend runbook](../deploy/staging/README.md#deploy-and-roll-back-the-frontend) for the
-deployment procedure. No cross-repository dispatch token is required.
+deployment procedure.
 
 ## Troubleshooting
 
@@ -272,8 +277,7 @@ update the disposable realm using the linked Keycloak guide.
 Confirm that the browser user has both `metadata:read` and `measurement:read` on the
 `pegelhub-core-api` client. After changing role assignments, sign out and back in so the browser
 receives fresh token claims.
-Use the [local Keycloak guide](../core/docs/keycloak-local-dev.md)
-for the role and client model.
+Use the [local Keycloak guide](../core/docs/keycloak-local-dev.md) for the role and client model.
 
 ### API requests fail locally
 
@@ -294,15 +298,13 @@ The image health check covers Nginx only. Verify that `NGINX_API_UPSTREAM` is re
 frontend container network and that the browser-facing Keycloak URL is reachable from the user's
 machine.
 
-## Further Documentation
+## Further documentation
 
-- [PRODUCT.md](PRODUCT.md): current product boundary, design direction, and frontend architecture.
 - [Operator station metadata note](docs/operator-station-metadata.md): source-data observations for
   possible future metadata work; it does not describe an implemented administration feature.
 - [Brand assets](public/brand/README.md): bundled asset purpose, provenance, and maintenance rules.
-- [PegelHub Core](../core/README.md): backend runtime and
-  API documentation entry point.
-- [Local Keycloak development](../core/docs/keycloak-local-dev.md):
-  issuer, browser client, roles, and realm-import behavior.
+- [PegelHub Core](../core/README.md): Core runtime and API documentation entry point.
+- [Local Keycloak development](../core/docs/keycloak-local-dev.md): issuer, browser client, roles,
+  and realm-import behavior.
 - [Staging deployment](../deploy/staging/README.md#deploy-and-roll-back-the-frontend):
   frontend activation, smoke checks, and rollback ownership.

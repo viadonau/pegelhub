@@ -6,26 +6,52 @@
 
 [![CI](https://github.com/viadonau/pegelhub/actions/workflows/ci.yml/badge.svg)](https://github.com/viadonau/pegelhub/actions/workflows/ci.yml)
 
-PegelHub is an application for hydrological station metadata and time-series
-measurements. This repository contains the Core HTTP API, protocol-specific
-connectors, Angular monitoring frontend, local infrastructure, and the
-repository-owned staging deployment. Core and the frontend remain separate
-deployables with independent toolchains and container images.
+PegelHub is viadonau's integration and monitoring platform for hydrological
+station metadata and time-series measurements. It brings the Core HTTP API,
+protocol-specific connectors, authenticated web frontend, local infrastructure,
+and staging automation into one repository.
 
-> **Deployment scope:** the repository defines local development and a
-> single-host staging topology. It does not currently define a production
-> topology, availability target, or production operations contract.
+The repository is a monorepo, not a single runtime artifact. Core, the frontend,
+and each connector retain their own build and container boundaries while sharing
+one API contract, identity model, development environment, and deployment
+topology.
+
+## Capabilities
+
+- Model station owners, stations, measuring points, and time series with
+  explicit access grants.
+- Integrate FTP, PegelHub Core, IEC 60870-5-104, Revolution Pi, and TSTP systems
+  through independently deployable connectors.
+- Store metadata in PostgreSQL and measurements and technical telemetry in
+  separate InfluxDB buckets.
+- Expose an OAuth 2.0-protected HTTP API with bilingual OpenAPI descriptions and
+  a maintained Bruno collection.
+- Present current and historical measurements in an authenticated,
+  German-language monitoring interface.
+
+> **Environment scope:** repository documentation and automation cover local
+> development and a single-host staging environment. This repository does not
+> claim a production topology, availability target, or production operations
+> contract.
 
 ## Start locally
 
 ### Prerequisites
 
-- Java 21 and Maven 3.9 for host-side builds
+- Java 21 and Maven 3.9 for Core and connector builds
 - Node.js 24 and npm 11.12.1 for frontend development
 - Docker with Docker Compose v2
-- Bash and `curl` for the local-stack helper
+- Bash and `curl` for repository scripts
 
-From the repository root:
+The browser and Core must use the same Keycloak issuer hostname. Add this entry
+to the local hosts file before starting the stack:
+
+```text
+127.0.0.1 pegelhub-keycloak.test
+```
+
+From the repository root, create the ignored local environment file and start
+Core with its dependencies:
 
 ```bash
 test -f core/.env || cp core/.env.example core/.env
@@ -33,34 +59,34 @@ scripts/local-stack.sh compose-up
 scripts/local-stack.sh health
 ```
 
-`core/.env.example` contains disposable local credentials. Replace them for
-any shared or remotely reachable environment.
+`core/.env.example` contains disposable local credentials. Replace them in any
+shared or remotely reachable environment.
 
-Host-side browser and token flows use the same issuer hostname that Core
-validates. Add `127.0.0.1 pegelhub-keycloak.test` to the local hosts file; do
-not substitute `localhost` in the issuer URL.
-
-With Core running, start the frontend in a second terminal:
+Start the frontend development server in a second terminal:
 
 ```bash
 npm --prefix frontend ci
 npm --prefix frontend start
 ```
 
-Open <http://localhost:4200/overview> and sign in with the local browser user
-from the [Keycloak guide](core/docs/keycloak-local-dev.md#local-realm-contents).
+Open <http://localhost:4200/overview> and sign in with the browser account from
+the [local Keycloak guide](core/docs/keycloak-local-dev.md#local-realm-contents).
 
-The helper builds Core and starts PostgreSQL, InfluxDB, Keycloak, and Core. The
-default local addresses are:
+The local environment exposes:
 
-| Service | URL |
+| Service | Local address |
 | --- | --- |
-| Core API prefix | <http://localhost:8080/api/v1> |
+| Frontend | <http://localhost:4200/overview> |
+| Core API | <http://localhost:8080/api/v1> |
 | Swagger UI | <http://localhost:8080/swagger-ui.html> |
 | Actuator health | <http://localhost:8081/actuator/health> |
 | Keycloak | <http://pegelhub-keycloak.test:8082> |
 | PostgreSQL | `localhost:5444` |
 | InfluxDB | <http://localhost:8111> |
+
+The local-stack helper builds Core and starts PostgreSQL, InfluxDB, Keycloak,
+and Core. The frontend remains a separate Node process so frontend changes can
+reload independently.
 
 Useful lifecycle commands:
 
@@ -74,47 +100,59 @@ scripts/local-stack.sh compose-down
 
 ```mermaid
 flowchart LR
-    Systems["Protocol systems"] --> Connectors["FTP / ICC / IEC / mA / TSTP connectors"]
-    Connectors -->|"OAuth 2.0 bearer tokens"| Core["Core API"]
-    Frontend["PegelHub frontend"] -->|"OAuth 2.0 bearer tokens"| Core
-    Keycloak["Keycloak"] -->|"Issues tokens"| Connectors
-    Keycloak -->|"Issues tokens"| Frontend
+    Browser["Operator browser"] -->|"loads application"| Frontend["Frontend dev server / Nginx"]
+    Browser <-->|"OIDC with PKCE"| Keycloak["Keycloak"]
+    Browser -->|"bearer-token API calls"| Frontend
+    Frontend -->|"same-origin /api proxy"| Core["Core HTTP API"]
+    Systems["Protocol and field systems"] ---|"protocol adapters"| Connectors["FTP / ICC / IEC / mA / TSTP connectors"]
+    Connectors <-->|"OAuth-protected reads and writes"| Core
+    Keycloak -->|"client-credentials tokens"| Connectors
     Core --> PostgreSQL["PostgreSQL metadata"]
     Core --> InfluxDB["InfluxDB measurements and telemetry"]
 ```
 
 Core owns the hierarchy
-`StationOwner -> Station -> MeasuringPoint -> TimeSeries` and keeps metadata
-in PostgreSQL. Measurements and technical telemetry are stored in separate
-InfluxDB buckets. Keycloak issues the OAuth 2.0 bearer tokens used
-by browser and service clients.
+`StationOwner -> Station -> MeasuringPoint -> TimeSeries`. PostgreSQL stores
+that metadata, while InfluxDB stores measurements and technical telemetry in
+separate buckets. The frontend consumes Core only through the HTTP API and does
+not own or persist domain data.
 
-## Repository map
+The root Maven reactor intentionally builds Core and the connectors only. The
+frontend keeps its native npm toolchain and container image under `frontend/`.
+CI verifies both sides together, while delivery workflows publish and deploy
+them independently.
 
-| Path | Purpose |
+## Repository layout
+
+| Path | Responsibility |
 | --- | --- |
 | [`core/`](core/) | Spring Boot API, persistence, security, OpenAPI, and local Docker Compose stack |
-| [`connectors/library/`](connectors/library/) | Shared connector runtime, configuration, OAuth client, mapping loader, and measurement model |
+| [`connectors/library/`](connectors/library/) | Shared connector runtime, Core client, OAuth client, configuration, and lifecycle |
 | [`connectors/ftp-connector/`](connectors/ftp-connector/) | Imports ASC and ZRXP files from FTP |
-| [`connectors/icc-connector/`](connectors/icc-connector/) | Transfers measurements between two PegelHub Core instances |
+| [`connectors/icc-connector/`](connectors/icc-connector/) | Transfers measurements between PegelHub Core instances |
 | [`connectors/iec-connector/`](connectors/iec-connector/) | Exchanges measurements with IEC 60870-5-104 systems |
-| [`connectors/ma-connector/`](connectors/ma-connector/) | Reads raw process-image input values from Revolution Pi hardware |
+| [`connectors/ma-connector/`](connectors/ma-connector/) | Reads raw process-image values from Revolution Pi hardware |
 | [`connectors/tstp-connector/`](connectors/tstp-connector/) | Exchanges measurements with the TSTP HTTP API |
 | [`frontend/`](frontend/) | Angular monitoring application, browser runtime configuration, and frontend image |
-| [`deploy/staging/`](deploy/staging/) | Single-host staging deployment, policy checks, bootstrap, smoke tests, and rollback scripts |
-| [`deploy/ansible/`](deploy/ansible/) | Debian/Ubuntu staging-host provisioning |
-| [`scripts/`](scripts/) | Local stack helpers and connector image builds |
+| [`deploy/staging/`](deploy/staging/) | Staging topology, deployment scripts, policy checks, smoke tests, and rollback |
+| [`deploy/ansible/`](deploy/ansible/) | Debian and Ubuntu staging-host provisioning |
+| [`docs/`](docs/) | Architecture documentation and decision records |
+| [`.github/workflows/`](.github/workflows/) | Pull-request verification and independent image delivery workflows |
+| [`scripts/`](scripts/) | Local-stack operations and connector image builds |
 
 ## Build and validation
 
-Run the Maven reactor used by CI:
+Pull-request CI verifies the Java and frontend toolchains together. Run the
+same primary checks from a clean checkout before submitting a change.
+
+### Core and connectors
 
 ```bash
 mvn -B -ntp -Pintegration verify
 ```
 
-The `integration` profile enables Docker-backed integration tests. Docker must
-therefore be available to the Maven process.
+The `integration` profile includes Docker-backed integration tests and requires
+Docker to be available to Maven.
 
 Faster module checks:
 
@@ -124,25 +162,47 @@ mvn -B -ntp -pl connectors/library -am test
 mvn -B -ntp -f connectors/pom.xml test
 ```
 
+Build one connector image with `scripts/build-connector-image.sh <connector>`.
+Each connector README documents its configuration and protocol or hardware
+requirements.
+
+### Frontend
+
+```bash
+npm --prefix frontend ci
+npm --prefix frontend run check
+npm --prefix frontend run build
+npm --prefix frontend run image:validate
+```
+
+Image validation requires Docker and `curl`. The
+[frontend guide](frontend/README.md) documents faster commands, runtime
+configuration, and live-stack smoke testing.
+
+### Deployment configuration
+
 Validate the local Compose model without starting it:
 
 ```bash
 docker compose --env-file core/.env.example -f core/docker-compose.yaml config --quiet
 ```
 
-Frontend checks use the Node toolchain in `frontend/`:
-
-```bash
-npm --prefix frontend ci
-npm --prefix frontend run check
-npm --prefix frontend run build
-```
-
-Build one connector image with `scripts/build-connector-image.sh <connector>`.
-Individual connector READMEs document their runtime configuration and hardware
-or protocol requirements.
+The [CI workflow](.github/workflows/ci.yml) additionally validates staging
+Compose models, Keycloak policy, frontend deployment behavior, and the
+disposable staging Keycloak bootstrap.
 
 ## API contract
+
+### Monitoring frontend
+
+The authenticated frontend provides a filterable time-series overview and a
+single-series detail view with metadata, the most recent reading returned by a
+trailing-365-day query, and bucketed chart history. Its current scope is
+monitoring; metadata administration is not implemented. See the
+[frontend guide](frontend/README.md#product-surface) for the route and behavior
+matrix.
+
+### Core API
 
 With Core running locally:
 
@@ -152,19 +212,21 @@ With Core running locally:
 - English OpenAPI YAML: <http://localhost:8080/v3/api-docs.yaml?lang=en>
 - German OpenAPI YAML: <http://localhost:8080/v3/api-docs.yaml?lang=de>
 
-The OpenAPI documents are generated from the running application. CI checks
+The running application generates the authoritative OpenAPI contract. CI checks
 that both language variants expose the same operations and that the maintained
 Bruno collection covers those operations and their query parameters.
 
-On staging, Caddy exposes the same contract at
+On staging, Caddy exposes the same Core contract at
 `https://$PEGELHUB_API_HOSTNAME` under `/swagger-ui.html`, `/v3/api-docs`, and
-`/api/v1/...`. The repository does not define a production endpoint.
+`/api/v1/...`.
 
 ## Security model
 
-Core is an OAuth 2.0 resource server. It validates JWT signatures through the
-configured issuer and requires the `pegelhub-core-api` audience. Application
-roles are read only from `resource_access.pegelhub-core-api.roles`.
+The browser authenticates with Keycloak through OIDC and PKCE S256. Connector
+processes use the client-credentials flow. Core is a stateless OAuth 2.0
+resource server: it validates JWT signatures through the configured issuer,
+requires the `pegelhub-core-api` audience, and reads application roles only
+from `resource_access.pegelhub-core-api.roles`.
 
 The principal roles are:
 
@@ -173,18 +235,31 @@ The principal roles are:
 - `telemetry:read` and `telemetry:write`
 - `system:admin`
 
-Measurement writes have an additional application-level policy: the caller
-must be an active registered connector, every target time series must identify
-that connector as its source, and a direct TimeSeries `WRITE` grant must exist.
+Measurement writes have an additional application policy: the caller must be
+an active registered connector, every target time series must identify that
+connector as its source, and a direct TimeSeries `WRITE` grant must exist.
 Measurement reads for non-admin connector clients require an applicable `READ`
-grant. See the [Core README](core/README.md) for the endpoint matrix and actor
-model.
+grant. The [Core guide](core/README.md#security-model) contains the endpoint
+matrix and actor model.
+
+## Delivery model
+
+Core and connector images are published through the
+[Images workflow](.github/workflows/images.yml). The frontend image uses the
+[Frontend Delivery workflow](.github/workflows/frontend-delivery.yml). Each path
+activates the relevant component through the shared staging deployment action.
+
+The supported remote topology is a single Docker Compose host behind Caddy.
+Both delivery paths share the GitHub `staging` Environment, SSH configuration,
+deployment lock, smoke tests, and rollback state. Operational procedures live
+in the [staging runbook](deploy/staging/README.md).
 
 ## Documentation
 
 - [Core development and API guide](core/README.md)
 - [Frontend development and monitoring guide](frontend/README.md)
-- [Current domain model and HTTP surface](docs/architecture/pegelhub-domain-model.md)
+- [Domain model and HTTP surface](docs/architecture/pegelhub-domain-model.md)
+- [Architecture decision records](docs/adr/)
 - [Local Keycloak realm and OAuth clients](core/docs/keycloak-local-dev.md)
 - [InfluxDB buckets, retention, and time handling](core/docs/influxdb.md)
 - [Staging deployment and rollback](deploy/staging/README.md)
