@@ -1,5 +1,6 @@
 package at.pegelhub.measuringpoint.application;
 
+import at.pegelhub.measuringpoint.domain.BankSide;
 import at.pegelhub.station.domain.StationId;
 
 public record CreateMeasuringPointCommand(
@@ -8,7 +9,7 @@ public record CreateMeasuringPointCommand(
         Double referenceLevel,
         Integer referenceYear,
         Double riverKilometer,
-        String bank,
+        BankSide bank,
         Double rnw,
         Double mw,
         Double hsw,

@@ -2,6 +2,7 @@ package at.pegelhub.measurement.persistence;
 
 import at.pegelhub.connector.domain.ConnectorId;
 import at.pegelhub.measurement.application.MeasurementReadRow;
+import at.pegelhub.measurement.application.LatestMeasurement;
 import com.influxdb.exceptions.InfluxException;
 import com.influxdb.query.FluxRecord;
 import com.influxdb.query.FluxTable;
@@ -42,6 +43,20 @@ final class MeasurementFluxRowMapper {
             }
         }
         return values;
+    }
+
+    List<LatestMeasurement> latestMeasurementRows(List<FluxTable> tables) {
+        List<LatestMeasurement> measurements = new ArrayList<>();
+        for (FluxTable table : tables) {
+            for (FluxRecord record : table.getRecords()) {
+                measurements.add(new LatestMeasurement(
+                        new at.pegelhub.timeseries.domain.TimeSeriesId(UUID.fromString(
+                                requiredString(record, "_measurement"))),
+                        requiredInstant(record, "_time"),
+                        requiredNumber(record, InfluxMeasurementSchema.VALUE_FIELD).doubleValue()));
+            }
+        }
+        return measurements;
     }
 
     Map<MeasurementBucketKey, Long> countRows(List<FluxTable> tables, Duration bucketDuration) {

@@ -1,17 +1,66 @@
-import { MeasuringPointDto } from '../../../core/api/measuring-point.dto';
-import { StationDto, StationOwnerDto } from '../../../core/api/station.dto';
-import { TimeSeriesDto } from '../../../core/api/time-series.dto';
-import { detectParameterCode } from '../../../core/time-series/parameter-legend';
-import { waterLevelReferenceLabel } from './water-level-reference';
+import {
+  MonitoringMeasuringPointDto,
+  MonitoringStationOwnerDto,
+  MonitoringStationSummaryDto,
+  MonitoringTimeSeriesDetailDto,
+} from '../../../core/api/monitoring.dto';
+import { formatMeasurementNumber, UI_LOCALE } from '../../../core/measurement/measurement-format';
+import { observedPropertyLabel } from '../../../core/time-series/parameter-legend';
+import {
+  WaterLevelReference,
+  waterLevelChartReferences,
+  waterLevelReferenceLabel,
+} from './water-level-reference';
 
 export interface TimeSeriesDetailFact {
   label: string;
   value: string;
 }
 
-const UI_LOCALE = 'de-AT';
+export interface TimeSeriesDetailView {
+  timeSeries: MonitoringTimeSeriesDetailDto | null;
+  measuringPoint: MonitoringMeasuringPointDto | null;
+  station: MonitoringStationSummaryDto | null;
+  stationOwner: MonitoringStationOwnerDto | null;
+  measurementTypeLabel: string;
+  headingContext: string;
+  pointFacts: readonly TimeSeriesDetailFact[];
+  seriesFacts: readonly TimeSeriesDetailFact[];
+  referenceLines: readonly WaterLevelReference[];
+}
 
-export function measuringPointContext(station: StationDto, measuringPointName: string): string {
+export function timeSeriesDetailView(
+  snapshot: MonitoringTimeSeriesDetailDto | null,
+): TimeSeriesDetailView {
+  const measurementTypeLabel = snapshot ? observedPropertyLabel(snapshot.observedProperty) : '';
+  const measuringPoint = snapshot?.measuringPoint ?? null;
+  const station = snapshot?.station ?? null;
+  const stationOwner = snapshot?.stationOwner ?? null;
+  const headingContext =
+    measuringPoint && station
+      ? timeSeriesHeadingContext(station, measuringPoint.name, measurementTypeLabel)
+      : measurementTypeLabel;
+
+  return {
+    timeSeries: snapshot,
+    measuringPoint,
+    station,
+    stationOwner,
+    measurementTypeLabel,
+    headingContext,
+    pointFacts: measuringPoint
+      ? measuringPointFacts(measuringPoint, stationOwner, referenceValueUnit(snapshot))
+      : [],
+    seriesFacts: snapshot ? timeSeriesContextFacts(snapshot) : [],
+    referenceLines:
+      snapshot && measuringPoint ? waterLevelChartReferences(measuringPoint, snapshot) : [],
+  };
+}
+
+function measuringPointContext(
+  station: MonitoringStationSummaryDto,
+  measuringPointName: string,
+): string {
   const stationName = sameName(station.name, measuringPointName) ? null : station.name;
 
   return [stationName, station.stationNumber, station.waterBody]
@@ -19,8 +68,8 @@ export function measuringPointContext(station: StationDto, measuringPointName: s
     .join(' · ');
 }
 
-export function timeSeriesHeadingContext(
-  station: StationDto,
+function timeSeriesHeadingContext(
+  station: MonitoringStationSummaryDto,
   measuringPointName: string,
   measurementTypeLabel: string,
 ): string {
@@ -33,9 +82,9 @@ function sameName(left: string, right: string): boolean {
   return left.trim().localeCompare(right.trim(), UI_LOCALE, { sensitivity: 'base' }) === 0;
 }
 
-export function measuringPointFacts(
-  measuringPoint: MeasuringPointDto,
-  owner: StationOwnerDto | undefined,
+function measuringPointFacts(
+  measuringPoint: MonitoringMeasuringPointDto,
+  owner: MonitoringStationOwnerDto | null,
   referenceUnit: string | null,
 ): TimeSeriesDetailFact[] {
   const referenceYear = measuringPoint.referenceYear;
@@ -43,10 +92,7 @@ export function measuringPointFacts(
   return presentFacts([
     { label: 'Organisation', value: owner ? owner.shortName || owner.name : null },
     { label: 'Ufer', value: formatBank(measuringPoint.bank) },
-    {
-      label: 'Stromkilometer',
-      value: formatWithUnit(measuringPoint.riverKilometer, 'km'),
-    },
+    { label: 'Stromkilometer', value: formatWithUnit(measuringPoint.riverKilometer, 'km') },
     { label: 'PNP', value: formatWithUnit(measuringPoint.referenceLevel, 'm ü. A.') },
     {
       label: waterLevelReferenceLabel('RNW', referenceYear),
@@ -64,17 +110,15 @@ export function measuringPointFacts(
   ]);
 }
 
-export function timeSeriesContextFacts(timeSeries: TimeSeriesDto): TimeSeriesDetailFact[] {
+function timeSeriesContextFacts(timeSeries: MonitoringTimeSeriesDetailDto): TimeSeriesDetailFact[] {
   return presentFacts([
     { label: 'Einheit', value: timeSeries.unit },
     { label: 'Externer Schlüssel', value: timeSeries.externalCode },
   ]);
 }
 
-export function referenceValueUnit(timeSeries: TimeSeriesDto | null): string | null {
-  return timeSeries && detectParameterCode(timeSeries.observedProperty) === 'W'
-    ? timeSeries.unit || null
-    : null;
+function referenceValueUnit(timeSeries: MonitoringTimeSeriesDetailDto | null): string | null {
+  return timeSeries?.observedProperty === 'water-level' ? timeSeries.unit || null : null;
 }
 
 function presentFacts(
@@ -86,22 +130,8 @@ function presentFacts(
   );
 }
 
-function formatBank(bank: string | null | undefined): string | null {
-  if (!bank?.trim()) {
-    return null;
-  }
-
-  const normalized = bank.trim().toLocaleLowerCase(UI_LOCALE);
-
-  if (normalized === 'l' || normalized === 'li' || normalized === 'left') {
-    return 'links';
-  }
-
-  if (normalized === 'r' || normalized === 're' || normalized === 'right') {
-    return 'rechts';
-  }
-
-  return bank.trim();
+function formatBank(bank: 'left' | 'right' | null): string | null {
+  return bank === 'left' ? 'links' : bank === 'right' ? 'rechts' : null;
 }
 
 function formatWithUnit(value: number | null | undefined, unit: string | null): string | null {
@@ -109,9 +139,7 @@ function formatWithUnit(value: number | null | undefined, unit: string | null): 
     return null;
   }
 
-  return unit ? `${formatNumber(value)} ${unit}` : formatNumber(value);
-}
+  const formatted = formatMeasurementNumber(value);
 
-function formatNumber(value: number): string {
-  return new Intl.NumberFormat(UI_LOCALE, { maximumFractionDigits: 3 }).format(value);
+  return unit ? `${formatted} ${unit}` : formatted;
 }

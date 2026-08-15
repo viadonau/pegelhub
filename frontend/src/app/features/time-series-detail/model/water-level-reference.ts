@@ -1,6 +1,7 @@
-import { MeasuringPointDto } from '../../../core/api/measuring-point.dto';
-import { TimeSeriesDto } from '../../../core/api/time-series.dto';
-import { detectParameterCode } from '../../../core/time-series/parameter-legend';
+import {
+  MonitoringMeasuringPointDto,
+  MonitoringTimeSeriesDetailDto,
+} from '../../../core/api/monitoring.dto';
 
 export interface WaterLevelReference {
   label: string;
@@ -9,10 +10,10 @@ export interface WaterLevelReference {
 }
 
 export function waterLevelChartReferences(
-  measuringPoint: MeasuringPointDto,
-  timeSeries: TimeSeriesDto,
+  measuringPoint: MonitoringMeasuringPointDto,
+  timeSeries: MonitoringTimeSeriesDetailDto,
 ): WaterLevelReference[] {
-  if (detectParameterCode(timeSeries.observedProperty) !== 'W') {
+  if (timeSeries.observedProperty !== 'water-level') {
     return [];
   }
 

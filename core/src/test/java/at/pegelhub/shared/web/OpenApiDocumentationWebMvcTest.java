@@ -7,6 +7,7 @@ import at.pegelhub.measurement.api.read.MeasurementReadQueryResolver;
 import at.pegelhub.measurement.application.MeasurementBucketResolutionPolicy;
 import at.pegelhub.measurement.application.MeasurementService;
 import at.pegelhub.measuringpoint.application.MeasuringPointService;
+import at.pegelhub.monitoring.application.MonitoringQueryService;
 import at.pegelhub.station.application.StationService;
 import at.pegelhub.stationowner.application.StationOwnerService;
 import at.pegelhub.telemetry.application.TelemetryService;
@@ -116,7 +117,9 @@ class OpenApiDocumentationWebMvcTest {
             "GET /api/v1/time-series",
             "GET /api/v1/time-series/{id}",
             "GET /api/v1/time-series/{timeSeriesId}/measurements",
-            "GET /api/v1/time-series/{timeSeriesId}/measurements/buckets"
+            "GET /api/v1/time-series/{timeSeriesId}/measurements/buckets",
+            "GET /api/v1/monitoring/time-series",
+            "GET /api/v1/monitoring/time-series/{timeSeriesId}"
     );
 
     private static final Set<String> PUBLIC_OPERATIONS = Set.of(
@@ -147,6 +150,9 @@ class OpenApiDocumentationWebMvcTest {
 
     @MockitoBean
     private MeasurementService measurementService;
+
+    @MockitoBean
+    private MonitoringQueryService monitoringQueryService;
 
     @MockitoBean
     private MeasuringPointService measuringPointService;

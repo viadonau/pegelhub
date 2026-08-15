@@ -2,25 +2,25 @@
 
 ## Columns
 
-| CSV column     | Extracted meaning                                                                                   |
-| -------------- | --------------------------------------------------------------------------------------------------- |
-| `Stationsname` | Human station or section name. Also contains section headers such as `Donau:` and `Donaukanal:`.    |
-| `Parameter`    | Available measured values per station. Examples: `W`, `WT`, `Q`; combinations such as `W + WT + Q`. |
-| `HZB/HD`       | External hydrological station identifier. Values include numeric HZB IDs and `2HD...` IDs.          |
-| `DBMS-Nr.`     | DBMS station number.                                                                                |
-| `Besitzer`     | Owner/operator. Values in this file: `via`, `DHK`, `VHP`.                                           |
-| `Strom-km`     | River kilometer. Donau rows are around `1894-1949`; Donaukanal rows start at `0`.                   |
-| `PNP [m ü.A]`  | Pegelnullpunkt / gauge datum elevation above Austrian reference.                                    |
-| `Ufer`         | Bank side. Values in this file: `li`, `re`.                                                         |
+| CSV column     | Extracted meaning                                                                                                                                     |
+| -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Stationsname` | Human station or section name. Also contains section headers such as `Donau:` and `Donaukanal:`.                                                      |
+| `Parameter`    | Available measured values per station. Legacy examples are `W`, `WT`, `Q`; the API vocabulary is `water-level`, `water-temperature`, and `discharge`. |
+| `HZB/HD`       | External hydrological station identifier. Values include numeric HZB IDs and `2HD...` IDs.                                                            |
+| `DBMS-Nr.`     | DBMS station number.                                                                                                                                  |
+| `Besitzer`     | Owner/operator. Values in this file: `via`, `DHK`, `VHP`.                                                                                             |
+| `Strom-km`     | River kilometer. Donau rows are around `1894-1949`; Donaukanal rows start at `0`.                                                                     |
+| `PNP [m ü.A]`  | Pegelnullpunkt / gauge datum elevation above Austrian reference.                                                                                      |
+| `Ufer`         | Bank side. Values in this file: `li`, `re`.                                                                                                           |
 
 ## Parameter legend
 
-| Code  | German label     | Unit / interpretation |
-| ----- | ---------------- | --------------------- |
-| `W`   | Wasserstand      | `cm` or `m ü.A.`      |
-| `Q`   | Abfluss          | `m³/s`                |
-| `WT`  | Wassertemperatur | `°C`                  |
-| `PNP` | Pegelnullpunkt   | `m ü.A.`              |
+| Code                | German label     | Unit / interpretation |
+| ------------------- | ---------------- | --------------------- |
+| `water-level`       | Wasserstand      | `cm` or `m ü.A.`      |
+| `discharge`         | Abfluss          | `m³/s`                |
+| `water-temperature` | Wassertemperatur | `°C`                  |
+| `PNP`               | Pegelnullpunkt   | `m ü.A.`              |
 
 ## Data quality notes
 

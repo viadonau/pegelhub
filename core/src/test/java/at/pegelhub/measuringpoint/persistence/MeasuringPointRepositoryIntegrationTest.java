@@ -1,6 +1,7 @@
 package at.pegelhub.measuringpoint.persistence;
 
 import at.pegelhub.measuringpoint.domain.MeasuringPoint;
+import at.pegelhub.measuringpoint.domain.BankSide;
 import at.pegelhub.measuringpoint.domain.MeasuringPointId;
 import at.pegelhub.station.domain.StationId;
 import at.pegelhub.testsupport.JpaIntegrationTestBase;
@@ -82,7 +83,7 @@ final class MeasuringPointRepositoryIntegrationTest extends JpaIntegrationTestBa
                 120.0,
                 2010,
                 1921.34,
-                "R",
+                BankSide.RIGHT,
                 162.0,
                 295.0,
                 480.0,

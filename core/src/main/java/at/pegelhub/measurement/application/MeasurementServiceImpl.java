@@ -70,6 +70,16 @@ public class MeasurementServiceImpl implements MeasurementService {
     }
 
     @Override
+    public List<LatestMeasurement> listLatestMeasurements(MeasurementLatestQuery query) {
+        requireNonNull(query);
+        if (query.timeSeriesIds().isEmpty()) {
+            return List.of();
+        }
+        authorizationPolicy.requireReadBatch(query.timeSeriesIds());
+        return measurementRepository.listLatestMeasurements(query);
+    }
+
+    @Override
     public Instant getSystemTime() {
         return measurementRepository.getSystemTime();
     }

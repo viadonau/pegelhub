@@ -1,80 +1,28 @@
-import { HttpClient, httpResource } from '@angular/common/http';
-import { inject, Injectable, Injector, Signal } from '@angular/core';
-import { map, Observable } from 'rxjs';
+import { httpResource } from '@angular/common/http';
+import { inject, Injectable, Signal } from '@angular/core';
 
 import { CoreApiUrlService } from './core-api-url.service';
-import {
-  EMPTY_MEASUREMENT_BUCKET_LIST,
-  EMPTY_MEASUREMENT_LIST,
-  MeasurementBucketListDto,
-  MeasurementListDto,
-  MeasurementPointDto,
-} from './measurement.dto';
+import { MeasurementBucketListDto } from './measurement.dto';
 
 @Injectable({ providedIn: 'root' })
 export class MeasurementApiService {
   private readonly apiUrl = inject(CoreApiUrlService);
-  private readonly http = inject(HttpClient);
-  private readonly injector = inject(Injector);
 
-  latestMeasurement(timeSeriesId: string): Observable<MeasurementPointDto | null> {
-    return this.http
-      .get<MeasurementListDto>(this.apiUrl.url(`/time-series/${timeSeriesId}/measurements`), {
+  measurementBucketsResource(timeSeriesId: Signal<string>, range: Signal<string>) {
+    return httpResource<MeasurementBucketListDto>(() => {
+      const id = timeSeriesId();
+
+      if (!id) {
+        return undefined;
+      }
+
+      return {
+        url: this.apiUrl.url(`/time-series/${id}/measurements/buckets`),
         params: {
-          last: '365d',
-          order: 'desc',
-          limit: '1',
+          last: range(),
+          maxPoints: '240',
         },
-      })
-      .pipe(map((response) => response.measurements[0] ?? null));
-  }
-
-  latestMeasurementResource(timeSeriesId: Signal<string | null>) {
-    return httpResource<MeasurementListDto>(
-      () => {
-        const id = timeSeriesId();
-
-        if (!id) {
-          return undefined;
-        }
-
-        return {
-          url: this.apiUrl.url(`/time-series/${id}/measurements`),
-          params: {
-            last: '365d',
-            order: 'desc',
-            limit: '1',
-          },
-        };
-      },
-      {
-        defaultValue: EMPTY_MEASUREMENT_LIST,
-        injector: this.injector,
-      },
-    );
-  }
-
-  measurementBucketsResource(timeSeriesId: Signal<string | null>, range: Signal<string>) {
-    return httpResource<MeasurementBucketListDto>(
-      () => {
-        const id = timeSeriesId();
-
-        if (!id) {
-          return undefined;
-        }
-
-        return {
-          url: this.apiUrl.url(`/time-series/${id}/measurements/buckets`),
-          params: {
-            last: range(),
-            maxPoints: '240',
-          },
-        };
-      },
-      {
-        defaultValue: EMPTY_MEASUREMENT_BUCKET_LIST,
-        injector: this.injector,
-      },
-    );
+      };
+    });
   }
 }

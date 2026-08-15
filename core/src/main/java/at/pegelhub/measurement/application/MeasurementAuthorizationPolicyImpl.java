@@ -108,6 +108,26 @@ class MeasurementAuthorizationPolicyImpl implements MeasurementAuthorizationPoli
         }
     }
 
+    @Override
+    public void requireReadBatch(Collection<TimeSeriesId> timeSeriesIds) {
+        if (timeSeriesIds == null || timeSeriesIds.isEmpty()) {
+            throw new IllegalArgumentException("timeSeriesIds must not be empty");
+        }
+        PegelHubActor actor = currentActor.get();
+        if (actor.hasAuthority(SYSTEM_ADMIN)) {
+            return;
+        }
+        if (!actor.hasAuthority(MEASUREMENT_READ)) {
+            throw new AccessDeniedException("Actor is not allowed to read measurements");
+        }
+        if (actor.type() == PegelHubActorType.USER) {
+            return;
+        }
+        for (TimeSeriesId timeSeriesId : new LinkedHashSet<>(timeSeriesIds)) {
+            requireRead(requireNonNull(timeSeriesId));
+        }
+    }
+
     private Connector requireActiveConnector(PegelHubActor actor) {
         if (actor.clientId() == null || actor.clientId().isBlank()) {
             throw new NotFoundException("Connector not registered");

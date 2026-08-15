@@ -2,6 +2,7 @@ package at.pegelhub.measuringpoint.api;
 
 import at.pegelhub.measuringpoint.application.CreateMeasuringPointCommand;
 import at.pegelhub.measuringpoint.application.MeasuringPointService;
+import at.pegelhub.measuringpoint.domain.BankSide;
 import at.pegelhub.measuringpoint.domain.MeasuringPoint;
 import at.pegelhub.measuringpoint.domain.MeasuringPointId;
 import at.pegelhub.station.domain.StationId;
@@ -36,7 +37,7 @@ class HttpMeasuringPointControllerTest {
             120.0,
             2010,
             1921.34,
-            "R",
+            BankSide.RIGHT,
             162.0,
             295.0,
             480.0,
@@ -61,7 +62,7 @@ class HttpMeasuringPointControllerTest {
                                   "referenceLevel": 120.0,
                                   "referenceYear": 2010,
                                   "riverKilometer": 1921.34,
-                                  "bank": "R",
+                                  "bank": "right",
                                   "rnw": 162.0,
                                   "mw": 295.0,
                                   "hsw": 480.0,
@@ -75,7 +76,7 @@ class HttpMeasuringPointControllerTest {
                 .andExpect(jsonPath("$.referenceLevel").value(120.0))
                 .andExpect(jsonPath("$.referenceYear").value(2010))
                 .andExpect(jsonPath("$.riverKilometer").value(1921.34))
-                .andExpect(jsonPath("$.bank").value("R"))
+                .andExpect(jsonPath("$.bank").value("right"))
                 .andExpect(jsonPath("$.rnw").value(162.0))
                 .andExpect(jsonPath("$.mw").value(295.0))
                 .andExpect(jsonPath("$.hsw").value(480.0))
@@ -87,7 +88,7 @@ class HttpMeasuringPointControllerTest {
                 120.0,
                 2010,
                 1921.34,
-                "R",
+                BankSide.RIGHT,
                 162.0,
                 295.0,
                 480.0,
@@ -143,6 +144,20 @@ class HttpMeasuringPointControllerTest {
                                   "bank": "%s"
                                 }
                                 """.formatted(STATION_ID, "x".repeat(41))))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void rejectsCreateWithNonCanonicalBank() throws Exception {
+        mockMvc.perform(post("/api/v1/measuring-points")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "stationId": "%s",
+                                  "name": "Main gauge",
+                                  "bank": "R"
+                                }
+                                """.formatted(STATION_ID)))
                 .andExpect(status().isBadRequest());
     }
 

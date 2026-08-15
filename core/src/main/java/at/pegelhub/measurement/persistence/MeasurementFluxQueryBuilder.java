@@ -2,6 +2,7 @@ package at.pegelhub.measurement.persistence;
 
 import at.pegelhub.measurement.application.MeasurementBucketQuery;
 import at.pegelhub.measurement.application.MeasurementListQuery;
+import at.pegelhub.measurement.application.MeasurementLatestQuery;
 import at.pegelhub.measurement.application.MeasurementOrder;
 import at.pegelhub.shared.duration.PegelhubDurationLiteral;
 import at.pegelhub.shared.influx.DatabaseProperties;
@@ -10,6 +11,7 @@ import org.springframework.stereotype.Component;
 
 import java.time.Instant;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import static at.pegelhub.shared.validation.Validations.requireNotEmpty;
 import static java.util.Objects.requireNonNull;
@@ -49,6 +51,26 @@ final class MeasurementFluxQueryBuilder {
 
     String countBuckets(MeasurementBucketQuery query) {
         return bucketQuery(query, "count");
+    }
+
+    String latestMeasurements(MeasurementLatestQuery query) {
+        requireNonNull(query);
+        if (query.timeSeriesIds().isEmpty()) {
+            throw new IllegalArgumentException("timeSeriesIds must not be empty");
+        }
+        String measurementFilter = query.timeSeriesIds().stream()
+                .map(id -> "r._measurement == " + stringLiteral(id.value().toString()))
+                .collect(Collectors.joining(" or "));
+        return from()
+                + " |> range(start: time(v: " + stringLiteral(query.window().from().toString())
+                + "), stop: time(v: " + stringLiteral(query.window().to().toString()) + "))"
+                + " |> filter(fn: (r) => r._field == \"value\" and (" + measurementFilter + "))"
+                + " |> last()"
+                + " |> group(columns: [\"_measurement\"])"
+                + " |> sort(columns: [\"_time\", \"submittedByConnectorId\"], desc: true)"
+                + " |> limit(n: 1)"
+                + " |> rename(columns: {_value: \"value\"})"
+                + " |> keep(columns: [\"_measurement\", \"_time\", \"submittedByConnectorId\", \"value\"])";
     }
 
     String systemTime() {

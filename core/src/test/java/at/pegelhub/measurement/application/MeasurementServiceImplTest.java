@@ -171,6 +171,11 @@ final class MeasurementServiceImplTest {
         }
 
         @Override
+        public List<LatestMeasurement> listLatestMeasurements(MeasurementLatestQuery query) {
+            return List.of();
+        }
+
+        @Override
         public Instant getSystemTime() {
             return systemTime;
         }

@@ -5,15 +5,7 @@
     </p>
   </ph-page-header>
 
-  <ph-page-section
-    ariaLabel="Messreihenübersicht"
-    [loading]="isInitialLoading()"
-    [error]="errorMessage()"
-  >
-    @if (supportingError(); as error) {
-      <ph-message severity="warn" [text]="error" />
-    }
-
+  <ph-page-section ariaLabel="Messreihenübersicht" [loading]="loading()" [error]="error()">
     <ph-time-series-grid
       [rows]="rows()"
       [emptyMessage]="emptyMessage()"

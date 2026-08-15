@@ -18,7 +18,7 @@ public record MeasuringPointResponse(
         Integer referenceYear,
         @Schema(description = "openapi.measuringpoint.create-measuring-point-request.optional-river-kilometer", example = "1933.2", nullable = true)
         Double riverKilometer,
-        @Schema(description = "openapi.measuringpoint.create-measuring-point-request.optional-bank-description-or-code", example = "left", nullable = true)
+        @Schema(description = "openapi.measuringpoint.create-measuring-point-request.optional-bank-description-or-code", allowableValues = {"left", "right"}, example = "left", nullable = true)
         String bank,
         @Schema(description = "openapi.measuringpoint.create-measuring-point-request.optional-regulatory-low-water-value", example = "120.0", nullable = true)
         Double rnw,

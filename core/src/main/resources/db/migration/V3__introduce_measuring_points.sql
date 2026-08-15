@@ -13,7 +13,9 @@ create table measuring_point (
     constraint pk_measuring_point primary key (id),
     constraint fk_measuring_point_station
         foreign key (station_id) references station (id) on delete restrict,
-    constraint uk_measuring_point_station_name unique (station_id, name)
+    constraint uk_measuring_point_station_name unique (station_id, name),
+    constraint ck_measuring_point_bank_side
+        check (bank in ('left', 'right') or bank is null)
 );
 
 create index ix_measuring_point_station on measuring_point (station_id);

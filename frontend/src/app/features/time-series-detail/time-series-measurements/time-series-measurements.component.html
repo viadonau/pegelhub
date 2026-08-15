@@ -1,26 +1,26 @@
-@if (measurements.historyError(); as error) {
+@if (historyError(); as error) {
   <ph-message severity="error" [text]="error" />
 }
 
 <ph-measurement-chart
-  [title]="measurements.chartTitle()"
+  [title]="chartTitle()"
   ariaLabel="Gemittelter Messverlauf der ausgewählten Messreihe"
   height="480"
-  [series]="measurements.chartSeries()"
+  [series]="chartSeries()"
   [referenceLines]="visibleReferenceLines()"
-  [yLabel]="measurements.chartYLabel()"
-  [unit]="measurements.unit()"
-  [loading]="measurements.historyLoading()"
-  [emptyMessage]="measurements.emptyMessage()"
+  [yLabel]="chartYLabel()"
+  [unit]="chartUnit()"
+  [loading]="historyLoading()"
+  [emptyMessage]="emptyMessage()"
 >
   <ph-measurement-history-toolbar
     ph-measurement-chart-actions
-    [selectedRange]="measurements.selectedRange()"
-    [loading]="measurements.historyLoading()"
+    [selectedRange]="selectedRange()"
+    [loading]="historyLoading()"
     [referenceLevelsAvailable]="referenceLines().length > 0"
     [referenceLevelsVisible]="preferences.showReferenceLevels()"
     (rangeChange)="setRange($event)"
-    (referenceLevelsVisibleChange)="setReferenceLevelsVisible($event)"
+    (referenceLevelsVisibleChange)="preferences.setReferenceLevelsVisible($event)"
     (refresh)="reload()"
   />
 </ph-measurement-chart>

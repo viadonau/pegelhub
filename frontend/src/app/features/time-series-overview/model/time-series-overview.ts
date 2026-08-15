@@ -1,22 +1,16 @@
-import { MeasuringPointDto } from '../../../core/api/measuring-point.dto';
-import { StationDto } from '../../../core/api/station.dto';
-import { TimeSeriesDto } from '../../../core/api/time-series.dto';
+import { MonitoringTimeSeriesSummaryDto } from '../../../core/api/monitoring.dto';
 import {
   formatMeasurementTimestamp,
   formatMeasurementValue,
   formatRelativeMeasurementAge,
+  UI_LOCALE,
 } from '../../../core/measurement/measurement-format';
-import {
-  detectParameterCode,
-  observedPropertyLabel,
-} from '../../../core/time-series/parameter-legend';
-import { LatestMeasurementLookup, LatestMeasurementResult } from './latest-measurement';
+import { observedPropertyLabel } from '../../../core/time-series/parameter-legend';
 
-const UI_LOCALE = 'de-AT';
 const PARAMETER_ORDER = new Map([
-  ['W', 0],
-  ['WT', 1],
-  ['Q', 2],
+  ['water-level', 0],
+  ['water-temperature', 1],
+  ['discharge', 2],
 ]);
 
 export interface TimeSeriesLatestMeasurementView {
@@ -36,92 +30,61 @@ export interface TimeSeriesOverviewView {
 }
 
 export function timeSeriesOverviewViews(
-  measuringPoints: readonly MeasuringPointDto[],
-  stations: readonly StationDto[],
-  timeSeries: readonly TimeSeriesDto[],
-  latestMeasurements: LatestMeasurementLookup,
+  items: readonly MonitoringTimeSeriesSummaryDto[],
 ): TimeSeriesOverviewView[] {
-  const pointsById = new Map(measuringPoints.map((point) => [point.id, point]));
-  const stationsById = new Map(stations.map((station) => [station.id, station]));
-
-  return timeSeries
-    .flatMap((series) => {
-      const point = pointsById.get(series.measuringPointId);
-
-      if (!point) {
-        return [];
-      }
-
-      const station = stationsById.get(point.stationId);
-
-      return [
-        {
-          id: series.id,
-          measurementTypeLabel: observedPropertyLabel(series.observedProperty),
-          measuringPointName: point.name,
-          stationLabel: stationLabel(point.name, station),
-          latestMeasurement: latestMeasurementView(
-            series.unit,
-            latestMeasurements.get(series.id) ?? { status: 'loading' },
-          ),
-          sortKey: {
-            stationName: station?.name ?? '',
-            pointName: point.name,
-            parameterRank: parameterRank(series),
-          },
-        },
-      ];
-    })
+  return items
+    .map((item) => ({
+      id: item.id,
+      measurementTypeLabel: observedPropertyLabel(item.observedProperty),
+      measuringPointName: item.measuringPoint.name,
+      stationLabel: stationLabel(item.measuringPoint.name, item.station),
+      latestMeasurement: latestMeasurementView(item.unit, item.latestMeasurement),
+      sortKey: {
+        stationName: item.station.name,
+        pointName: item.measuringPoint.name,
+        parameterRank: parameterRank(item.observedProperty),
+      },
+    }))
     .sort(compareOverviewRows)
     .map(({ sortKey: _sortKey, ...row }) => row);
 }
 
-function stationLabel(pointName: string, station: StationDto | undefined): string {
-  const stationName = station?.name ?? 'Unbekannte Pegelstelle';
-  const context = [station?.stationNumber, station?.waterBody]
+function stationLabel(
+  pointName: string,
+  station: MonitoringTimeSeriesSummaryDto['station'],
+): string {
+  const context = [station.stationNumber, station.waterBody]
     .filter((value): value is string => Boolean(value?.trim()))
     .join(' · ');
 
-  return normalize(pointName) === normalize(stationName)
-    ? context || stationName
-    : [stationName, context].filter(Boolean).join(' · ');
+  return normalize(pointName) === normalize(station.name)
+    ? context || station.name
+    : [station.name, context].filter(Boolean).join(' · ');
 }
 
 function latestMeasurementView(
   unit: string,
-  latest: LatestMeasurementResult,
+  latest: MonitoringTimeSeriesSummaryDto['latestMeasurement'],
 ): TimeSeriesLatestMeasurementView {
-  if (latest.status === 'available') {
-    const timestamp = formatMeasurementTimestamp(latest.measurement.observedAt);
+  if (latest) {
+    const timestamp = formatMeasurementTimestamp(latest.observedAt);
 
     return {
-      value: latest.measurement.value,
-      valueLabel: formatMeasurementValue(latest.measurement.value, unit),
-      observedAt: latest.measurement.observedAt,
+      value: latest.value,
+      valueLabel: formatMeasurementValue(latest.value, unit),
+      observedAt: latest.observedAt,
       timestamp,
-      activityLabel: formatRelativeMeasurementAge(latest.measurement.observedAt) ?? timestamp,
+      activityLabel: formatRelativeMeasurementAge(latest.observedAt) ?? timestamp,
     };
   }
 
   return {
     value: null,
-    valueLabel: measurementStateLabel(latest.status),
+    valueLabel: 'Kein Messwert',
     observedAt: null,
     timestamp: null,
-    activityLabel:
-      latest.status === 'empty' ? 'Keine Aktivität' : measurementStateLabel(latest.status),
+    activityLabel: 'Keine Aktivität',
   };
-}
-
-function measurementStateLabel(status: 'empty' | 'error' | 'loading'): string {
-  switch (status) {
-    case 'loading':
-      return 'Wird geladen';
-    case 'error':
-      return 'Nicht verfügbar';
-    case 'empty':
-      return 'Kein Messwert';
-  }
 }
 
 function compareOverviewRows(
@@ -137,10 +100,8 @@ function compareOverviewRows(
   );
 }
 
-function parameterRank(timeSeries: TimeSeriesDto): number {
-  const code = detectParameterCode(timeSeries.observedProperty);
-
-  return code ? (PARAMETER_ORDER.get(code) ?? Number.MAX_SAFE_INTEGER) : Number.MAX_SAFE_INTEGER;
+function parameterRank(observedProperty: string): number {
+  return PARAMETER_ORDER.get(observedProperty) ?? Number.MAX_SAFE_INTEGER;
 }
 
 function normalize(value: string): string {

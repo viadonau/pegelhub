@@ -4,6 +4,7 @@ import at.pegelhub.measurement.application.MeasurementBucketQuery;
 import at.pegelhub.measurement.application.MeasurementBucketResolution;
 import at.pegelhub.measurement.application.MeasurementBucketWidth;
 import at.pegelhub.measurement.application.MeasurementListQuery;
+import at.pegelhub.measurement.application.MeasurementLatestQuery;
 import at.pegelhub.measurement.application.MeasurementOrder;
 import at.pegelhub.measurement.application.MeasurementWindow;
 import at.pegelhub.shared.influx.DatabaseProperties;
@@ -76,6 +77,28 @@ final class MeasurementFluxQueryBuilderTest {
         assertThat(queryBuilder.systemTime())
                 .isEqualTo("import \"system\"\n"
                         + "import \"array\"\n"
-                        + "array.from(rows: [{time: system.time()}])");
+                + "array.from(rows: [{time: system.time()}])");
+    }
+
+    @Test
+    void buildsOneGroupedLatestQueryForAllRequestedSeries() {
+        MeasurementLatestQuery query = new MeasurementLatestQuery(
+                java.util.List.of(
+                        TIME_SERIES_ID,
+                        new TimeSeriesId(UUID.fromString("2e27efad-b947-48b1-928e-c25663597f1c"))),
+                new MeasurementWindow(
+                        Instant.parse("2026-06-17T00:00:00Z"),
+                        Instant.parse("2026-06-18T00:00:00Z"),
+                        "1d"));
+
+        assertThat(queryBuilder.latestMeasurements(query))
+                .contains("r._measurement == \"e27efad9-b947-48b1-928e-c25663597f1c\" or r._measurement == \"2e27efad-b947-48b1-928e-c25663597f1c\"")
+                .contains("|> last()")
+                .contains("|> group(columns: [\"_measurement\"])")
+                .contains("|> sort(columns: [\"_time\", \"submittedByConnectorId\"], desc: true)")
+                .contains("|> limit(n: 1)")
+                .contains("|> keep(columns: [\"_measurement\", \"_time\", \"submittedByConnectorId\", \"value\"])")
+                .doesNotContain("contains(")
+                .containsSubsequence("|> last()", "|> group(", "|> sort(", "|> limit(");
     }
 }

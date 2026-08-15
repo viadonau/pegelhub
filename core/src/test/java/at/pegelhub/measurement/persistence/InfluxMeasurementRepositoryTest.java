@@ -6,6 +6,7 @@ import at.pegelhub.measurement.application.MeasurementBucketQuery;
 import at.pegelhub.measurement.application.MeasurementBucketResolution;
 import at.pegelhub.measurement.application.MeasurementBucketWidth;
 import at.pegelhub.measurement.application.MeasurementListQuery;
+import at.pegelhub.measurement.application.MeasurementLatestQuery;
 import at.pegelhub.measurement.application.MeasurementOrder;
 import at.pegelhub.measurement.application.MeasurementReadRow;
 import at.pegelhub.measurement.application.MeasurementWindow;
@@ -108,6 +109,37 @@ final class InfluxMeasurementRepositoryTest extends InfluxIntegrationTestBase {
                     assertThat(measurement.observedAt()).isEqualTo(recentMeasurement.observedAt());
                     assertThat(measurement.value()).isEqualTo(recentMeasurement.value());
                     assertThat(measurement.submittedByConnectorId()).isEqualTo(recentMeasurement.submittedByConnectorId());
+                });
+    }
+
+    @Test
+    void returnsOneDeterministicLatestValuePerRequestedSeriesAndSkipsEmptySeries() {
+        TimeSeriesId firstSeries = new TimeSeriesId(UUID.randomUUID());
+        TimeSeriesId secondSeries = new TimeSeriesId(UUID.randomUUID());
+        TimeSeriesId emptySeries = new TimeSeriesId(UUID.randomUUID());
+        ConnectorId connectorA = new ConnectorId(UUID.fromString("00000000-0000-0000-0000-000000000001"));
+        ConnectorId connectorB = new ConnectorId(UUID.fromString("00000000-0000-0000-0000-000000000002"));
+        Instant sharedTimestamp = Instant.now().minus(1, ChronoUnit.HOURS).truncatedTo(ChronoUnit.SECONDS);
+
+        repository.storeMeasurements(List.of(
+                new Measurement(firstSeries, sharedTimestamp, sharedTimestamp.plusSeconds(1), 10.0, connectorA),
+                new Measurement(firstSeries, sharedTimestamp, sharedTimestamp.plusSeconds(2), 11.0, connectorB),
+                new Measurement(secondSeries, sharedTimestamp.plusSeconds(30), sharedTimestamp.plusSeconds(31), 20.0, connectorA)));
+
+        var result = repository.listLatestMeasurements(new MeasurementLatestQuery(
+                List.of(firstSeries, secondSeries, emptySeries),
+                new MeasurementWindow(sharedTimestamp.minusSeconds(30), sharedTimestamp.plus(1, ChronoUnit.MINUTES), null)));
+
+        assertThat(result)
+                .hasSize(2)
+                .extracting(latest -> latest.timeSeriesId())
+                .containsExactlyInAnyOrder(firstSeries, secondSeries);
+        assertThat(result)
+                .filteredOn(latest -> latest.timeSeriesId().equals(firstSeries))
+                .singleElement()
+                .satisfies(latest -> {
+                    assertThat(latest.observedAt()).isEqualTo(sharedTimestamp);
+                    assertThat(latest.value()).isEqualTo(11.0);
                 });
     }
 

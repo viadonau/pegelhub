@@ -35,3 +35,20 @@ _Avoid_: Supplier role, Taker role, token permission
 **Operator**:
 A trusted PegelHub user who maintains the station inventory, connector registrations, time series, and access grants.
 _Avoid_: Admin, metadata manager
+
+## Monitoring Read Model
+
+The operator monitoring workflow is a small read model over the existing
+PostgreSQL metadata services and InfluxDB measurements. It is intentionally a
+same-store CQRS read module rather than a second database or a generic query
+bus. Monitoring is TimeSeries-based: the catalog contains one row per
+TimeSeries and detail routes address a TimeSeries ID. The read model composes
+metadata and a bounded latest-measurement window into complete operator
+responses; administrative metadata and raw measurement APIs remain available
+for their existing clients.
+
+Canonical observed-property values are `water-level`, `water-temperature`, and
+`discharge`. Clear legacy aliases are normalized at the domain boundary while
+unknown trimmed codes are preserved. Measuring-point bank values are either
+`left`, `right`, or null. API input and the database schema use only those
+canonical values.

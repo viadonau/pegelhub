@@ -1,6 +1,7 @@
 package at.pegelhub.measuringpoint.application;
 
 import at.pegelhub.measuringpoint.domain.MeasuringPoint;
+import at.pegelhub.measuringpoint.domain.BankSide;
 import at.pegelhub.measuringpoint.domain.MeasuringPointId;
 import at.pegelhub.measuringpoint.persistence.MeasuringPointRepository;
 import at.pegelhub.shared.error.NotFoundException;
@@ -43,7 +44,7 @@ final class MeasuringPointServiceImplTest {
         assertThat(measuringPoint.stationId()).isEqualTo(STATION_ID);
         assertThat(measuringPoint.name()).isEqualTo("Main gauge");
         assertThat(measuringPoint.referenceYear()).isEqualTo(2010);
-        assertThat(measuringPoint.bank()).isEqualTo("R");
+        assertThat(measuringPoint.bank()).isEqualTo(BankSide.RIGHT);
         assertThat(repository.saved).containsExactly(measuringPoint);
     }
 
@@ -99,7 +100,7 @@ final class MeasuringPointServiceImplTest {
                 120.0,
                 2010,
                 1921.34,
-                "R",
+                BankSide.RIGHT,
                 162.0,
                 295.0,
                 480.0,
@@ -114,7 +115,7 @@ final class MeasuringPointServiceImplTest {
                 120.0,
                 2010,
                 1921.34,
-                "R",
+                BankSide.RIGHT,
                 162.0,
                 295.0,
                 480.0,
