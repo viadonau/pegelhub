@@ -28,5 +28,3 @@ files under `/brand/`.
   establish ownership of the marks or preserve editable source artwork.
 - Verify the application shell at narrow and wide viewports after changing an asset, including
   accessible names and contrast in light and dark themes.
-
-Application-level brand and design rules live in [PRODUCT.md](../../PRODUCT.md).
