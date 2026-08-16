@@ -27,4 +27,7 @@ RUN mkdir -p /app/config /app/data
 
 ENV LD_LIBRARY_PATH=/app/native
 
-ENTRYPOINT ["java","-cp","/app/connector.jar:/app/lib/*","at.pegelhub.connector.ma.MaConnectorApplication"]
+COPY --chmod=755 docker/java-entrypoint.sh /usr/local/bin/pegelhub-java-entrypoint
+
+ENTRYPOINT ["/usr/local/bin/pegelhub-java-entrypoint"]
+CMD ["java","-cp","/app/connector.jar:/app/lib/*","at.pegelhub.connector.ma.MaConnectorApplication"]

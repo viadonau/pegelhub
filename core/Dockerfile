@@ -1,8 +1,8 @@
 FROM maven:3.9-eclipse-temurin-21-alpine AS build
 WORKDIR /workspace
 
-COPY pom.xml .
-COPY src ./src
+COPY core/pom.xml .
+COPY core/src ./src
 
 RUN mvn -B -DskipTests package
 
@@ -11,6 +11,8 @@ FROM amazoncorretto:21-alpine-jdk
 RUN apk --no-cache add curl
 
 RUN addgroup -S coreapp && adduser -S coreapp -G coreapp
+
+COPY --chmod=755 docker/java-entrypoint.sh /usr/local/bin/pegelhub-java-entrypoint
 
 ENV APP_PORT=8080 \
     MANAGEMENT_PORT=8081 \
@@ -25,6 +27,7 @@ COPY --from=build --chown=coreapp:coreapp /workspace/target/app.jar .
 
 USER coreapp:coreapp
 
+ENTRYPOINT ["/usr/local/bin/pegelhub-java-entrypoint"]
 CMD ["java", "-jar", "/var/lib/application/app.jar"]
 
 HEALTHCHECK --interval=30s --timeout=2s --retries=5 --start-period=40s \

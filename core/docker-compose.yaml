@@ -138,7 +138,8 @@ services:
 
   core-app:
     build:
-      context: .
+      context: ..
+      dockerfile: core/Dockerfile
     restart: unless-stopped
     environment:
       DB_URI: meta-db:5432/${META_DB}
