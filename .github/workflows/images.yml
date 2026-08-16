@@ -16,6 +16,7 @@ on:
     paths:
       - 'core/**'
       - 'connectors/**'
+      - 'docker/**'
       - '.dockerignore'
       - 'pom.xml'
       - '**/pom.xml'
@@ -67,7 +68,7 @@ jobs:
         uses: ./.github/actions/docker-image
         with:
           image: ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/pegelhub-core
-          context: core
+          context: .
           file: core/Dockerfile
           platforms: linux/amd64,linux/arm64/v8
 

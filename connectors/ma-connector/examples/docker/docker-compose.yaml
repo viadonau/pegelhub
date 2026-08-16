@@ -8,5 +8,8 @@ services:
       - "/dev/piControl0:/dev/piControl0"
     volumes:
       - ./config:/app/config:ro
+      # For custom trust, uncomment this read-only mount and set PEGELHUB_TRUST_MODE=custom.
+      # - ./extra-ca:/run/pegelhub/extra-ca:ro
     environment:
       JAVA_TOOL_OPTIONS: "-DLOG_LEVEL=INFO"
+      PEGELHUB_TRUST_MODE: ${PEGELHUB_TRUST_MODE:-system}

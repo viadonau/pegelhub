@@ -16,4 +16,7 @@ COPY --from=build /workspace/connectors/icc-connector/target/icc-connector.jar /
 COPY --from=build /workspace/connectors/icc-connector/target/lib/ /app/lib/
 RUN mkdir -p /app/config
 
-ENTRYPOINT ["java","-cp","/app/connector.jar:/app/lib/*","at.pegelhub.connector.icc.IccConnectorApplication"]
+COPY --chmod=755 docker/java-entrypoint.sh /usr/local/bin/pegelhub-java-entrypoint
+
+ENTRYPOINT ["/usr/local/bin/pegelhub-java-entrypoint"]
+CMD ["java","-cp","/app/connector.jar:/app/lib/*","at.pegelhub.connector.icc.IccConnectorApplication"]

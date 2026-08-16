@@ -99,7 +99,7 @@ command is `mvn -B -ntp -Pintegration verify` from the root.
 Build the Core container without first building a host JAR:
 
 ```bash
-docker build -t pegelhub-core:local core
+docker build -f core/Dockerfile -t pegelhub-core:local .
 ```
 
 ## Configuration
