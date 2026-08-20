@@ -12,6 +12,8 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.web.bind.annotation.*;
+import jakarta.validation.Valid;
+import org.springframework.http.HttpStatus;
 
 import java.util.List;
 import java.util.UUID;
@@ -35,13 +37,14 @@ public final class HttpConnectorController {
             description = "openapi.connector.http-connector-controller.creates-connector-metadata-requires-metadata-write-or")
     @ApiResponses(value = {
             @ApiResponse(
-                    responseCode = "200",
+                    responseCode = "201",
                     description = "openapi.connector.http-connector-controller.returns-the-created-connector",
                     content = @Content(schema = @Schema(implementation = ConnectorDto.class))),
             @ApiResponse(responseCode = "400", description = "openapi.connector.http-connector-controller.the-connector-payload-is-invalid", content = @Content)
     })
     @PostMapping
-    public ConnectorDto create(@RequestBody CreateConnectorDto dto) {
+    @ResponseStatus(HttpStatus.CREATED)
+    public ConnectorDto create(@Valid @RequestBody CreateConnectorDto dto) {
         return ConnectorMapper.toResponse(connectorService.create(ConnectorMapper.toCommand(dto)));
     }
 
@@ -73,16 +76,4 @@ public final class HttpConnectorController {
         return connectorService.list().stream().map(ConnectorMapper::toResponse).toList();
     }
 
-    @Operation(
-            summary = "openapi.connector.http-connector-controller.deletes-a-connector-by-id",
-            description = "openapi.connector.http-connector-controller.deletes-connector-metadata-for-a-uuid-requires")
-    @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "openapi.connector.http-connector-controller.the-connector-was-deleted"),
-            @ApiResponse(responseCode = "400", description = "openapi.connector.http-connector-controller.the-connector-uuid-is-invalid", content = @Content),
-            @ApiResponse(responseCode = "404", description = "openapi.connector.http-connector-controller.the-connector-was-not-found", content = @Content)
-    })
-    @DeleteMapping("/{uuid}")
-    public void delete(@Parameter(description = "openapi.connector.connector-dto.connector-identifier", required = true) @PathVariable UUID uuid) {
-        connectorService.delete(new ConnectorId(uuid));
-    }
 }

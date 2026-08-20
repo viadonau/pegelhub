@@ -1,0 +1,19 @@
+info:
+  name: Revoke Station Read Access
+  type: http
+  seq: 4
+
+http:
+  method: DELETE
+  url: "{{baseUrl}}/{{apiPath}}/connectors/{{connectorId}}/read-access/stations/{{stationId}}"
+  headers:
+    - name: X-Auth-Profile
+      value: operator
+  auth: inherit
+
+runtime:
+  scripts:
+    - type: after-response
+      code: test('status is 204', () => expect(res.getStatus()).to.equal(204));
+
+docs: Revokes a connector station read access relation.

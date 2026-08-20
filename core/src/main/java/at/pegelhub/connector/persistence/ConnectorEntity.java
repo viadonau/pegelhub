@@ -1,95 +1,45 @@
 package at.pegelhub.connector.persistence;
 
-import at.pegelhub.connector.domain.ConnectorStatus;
-import at.pegelhub.contact.persistence.ContactEntity;
-import jakarta.persistence.*;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.Id;
+import jakarta.persistence.Table;
 
 import java.util.UUID;
 
 @Entity
-@Table(name = "Connector", uniqueConstraints = {
-        @UniqueConstraint(columnNames = "keycloakClientId")
-})
-public class ConnectorEntity {
+@Table(name = "connector")
+class ConnectorEntity {
 
     @Id
     private UUID id;
 
-    @ManyToOne
-    @JoinColumn(nullable = false)
-    private ContactEntity manufacturer;
+    @Column(nullable = false, length = 200)
+    private String name;
 
-    @Column(nullable = false, length = 50)
-    private String connectorNumber;
+    @Column(nullable = false, length = 30)
+    private String type;
 
-    @Column(nullable = false, length = 100)
-    private String typeDescription;
-
-    @Column(nullable = false, length = 50)
-    private String softwareVersion;
-
-    @Column(nullable = false, length = 50)
-    private String worksFromDataVersion;
-
-    @Column(nullable = false, length = 50)
-    private String dataDefinition;
-
-    @ManyToOne
-    @JoinColumn(nullable = false)
-    private ContactEntity softwareManufacturer;
-
-    @ManyToOne
-    @JoinColumn(nullable = false)
-    private ContactEntity technicallyResponsible;
-
-    @ManyToOne
-    @JoinColumn(nullable = false)
-    private ContactEntity operatingCompany;
-
-    @Column
+    @Column(length = 255, unique = true)
     private String keycloakClientId;
 
-    @Enumerated(EnumType.STRING)
-    @Column(length = 20)
-    private ConnectorStatus status = ConnectorStatus.ACTIVE;
+    @Column(nullable = false, length = 8)
+    private String status;
 
-    @Column
-    private String nodes;
-
-    public ConnectorEntity() {
+    protected ConnectorEntity() {
     }
 
-    public ConnectorEntity(UUID id, String connectorNumber, ContactEntity manufacturer, String typeDescription,
-                 String softwareVersion, String worksFromDataVersion, String dataDefinition,
-                 ContactEntity softwareManufacturer, ContactEntity technicallyResponsible,
-                 ContactEntity operatingCompany, String nodes, String keycloakClientId, ConnectorStatus status) {
+    ConnectorEntity(UUID id, String name, String type, String keycloakClientId, String status) {
         this.id = id;
-        this.connectorNumber = connectorNumber;
-        this.manufacturer = manufacturer;
-        this.typeDescription = typeDescription;
-        this.softwareVersion = softwareVersion;
-        this.worksFromDataVersion = worksFromDataVersion;
-        this.dataDefinition = dataDefinition;
-        this.softwareManufacturer = softwareManufacturer;
-        this.technicallyResponsible = technicallyResponsible;
-        this.operatingCompany = operatingCompany;
-        this.nodes = nodes;
+        this.name = name;
+        this.type = type;
         this.keycloakClientId = keycloakClientId;
-        this.status = status == null ? ConnectorStatus.ACTIVE : status;
+        this.status = status;
     }
 
-    UUID getId() { return id; }
-    String getConnectorNumber() { return connectorNumber; }
-    ContactEntity getManufacturer() { return manufacturer; }
-    String getTypeDescription() { return typeDescription; }
-    String getSoftwareVersion() { return softwareVersion; }
-    String getWorksFromDataVersion() { return worksFromDataVersion; }
-    String getDataDefinition() { return dataDefinition; }
-    ContactEntity getSoftwareManufacturer() { return softwareManufacturer; }
-    ContactEntity getTechnicallyResponsible() { return technicallyResponsible; }
-    ContactEntity getOperatingCompany() { return operatingCompany; }
-    String getKeycloakClientId() { return keycloakClientId; }
-    ConnectorStatus getStatus() { return status; }
-    String getNodes() { return nodes; }
-    public void setKeycloakClientId(String keycloakClientId) { this.keycloakClientId = keycloakClientId; }
+    UUID id() { return id; }
+    String name() { return name; }
+    String type() { return type; }
+    String keycloakClientId() { return keycloakClientId; }
+    String status() { return status; }
 }

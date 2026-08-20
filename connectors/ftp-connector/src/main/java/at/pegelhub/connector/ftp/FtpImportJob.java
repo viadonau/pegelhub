@@ -166,8 +166,13 @@ public class FtpImportJob implements Runnable {
 
     private Stream<Measurement> convertEntryToMeasurementStream(Entry e) {
         FtpImportMapping mapping = config.mapping();
+        String parameter = e.getInfos().get("parameter");
         if (mapping.sourceParameter() != null
-                && !mapping.sourceParameter().equalsIgnoreCase(e.getInfos().get("parameter"))) {
+                && !mapping.sourceParameter().equalsIgnoreCase(parameter)) {
+            return Stream.of();
+        }
+        if (!isSupportedPhysicalUnit(parameter, e.getInfos().get("unit"))) {
+            LOG.warn("Ignoring FTP entry with unsupported physical unit: parameter={}, unit={}", parameter, e.getInfos().get("unit"));
             return Stream.of();
         }
 
@@ -182,10 +187,44 @@ public class FtpImportJob implements Runnable {
                 return null;
             }
 
+            double parsedValue = Double.parseDouble(value.getValue());
+            double canonicalValue = canonicalValue(parameter, e.getInfos().get("unit"), parsedValue);
             return new Measurement(
                     mapping.targetTimeSeriesId(),
                     value.getKey().toInstant(),
-                    Double.parseDouble(value.getValue()));
+                    canonicalValue);
         }).filter(Objects::nonNull);
+    }
+
+    private boolean isSupportedPhysicalUnit(String parameter, String unit) {
+        if (parameter == null || unit == null) {
+            return false;
+        }
+        String normalized = normalizeUnit(unit);
+        return switch (parameter.trim().toLowerCase(Locale.ROOT)) {
+            case "wasserstandabs" -> normalized.equals("mua") || normalized.equals("müa");
+            case "wasserstand" -> normalized.equals("cm") || normalized.equals("mm");
+            case "abfluss" -> normalized.equals("m3/s") || normalized.equals("l/s");
+            case "wtemperatur" -> normalized.equals("°c") || normalized.equals("c") || normalized.equals("cel");
+            default -> false;
+        };
+    }
+
+    private double canonicalValue(String parameter, String unit, double value) {
+        String normalized = normalizeUnit(unit);
+        if ("wasserstand".equalsIgnoreCase(parameter) && "mm".equals(normalized)) {
+            return value / 10d;
+        }
+        if ("abfluss".equalsIgnoreCase(parameter) && "l/s".equals(normalized)) {
+            return value / 1000d;
+        }
+        return value;
+    }
+
+    private String normalizeUnit(String unit) {
+        return unit.trim().toLowerCase(Locale.ROOT)
+                .replace("³", "3")
+                .replace(" ", "")
+                .replace(".", "");
     }
 }

@@ -1,84 +1,37 @@
 package at.pegelhub.connector.domain;
 
-import at.pegelhub.contact.domain.Contact;
+import at.pegelhub.shared.metadata.MetadataStatus;
 
-import java.util.Objects;
 import java.util.UUID;
 
+import static at.pegelhub.shared.validation.Validations.normalizeOptional;
+import static at.pegelhub.shared.validation.Validations.normalizeRequired;
 import static java.util.Objects.requireNonNull;
 
 public record Connector(
         ConnectorId id,
-        String connectorNumber,
-        Contact manufacturer,
-        String typeDescription,
-        String softwareVersion,
-        String worksFromDataVersion,
-        String dataDefinition,
-        Contact softwareManufacturer,
-        Contact technicallyResponsible,
-        Contact operationCompany,
-        String notes,
+        String name,
+        ConnectorType type,
         String keycloakClientId,
-        ConnectorStatus status
-) {
+        MetadataStatus status) {
 
     public Connector {
         requireNonNull(id);
-        requireNonNull(connectorNumber);
-        requireNonNull(manufacturer);
-        requireNonNull(typeDescription);
-        requireNonNull(softwareVersion);
-        requireNonNull(worksFromDataVersion);
-        requireNonNull(dataDefinition);
-        requireNonNull(softwareManufacturer);
-        requireNonNull(technicallyResponsible);
-        requireNonNull(operationCompany);
-        requireNonNull(notes);
-        status = Objects.requireNonNullElse(status, ConnectorStatus.ACTIVE);
+        name = normalizeRequired(name, "Connector name must not be blank");
+        requireNonNull(type);
+        keycloakClientId = normalizeOptional(keycloakClientId);
+        status = status == null ? MetadataStatus.ACTIVE : status;
     }
 
-    public static Connector create(
-            String connectorNumber,
-            Contact manufacturer,
-            String typeDescription,
-            String softwareVersion,
-            String worksFromDataVersion,
-            String dataDefinition,
-            Contact softwareManufacturer,
-            Contact technicallyResponsible,
-            Contact operationCompany,
-            String notes) {
-        return new Connector(
-                new ConnectorId(UUID.randomUUID()),
-                connectorNumber,
-                manufacturer,
-                typeDescription,
-                softwareVersion,
-                worksFromDataVersion,
-                dataDefinition,
-                softwareManufacturer,
-                technicallyResponsible,
-                operationCompany,
-                notes,
-                null,
-                ConnectorStatus.ACTIVE);
+    public static Connector create(String name, ConnectorType type) {
+        return new Connector(new ConnectorId(UUID.randomUUID()), name, type, null, MetadataStatus.ACTIVE);
     }
 
-    public Connector withId(UUID uuid) {
-        return new Connector(
-                new ConnectorId(uuid),
-                connectorNumber, manufacturer, typeDescription, softwareVersion,
-                worksFromDataVersion, dataDefinition, softwareManufacturer,
-                technicallyResponsible, operationCompany, notes,
-                keycloakClientId, status);
+    public Connector bind(String keycloakClientId, MetadataStatus status) {
+        return new Connector(id, name, type, normalizeRequired(keycloakClientId, "keycloakClientId must not be blank"), status);
     }
 
-    public Connector withExternalAuth(String keycloakClientId, ConnectorStatus status) {
-        return new Connector(
-                id, connectorNumber, manufacturer, typeDescription, softwareVersion,
-                worksFromDataVersion, dataDefinition, softwareManufacturer,
-                technicallyResponsible, operationCompany, notes,
-                keycloakClientId, status);
+    public Connector update(String name, ConnectorType type, MetadataStatus status) {
+        return new Connector(id, name, type, keycloakClientId, status);
     }
 }

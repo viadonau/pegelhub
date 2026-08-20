@@ -21,7 +21,6 @@ describe('TimeSeriesOverviewComponent', () => {
           measuringPoint: { id: 'point-1', name: 'Hauptpegel' },
           station: {
             id: 'station-1',
-            stationNumber: '10001030',
             name: 'Wien Brigittenau',
             waterBody: 'Donau',
           },

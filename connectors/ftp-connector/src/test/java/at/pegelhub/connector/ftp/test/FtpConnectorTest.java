@@ -48,6 +48,7 @@ public class FtpConnectorTest {
         Files.writeString(configDir.resolve("mappings/station.yaml"), """
                 timeSeriesId: "11111111-1111-1111-1111-111111111111"
                 stationId: 1
+                parameter: "Wasserstand"
                 direction: "external-to-core"
                 """);
     }

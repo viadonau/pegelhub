@@ -11,11 +11,10 @@ const item = (
 ): MonitoringTimeSeriesSummaryDto => ({
   id,
   observedProperty: property,
-  unit: property === 'discharge' ? 'm³/s' : 'cm',
+  unit: property === 'discharge' ? 'm3/s' : property === 'water-temperature' ? 'Cel' : 'cm',
   measuringPoint: { id: 'point-1', name: 'Hauptpegel' },
   station: {
     id: 'station-1',
-    stationNumber: '10001030',
     name: 'Wien Brigittenau',
     waterBody: 'Donau',
   },
@@ -39,7 +38,7 @@ describe('time-series overview projection', () => {
     ]);
     expect(rows[0]).toMatchObject({
       measurementTypeLabel: 'Wasserstand',
-      stationLabel: 'Wien Brigittenau · 10001030 · Donau',
+      stationLabel: 'Wien Brigittenau · Donau',
     });
   });
 

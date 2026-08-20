@@ -10,64 +10,29 @@ import java.util.UUID;
 @Entity
 @Table(name = "time_series")
 class TimeSeriesEntity {
+    @Id private UUID id;
+    @Column(nullable = false) private UUID measuringPointId;
+    @Column(nullable = false, length = 40) private String observedProperty;
+    @Column(nullable = false, length = 8) private String status;
+    @Column private UUID sourceConnectorId;
+    @Column(length = 32) private String sourceRepresentation;
 
-    @Id
-    private UUID id;
+    protected TimeSeriesEntity() { }
 
-    @Column(nullable = false)
-    private UUID measuringPointId;
-
-    @Column(nullable = false, length = 120)
-    private String observedProperty;
-
-    @Column(nullable = false, length = 40)
-    private String unit;
-
-    @Column(length = 160)
-    private String externalCode;
-
-    @Column
-    private UUID sourceConnectorId;
-
-    protected TimeSeriesEntity() {
-    }
-
-    TimeSeriesEntity(
-            UUID id,
-            UUID measuringPointId,
-            String observedProperty,
-            String unit,
-            String externalCode,
-            UUID sourceConnectorId) {
+    TimeSeriesEntity(UUID id, UUID measuringPointId, String observedProperty, String status,
+                     UUID sourceConnectorId, String sourceRepresentation) {
         this.id = id;
         this.measuringPointId = measuringPointId;
         this.observedProperty = observedProperty;
-        this.unit = unit;
-        this.externalCode = externalCode;
+        this.status = status;
         this.sourceConnectorId = sourceConnectorId;
+        this.sourceRepresentation = sourceRepresentation;
     }
 
-    UUID id() {
-        return id;
-    }
-
-    UUID measuringPointId() {
-        return measuringPointId;
-    }
-
-    String observedProperty() {
-        return observedProperty;
-    }
-
-    String unit() {
-        return unit;
-    }
-
-    String externalCode() {
-        return externalCode;
-    }
-
-    UUID sourceConnectorId() {
-        return sourceConnectorId;
-    }
+    UUID id() { return id; }
+    UUID measuringPointId() { return measuringPointId; }
+    String observedProperty() { return observedProperty; }
+    String status() { return status; }
+    UUID sourceConnectorId() { return sourceConnectorId; }
+    String sourceRepresentation() { return sourceRepresentation; }
 }

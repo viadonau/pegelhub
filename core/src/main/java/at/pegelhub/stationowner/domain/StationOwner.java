@@ -21,4 +21,8 @@ public record StationOwner(
     public static StationOwner create(String name, String shortName, String notes) {
         return new StationOwner(new StationOwnerId(java.util.UUID.randomUUID()), name, shortName, notes);
     }
+
+    public StationOwner update(String name, String shortName, String notes) {
+        return new StationOwner(id, name, shortName, notes);
+    }
 }

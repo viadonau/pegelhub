@@ -16,6 +16,7 @@ import at.pegelhub.stationowner.domain.StationOwnerId;
 import at.pegelhub.timeseries.application.TimeSeriesService;
 import at.pegelhub.timeseries.domain.TimeSeries;
 import at.pegelhub.timeseries.domain.TimeSeriesId;
+import at.pegelhub.shared.metadata.MetadataStatus;
 import org.springframework.stereotype.Service;
 
 import java.time.Clock;
@@ -68,18 +69,31 @@ final class MonitoringQueryServiceImpl implements MonitoringQueryService {
                 .collect(java.util.stream.Collectors.toMap(MeasuringPoint::id, point -> point));
         Map<StationId, Station> stations = stationService.list().stream()
                 .collect(java.util.stream.Collectors.toMap(Station::id, station -> station));
-        Map<TimeSeriesId, LatestMeasurement> latest = latestMeasurements(timeSeries, window);
-
         List<MonitoringCollection.MonitoringTimeSeriesSummary> items = timeSeries.stream()
                 .map(series -> {
                     MeasuringPoint point = requireMeasuringPoint(measuringPoints, series.measuringPointId());
                     Station station = requireStation(stations, point.stationId());
+                    if (series.status() != MetadataStatus.ACTIVE
+                            || point.status() != MetadataStatus.ACTIVE
+                            || station.status() != MetadataStatus.ACTIVE) {
+                        return null;
+                    }
                     return new MonitoringCollection.MonitoringTimeSeriesSummary(
                             series,
                             point,
                             station,
-                            latest.get(series.id()));
+                            null);
                 })
+                .filter(java.util.Objects::nonNull)
+                .toList();
+        if (items.isEmpty()) {
+            return new MonitoringCollection(List.of());
+        }
+        Map<TimeSeriesId, LatestMeasurement> latest = latestMeasurements(
+                items.stream().map(MonitoringCollection.MonitoringTimeSeriesSummary::timeSeries).toList(), window);
+        items = items.stream()
+                .map(item -> new MonitoringCollection.MonitoringTimeSeriesSummary(
+                        item.timeSeries(), item.measuringPoint(), item.station(), latest.get(item.timeSeries().id())))
                 .toList();
         return new MonitoringCollection(items);
     }
@@ -100,7 +114,13 @@ final class MonitoringQueryServiceImpl implements MonitoringQueryService {
                 () -> stationOwnerService.get(station.ownerId()),
                 "station owner");
         Map<TimeSeriesId, LatestMeasurement> latest = latestMeasurements(List.of(timeSeries), window);
-        return new MonitoringDetail(timeSeries, measuringPoint, station, stationOwner, latest.get(timeSeries.id()));
+        MetadataStatus effectiveStatus = timeSeries.status() == MetadataStatus.ACTIVE
+                && measuringPoint.status() == MetadataStatus.ACTIVE
+                && station.status() == MetadataStatus.ACTIVE
+                ? MetadataStatus.ACTIVE
+                : MetadataStatus.INACTIVE;
+        return new MonitoringDetail(
+                timeSeries, measuringPoint, station, stationOwner, effectiveStatus, latest.get(timeSeries.id()));
     }
 
     private Map<TimeSeriesId, LatestMeasurement> latestMeasurements(

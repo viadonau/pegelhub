@@ -16,18 +16,10 @@ http:
     data: |-
       {
         "keycloakClientId": "{{connectorClientId}}",
-        "status": "ACTIVE",
+        "status": "active",
         "connector": {
-          "connectorNumber": "{{connectorClientId}}",
-          "manufacturer": { "organization": "PegelHub Local" },
-          "typeDescription": "Bruno workflow connector",
-          "softwareVersion": "dev",
-          "worksFromDataVersion": "1.0",
-          "dataDefinition": "pegelhub-v1",
-          "softwareManufacturer": { "organization": "PegelHub Local" },
-          "technicallyResponsible": { "organization": "PegelHub Local" },
-          "operationCompany": { "organization": "PegelHub Local" },
-          "notes": "Created by the repository Bruno workflow."
+          "name": "Bruno workflow connector",
+          "type": "other"
         }
       }
   auth: inherit
@@ -45,7 +37,7 @@ runtime:
         const duplicateMessage = `Connector already exists for Keycloak client id ${clientId}`;
         const responseBody = String(res.getBody() || '');
         const registrationAccepted = status === 201
-          || (status === 400 && responseBody.includes(duplicateMessage));
+          || (status === 409 && responseBody.includes(duplicateMessage));
 
         test('connector registered or matching identity already exists', () => {
           expect(registrationAccepted).to.equal(true);

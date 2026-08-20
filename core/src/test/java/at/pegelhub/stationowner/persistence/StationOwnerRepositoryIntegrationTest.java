@@ -29,4 +29,17 @@ final class StationOwnerRepositoryIntegrationTest extends JpaIntegrationTestBase
         assertThat(stationOwners.findById(OWNER_ID)).contains(stationOwner);
         assertThat(stationOwners.findAll()).contains(stationOwner);
     }
+
+    @Test
+    void updatesExistingStationOwnerWithoutCreatingAnotherRow() {
+        stationOwners.save(new StationOwner(OWNER_ID, "Hydro Org", "HO", "notes"));
+        var updated = new StationOwner(OWNER_ID, "Updated Org", null, null);
+
+        stationOwners.save(updated);
+
+        assertThat(stationOwners.findById(OWNER_ID)).contains(updated);
+        assertThat(stationOwners.findAll().stream()
+                .filter(owner -> owner.id().equals(OWNER_ID)))
+                .containsExactly(updated);
+    }
 }

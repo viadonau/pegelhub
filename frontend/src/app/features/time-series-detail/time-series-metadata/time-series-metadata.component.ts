@@ -1,6 +1,6 @@
 import { Component, computed, input } from '@angular/core';
 
-import { TimeSeriesDetailFact } from '../model/time-series-detail-view';
+import { TimeSeriesDetailFact } from '../model/detail-projection';
 
 @Component({
   selector: 'ph-time-series-metadata',

@@ -16,6 +16,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
@@ -52,6 +53,26 @@ final class HttpStationOwnerController {
     @ResponseStatus(HttpStatus.CREATED)
     StationOwnerResponse create(@Valid @RequestBody CreateStationOwnerRequest request) {
         return StationOwnerMapper.toResponse(stationOwners.create(StationOwnerMapper.toCommand(request)));
+    }
+
+    @Operation(
+            summary = "openapi.stationowner.http-station-owner-controller.updates-a-station-owner",
+            description = "openapi.stationowner.http-station-owner-controller.replaces-station-owner-metadata-requires-metadata-write")
+    @ApiResponses(value = {
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "openapi.stationowner.http-station-owner-controller.returns-the-updated-station-owner",
+                    content = @Content(schema = @Schema(implementation = StationOwnerResponse.class))),
+            @ApiResponse(responseCode = "400", description = "openapi.stationowner.http-station-owner-controller.the-station-owner-payload-is-invalid", content = @Content),
+            @ApiResponse(responseCode = "404", description = "openapi.stationowner.http-station-owner-controller.the-station-owner-was-not-found", content = @Content),
+            @ApiResponse(responseCode = "409", description = "openapi.shared.metadata-conflict", content = @Content)
+    })
+    @PutMapping("/{id}")
+    StationOwnerResponse update(
+            @Parameter(description = "openapi.station.create-station-request.station-owner-identifier", required = true)
+            @PathVariable("id") UUID id,
+            @Valid @RequestBody UpdateStationOwnerRequest request) {
+        return StationOwnerMapper.toResponse(stationOwners.update(new StationOwnerId(id), StationOwnerMapper.toCommand(request)));
     }
 
     @Operation(

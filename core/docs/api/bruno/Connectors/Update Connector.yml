@@ -1,0 +1,29 @@
+info:
+  name: Update Connector
+  type: http
+  seq: 7
+
+http:
+  method: PUT
+  url: "{{baseUrl}}/{{apiPath}}/admin/connectors/{{connectorId}}"
+  headers:
+    - name: X-Auth-Profile
+      value: operator
+    - name: Content-Type
+      value: application/json
+  body:
+    type: json
+    data: |-
+      {
+        "name": "Updated Bruno connector",
+        "type": "other",
+        "status": "active"
+      }
+  auth: inherit
+
+runtime:
+  scripts:
+    - type: after-response
+      code: test('status is 200', () => expect(res.getStatus()).to.equal(200));
+
+docs: Replaces the mutable metadata of an existing connector identity.

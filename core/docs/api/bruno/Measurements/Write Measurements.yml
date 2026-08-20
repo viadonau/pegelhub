@@ -34,4 +34,4 @@ runtime:
     - type: after-response
       code: test('status is 204', () => expect(res.getStatus()).to.equal(204));
 
-docs: Writes one measurement as the connector identity after the access grant exists.
+docs: Writes one measurement as the connector identity after its source assignment and active metadata path exist.

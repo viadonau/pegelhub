@@ -1,0 +1,32 @@
+info:
+  name: Update Station Owner
+  type: http
+  seq: 2
+
+http:
+  method: PUT
+  url: "{{baseUrl}}/{{apiPath}}/station-owners/{{id}}"
+  headers:
+    - name: X-Auth-Profile
+      value: operator
+    - name: Content-Type
+      value: application/json
+  body:
+    type: json
+    data: |-
+      {
+        "name": "Updated Bruno Workflow Owner",
+        "shortName": "BRUNO-UPDATED",
+        "notes": "Updated by the repository Bruno workflow."
+      }
+  auth: inherit
+
+runtime:
+  scripts:
+    - type: before-request
+      code: bru.setVar('id', bru.getVar('stationOwnerId'));
+    - type: after-response
+      code: |-
+        test('status is 200', () => expect(res.getStatus()).to.equal(200));
+
+docs: Replaces the station owner metadata captured by the create request.

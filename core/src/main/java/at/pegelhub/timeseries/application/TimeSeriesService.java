@@ -11,6 +11,8 @@ public interface TimeSeriesService {
 
     TimeSeries create(CreateTimeSeriesCommand command);
 
+    TimeSeries update(TimeSeriesId id, UpdateTimeSeriesCommand command);
+
     TimeSeries get(TimeSeriesId id);
 
     List<TimeSeries> list();

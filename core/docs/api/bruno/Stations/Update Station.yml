@@ -1,0 +1,32 @@
+info:
+  name: Update Station
+  type: http
+  seq: 2
+
+http:
+  method: PUT
+  url: "{{baseUrl}}/{{apiPath}}/stations/{{id}}"
+  headers:
+    - name: X-Auth-Profile
+      value: operator
+    - name: Content-Type
+      value: application/json
+  body:
+    type: json
+    data: |-
+      {
+        "name": "Updated Bruno Workflow Station",
+        "waterBody": "Danube",
+        "status": "active"
+      }
+  auth: inherit
+
+runtime:
+  scripts:
+    - type: before-request
+      code: bru.setVar('id', bru.getVar('stationId'));
+    - type: after-response
+      code: |-
+        test('status is 200', () => expect(res.getStatus()).to.equal(200));
+
+docs: Replaces station metadata while preserving its station owner.

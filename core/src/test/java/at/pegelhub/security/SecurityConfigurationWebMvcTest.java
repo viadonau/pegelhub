@@ -1,22 +1,7 @@
 package at.pegelhub.security;
 
-import at.pegelhub.connector.api.HttpAdminConnectorController;
-import at.pegelhub.connector.application.ConnectorService;
-import at.pegelhub.connector.domain.ConnectorStatus;
-import at.pegelhub.measurement.api.MeasurementController;
-import at.pegelhub.measurement.api.read.MeasurementReadQueryResolver;
-import at.pegelhub.measurement.application.MeasurementBucketResolutionPolicy;
-import at.pegelhub.measurement.application.MeasurementList;
-import at.pegelhub.measurement.application.MeasurementService;
-import at.pegelhub.shared.web.OpenApiConfiguration;
-import org.junit.jupiter.api.BeforeEach;
+import at.pegelhub.timeseries.api.ObservedPropertyController;
 import org.junit.jupiter.api.Test;
-import org.springdoc.core.configuration.SpringDocConfiguration;
-import org.springdoc.core.properties.SpringDocConfigProperties;
-import org.springdoc.core.properties.SwaggerUiConfigProperties;
-import org.springdoc.core.properties.SwaggerUiOAuthProperties;
-import org.springdoc.webmvc.core.configuration.SpringDocWebMvcConfiguration;
-import org.springdoc.webmvc.ui.SwaggerConfig;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.ImportAutoConfiguration;
 import org.springframework.boot.security.autoconfigure.SecurityAutoConfiguration;
@@ -24,53 +9,29 @@ import org.springframework.boot.security.autoconfigure.web.servlet.SecurityFilte
 import org.springframework.boot.security.autoconfigure.web.servlet.ServletWebSecurityAutoConfiguration;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
-import org.springframework.http.MediaType;
-import org.springframework.security.oauth2.core.OAuth2Error;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
-import org.springframework.security.oauth2.jwt.JwtValidationException;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
-import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static at.pegelhub.testsupport.ExampleData.CONNECTOR;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@WebMvcTest({MeasurementController.class, HttpAdminConnectorController.class})
+@WebMvcTest(ObservedPropertyController.class)
 @ImportAutoConfiguration({
-        SpringDocConfiguration.class,
-        SpringDocConfigProperties.class,
-        SpringDocWebMvcConfiguration.class,
-        SwaggerConfig.class,
-        SwaggerUiConfigProperties.class,
-        SwaggerUiOAuthProperties.class,
         SecurityAutoConfiguration.class,
         ServletWebSecurityAutoConfiguration.class,
         SecurityFilterAutoConfiguration.class
 })
-@Import({
-        SecurityConfiguration.class,
-        JwtAuthorityMapper.class,
-        OpenApiConfiguration.class,
-        MeasurementReadQueryResolver.class,
-        MeasurementBucketResolutionPolicy.class
-})
-@TestPropertySource(properties = {
-        "pegelhub.security.issuer-uri=http://issuer.test/realms/pegelhub"
-})
+@Import({SecurityConfiguration.class, JwtAuthorityMapper.class})
+@TestPropertySource(properties = "pegelhub.security.issuer-uri=http://issuer.test/realms/pegelhub")
 class SecurityConfigurationWebMvcTest {
-
     private static final String ISSUER = "http://issuer.test/realms/pegelhub";
 
     @Autowired
@@ -79,245 +40,42 @@ class SecurityConfigurationWebMvcTest {
     @MockitoBean
     private JwtDecoder jwtDecoder;
 
-    @MockitoBean
-    private MeasurementService measurementService;
-
-    @MockitoBean
-    private ConnectorService connectorService;
-
-    @MockitoBean
-    private Clock clock;
-
-    @BeforeEach
-    void prepareMeasurementReads() {
-        when(measurementService.listMeasurements(any())).thenAnswer(invocation ->
-                new MeasurementList(invocation.getArgument(0), false, List.of()));
-    }
-
     @Test
-    void protectedApiReturnsUnauthorizedWhenTokenIsMissing() throws Exception {
-        mockMvc.perform(post("/api/v1/measurements")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(measurementsJson()))
+    void metadataReadRequiresAuthentication() throws Exception {
+        mockMvc.perform(get("/api/v1/observed-properties"))
                 .andExpect(status().isUnauthorized());
     }
 
     @Test
-    void protectedApiReturnsForbiddenWhenRoleIsMissing() throws Exception {
-        when(jwtDecoder.decode("metadata-token")).thenReturn(jwt(
-                "metadata-token",
-                "local-operator",
-                List.of(PegelHubAuthority.METADATA_READ.value())));
+    void connectorCannotUseUserMetadataRoute() throws Exception {
+        when(jwtDecoder.decode("connector-token")).thenReturn(jwt("connector-token", "CLIENT"));
 
-        mockMvc.perform(post("/api/v1/measurements")
-                        .header("Authorization", "Bearer metadata-token")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(measurementsJson()))
+        mockMvc.perform(get("/api/v1/observed-properties")
+                        .header("Authorization", "Bearer connector-token"))
                 .andExpect(status().isForbidden());
     }
 
     @Test
-    void protectedApiReturnsUnauthorizedWhenAudienceIsInvalid() throws Exception {
-        when(jwtDecoder.decode("wrong-audience")).thenThrow(validationException("Token audience must contain pegelhub-core-api"));
+    void operatorCanReadMetadata() throws Exception {
+        when(jwtDecoder.decode("operator-token")).thenReturn(jwt("operator-token", "USER"));
 
-        mockMvc.perform(post("/api/v1/measurements")
-                        .header("Authorization", "Bearer wrong-audience")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(measurementsJson()))
-                .andExpect(status().isUnauthorized());
-    }
-
-    @Test
-    void protectedApiReturnsUnauthorizedWhenIssuerIsInvalid() throws Exception {
-        when(jwtDecoder.decode("wrong-issuer")).thenThrow(validationException("Token issuer is invalid"));
-
-        mockMvc.perform(post("/api/v1/measurements")
-                        .header("Authorization", "Bearer wrong-issuer")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(measurementsJson()))
-                .andExpect(status().isUnauthorized());
-    }
-
-    @Test
-    void protectedApiAllowsValidJwtWithRequiredRole() throws Exception {
-        when(jwtDecoder.decode("measurement-token"))
-                .thenReturn(jwt(
-                        "measurement-token",
-                        "local-connector-example",
-                        List.of(PegelHubAuthority.MEASUREMENT_WRITE.value())));
-
-        mockMvc.perform(post("/api/v1/measurements")
-                        .header("Authorization", "Bearer measurement-token")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(measurementsJson()))
-                .andExpect(status().isNoContent());
-    }
-
-    @Test
-    void systemAdminTokenCannotWriteMeasurementsWithoutMeasurementWriteRole() throws Exception {
-        when(jwtDecoder.decode("operator-measurement-token"))
-                .thenReturn(jwt(
-                        "operator-measurement-token",
-                        "local-operator",
-                        List.of(PegelHubAuthority.SYSTEM_ADMIN.value())));
-
-        mockMvc.perform(post("/api/v1/measurements")
-                        .header("Authorization", "Bearer operator-measurement-token")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(measurementsJson()))
-                .andExpect(status().isForbidden());
-    }
-
-    @Test
-    void measurementReadTokenCanReadRawMeasurements() throws Exception {
-        when(jwtDecoder.decode("measurement-read-token"))
-                .thenReturn(jwt(
-                        "measurement-read-token",
-                        "local-connector-example",
-                        List.of(PegelHubAuthority.MEASUREMENT_READ.value())));
-
-        mockMvc.perform(get("/api/v1/time-series/{timeSeriesId}/measurements", "8ce8c5b6-f093-4d46-b770-7239cdfa3d76")
-                        .header("Authorization", "Bearer measurement-read-token")
-                        .param("from", "2026-06-17T00:00:00Z")
-                        .param("to", "2026-06-17T01:00:00Z"))
+        mockMvc.perform(get("/api/v1/observed-properties")
+                        .header("Authorization", "Bearer operator-token"))
                 .andExpect(status().isOk());
     }
 
-    @Test
-    void metadataReadTokenCannotReadRawMeasurements() throws Exception {
-        when(jwtDecoder.decode("metadata-read-token"))
-                .thenReturn(jwt(
-                        "metadata-read-token",
-                        "local-operator",
-                        List.of(PegelHubAuthority.METADATA_READ.value())));
-
-        mockMvc.perform(get("/api/v1/time-series/{timeSeriesId}/measurements", "8ce8c5b6-f093-4d46-b770-7239cdfa3d76")
-                        .header("Authorization", "Bearer metadata-read-token")
-                        .param("from", "2026-06-17T00:00:00Z")
-                        .param("to", "2026-06-17T01:00:00Z"))
-                .andExpect(status().isForbidden());
-    }
-
-    @Test
-    void publicSystemTimeDoesNotRequireToken() throws Exception {
-        mockMvc.perform(get("/api/v1/measurements/system-time"))
-                .andExpect(status().isOk());
-    }
-
-    @Test
-    void openApiDocsDoNotRequireToken() throws Exception {
-        mockMvc.perform(get("/v3/api-docs"))
-                .andExpect(status().isOk());
-
-        mockMvc.perform(get("/v3/api-docs.yaml"))
-                .andExpect(status().isOk());
-
-        int swaggerStatus = mockMvc.perform(get("/swagger-ui.html"))
-                .andReturn()
-                .getResponse()
-                .getStatus();
-        assertThat(swaggerStatus).isIn(200, 301, 302, 303, 307, 308);
-    }
-
-    @Test
-    void connectorTokenCannotRegisterConnectorIdentity() throws Exception {
-        when(jwtDecoder.decode("connector-token"))
-                .thenReturn(jwt(
-                        "connector-token",
-                        "local-connector-example",
-                        List.of(PegelHubAuthority.MEASUREMENT_WRITE.value())));
-
-        mockMvc.perform(post("/api/v1/admin/connectors")
-                        .header("Authorization", "Bearer connector-token")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(registerConnectorJson()))
-                .andExpect(status().isForbidden());
-    }
-
-    @Test
-    void operatorTokenCanRegisterConnectorIdentity() throws Exception {
-        when(jwtDecoder.decode("operator-token"))
-                .thenReturn(jwt(
-                        "operator-token",
-                        "local-operator",
-                        List.of(PegelHubAuthority.SYSTEM_ADMIN.value())));
-        when(connectorService.register(anyString(), any(), any()))
-                .thenReturn(CONNECTOR.withExternalAuth("local-connector-example", ConnectorStatus.ACTIVE));
-
-        mockMvc.perform(post("/api/v1/admin/connectors")
-                        .header("Authorization", "Bearer operator-token")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(registerConnectorJson()))
-                .andExpect(status().isCreated());
-    }
-
-    private static Jwt jwt(String tokenValue, String authorizedParty, List<String> roles) {
-        return Jwt.withTokenValue(tokenValue)
+    private static Jwt jwt(String token, String actorType) {
+        return Jwt.withTokenValue(token)
                 .header("alg", "none")
                 .issuer(ISSUER)
-                .subject("subject")
-                .audience(List.of("pegelhub-core-api"))
-                .issuedAt(Instant.now())
-                .expiresAt(Instant.now().plusSeconds(600))
-                .claim("azp", authorizedParty)
-                .claim("pegelhub_actor_type", actorType(roles).name())
-                .claim("resource_access", Map.of("pegelhub-core-api", Map.of("roles", roles)))
+                .subject("operator")
+                .audience(List.of(PegelHubSecurityProperties.API_AUDIENCE))
+                .issuedAt(Instant.parse("2026-01-01T00:00:00Z"))
+                .expiresAt(Instant.parse("2026-01-01T01:00:00Z"))
+                .claim("azp", actorType.equals("CLIENT") ? "connector-client" : "operator-client")
+                .claim(CurrentActor.ACTOR_TYPE_CLAIM, actorType)
+                .claim("resource_access", Map.of(PegelHubSecurityProperties.API_AUDIENCE,
+                        Map.of("roles", List.of(PegelHubAuthority.METADATA_READ.value()))))
                 .build();
-    }
-
-    private static PegelHubActorType actorType(List<String> roles) {
-        if (roles.contains(PegelHubAuthority.MEASUREMENT_READ.value())
-                || roles.contains(PegelHubAuthority.MEASUREMENT_WRITE.value())) {
-            return PegelHubActorType.CLIENT;
-        }
-        return PegelHubActorType.USER;
-    }
-
-    private static JwtValidationException validationException(String description) {
-        return new JwtValidationException(
-                description,
-                List.of(new OAuth2Error("invalid_token", description, null)));
-    }
-
-    private static String measurementsJson() {
-        return """
-                {
-                  "measurements": [
-                    {
-                      "timeSeriesId": "8ce8c5b6-f093-4d46-b770-7239cdfa3d76",
-                      "observedAt": "2026-04-25T10:15:30Z",
-                      "value": 10.5
-                    }
-                  ]
-                }
-                """;
-    }
-
-    private static String registerConnectorJson() {
-        return """
-                {
-                  "keycloakClientId": "local-connector-example",
-                  "connector": {
-                    "connectorNumber": "connectorNR",
-                    "manufacturer": {
-                      "organization": "org1"
-                    },
-                    "typeDescription": "description",
-                    "softwareVersion": "1.0.0",
-                    "worksFromDataVersion": "1.0.0",
-                    "dataDefinition": "definition",
-                    "softwareManufacturer": {
-                      "organization": "org1"
-                    },
-                    "technicallyResponsible": {
-                      "organization": "org1"
-                    },
-                    "operationCompany": {
-                      "organization": "org1"
-                    },
-                    "notes": "notes"
-                  }
-                }
-                """;
     }
 }

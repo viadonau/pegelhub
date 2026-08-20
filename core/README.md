@@ -115,7 +115,6 @@ derives them from `core/.env`:
 | `INFLUX_DATA_BUCKET` | Measurement bucket |
 | `INFLUX_TELEMETRY_BUCKET` | Technical telemetry bucket |
 | `INFLUX_LATEST_RANGE` | Default latest-telemetry search range; defaults to `72h` |
-| `FLYWAY_BASELINE_ON_MIGRATE` | One-time legacy schema baseline switch; normally `false` |
 
 Bucket retention is reconciled by the Compose setup service with
 `INFLUX_DATA_RETENTION` and `INFLUX_TELEMETRY_RETENTION`. Read
@@ -123,15 +122,14 @@ Bucket retention is reconciled by the Compose setup service with
 
 ## Database migrations
 
-Flyway owns the PostgreSQL metadata schema through migrations in
-[`src/main/resources/db/migration/`](src/main/resources/db/migration/).
+Flyway owns the PostgreSQL metadata schema through the single clean baseline in
+[`src/main/resources/db/migration/V1__initial_metadata_schema.sql`](src/main/resources/db/migration/V1__initial_metadata_schema.sql).
 Hibernate runs with `ddl-auto: validate`; it does not create or update the
-schema. Fresh databases and normal operation use
-`FLYWAY_BASELINE_ON_MIGRATE=false`.
-
-An existing schema previously created by Hibernate needs the documented,
-backup-first [Flyway rollout procedure](docs/flyway.md). Do not enable the
-baseline setting as a general startup workaround.
+schema. This V2 development line intentionally resets metadata. Because
+measurements are keyed by the persisted TimeSeries UUID, reset the PostgreSQL
+and InfluxDB volumes together and reseed metadata and measurements as one
+dataset. Do not apply the baseline to a data-bearing legacy schema; see the
+[Flyway guide](docs/flyway.md).
 
 ## OpenAPI and API examples
 
@@ -169,14 +167,14 @@ The runtime role values are:
 | `system:admin` | Connector identity registration, protected actuator access, measurement-read bypass, and explicit metadata or telemetry route fallbacks |
 
 Connector measurement access also uses `pegelhub_actor_type`, the token client
-ID, active Connector metadata, time-series source ownership, and access grants.
-The [connector library guide](../connectors/library/#core-authorization-prerequisites)
+ID, active Connector metadata, time-series source ownership, and explicit read
+access relations. The [connector library guide](../connectors/library/#core-authorization-prerequisites)
 summarizes those prerequisites.
 
 `system:admin` is not a universal authorization bypass. In particular,
 `POST /api/v1/measurements` still requires `measurement:write`, a `CLIENT`
-actor, an active registered Connector, exact source ownership, and a direct
-TimeSeries `WRITE` grant. Telemetry writes permitted by `system:admin` still
+actor, an active registered Connector, exact source ownership, and an active
+Station -> MeasuringPoint -> TimeSeries path. Telemetry writes permitted by `system:admin` still
 resolve an active Connector from the token client ID.
 
 Swagger UI, OpenAPI documents, the configured actuator health/info surface, and

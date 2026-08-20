@@ -5,6 +5,7 @@ import at.pegelhub.telemetry.application.TelemetryService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -58,6 +59,16 @@ class ExceptionMapperWebMvcTest {
         mockMvc.perform(get("/api/v1/telemetry/{range}", "bad"))
                 .andExpect(status().isBadRequest())
                 .andExpect(content().string("bad range"));
+    }
+
+    @Test
+    void mapsDataIntegrityViolationTo409() throws Exception {
+        doThrow(new DataIntegrityViolationException("duplicate station name"))
+                .when(telemetryService).getByRange("duplicate");
+
+        mockMvc.perform(get("/api/v1/telemetry/{range}", "duplicate"))
+                .andExpect(status().isConflict())
+                .andExpect(content().string("Metadata conflicts with an existing resource"));
     }
 
     @Test

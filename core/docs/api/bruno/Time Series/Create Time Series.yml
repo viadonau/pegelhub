@@ -17,9 +17,11 @@ http:
       {
         "measuringPointId": "{{measuringPointId}}",
         "observedProperty": "water-level",
-        "unit": "cm",
-        "externalCode": "BRUNO-WATER-LEVEL",
-        "sourceConnectorId": "{{connectorId}}"
+        "status": "active",
+        "sourceAssignment": {
+          "connectorId": "{{connectorId}}",
+          "representation": "canonical"
+        }
       }
   auth: inherit
 

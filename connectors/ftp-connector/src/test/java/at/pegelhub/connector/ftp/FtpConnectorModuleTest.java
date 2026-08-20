@@ -80,6 +80,40 @@ class FtpConnectorModuleTest {
     }
 
     @Test
+    void shouldRejectMissingOrUnsupportedParameter() throws Exception {
+        writeConnectorYaml();
+        Files.createDirectories(tmp.resolve("mappings"));
+        Files.writeString(tmp.resolve("mappings/station.yaml"), """
+                timeSeriesId: "11111111-1111-1111-1111-111111111111"
+                stationId: 123
+                direction: "external-to-core"
+                """);
+        assertThrows(IllegalArgumentException.class, this::loadConfig);
+
+        Files.writeString(tmp.resolve("mappings/station.yaml"), """
+                timeSeriesId: "11111111-1111-1111-1111-111111111111"
+                stationId: 123
+                parameter: "Temperature"
+                direction: "external-to-core"
+                """);
+        assertThrows(IllegalArgumentException.class, this::loadConfig);
+    }
+
+    @Test
+    void shouldAcceptWaterTemperatureParameter() throws Exception {
+        writeConnectorYaml();
+        Files.createDirectories(tmp.resolve("mappings"));
+        Files.writeString(tmp.resolve("mappings/station.yaml"), """
+                timeSeriesId: "11111111-1111-1111-1111-111111111111"
+                stationId: 123
+                parameter: "WTemperatur"
+                direction: "external-to-core"
+                """);
+
+        assertEquals("WTemperatur", loadConfig().mapping().sourceParameter());
+    }
+
+    @Test
     void shouldRejectUnknownParserType() throws Exception {
         writeConnectorYaml("unknown");
         Files.createDirectories(tmp.resolve("mappings"));

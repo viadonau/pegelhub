@@ -1,12 +1,12 @@
 package at.pegelhub.measurement.application;
 
-import at.pegelhub.connector.domain.ConnectorId;
 import at.pegelhub.measurement.domain.Measurement;
 import at.pegelhub.measurement.domain.WriteMeasurement;
 import at.pegelhub.measurement.domain.WriteMeasurements;
 import at.pegelhub.measurement.persistence.MeasurementRepository;
 import org.springframework.stereotype.Service;
 
+import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -40,19 +40,30 @@ public class MeasurementServiceImpl implements MeasurementService {
     @Override
     public void writeMeasurements(WriteMeasurements writeMeasurements) {
         Instant receivedAt = Instant.now(clock);
-        ConnectorId connectorId = authorizationPolicy.requireWriteBatch(writeMeasurements.measurements().stream()
+        MeasurementWriteAuthorization authorization = authorizationPolicy.requireWriteBatch(writeMeasurements.measurements().stream()
                 .map(WriteMeasurement::timeSeriesId)
                 .toList());
         List<Measurement> measurements = new ArrayList<>(writeMeasurements.measurements().size());
         for (WriteMeasurement measurement : writeMeasurements.measurements()) {
+            var normalization = authorization.forTimeSeries(measurement.timeSeriesId());
             measurements.add(new Measurement(
                     measurement.timeSeriesId(),
                     measurement.observedAt(),
                     receivedAt,
-                    measurement.value(),
-                    connectorId));
+                    canonicalValue(normalization, measurement.value()),
+                    authorization.connectorId()));
         }
         measurementRepository.storeMeasurements(measurements);
+    }
+
+    private double canonicalValue(MeasurementWriteAuthorization.Normalization normalization, double value) {
+        if (normalization.representation() != at.pegelhub.timeseries.domain.SourceRepresentation.METRES_ABOVE_ADRIA) {
+            return value;
+        }
+        return BigDecimal.valueOf(value)
+                .subtract(normalization.gaugeZeroElevationMAboveAdria())
+                .movePointRight(2)
+                .doubleValue();
     }
 
     @Override

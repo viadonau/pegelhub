@@ -3,48 +3,33 @@ package at.pegelhub.timeseries.api;
 import at.pegelhub.connector.domain.ConnectorId;
 import at.pegelhub.measuringpoint.domain.MeasuringPointId;
 import at.pegelhub.timeseries.application.CreateTimeSeriesCommand;
-import at.pegelhub.timeseries.domain.ExternalTimeSeriesCode;
+import at.pegelhub.timeseries.application.UpdateTimeSeriesCommand;
 import at.pegelhub.timeseries.domain.ObservedPropertyCode;
+import at.pegelhub.timeseries.domain.SourceAssignment;
 import at.pegelhub.timeseries.domain.TimeSeries;
-import at.pegelhub.timeseries.domain.UnitCode;
 
 final class TimeSeriesMapper {
-
-    private TimeSeriesMapper() {
-    }
+    private TimeSeriesMapper() { }
 
     static CreateTimeSeriesCommand toCommand(CreateTimeSeriesRequest request) {
         return new CreateTimeSeriesCommand(
-                new MeasuringPointId(request.measuringPointId()),
-                new ObservedPropertyCode(request.observedProperty()),
-                new UnitCode(request.unit()),
-                toExternalCode(request.externalCode()),
-                toConnectorId(request.sourceConnectorId()));
+                new MeasuringPointId(request.measuringPointId()), new ObservedPropertyCode(request.observedProperty()),
+                request.status(), assignment(request.sourceAssignment()));
     }
 
-    static TimeSeriesResponse toResponse(TimeSeries timeSeries) {
+    static UpdateTimeSeriesCommand toCommand(UpdateTimeSeriesRequest request) {
+        return new UpdateTimeSeriesCommand(request.status(), assignment(request.sourceAssignment()));
+    }
+
+    static TimeSeriesResponse toResponse(TimeSeries series) {
+        var assignment = series.sourceAssignment();
         return new TimeSeriesResponse(
-                timeSeries.id().value(),
-                timeSeries.measuringPointId().value(),
-                timeSeries.observedProperty().value(),
-                timeSeries.unit().value(),
-                toExternalCodeValue(timeSeries.externalCode()),
-                toConnectorIdValue(timeSeries.sourceConnectorId()));
+                series.id().value(), series.measuringPointId().value(), series.observedProperty().value(),
+                series.unit(), series.status(), assignment == null ? null
+                        : new TimeSeriesResponse.SourceAssignmentResponse(assignment.connectorId().value(), assignment.representation()));
     }
 
-    private static ExternalTimeSeriesCode toExternalCode(String externalCode) {
-        return externalCode == null || externalCode.isBlank() ? null : new ExternalTimeSeriesCode(externalCode);
-    }
-
-    private static String toExternalCodeValue(ExternalTimeSeriesCode externalCode) {
-        return externalCode == null ? null : externalCode.value();
-    }
-
-    private static ConnectorId toConnectorId(java.util.UUID sourceConnectorId) {
-        return sourceConnectorId == null ? null : new ConnectorId(sourceConnectorId);
-    }
-
-    private static java.util.UUID toConnectorIdValue(ConnectorId sourceConnectorId) {
-        return sourceConnectorId == null ? null : sourceConnectorId.value();
+    private static SourceAssignment assignment(SourceAssignmentRequest request) {
+        return request == null ? null : new SourceAssignment(new ConnectorId(request.connectorId()), request.representation());
     }
 }

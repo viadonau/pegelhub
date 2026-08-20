@@ -9,6 +9,8 @@ public interface StationOwnerService {
 
     StationOwner create(CreateStationOwnerCommand command);
 
+    StationOwner update(StationOwnerId id, UpdateStationOwnerCommand command);
+
     StationOwner get(StationOwnerId id);
 
     List<StationOwner> list();

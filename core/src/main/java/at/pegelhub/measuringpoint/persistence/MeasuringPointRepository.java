@@ -13,6 +13,8 @@ public interface MeasuringPointRepository {
 
     Optional<MeasuringPoint> findById(MeasuringPointId id);
 
+    Optional<MeasuringPoint> findByIdForUpdate(MeasuringPointId id);
+
     List<MeasuringPoint> findAll();
 
     List<MeasuringPoint> findByStationId(StationId stationId);

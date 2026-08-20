@@ -7,8 +7,7 @@ document at `/v3/api-docs?lang=en` remains the authoritative HTTP contract.
 ## Requirements
 
 - Bruno Desktop or the `bru` CLI 3.0 or newer; OpenCollection YAML support was
-  introduced in 3.0. CI parses the YAML and compares request coverage but does
-  not invoke Bruno
+  introduced in 3.0
 - reachable Core and Keycloak endpoints
 - a hosts entry for `pegelhub-keycloak.test` when using the local environment
 
@@ -48,12 +47,12 @@ Set a distinct `name` and configure:
 | `operatorClientId`, `operatorClientSecret` | Operator service account |
 | `connectorClientId`, `connectorClientSecret` | Connector service account |
 
-The operator client must support client credentials and have `system:admin`.
-The connector client used by the collection's write requests needs
-`measurement:write` and `telemetry:write`. Both tokens need the configured
-issuer, the `pegelhub-core-api` audience, and
-`pegelhub_actor_type: CLIENT`. The connector registration request binds
-`connectorClientId` to Connector metadata in Core.
+The operator client must support client credentials, have `system:admin`, and
+receive `pegelhub_actor_type: USER`. The connector client used by the
+collection's write requests needs `measurement:write` and `telemetry:write`
+and receives `pegelhub_actor_type: CLIENT`. Both tokens need the configured
+issuer and the `pegelhub-core-api` audience. The connector registration
+request binds `connectorClientId` to Connector metadata in Core.
 
 Run the read-only requests with the filename minus `.yml`:
 
@@ -81,7 +80,7 @@ The following sequence writes persistent data to the selected environment:
 4. `Stations/Create Station`
 5. `Measuring Points/Create Measuring Point`
 6. `Time Series/Create Time Series`
-7. `Access Grants/Create Access Grant`
+7. `Connectors/Grant Station Read Access`
 8. `Measurements/Write Measurements`
 9. `Measurements/Read Raw Measurements`
 10. `Measurements/Read Measurement Buckets`
@@ -92,8 +91,7 @@ list request verifies and captures it.
 
 ## Contract coverage
 
-`OpenApiDocumentationWebMvcTest#brunoCollectionMatchesEnglishOpenApiOperationsAndQueryParameters`
-parses the collection and compares its HTTP operations and query parameters
-with the generated English OpenAPI document. It rejects missing, stale, or
-duplicate operation coverage; it does not execute requests or validate their
-response behavior.
+The running Core application generates the authoritative English OpenAPI
+document at `/v3/api-docs?lang=en`. This collection is a maintained set of
+operator and connector smoke-test requests; it is deliberately not generated
+code and does not claim exhaustive schema coverage.

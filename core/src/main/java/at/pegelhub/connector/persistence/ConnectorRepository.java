@@ -14,9 +14,5 @@ public interface ConnectorRepository {
 
     List<Connector> findAll();
 
-    void delete(ConnectorId id);
-
-    Optional<Connector> findByConnectorNumber(String connectorNumber);
-
     Optional<Connector> findByKeycloakClientId(String keycloakClientId);
 }

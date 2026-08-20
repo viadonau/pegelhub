@@ -98,11 +98,11 @@ A role-bearing token is necessary but not sufficient for connector access.
 Measurement clients need `pegelhub_actor_type: CLIENT` and a client ID in `azp`
 or `client_id`. Core measurement policies also require that client ID to match
 an active Connector record. Measurement writes require that Connector to be
-the time series' `sourceConnectorId` and to hold a direct TimeSeries `WRITE`
-grant. Measurement reads by a non-admin connector client require a
-covering `READ` grant. For measurement reads, `system:admin` bypasses connector
-registration, status, and grant checks after Core verifies that the TimeSeries
-exists.
+the time series' source assignment and the complete metadata hierarchy to be
+active. Measurement reads by every connector client require a covering station
+or TimeSeries read-access relation. Connector clients must remain registered
+and active even when their token also carries `system:admin`; that authority
+is an operator-user capability, not a connector bypass.
 The [Bruno write workflow](../../core/docs/api/bruno/#write-workflow) shows the
 registration and metadata sequence.
 
@@ -112,7 +112,7 @@ registration and metadata sequence.
 | --- | --- |
 | Token request fails | Token URL reachability, confidential-client settings, client ID, and secret |
 | Core returns `401` | Exact issuer match and the `pegelhub-core-api` token audience |
-| Core returns `403` | Required lowercase role and active Connector; writes also need exact source binding plus a direct `WRITE` grant, while connector reads need an applicable `READ` grant |
+| Core returns `403` | Required lowercase role, active Connector, active metadata hierarchy, exact source binding, or an applicable read-access relation |
 | Core reports connector not registered | Connector metadata whose `keycloakClientId` matches token `azp` |
 | Connector exits during startup | `connector.yaml`, mapping count/directions, UUIDs, and polling interval syntax |
 | Container cannot reach `localhost` endpoints | Use host-reachable names, `host.docker.internal` on Docker Desktop, or service names on a shared Docker network |

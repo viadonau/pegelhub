@@ -1,9 +1,13 @@
-const LABELS: Record<string, string> = {
-  'water-level': 'Wasserstand',
-  'water-temperature': 'Wassertemperatur',
-  discharge: 'Abfluss',
+const PARAMETERS: Record<string, { label: string; unit: string }> = {
+  'water-level': { label: 'Wasserstand', unit: 'cm' },
+  'water-temperature': { label: 'Wassertemperatur', unit: '°C' },
+  discharge: { label: 'Abfluss', unit: 'm³/s' },
 };
 
 export function observedPropertyLabel(value: string): string {
-  return LABELS[value] ?? value;
+  return PARAMETERS[value]?.label ?? value;
+}
+
+export function observedPropertyUnit(value: string, canonicalUnit: string): string {
+  return PARAMETERS[value]?.unit ?? canonicalUnit;
 }

@@ -92,13 +92,11 @@ final class MeasurementFluxQueryBuilderTest {
                         "1d"));
 
         assertThat(queryBuilder.latestMeasurements(query))
-                .contains("r._measurement == \"e27efad9-b947-48b1-928e-c25663597f1c\" or r._measurement == \"2e27efad-b947-48b1-928e-c25663597f1c\"")
-                .contains("|> last()")
+                .contains("contains(value: r._measurement, set: [\"e27efad9-b947-48b1-928e-c25663597f1c\", \"2e27efad-b947-48b1-928e-c25663597f1c\"])")
                 .contains("|> group(columns: [\"_measurement\"])")
                 .contains("|> sort(columns: [\"_time\", \"submittedByConnectorId\"], desc: true)")
                 .contains("|> limit(n: 1)")
                 .contains("|> keep(columns: [\"_measurement\", \"_time\", \"submittedByConnectorId\", \"value\"])")
-                .doesNotContain("contains(")
-                .containsSubsequence("|> last()", "|> group(", "|> sort(", "|> limit(");
+                .containsSubsequence("contains(", "|> group(", "|> sort(", "|> limit(");
     }
 }

@@ -122,7 +122,6 @@ compose() {
   KEYCLOAK_ADMIN_USER="$compose_keycloak_admin_user" \
   KEYCLOAK_ADMIN_PASSWORD="$compose_keycloak_admin_password" \
   CORE_JAVA_TOOL_OPTIONS="$compose_core_java_tool_options" \
-  FLYWAY_BASELINE_ON_MIGRATE="$compose_flyway_baseline" \
   INFLUX_LATEST_RANGE="$compose_influx_latest_range" \
   PEGELHUB_IMAGE_TAG="$PEGELHUB_IMAGE_TAG" \
     docker compose \
@@ -199,11 +198,6 @@ validate_environment() {
   validate_public_hostname PEGELHUB_API_HOSTNAME
   validate_public_hostname PEGELHUB_KEYCLOAK_HOSTNAME
 
-  case "$(env_value FLYWAY_BASELINE_ON_MIGRATE)" in
-    ""|true|false) ;;
-    *) fail "FLYWAY_BASELINE_ON_MIGRATE must be true or false." ;;
-  esac
-
   validate_retention INFLUX_DATA_RETENTION
   validate_retention INFLUX_TELEMETRY_RETENTION
 
@@ -254,7 +248,6 @@ load_compose_environment() {
   compose_keycloak_admin_user=$(env_value KEYCLOAK_ADMIN_USER)
   compose_keycloak_admin_password=$(env_value KEYCLOAK_ADMIN_PASSWORD)
   compose_core_java_tool_options=$(env_value CORE_JAVA_TOOL_OPTIONS)
-  compose_flyway_baseline=$(env_value FLYWAY_BASELINE_ON_MIGRATE)
   compose_influx_latest_range=$(env_value INFLUX_LATEST_RANGE)
 }
 

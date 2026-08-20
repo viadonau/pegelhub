@@ -1,5 +1,6 @@
 package at.pegelhub.station.persistence;
 
+import at.pegelhub.shared.metadata.MetadataStatus;
 import at.pegelhub.station.domain.Station;
 import at.pegelhub.station.domain.StationId;
 import at.pegelhub.stationowner.domain.StationOwnerId;
@@ -12,49 +13,19 @@ import static java.util.Objects.requireNonNull;
 
 @Repository
 class StationRepositoryAdapter implements StationRepository {
-
     private final SpringDataStationRepository stations;
 
-    StationRepositoryAdapter(SpringDataStationRepository stations) {
-        this.stations = requireNonNull(stations);
-    }
+    StationRepositoryAdapter(SpringDataStationRepository stations) { this.stations = requireNonNull(stations); }
 
-    @Override
-    public Station save(Station station) {
-        requireNonNull(station);
-        return toDomain(stations.save(toEntity(station)));
-    }
-
-    @Override
-    public Optional<Station> findById(StationId id) {
-        requireNonNull(id);
-        return stations.findById(id.value()).map(this::toDomain);
-    }
-
-    @Override
-    public List<Station> findAll() {
-        return stations.findAll().stream()
-                .map(this::toDomain)
-                .toList();
-    }
+    @Override public Station save(Station station) { return toDomain(stations.save(toEntity(station))); }
+    @Override public Optional<Station> findById(StationId id) { return stations.findById(id.value()).map(this::toDomain); }
+    @Override public List<Station> findAll() { return stations.findAll().stream().map(this::toDomain).toList(); }
 
     private StationEntity toEntity(Station station) {
-        return new StationEntity(
-                station.id().value(),
-                station.ownerId().value(),
-                station.stationNumber(),
-                station.name(),
-                station.waterBody(),
-                station.location());
+        return new StationEntity(station.id().value(), station.ownerId().value(), station.name(), station.waterBody(), station.status().value());
     }
 
     private Station toDomain(StationEntity station) {
-        return new Station(
-                new StationId(station.id()),
-                new StationOwnerId(station.ownerId()),
-                station.stationNumber(),
-                station.name(),
-                station.waterBody(),
-                station.location());
+        return new Station(new StationId(station.id()), new StationOwnerId(station.ownerId()), station.name(), station.waterBody(), MetadataStatus.from(station.status()));
     }
 }

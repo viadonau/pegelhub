@@ -107,8 +107,7 @@ unset \
   KEYCLOAK_DB \
   KEYCLOAK_ADMIN_USER \
   KEYCLOAK_ADMIN_PASSWORD \
-  CORE_JAVA_TOOL_OPTIONS \
-  FLYWAY_BASELINE_ON_MIGRATE
+  CORE_JAVA_TOOL_OPTIONS
 
 for tls_url in "$FRONTEND_BASE_URL" "$API_BASE_URL" "https://$keycloak_hostname"; do
   printf '%s\n' "Checking TLS handshake for $tls_url..."

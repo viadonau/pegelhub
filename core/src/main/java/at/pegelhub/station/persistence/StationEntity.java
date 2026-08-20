@@ -10,58 +10,25 @@ import java.util.UUID;
 @Entity
 @Table(name = "station")
 class StationEntity {
+    @Id private UUID id;
+    @Column(nullable = false) private UUID ownerId;
+    @Column(nullable = false, length = 200) private String name;
+    @Column(nullable = false, length = 200) private String waterBody;
+    @Column(nullable = false, length = 8) private String status;
 
-    @Id
-    private UUID id;
+    protected StationEntity() { }
 
-    @Column(nullable = false)
-    private UUID ownerId;
-
-    @Column(nullable = false, unique = true, length = 80)
-    private String stationNumber;
-
-    @Column(nullable = false, length = 200)
-    private String name;
-
-    @Column(nullable = false, length = 200)
-    private String waterBody;
-
-    @Column(length = 500)
-    private String location;
-
-    protected StationEntity() {
-    }
-
-    StationEntity(UUID id, UUID ownerId, String stationNumber, String name, String waterBody, String location) {
+    StationEntity(UUID id, UUID ownerId, String name, String waterBody, String status) {
         this.id = id;
         this.ownerId = ownerId;
-        this.stationNumber = stationNumber;
         this.name = name;
         this.waterBody = waterBody;
-        this.location = location;
+        this.status = status;
     }
 
-    UUID id() {
-        return id;
-    }
-
-    UUID ownerId() {
-        return ownerId;
-    }
-
-    String stationNumber() {
-        return stationNumber;
-    }
-
-    String name() {
-        return name;
-    }
-
-    String waterBody() {
-        return waterBody;
-    }
-
-    String location() {
-        return location;
-    }
+    UUID id() { return id; }
+    UUID ownerId() { return ownerId; }
+    String name() { return name; }
+    String waterBody() { return waterBody; }
+    String status() { return status; }
 }

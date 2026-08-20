@@ -158,6 +158,10 @@ Expected local connector token claims:
 Service clients do not receive user-profile scopes or the custom user-subject
 mapper.
 
+The local operator client uses the user actor scope so that client-credentials
+requests made for metadata administration are still treated as operator users:
+its `pegelhub_actor_type` claim is `USER` and it has `system:admin`.
+
 The browser client receives `pegelhub_actor_type: USER` and exactly
 `metadata:read` plus `measurement:read` under
 `resource_access.pegelhub-core-api.roles`. Every caller linked to the Core

@@ -1,0 +1,44 @@
+info:
+  name: Update Measuring Point
+  type: http
+  seq: 2
+
+http:
+  method: PUT
+  url: "{{baseUrl}}/{{apiPath}}/measuring-points/{{id}}"
+  headers:
+    - name: X-Auth-Profile
+      value: operator
+    - name: Content-Type
+      value: application/json
+  body:
+    type: json
+    data: |-
+      {
+        "name": "Updated Main gauge",
+        "status": "active",
+        "position": {
+          "riverKilometer": 1933.2,
+          "bank": "left",
+          "coordinates": { "latitude": 48.25, "longitude": 16.39 }
+        },
+        "gaugeZeroElevationMAboveAdria": 154.22,
+        "waterLevelReferences": {
+          "referenceSetYear": 2020,
+          "rnwCm": 120.0,
+          "mwCm": 280.0,
+          "hswCm": 620.0,
+          "hw100Cm": 760.0
+        }
+      }
+  auth: inherit
+
+runtime:
+  scripts:
+    - type: before-request
+      code: bru.setVar('id', bru.getVar('measuringPointId'));
+    - type: after-response
+      code: |-
+        test('status is 200', () => expect(res.getStatus()).to.equal(200));
+
+docs: Replaces measuring point metadata while preserving its station.
