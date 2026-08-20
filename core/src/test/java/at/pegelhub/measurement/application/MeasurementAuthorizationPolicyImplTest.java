@@ -1,269 +1,105 @@
 package at.pegelhub.measurement.application;
 
-import at.pegelhub.access.application.AccessAuthorizationService;
-import at.pegelhub.access.domain.AccessPermission;
-import at.pegelhub.access.domain.AccessResourceRef;
+import at.pegelhub.access.application.ConnectorReadAccessService;
 import at.pegelhub.connector.domain.Connector;
 import at.pegelhub.connector.domain.ConnectorId;
-import at.pegelhub.connector.domain.ConnectorStatus;
+import at.pegelhub.connector.domain.ConnectorType;
 import at.pegelhub.connector.persistence.ConnectorRepository;
+import at.pegelhub.measuringpoint.application.MeasuringPointService;
+import at.pegelhub.measuringpoint.domain.MeasuringPoint;
+import at.pegelhub.measuringpoint.domain.MeasuringPointId;
+import at.pegelhub.station.application.StationService;
+import at.pegelhub.station.domain.Station;
+import at.pegelhub.station.domain.StationId;
+import at.pegelhub.stationowner.domain.StationOwnerId;
 import at.pegelhub.security.CurrentActor;
 import at.pegelhub.security.PegelHubActor;
 import at.pegelhub.security.PegelHubActorType;
-import at.pegelhub.security.PegelHubAuthority;
-import at.pegelhub.shared.error.NotFoundException;
-import at.pegelhub.measuringpoint.domain.MeasuringPointId;
 import at.pegelhub.timeseries.application.TimeSeriesService;
 import at.pegelhub.timeseries.domain.ObservedPropertyCode;
+import at.pegelhub.timeseries.domain.SourceAssignment;
+import at.pegelhub.timeseries.domain.SourceRepresentation;
 import at.pegelhub.timeseries.domain.TimeSeries;
 import at.pegelhub.timeseries.domain.TimeSeriesId;
-import at.pegelhub.timeseries.domain.UnitCode;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.access.AccessDeniedException;
 
+import java.math.BigDecimal;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
-import static at.pegelhub.security.PegelHubAuthority.MEASUREMENT_READ;
 import static at.pegelhub.security.PegelHubAuthority.MEASUREMENT_WRITE;
-import static at.pegelhub.security.PegelHubAuthority.SYSTEM_ADMIN;
-import static at.pegelhub.testsupport.ExampleData.CONTACT;
+import static at.pegelhub.shared.metadata.MetadataStatus.ACTIVE;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.Mockito.eq;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.reset;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-final class MeasurementAuthorizationPolicyImplTest {
+class MeasurementAuthorizationPolicyImplTest {
 
-    private static final ConnectorId CONNECTOR_ID = new ConnectorId(UUID.fromString("0d9a3c87-b41a-4663-af0a-f6ec5e6a91cf"));
-    private static final ConnectorId OTHER_CONNECTOR_ID = new ConnectorId(UUID.fromString("cbe77f6f-4411-4bd0-a099-a5437a4105b2"));
-    private static final TimeSeriesId TIME_SERIES_ID = new TimeSeriesId(UUID.fromString("8ce8c5b6-f093-4d46-b770-7239cdfa3d76"));
+    private static final ConnectorId CONNECTOR_ID = new ConnectorId(UUID.randomUUID());
+    private static final TimeSeriesId SERIES_ID = new TimeSeriesId(UUID.randomUUID());
+    private static final MeasuringPointId POINT_ID = new MeasuringPointId(UUID.randomUUID());
+    private static final StationId STATION_ID = new StationId(UUID.randomUUID());
 
     private final CurrentActor currentActor = mock(CurrentActor.class);
-    private final ConnectorRepository connectorRepository = mock(ConnectorRepository.class);
-    private final TimeSeriesService timeSeriesService = mock(TimeSeriesService.class);
-    private final AccessAuthorizationService accessAuthorizationService = mock(AccessAuthorizationService.class);
+    private final ConnectorRepository connectors = mock(ConnectorRepository.class);
+    private final TimeSeriesService timeSeries = mock(TimeSeriesService.class);
+    private final MeasuringPointService points = mock(MeasuringPointService.class);
+    private final StationService stations = mock(StationService.class);
+    private final ConnectorReadAccessService readAccess = mock(ConnectorReadAccessService.class);
     private final MeasurementAuthorizationPolicyImpl policy = new MeasurementAuthorizationPolicyImpl(
-            currentActor,
-            connectorRepository,
-            timeSeriesService,
-            accessAuthorizationService);
+            currentActor, connectors, timeSeries, points, stations, readAccess);
 
-    @BeforeEach
-    void prepare() {
-        reset(currentActor, connectorRepository, timeSeriesService, accessAuthorizationService);
-        when(timeSeriesService.get(TIME_SERIES_ID)).thenReturn(timeSeries(CONNECTOR_ID));
+    @Test
+    void capturesSourceRepresentationAndPnpAlongsideAuthorization() {
+        PegelHubActor actor = new PegelHubActor(
+                PegelHubActorType.CLIENT, null, "client", Set.of(MEASUREMENT_WRITE));
+        when(currentActor.get()).thenReturn(actor);
+        when(connectors.findByKeycloakClientId("client")).thenReturn(Optional.of(connector(ACTIVE)));
+        when(timeSeries.get(SERIES_ID)).thenReturn(series(SourceRepresentation.METRES_ABOVE_ADRIA));
+        when(points.get(POINT_ID)).thenReturn(point(ACTIVE, new BigDecimal("154.22")));
+        when(stations.get(STATION_ID)).thenReturn(station(ACTIVE));
+
+        MeasurementWriteAuthorization authorization = policy.requireWrite(SERIES_ID);
+
+        assertThat(authorization.connectorId()).isEqualTo(CONNECTOR_ID);
+        assertThat(authorization.forTimeSeries(SERIES_ID).representation())
+                .isEqualTo(SourceRepresentation.METRES_ABOVE_ADRIA);
+        assertThat(authorization.forTimeSeries(SERIES_ID).gaugeZeroElevationMAboveAdria())
+                .isEqualByComparingTo("154.22");
     }
 
     @Test
-    void requireReadAllowsSystemAdminWithoutConnectorRegistration() {
-        when(currentActor.get()).thenReturn(user(SYSTEM_ADMIN));
+    void rejectsInactiveHierarchy() {
+        PegelHubActor actor = new PegelHubActor(
+                PegelHubActorType.CLIENT, null, "client", Set.of(MEASUREMENT_WRITE));
+        when(currentActor.get()).thenReturn(actor);
+        when(connectors.findByKeycloakClientId("client")).thenReturn(Optional.of(connector(ACTIVE)));
+        when(timeSeries.get(SERIES_ID)).thenReturn(series(SourceRepresentation.CANONICAL));
+        when(points.get(POINT_ID)).thenReturn(point(at.pegelhub.shared.metadata.MetadataStatus.INACTIVE, null));
 
-        policy.requireRead(TIME_SERIES_ID);
-
-        verify(timeSeriesService).get(TIME_SERIES_ID);
-        verify(connectorRepository, never()).findByKeycloakClientId("pegelhub-frontend");
+        assertThatThrownBy(() -> policy.requireWrite(SERIES_ID))
+                .isInstanceOf(AccessDeniedException.class)
+                .hasMessageContaining("Measuring point");
     }
 
-    @Test
-    void requireReadAllowsOperatorUserWithoutConnectorRegistration() {
-        when(currentActor.get()).thenReturn(user(MEASUREMENT_READ));
-
-        policy.requireRead(TIME_SERIES_ID);
-
-        verify(timeSeriesService).get(TIME_SERIES_ID);
-        verify(connectorRepository, never()).findByKeycloakClientId("pegelhub-frontend");
+    private static Connector connector(at.pegelhub.shared.metadata.MetadataStatus status) {
+        return new Connector(CONNECTOR_ID, "Connector", ConnectorType.OTHER, "client", status);
     }
 
-    @Test
-    void requireReadDeniesUnregisteredClientWithMeasurementRead() {
-        when(currentActor.get()).thenReturn(client(MEASUREMENT_READ));
-        when(connectorRepository.findByKeycloakClientId("local-connector-example")).thenReturn(Optional.empty());
-
-        assertThrows(NotFoundException.class, () -> policy.requireRead(TIME_SERIES_ID));
-    }
-
-    @Test
-    void requireReadAllowsRegisteredActiveConnectorWithReadGrant() {
-        when(currentActor.get()).thenReturn(client(MEASUREMENT_READ));
-        when(connectorRepository.findByKeycloakClientId("local-connector-example"))
-                .thenReturn(Optional.of(connector(ConnectorStatus.ACTIVE)));
-        when(accessAuthorizationService.isAllowed(
-                eq(CONNECTOR_ID),
-                eq(AccessResourceRef.timeSeries(TIME_SERIES_ID)),
-                eq(AccessPermission.READ)))
-                .thenReturn(true);
-
-        policy.requireRead(TIME_SERIES_ID);
-    }
-
-    @Test
-    void requireReadDeniesConnectorWithoutReadGrant() {
-        when(currentActor.get()).thenReturn(client(MEASUREMENT_READ));
-        when(connectorRepository.findByKeycloakClientId("local-connector-example"))
-                .thenReturn(Optional.of(connector(ConnectorStatus.ACTIVE)));
-        when(accessAuthorizationService.isAllowed(
-                eq(CONNECTOR_ID),
-                eq(AccessResourceRef.timeSeries(TIME_SERIES_ID)),
-                eq(AccessPermission.READ)))
-                .thenReturn(false);
-
-        assertThrows(AccessDeniedException.class, () -> policy.requireRead(TIME_SERIES_ID));
-    }
-
-    @Test
-    void requireReadDeniesInactiveConnector() {
-        when(currentActor.get()).thenReturn(client(MEASUREMENT_READ));
-        when(connectorRepository.findByKeycloakClientId("local-connector-example"))
-                .thenReturn(Optional.of(connector(ConnectorStatus.SUSPENDED)));
-
-        assertThrows(AccessDeniedException.class, () -> policy.requireRead(TIME_SERIES_ID));
-    }
-
-    @Test
-    void requireWriteAllowsSourceConnectorWithWriteGrant() {
-        when(currentActor.get()).thenReturn(client(MEASUREMENT_WRITE));
-        when(connectorRepository.findByKeycloakClientId("local-connector-example"))
-                .thenReturn(Optional.of(connector(ConnectorStatus.ACTIVE)));
-        when(accessAuthorizationService.isAllowed(
-                eq(CONNECTOR_ID),
-                eq(AccessResourceRef.timeSeries(TIME_SERIES_ID)),
-                eq(AccessPermission.WRITE)))
-                .thenReturn(true);
-
-        ConnectorId result = policy.requireWrite(TIME_SERIES_ID);
-
-        assertEquals(CONNECTOR_ID, result);
-    }
-
-    @Test
-    void requireWriteBatchResolvesConnectorOnceForMultipleTimeSeries() {
-        TimeSeriesId otherTimeSeriesId = new TimeSeriesId(UUID.fromString("f8403f92-b8b8-4b69-8d4f-10ad5b83b11f"));
-        when(currentActor.get()).thenReturn(client(MEASUREMENT_WRITE));
-        when(timeSeriesService.get(otherTimeSeriesId)).thenReturn(timeSeries(CONNECTOR_ID));
-        when(connectorRepository.findByKeycloakClientId("local-connector-example"))
-                .thenReturn(Optional.of(connector(ConnectorStatus.ACTIVE)));
-        when(accessAuthorizationService.isAllowed(
-                eq(CONNECTOR_ID),
-                eq(AccessResourceRef.timeSeries(TIME_SERIES_ID)),
-                eq(AccessPermission.WRITE)))
-                .thenReturn(true);
-        when(accessAuthorizationService.isAllowed(
-                eq(CONNECTOR_ID),
-                eq(AccessResourceRef.timeSeries(otherTimeSeriesId)),
-                eq(AccessPermission.WRITE)))
-                .thenReturn(true);
-
-        ConnectorId result = policy.requireWriteBatch(java.util.List.of(TIME_SERIES_ID, otherTimeSeriesId));
-
-        assertEquals(CONNECTOR_ID, result);
-        verify(connectorRepository).findByKeycloakClientId("local-connector-example");
-    }
-
-    @Test
-    void requireWriteDeniesActorWithoutMeasurementWriteRole() {
-        when(currentActor.get()).thenReturn(client(MEASUREMENT_READ));
-
-        assertThrows(AccessDeniedException.class, () -> policy.requireWrite(TIME_SERIES_ID));
-    }
-
-    @Test
-    void requireWriteDeniesUserActorEvenWhenItHasMeasurementWrite() {
-        when(currentActor.get()).thenReturn(user(MEASUREMENT_WRITE));
-
-        assertThrows(AccessDeniedException.class, () -> policy.requireWrite(TIME_SERIES_ID));
-        verify(connectorRepository, never()).findByKeycloakClientId("pegelhub-frontend");
-    }
-
-    @Test
-    void requireWriteDeniesConnectorThatIsNotTimeSeriesSource() {
-        when(currentActor.get()).thenReturn(client(MEASUREMENT_WRITE));
-        when(timeSeriesService.get(TIME_SERIES_ID)).thenReturn(timeSeries(OTHER_CONNECTOR_ID));
-        when(connectorRepository.findByKeycloakClientId("local-connector-example"))
-                .thenReturn(Optional.of(connector(ConnectorStatus.ACTIVE)));
-
-        AccessDeniedException exception = assertThrows(
-                AccessDeniedException.class,
-                () -> policy.requireWrite(TIME_SERIES_ID));
-
-        assertThat(exception.getMessage())
-                .contains(TIME_SERIES_ID.value().toString())
-                .contains("not the source connector");
-    }
-
-    @Test
-    void requireWriteDeniesUnownedTimeSeries() {
-        when(currentActor.get()).thenReturn(client(MEASUREMENT_WRITE));
-        when(timeSeriesService.get(TIME_SERIES_ID)).thenReturn(timeSeries(null));
-        when(connectorRepository.findByKeycloakClientId("local-connector-example"))
-                .thenReturn(Optional.of(connector(ConnectorStatus.ACTIVE)));
-
-        assertThrows(AccessDeniedException.class, () -> policy.requireWrite(TIME_SERIES_ID));
-        verify(accessAuthorizationService, never()).isAllowed(
-                eq(CONNECTOR_ID),
-                eq(AccessResourceRef.timeSeries(TIME_SERIES_ID)),
-                eq(AccessPermission.WRITE));
-    }
-
-    @Test
-    void requireWriteDeniesConnectorWithoutWriteGrant() {
-        when(currentActor.get()).thenReturn(client(MEASUREMENT_WRITE));
-        when(connectorRepository.findByKeycloakClientId("local-connector-example"))
-                .thenReturn(Optional.of(connector(ConnectorStatus.ACTIVE)));
-        when(accessAuthorizationService.isAllowed(
-                eq(CONNECTOR_ID),
-                eq(AccessResourceRef.timeSeries(TIME_SERIES_ID)),
-                eq(AccessPermission.WRITE)))
-                .thenReturn(false);
-
-        AccessDeniedException exception = assertThrows(
-                AccessDeniedException.class,
-                () -> policy.requireWrite(TIME_SERIES_ID));
-
-        assertThat(exception.getMessage())
-                .contains(TIME_SERIES_ID.value().toString())
-                .contains("missing write grant");
-    }
-
-    private static PegelHubActor user(PegelHubAuthority authority) {
-        return new PegelHubActor(PegelHubActorType.USER, "user-subject", "pegelhub-frontend", Set.of(authority));
-    }
-
-    private static PegelHubActor client(PegelHubAuthority authority) {
-        return new PegelHubActor(PegelHubActorType.CLIENT, null, "local-connector-example", Set.of(authority));
-    }
-
-    private static Connector connector(ConnectorStatus status) {
-        return new Connector(
-                CONNECTOR_ID,
-                "test",
-                CONTACT,
-                "type",
-                "1.0",
-                "1.0",
-                "def",
-                CONTACT,
-                CONTACT,
-                CONTACT,
-                "",
-                "local-connector-example",
-                status);
-    }
-
-    private static TimeSeries timeSeries(ConnectorId sourceConnectorId) {
+    private static TimeSeries series(SourceRepresentation representation) {
         return new TimeSeries(
-                TIME_SERIES_ID,
-                new MeasuringPointId(UUID.fromString("7f65e3b7-97b4-4016-83a3-77f51332dc01")),
-                new ObservedPropertyCode("water-level"),
-                new UnitCode("cm"),
-                null,
-                sourceConnectorId);
+                SERIES_ID, POINT_ID, new ObservedPropertyCode("water-level"), ACTIVE,
+                new SourceAssignment(CONNECTOR_ID, representation));
+    }
+
+    private static MeasuringPoint point(at.pegelhub.shared.metadata.MetadataStatus status, BigDecimal pnp) {
+        return new MeasuringPoint(POINT_ID, STATION_ID, "Point", status, null, pnp, null);
+    }
+
+    private static Station station(at.pegelhub.shared.metadata.MetadataStatus status) {
+        return new Station(STATION_ID, new StationOwnerId(UUID.randomUUID()), "Station", "Danube", status);
     }
 }

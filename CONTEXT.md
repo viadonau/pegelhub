@@ -21,19 +21,19 @@ A stable physical observation position within a Station. It groups the TimeSerie
 _Avoid_: Sensor, device, measurement value, TimeSeries
 
 **TimeSeries**:
-A single observed series at a MeasuringPoint, defined by what is observed and in which unit. A MeasuringPoint can have multiple TimeSeries, such as water level, discharge, water temperature, and air temperature.
+ A single observed series at a MeasuringPoint. Its property is one of the canonical catalog values `water-level`, `water-temperature`, or `discharge`; the canonical unit is derived from that property.
 _Avoid_: Datastream, channel, measurement series
 
 **Measurement**:
 A single value observed for a time series at a specific time.
 _Avoid_: Observation, reading, Influx point
 
-**AccessGrant**:
-A PegelHub permission that allows a connector to read a station or time series, or write a specific time series.
-_Avoid_: Supplier role, Taker role, token permission
+**Read access**:
+ An explicit Connector-to-Station or Connector-to-TimeSeries read relation. A source assignment, not a grant, authorizes measurement writes.
+_Avoid_: AccessGrant, WRITE grant, token permission
 
 **Operator**:
-A trusted PegelHub user who maintains the station inventory, connector registrations, time series, and access grants.
+A trusted PegelHub user who maintains the station inventory, connector registrations, time series, and connector read-access relations.
 _Avoid_: Admin, metadata manager
 
 ## Monitoring Read Model
@@ -48,7 +48,7 @@ responses; administrative metadata and raw measurement APIs remain available
 for their existing clients.
 
 Canonical observed-property values are `water-level`, `water-temperature`, and
-`discharge`. Clear legacy aliases are normalized at the domain boundary while
-unknown trimmed codes are preserved. Measuring-point bank values are either
+`discharge`; unknown values are rejected. Measuring-point bank values are
 `left`, `right`, or null. API input and the database schema use only those
-canonical values.
+canonical values. Source representations are `canonical` and, for water level,
+`metres-above-adria`.

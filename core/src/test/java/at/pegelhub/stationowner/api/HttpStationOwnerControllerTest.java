@@ -2,6 +2,7 @@ package at.pegelhub.stationowner.api;
 
 import at.pegelhub.stationowner.application.CreateStationOwnerCommand;
 import at.pegelhub.stationowner.application.StationOwnerService;
+import at.pegelhub.stationowner.application.UpdateStationOwnerCommand;
 import at.pegelhub.stationowner.domain.StationOwner;
 import at.pegelhub.stationowner.domain.StationOwnerId;
 import org.junit.jupiter.api.Test;
@@ -20,6 +21,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -70,6 +72,37 @@ class HttpStationOwnerControllerTest {
                                   "shortName": "HO"
                                 }
                                 """))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void updatesStationOwner() throws Exception {
+        var updated = new StationOwner(new StationOwnerId(OWNER_ID), "Updated Hydro Org", null, null);
+        when(stationOwners.update(eq(new StationOwnerId(OWNER_ID)), any())).thenReturn(updated);
+
+        mockMvc.perform(put("/api/v1/station-owners/{id}", OWNER_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "name": "Updated Hydro Org"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(OWNER_ID.toString()))
+                .andExpect(jsonPath("$.name").value("Updated Hydro Org"))
+                .andExpect(jsonPath("$.shortName").doesNotExist())
+                .andExpect(jsonPath("$.notes").doesNotExist());
+
+        verify(stationOwners).update(
+                eq(new StationOwnerId(OWNER_ID)),
+                eq(new UpdateStationOwnerCommand("Updated Hydro Org", null, null)));
+    }
+
+    @Test
+    void rejectsUpdateWithoutName() throws Exception {
+        mockMvc.perform(put("/api/v1/station-owners/{id}", OWNER_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
                 .andExpect(status().isBadRequest());
     }
 

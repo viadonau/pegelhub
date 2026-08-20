@@ -353,7 +353,7 @@
       "defaultClientScopes": [
         "pegelhub-core-roles",
         "pegelhub-core-audience",
-        "pegelhub-client-actor"
+        "pegelhub-user-actor"
       ],
       "optionalClientScopes": []
     }

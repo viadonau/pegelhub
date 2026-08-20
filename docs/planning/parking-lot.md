@@ -37,17 +37,8 @@ Loose project memory for work that should not interrupt the current slice. Keep 
 - Domain migration PR/docs wording
   Clean up task/PR language after the domain migration branch is stable, so the documented intent matches the final shape.
 
-- AccessGrant persistence and Flyway
-  Reshape the AccessGrant DB model and introduce a real Flyway migration/baseline story before staging becomes too stateful.
-
 - Influx persistence follow-up
   Collect concrete query performance and InfluxBucketOperations gateway issues before doing a broader cleanup; the obvious shared Flux query leakage is already reduced.
 
 - Telemetry model shape
   Investigate the remaining legacy Telemetry slice and decide what connector runtime telemetry should look like before deepening its storage/API path.
-
-- Contact mapping collapse
-  Remove shallow Contact service/converter indirection and give Contact mapping one clear home instead of repeating 17-field copies.
-
-- MeasuringPoint domain concept
-  Revisit whether a MeasuringPoint should sit between Station and TimeSeries once V1 station/detail workflows are stable.

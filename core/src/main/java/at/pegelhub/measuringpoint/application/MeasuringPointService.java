@@ -10,7 +10,11 @@ public interface MeasuringPointService {
 
     MeasuringPoint create(CreateMeasuringPointCommand command);
 
+    MeasuringPoint update(MeasuringPointId id, UpdateMeasuringPointCommand command);
+
     MeasuringPoint get(MeasuringPointId id);
+
+    MeasuringPoint getForUpdate(MeasuringPointId id);
 
     List<MeasuringPoint> list();
 

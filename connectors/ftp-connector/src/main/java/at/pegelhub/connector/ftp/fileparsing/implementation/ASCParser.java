@@ -10,6 +10,7 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
@@ -25,7 +26,7 @@ public class ASCParser implements Parser {
 
     @Override
     public Stream<Entry> parse(InputStream is) throws IOException {
-        try (BufferedReader br = new BufferedReader(new InputStreamReader(is))) {
+        try (BufferedReader br = new BufferedReader(new InputStreamReader(is, StandardCharsets.ISO_8859_1))) {
             final StringBuilder sb = new StringBuilder();
             final ArrayList<Entry> parsedEntries = new ArrayList<>();
             br.lines()

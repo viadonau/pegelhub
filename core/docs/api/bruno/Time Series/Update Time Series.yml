@@ -1,0 +1,34 @@
+info:
+  name: Update Time Series
+  type: http
+  seq: 2
+
+http:
+  method: PUT
+  url: "{{baseUrl}}/{{apiPath}}/time-series/{{id}}"
+  headers:
+    - name: X-Auth-Profile
+      value: operator
+    - name: Content-Type
+      value: application/json
+  body:
+    type: json
+    data: |-
+      {
+        "status": "active",
+        "sourceAssignment": {
+          "connectorId": "{{connectorId}}",
+          "representation": "canonical"
+        }
+      }
+  auth: inherit
+
+runtime:
+  scripts:
+    - type: before-request
+      code: bru.setVar('id', bru.getVar('timeSeriesId'));
+    - type: after-response
+      code: |-
+        test('status is 200', () => expect(res.getStatus()).to.equal(200));
+
+docs: Replaces time series mapping metadata while preserving its identity fields.

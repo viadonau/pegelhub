@@ -18,10 +18,6 @@ request:
       value: ""
     - name: timeSeriesId
       value: ""
-    - name: accessGrantId
-      value: ""
-    - name: contactId
-      value: ""
     - name: measurementTimestamp
       value: ""
     - name: telemetryTimestamp

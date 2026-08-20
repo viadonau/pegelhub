@@ -17,14 +17,19 @@ http:
       {
         "stationId": "{{stationId}}",
         "name": "Main gauge",
-        "referenceLevel": 156.42,
-        "referenceYear": 2020,
-        "riverKilometer": 1933.2,
-        "bank": "left",
-        "rnw": 120.0,
-        "mw": 280.0,
-        "hsw": 620.0,
-        "hw100": 760.0
+        "position": {
+          "riverKilometer": 1933.2,
+          "bank": "left",
+          "coordinates": { "latitude": 48.25, "longitude": 16.39 }
+        },
+        "gaugeZeroElevationMAboveAdria": 154.22,
+        "waterLevelReferences": {
+          "referenceSetYear": 2020,
+          "rnwCm": 120.0,
+          "mwCm": 280.0,
+          "hswCm": 620.0,
+          "hw100Cm": 760.0
+        }
       }
   auth: inherit
 

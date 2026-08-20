@@ -1,3 +1,5 @@
+export type MonitoringStatus = 'active' | 'inactive';
+
 export interface MonitoringLatestMeasurementDto {
   observedAt: string;
   value: number;
@@ -8,22 +10,30 @@ export interface MonitoringMeasuringPointSummaryDto {
   name: string;
 }
 
+export interface MonitoringPositionDto {
+  riverKilometer: number | null;
+  bank: 'left' | 'right' | null;
+}
+
+export interface MonitoringWaterLevelReferencesDto {
+  referenceSetYear: number;
+  rnwCm: number | null;
+  mwCm: number | null;
+  hswCm: number | null;
+  hw100Cm: number | null;
+}
+
 export interface MonitoringMeasuringPointDto {
   id: string;
   name: string;
-  referenceLevel: number | null;
-  referenceYear: number | null;
-  riverKilometer: number | null;
-  bank: 'left' | 'right' | null;
-  rnw: number | null;
-  mw: number | null;
-  hsw: number | null;
-  hw100: number | null;
+  status: MonitoringStatus;
+  position: MonitoringPositionDto | null;
+  gaugeZeroElevationMAboveAdria: number | null;
+  waterLevelReferences: MonitoringWaterLevelReferencesDto | null;
 }
 
 export interface MonitoringStationSummaryDto {
   id: string;
-  stationNumber: string;
   name: string;
   waterBody: string;
 }
@@ -51,7 +61,7 @@ export interface MonitoringTimeSeriesDetailDto {
   id: string;
   observedProperty: string;
   unit: string;
-  externalCode: string | null;
+  status: MonitoringStatus;
   measuringPoint: MonitoringMeasuringPointDto;
   station: MonitoringStationSummaryDto;
   stationOwner: MonitoringStationOwnerDto;

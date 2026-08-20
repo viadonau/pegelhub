@@ -1,8 +1,10 @@
 package at.pegelhub.measuringpoint.domain;
 
+import at.pegelhub.shared.metadata.MetadataStatus;
 import at.pegelhub.station.domain.StationId;
 import org.junit.jupiter.api.Test;
 
+import java.math.BigDecimal;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -16,109 +18,44 @@ final class MeasuringPointTest {
             UUID.fromString("228136bf-331f-461d-ad5b-f0403b66b225"));
 
     @Test
-    void rejectsMissingRequiredValues() {
-        assertThrows(NullPointerException.class,
-                () -> point(null, STATION_ID, "Main gauge", null, null, null, null, null, null, null, null));
-        assertThrows(NullPointerException.class,
-                () -> point(ID, null, "Main gauge", null, null, null, null, null, null, null, null));
-        assertThrows(NullPointerException.class,
-                () -> point(ID, STATION_ID, null, null, null, null, null, null, null, null, null));
-        assertThrows(IllegalArgumentException.class,
-                () -> point(ID, STATION_ID, " ", null, null, null, null, null, null, null, null));
+    void validatesIdentityAndName() {
+        assertThrows(NullPointerException.class, () -> point(null, STATION_ID, "Main gauge"));
+        assertThrows(NullPointerException.class, () -> point(ID, null, "Main gauge"));
+        assertThrows(IllegalArgumentException.class, () -> point(ID, STATION_ID, " "));
     }
 
     @Test
-    void normalizesTextValues() {
-        var measuringPoint = point(
-                ID,
-                STATION_ID,
-                " Main gauge ",
-                156.42,
-                2020,
-                1933.2,
-                " left ",
-                120.0,
-                280.0,
-                620.0,
-                760.0);
+    void preservesIdentityAndStationOnUpdate() {
+        MeasuringPoint point = point(ID, STATION_ID, "Main gauge");
 
-        assertThat(measuringPoint.name()).isEqualTo("Main gauge");
-        assertThat(measuringPoint.bank()).isEqualTo(BankSide.LEFT);
-        assertThat(point(ID, STATION_ID, "Main gauge", null, null, null, " ", null, null, null, null).bank())
-                .isNull();
+        MeasuringPoint updated = point.update(
+                " Updated gauge ", MetadataStatus.INACTIVE,
+                new MeasuringPointPosition(new BigDecimal("12.5"), BankSide.LEFT, null),
+                new BigDecimal("154.22"),
+                new WaterLevelReferences(2024, new BigDecimal("120"), null, new BigDecimal("280"), null));
+
+        assertThat(updated.id()).isEqualTo(ID);
+        assertThat(updated.stationId()).isEqualTo(STATION_ID);
+        assertThat(updated.name()).isEqualTo("Updated gauge");
+        assertThat(updated.status()).isEqualTo(MetadataStatus.INACTIVE);
+        assertThat(updated.position().bank()).isEqualTo(BankSide.LEFT);
     }
 
     @Test
-    void rejectsInvalidReferenceYear() {
+    void rejectsInvalidPositionAndReferenceSets() {
         assertThrows(IllegalArgumentException.class,
-                () -> point(ID, STATION_ID, "Main gauge", null, 0, null, null, null, null, null, null));
+                () -> new MeasuringPointPosition(new BigDecimal("-0.1"), null, null));
         assertThrows(IllegalArgumentException.class,
-                () -> point(ID, STATION_ID, "Main gauge", null, 10000, null, null, null, null, null, null));
+                () -> new Coordinates(new BigDecimal("91"), BigDecimal.ZERO));
+        assertThrows(IllegalArgumentException.class,
+                () -> new Coordinates(BigDecimal.ZERO, new BigDecimal("181")));
+        assertThrows(IllegalArgumentException.class,
+                () -> new WaterLevelReferences(2024, null, null, null, null));
+        assertThrows(IllegalArgumentException.class,
+                () -> new WaterLevelReferences(0, BigDecimal.ONE, null, null, null));
     }
 
-    @Test
-    void rejectsNonFiniteNumericMetadata() {
-        assertThrows(IllegalArgumentException.class,
-                () -> point(ID, STATION_ID, "Main gauge", Double.NaN, null, null, null, null, null, null, null));
-        assertThrows(IllegalArgumentException.class,
-                () -> point(ID, STATION_ID, "Main gauge", null, null, Double.POSITIVE_INFINITY, null,
-                        null, null, null, null));
-        assertThrows(IllegalArgumentException.class,
-                () -> point(ID, STATION_ID, "Main gauge", null, null, null, null,
-                        Double.NEGATIVE_INFINITY, null, null, null));
-        assertThrows(IllegalArgumentException.class,
-                () -> point(ID, STATION_ID, "Main gauge", null, null, null, null,
-                        null, Double.NaN, null, null));
-        assertThrows(IllegalArgumentException.class,
-                () -> point(ID, STATION_ID, "Main gauge", null, null, null, null,
-                        null, null, Double.POSITIVE_INFINITY, null));
-        assertThrows(IllegalArgumentException.class,
-                () -> point(ID, STATION_ID, "Main gauge", null, null, null, null,
-                        null, null, null, Double.NEGATIVE_INFINITY));
-    }
-
-    @Test
-    void createAssignsIdentity() {
-        var measuringPoint = MeasuringPoint.create(
-                STATION_ID,
-                "Main gauge",
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null);
-
-        assertThat(measuringPoint.id()).isNotNull();
-        assertThat(measuringPoint.id().value()).isNotNull();
-        assertThat(measuringPoint.stationId()).isEqualTo(STATION_ID);
-    }
-
-    private static MeasuringPoint point(
-            MeasuringPointId id,
-            StationId stationId,
-            String name,
-            Double referenceLevel,
-            Integer referenceYear,
-            Double riverKilometer,
-            String bank,
-            Double rnw,
-            Double mw,
-            Double hsw,
-            Double hw100) {
-        return new MeasuringPoint(
-                id,
-                stationId,
-                name,
-                referenceLevel,
-                referenceYear,
-                riverKilometer,
-                BankSide.fromNullable(bank),
-                rnw,
-                mw,
-                hsw,
-                hw100);
+    private static MeasuringPoint point(MeasuringPointId id, StationId stationId, String name) {
+        return new MeasuringPoint(id, stationId, name, MetadataStatus.ACTIVE, null, null, null);
     }
 }

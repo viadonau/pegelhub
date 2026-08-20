@@ -3,6 +3,7 @@ package at.pegelhub.shared.error;
 import com.influxdb.exceptions.InfluxException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -11,7 +12,6 @@ import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.context.request.WebRequest;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
-
 /**
  * Maps uncaught exceptions to {@code ResponseEntity}s.
  */
@@ -56,6 +56,28 @@ public class ExceptionMapper extends ResponseEntityExceptionHandler {
                 "Measurement store unavailable",
                 new HttpHeaders(),
                 HttpStatus.SERVICE_UNAVAILABLE,
+                request);
+    }
+
+    @ExceptionHandler(value = {DataIntegrityViolationException.class})
+    protected ResponseEntity<Object> handleDataIntegrityViolation(DataIntegrityViolationException ex, WebRequest request) {
+        LOGGER.error("Metadata conflict", ex);
+        return handleExceptionInternal(
+                ex,
+                "Metadata conflicts with an existing resource",
+                new HttpHeaders(),
+                HttpStatus.CONFLICT,
+                request);
+    }
+
+    @ExceptionHandler(value = {MetadataConflictException.class})
+    protected ResponseEntity<Object> handleMetadataConflict(MetadataConflictException ex, WebRequest request) {
+        LOGGER.error("Metadata conflict", ex);
+        return handleExceptionInternal(
+                ex,
+                ex.getMessage(),
+                new HttpHeaders(),
+                HttpStatus.CONFLICT,
                 request);
     }
 

@@ -39,6 +39,26 @@ final class StationOwnerServiceImplTest {
     }
 
     @Test
+    void updatesExistingStationOwner() {
+        var owner = new StationOwner(ID, "Hydro Org", "HO", "notes");
+        repository.saved.add(owner);
+
+        var updated = service.update(ID, new UpdateStationOwnerCommand("Updated Org", null, "updated notes"));
+
+        assertThat(updated.id()).isEqualTo(ID);
+        assertThat(updated.name()).isEqualTo("Updated Org");
+        assertThat(updated.shortName()).isNull();
+        assertThat(updated.notes()).isEqualTo("updated notes");
+        assertThat(repository.saved).contains(updated);
+    }
+
+    @Test
+    void refusesUpdateForMissingStationOwner() {
+        assertThrows(NotFoundException.class,
+                () -> service.update(ID, new UpdateStationOwnerCommand("Updated Org", null, null)));
+    }
+
+    @Test
     void throwsNotFoundForMissingStationOwner() {
         assertThrows(NotFoundException.class, () -> service.get(ID));
     }

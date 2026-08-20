@@ -10,6 +10,8 @@ interface SpringDataTimeSeriesRepository extends JpaRepository<TimeSeriesEntity,
 
     List<TimeSeriesEntity> findByMeasuringPointId(UUID measuringPointId);
 
+    boolean existsByMeasuringPointIdAndSourceRepresentation(UUID measuringPointId, String sourceRepresentation);
+
     @Query("""
             select timeSeries
               from TimeSeriesEntity timeSeries, MeasuringPointEntity measuringPoint

@@ -175,7 +175,6 @@ services:
       DB_URI: meta-db:5432/${META_DB}
       DB_USER: postgres
       DB_PASSWORD: ${META_PASSWORD}
-      FLYWAY_BASELINE_ON_MIGRATE: ${FLYWAY_BASELINE_ON_MIGRATE:-false}
       INFLUX_URL: http://data-db:8086/
       INFLUX_ORG: ${INFLUX_ORG}
       INFLUX_TOKEN: ${INFLUX_TOKEN}

@@ -42,4 +42,15 @@ final class StationOwnerTest {
         assertThat(owner.id()).isNotNull();
         assertThat(owner.id().value()).isNotNull();
     }
+
+    @Test
+    void updatePreservesIdentity() {
+        var owner = new StationOwner(ID, "Hydro Org", "HO", "notes")
+                .update("Updated Org", null, "updated notes");
+
+        assertThat(owner.id()).isEqualTo(ID);
+        assertThat(owner.name()).isEqualTo("Updated Org");
+        assertThat(owner.shortName()).isNull();
+        assertThat(owner.notes()).isEqualTo("updated notes");
+    }
 }

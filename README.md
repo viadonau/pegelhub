@@ -19,7 +19,7 @@ topology.
 ## Capabilities
 
 - Model station owners, stations, measuring points, and time series with
-  explicit access grants.
+  explicit connector read access and source assignments.
 - Integrate FTP, PegelHub Core, IEC 60870-5-104, Revolution Pi, and TSTP systems
   through independently deployable connectors.
 - Store metadata in PostgreSQL and measurements and technical telemetry in
@@ -212,9 +212,10 @@ With Core running locally:
 - English OpenAPI YAML: <http://localhost:8080/v3/api-docs.yaml?lang=en>
 - German OpenAPI YAML: <http://localhost:8080/v3/api-docs.yaml?lang=de>
 
-The running application generates the authoritative OpenAPI contract. CI checks
-that both language variants expose the same operations and that the maintained
-Bruno collection covers those operations and their query parameters.
+The running application generates the authoritative OpenAPI contract in both
+languages. The repository-owned Bruno collection is a maintained set of
+operator and connector smoke-test requests; it is not generated code or an
+exhaustive operation-coverage checker.
 
 On staging, Caddy exposes the same Core contract at
 `https://$PEGELHUB_API_HOSTNAME` under `/swagger-ui.html`, `/v3/api-docs`, and
@@ -237,10 +238,11 @@ The principal roles are:
 
 Measurement writes have an additional application policy: the caller must be
 an active registered connector, every target time series must identify that
-connector as its source, and a direct TimeSeries `WRITE` grant must exist.
-Measurement reads for non-admin connector clients require an applicable `READ`
-grant. The [Core guide](core/README.md#security-model) contains the endpoint
-matrix and actor model.
+connector as its source, and the complete metadata hierarchy must be active.
+Measurement reads for connector clients require an applicable station or
+TimeSeries read-access relation. Connector clients must be active and
+registered regardless of any `system:admin` role. The [Core guide](core/README.md#security-model)
+contains the endpoint matrix and actor model.
 
 ## Delivery model
 

@@ -1,16 +1,16 @@
 package at.pegelhub.measurement.application;
 
-import at.pegelhub.access.application.AccessAuthorizationService;
-import at.pegelhub.access.domain.AccessPermission;
-import at.pegelhub.access.domain.AccessResourceRef;
+import at.pegelhub.access.application.ConnectorReadAccessService;
 import at.pegelhub.connector.domain.Connector;
 import at.pegelhub.connector.domain.ConnectorId;
-import at.pegelhub.connector.domain.ConnectorStatus;
 import at.pegelhub.connector.persistence.ConnectorRepository;
+import at.pegelhub.measuringpoint.application.MeasuringPointService;
+import at.pegelhub.station.application.StationService;
 import at.pegelhub.security.CurrentActor;
 import at.pegelhub.security.PegelHubActor;
 import at.pegelhub.security.PegelHubActorType;
 import at.pegelhub.shared.error.NotFoundException;
+import at.pegelhub.shared.metadata.MetadataStatus;
 import at.pegelhub.timeseries.application.TimeSeriesService;
 import at.pegelhub.timeseries.domain.TimeSeries;
 import at.pegelhub.timeseries.domain.TimeSeriesId;
@@ -18,6 +18,7 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 
 import java.util.Collection;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.Set;
 
@@ -32,26 +33,32 @@ class MeasurementAuthorizationPolicyImpl implements MeasurementAuthorizationPoli
     private final CurrentActor currentActor;
     private final ConnectorRepository connectorRepository;
     private final TimeSeriesService timeSeriesService;
-    private final AccessAuthorizationService accessAuthorizationService;
+    private final MeasuringPointService measuringPoints;
+    private final StationService stations;
+    private final ConnectorReadAccessService readAccess;
 
     MeasurementAuthorizationPolicyImpl(
             CurrentActor currentActor,
             ConnectorRepository connectorRepository,
             TimeSeriesService timeSeriesService,
-            AccessAuthorizationService accessAuthorizationService) {
+            MeasuringPointService measuringPoints,
+            StationService stations,
+            ConnectorReadAccessService readAccess) {
         this.currentActor = requireNonNull(currentActor);
         this.connectorRepository = requireNonNull(connectorRepository);
         this.timeSeriesService = requireNonNull(timeSeriesService);
-        this.accessAuthorizationService = requireNonNull(accessAuthorizationService);
+        this.measuringPoints = requireNonNull(measuringPoints);
+        this.stations = requireNonNull(stations);
+        this.readAccess = requireNonNull(readAccess);
     }
 
     @Override
-    public ConnectorId requireWrite(TimeSeriesId timeSeriesId) {
+    public MeasurementWriteAuthorization requireWrite(TimeSeriesId timeSeriesId) {
         return requireWriteBatch(Set.of(timeSeriesId));
     }
 
     @Override
-    public ConnectorId requireWriteBatch(Collection<TimeSeriesId> timeSeriesIds) {
+    public MeasurementWriteAuthorization requireWriteBatch(Collection<TimeSeriesId> timeSeriesIds) {
         if (timeSeriesIds == null || timeSeriesIds.isEmpty()) {
             throw new IllegalArgumentException("timeSeriesIds must not be empty");
         }
@@ -66,44 +73,39 @@ class MeasurementAuthorizationPolicyImpl implements MeasurementAuthorizationPoli
 
         Connector connector = requireActiveConnector(actor);
         ConnectorId connectorId = connector.id();
+        var normalization = new LinkedHashMap<TimeSeriesId, MeasurementWriteAuthorization.Normalization>();
         for (TimeSeriesId timeSeriesId : new LinkedHashSet<>(timeSeriesIds)) {
             TimeSeries timeSeries = timeSeriesService.get(requireNonNull(timeSeriesId));
+            var measuringPoint = requireActiveHierarchy(timeSeries);
             if (!connectorId.equals(timeSeries.sourceConnectorId())) {
                 throw new AccessDeniedException(
                         "Connector is not allowed to write measurements for TimeSeries " + timeSeriesId.value()
                                 + ": connector is not the source connector");
             }
-            if (!accessAuthorizationService.isAllowed(
-                    connectorId,
-                    AccessResourceRef.timeSeries(timeSeriesId),
-                    AccessPermission.WRITE)) {
-                throw new AccessDeniedException(
-                        "Connector is not allowed to write measurements for TimeSeries " + timeSeriesId.value()
-                                + ": missing write grant");
-            }
+            normalization.put(timeSeriesId, new MeasurementWriteAuthorization.Normalization(
+                    timeSeries.sourceRepresentation(), measuringPoint.gaugeZeroElevationMAboveAdria()));
         }
-        return connectorId;
+        return new MeasurementWriteAuthorization(connectorId, normalization);
     }
 
     @Override
     public void requireRead(TimeSeriesId timeSeriesId) {
-        timeSeriesService.get(timeSeriesId);
+        requireNonNull(timeSeriesId);
         PegelHubActor actor = currentActor.get();
-        if (actor.hasAuthority(SYSTEM_ADMIN)) {
+        if (actor.type() == PegelHubActorType.USER && actor.hasAuthority(SYSTEM_ADMIN)) {
+            timeSeriesService.get(timeSeriesId);
             return;
         }
         if (!actor.hasAuthority(MEASUREMENT_READ)) {
             throw new AccessDeniedException("Actor is not allowed to read measurements");
         }
         if (actor.type() == PegelHubActorType.USER) {
+            timeSeriesService.get(timeSeriesId);
             return;
         }
 
         Connector connector = requireActiveConnector(actor);
-        if (!accessAuthorizationService.isAllowed(
-                connector.id(),
-                AccessResourceRef.timeSeries(timeSeriesId),
-                AccessPermission.READ)) {
+        if (!readAccess.allows(connector.id(), timeSeriesId)) {
             throw new AccessDeniedException("Connector is not allowed to read this TimeSeries");
         }
     }
@@ -114,7 +116,7 @@ class MeasurementAuthorizationPolicyImpl implements MeasurementAuthorizationPoli
             throw new IllegalArgumentException("timeSeriesIds must not be empty");
         }
         PegelHubActor actor = currentActor.get();
-        if (actor.hasAuthority(SYSTEM_ADMIN)) {
+        if (actor.type() == PegelHubActorType.USER && actor.hasAuthority(SYSTEM_ADMIN)) {
             return;
         }
         if (!actor.hasAuthority(MEASUREMENT_READ)) {
@@ -134,9 +136,23 @@ class MeasurementAuthorizationPolicyImpl implements MeasurementAuthorizationPoli
         }
         Connector connector = connectorRepository.findByKeycloakClientId(actor.clientId())
                 .orElseThrow(() -> new NotFoundException("Connector not registered"));
-        if (connector.status() != ConnectorStatus.ACTIVE) {
+        if (connector.status() != MetadataStatus.ACTIVE) {
             throw new AccessDeniedException("Connector is not active");
         }
         return connector;
+    }
+
+    private at.pegelhub.measuringpoint.domain.MeasuringPoint requireActiveHierarchy(TimeSeries series) {
+        if (series.status() != MetadataStatus.ACTIVE) {
+            throw new AccessDeniedException("TimeSeries is not active");
+        }
+        var point = measuringPoints.get(series.measuringPointId());
+        if (point.status() != MetadataStatus.ACTIVE) {
+            throw new AccessDeniedException("Measuring point is not active");
+        }
+        if (stations.get(point.stationId()).status() != MetadataStatus.ACTIVE) {
+            throw new AccessDeniedException("Station is not active");
+        }
+        return point;
     }
 }

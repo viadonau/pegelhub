@@ -9,6 +9,8 @@ public interface StationService {
 
     Station create(CreateStationCommand command);
 
+    Station update(StationId id, UpdateStationCommand command);
+
     Station get(StationId id);
 
     List<Station> list();

@@ -17,6 +17,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -49,12 +50,35 @@ final class HttpMeasuringPointController {
                     description = "openapi.measuringpoint.http-measuring-point-controller.returns-the-created-measuring-point",
                     content = @Content(schema = @Schema(implementation = MeasuringPointResponse.class))),
             @ApiResponse(responseCode = "400", description = "openapi.measuringpoint.http-measuring-point-controller.the-measuring-point-payload-is-invalid", content = @Content),
-            @ApiResponse(responseCode = "404", description = "openapi.measuringpoint.http-measuring-point-controller.the-station-was-not-found", content = @Content)
+            @ApiResponse(responseCode = "404", description = "openapi.measuringpoint.http-measuring-point-controller.the-station-was-not-found", content = @Content),
+            @ApiResponse(responseCode = "409", description = "openapi.shared.metadata-conflict", content = @Content)
     })
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     MeasuringPointResponse create(@Valid @RequestBody CreateMeasuringPointRequest request) {
         return MeasuringPointMapper.toResponse(measuringPoints.create(MeasuringPointMapper.toCommand(request)));
+    }
+
+    @Operation(
+            summary = "openapi.measuringpoint.http-measuring-point-controller.updates-a-measuring-point",
+            description = "openapi.measuringpoint.http-measuring-point-controller.replaces-measuring-point-metadata-requires-metadata-write")
+    @ApiResponses(value = {
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "openapi.measuringpoint.http-measuring-point-controller.returns-the-updated-measuring-point",
+                    content = @Content(schema = @Schema(implementation = MeasuringPointResponse.class))),
+            @ApiResponse(responseCode = "400", description = "openapi.measuringpoint.http-measuring-point-controller.the-measuring-point-payload-is-invalid", content = @Content),
+            @ApiResponse(responseCode = "404", description = "openapi.measuringpoint.http-measuring-point-controller.the-measuring-point-was-not-found", content = @Content),
+            @ApiResponse(responseCode = "409", description = "openapi.shared.metadata-conflict", content = @Content)
+    })
+    @PutMapping("/{id}")
+    MeasuringPointResponse update(
+            @Parameter(description = "openapi.measuringpoint.http-measuring-point-controller.measuring-point-identifier", required = true)
+            @PathVariable("id") UUID id,
+            @Valid @RequestBody UpdateMeasuringPointRequest request) {
+        return MeasuringPointMapper.toResponse(measuringPoints.update(
+                new MeasuringPointId(id),
+                MeasuringPointMapper.toCommand(request)));
     }
 
     @Operation(

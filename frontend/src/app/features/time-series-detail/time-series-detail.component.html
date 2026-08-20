@@ -6,44 +6,45 @@
 
   <ph-content-state [loading]="loading()" [error]="error()">
     <div class="ph-time-series-detail">
-      @if (detail().timeSeries) {
-        @if (detail().measuringPoint; as point) {
-          <header class="ph-time-series-heading">
-            <div class="ph-time-series-heading-copy">
-              <p class="ph-time-series-heading-kicker">Messreihe</p>
-              <h1>{{ point.name }}</h1>
-              @if (detail().headingContext) {
-                <p class="ph-time-series-heading-context">{{ detail().headingContext }}</p>
-              }
-            </div>
+      @if (measuringPoint(); as point) {
+        <header class="ph-time-series-heading">
+          <div class="ph-time-series-heading-copy">
+            <p class="ph-time-series-heading-kicker">Messreihe</p>
+            <h1>{{ point.name }}</h1>
+            @if (headingContext()) {
+              <p class="ph-time-series-heading-context">{{ headingContext() }}</p>
+            }
+            @if (inactive()) {
+              <p class="ph-time-series-status">Inaktiv</p>
+            }
+          </div>
 
-            <div class="ph-time-series-current-reading">
-              @if (latestReading(); as reading) {
-                <ph-current-reading
-                  label="Letzter Messwert"
-                  [value]="reading.value"
-                  [unit]="reading.unit"
-                  [timestamp]="reading.timestamp"
-                  [relativeTimestamp]="reading.relativeTimestamp"
-                />
-              } @else {
-                <p class="ph-time-series-current-status">Kein Messwert in den letzten 365 Tagen.</p>
-              }
-            </div>
-          </header>
+          <div class="ph-time-series-current-reading">
+            @if (latestReading(); as reading) {
+              <ph-current-reading
+                label="Letzter Messwert"
+                [value]="reading.value"
+                [unit]="reading.unit"
+                [timestamp]="reading.timestamp"
+                [relativeTimestamp]="reading.relativeTimestamp"
+              />
+            } @else {
+              <p class="ph-time-series-current-status">Kein Messwert in den letzten 365 Tagen.</p>
+            }
+          </div>
+        </header>
 
-          <ph-time-series-metadata
-            [measuringPointFacts]="detail().pointFacts"
-            [timeSeriesFacts]="detail().seriesFacts"
-          />
-        }
+        <ph-time-series-metadata
+          [measuringPointFacts]="pointFacts()"
+          [timeSeriesFacts]="seriesFacts()"
+        />
       }
 
       <ph-time-series-measurements
         [timeSeriesId]="timeSeriesId()"
-        [observedProperty]="detail().timeSeries?.observedProperty ?? ''"
-        [unit]="detail().timeSeries?.unit ?? ''"
-        [referenceLines]="detail().referenceLines"
+        [observedProperty]="snapshot()?.observedProperty ?? ''"
+        [unit]="displayUnit()"
+        [referenceLines]="referenceLines()"
         (refresh)="reloadSnapshot()"
       />
     </div>

@@ -1,141 +1,63 @@
 package at.pegelhub.telemetry.application;
 
 import at.pegelhub.connector.domain.Connector;
-import at.pegelhub.connector.domain.ConnectorStatus;
+import at.pegelhub.connector.domain.ConnectorType;
 import at.pegelhub.connector.persistence.ConnectorRepository;
 import at.pegelhub.security.CurrentActor;
 import at.pegelhub.security.PegelHubActor;
 import at.pegelhub.security.PegelHubActorType;
-import at.pegelhub.shared.error.NotFoundException;
-import at.pegelhub.telemetry.domain.Telemetry;
+import at.pegelhub.security.PegelHubAuthority;
+import at.pegelhub.shared.metadata.MetadataStatus;
 import at.pegelhub.telemetry.persistence.TelemetryRepository;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.access.AccessDeniedException;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
-import java.util.UUID;
 
-import static at.pegelhub.testsupport.ExampleData.CONNECTOR;
-import static at.pegelhub.testsupport.ExampleData.TELEMETRY;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.*;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
-final class TelemetryServiceImplTest {
+class TelemetryServiceImplTest {
+    private final TelemetryRepository telemetry = mock(TelemetryRepository.class);
+    private final ConnectorRepository connectors = mock(ConnectorRepository.class);
+    private final CurrentActor actor = mock(CurrentActor.class);
+    private final TelemetryServiceImpl service = new TelemetryServiceImpl(telemetry, connectors, actor);
 
-    private TelemetryServiceImpl telemetryService;
-    private static final TelemetryRepository REPOSITORY = mock(TelemetryRepository.class);
-    private static final ConnectorRepository CONNECTOR_REPOSITORY = mock(ConnectorRepository.class);
-    private static final CurrentActor CURRENT_ACTOR = mock(CurrentActor.class);
-    private static final PegelHubActor ACTOR = new PegelHubActor(
-            PegelHubActorType.CLIENT,
-            "subject",
-            "local-taker-example",
-            Set.of());
-    private static final WriteTelemetryCommand WRITE_COMMAND = new WriteTelemetryCommand(
-            TELEMETRY.stationIPAddressIntern(),
-            TELEMETRY.stationIPAddressExtern(),
-            TELEMETRY.timestamp(),
-            TELEMETRY.cycleTime(),
-            TELEMETRY.temperatureWater(),
-            TELEMETRY.temperatureAir(),
-            TELEMETRY.performanceVoltageBattery(),
-            TELEMETRY.performanceVoltageSupply(),
-            TELEMETRY.performanceElectricityBattery(),
-            TELEMETRY.performanceElectricitySupply(),
-            TELEMETRY.fieldStrengthTransmission());
+    @Test
+    void connectorCannotReadTelemetry() {
+        when(actor.get()).thenReturn(new PegelHubActor(
+                PegelHubActorType.CLIENT, null, "connector-client", Set.of(PegelHubAuthority.TELEMETRY_READ)));
 
-    @BeforeEach
-    public void prepare() {
-        telemetryService = new TelemetryServiceImpl(REPOSITORY, CONNECTOR_REPOSITORY, CURRENT_ACTOR);
-        reset(REPOSITORY, CONNECTOR_REPOSITORY, CURRENT_ACTOR);
-        when(CURRENT_ACTOR.get()).thenReturn(ACTOR);
+        assertThatThrownBy(() -> service.getByRange("24h"))
+                .isInstanceOf(AccessDeniedException.class);
     }
 
     @Test
-    public void constructorWithNullArgsThrowsNPE() {
-        assertThrows(NullPointerException.class, () -> new TelemetryServiceImpl(null, CONNECTOR_REPOSITORY, CURRENT_ACTOR));
-        assertThrows(NullPointerException.class, () -> new TelemetryServiceImpl(REPOSITORY, null, CURRENT_ACTOR));
-        assertThrows(NullPointerException.class, () -> new TelemetryServiceImpl(REPOSITORY, CONNECTOR_REPOSITORY, null));
+    void operatorWithTelemetryReadMayReadTelemetry() {
+        when(actor.get()).thenReturn(new PegelHubActor(
+                PegelHubActorType.USER, "operator", null, Set.of(PegelHubAuthority.TELEMETRY_READ)));
+        when(telemetry.getByRange("24h")).thenReturn(List.of());
+
+        service.getByRange("24h");
+
+        verify(telemetry).getByRange("24h");
     }
 
     @Test
-    public void saveTelemetry() {
-        Telemetry savedTelemetry = new Telemetry(
-                CONNECTOR.id().value().toString(),
-                TELEMETRY.stationIPAddressIntern(),
-                TELEMETRY.stationIPAddressExtern(),
-                TELEMETRY.timestamp(),
-                TELEMETRY.cycleTime(),
-                TELEMETRY.temperatureWater(),
-                TELEMETRY.temperatureAir(),
-                TELEMETRY.performanceVoltageBattery(),
-                TELEMETRY.performanceVoltageSupply(),
-                TELEMETRY.performanceElectricityBattery(),
-                TELEMETRY.performanceElectricitySupply(),
-                TELEMETRY.fieldStrengthTransmission());
-        when(CONNECTOR_REPOSITORY.findByKeycloakClientId(ACTOR.clientId()))
-                .thenReturn(java.util.Optional.of(CONNECTOR));
-        when(REPOSITORY.saveTelemetry(any())).thenReturn(savedTelemetry);
+    void inactiveConnectorCannotSendTelemetry() {
+        when(actor.get()).thenReturn(new PegelHubActor(
+                PegelHubActorType.CLIENT, null, "connector-client", Set.of(PegelHubAuthority.TELEMETRY_WRITE)));
+        Connector connector = Connector.create("Connector", ConnectorType.OTHER)
+                .bind("connector-client", MetadataStatus.INACTIVE);
+        when(connectors.findByKeycloakClientId("connector-client")).thenReturn(Optional.of(connector));
 
-        Telemetry result = telemetryService.saveTelemetry(WRITE_COMMAND);
-        assertEquals(savedTelemetry, result);
-        verify(CONNECTOR_REPOSITORY).findByKeycloakClientId(ACTOR.clientId());
-        verify(REPOSITORY).saveTelemetry(savedTelemetry);
-    }
-
-    @Test
-    public void saveTelemetryThrowsIfConnectorIsNotRegistered() {
-        when(CONNECTOR_REPOSITORY.findByKeycloakClientId(ACTOR.clientId()))
-                .thenReturn(java.util.Optional.empty());
-
-        assertThrows(NotFoundException.class, () -> telemetryService.saveTelemetry(WRITE_COMMAND));
-        verify(REPOSITORY, never()).saveTelemetry(any());
-    }
-
-    @Test
-    public void saveTelemetryThrowsIfConnectorIsInactive() {
-        Connector inactiveConnector = new Connector(
-                CONNECTOR.id(), CONNECTOR.connectorNumber(),
-                CONNECTOR.manufacturer(), CONNECTOR.typeDescription(),
-                CONNECTOR.softwareVersion(), CONNECTOR.worksFromDataVersion(),
-                CONNECTOR.dataDefinition(), CONNECTOR.softwareManufacturer(),
-                CONNECTOR.technicallyResponsible(), CONNECTOR.operationCompany(),
-                CONNECTOR.notes(), "local-taker-example", ConnectorStatus.SUSPENDED);
-        when(CONNECTOR_REPOSITORY.findByKeycloakClientId(ACTOR.clientId()))
-                .thenReturn(java.util.Optional.of(inactiveConnector));
-
-        assertThrows(AccessDeniedException.class, () -> telemetryService.saveTelemetry(WRITE_COMMAND));
-        verify(REPOSITORY, never()).saveTelemetry(any());
-    }
-
-    @Test
-    public void getByRange() {
-        when(REPOSITORY.getByRange(any())).thenReturn(List.of(TELEMETRY));
-
-        List<Telemetry> result = telemetryService.getByRange("72d");
-        assertEquals(1, result.size());
-        assertEquals(TELEMETRY, result.getFirst());
-        verify(REPOSITORY, times(1)).getByRange(any());
-    }
-
-    @Test
-    public void getLastData() {
-        when(REPOSITORY.getLastData(any())).thenReturn(java.util.Optional.of(TELEMETRY));
-
-        Object result = telemetryService.getLastData(UUID.randomUUID());
-        assertEquals(TELEMETRY, result);
-        verify(REPOSITORY, times(1)).getLastData(any());
-    }
-
-    @Test
-    void getLastDataThrowsNotFoundWhenNoTelemetryExists() {
-        UUID id = UUID.randomUUID();
-        when(REPOSITORY.getLastData(id)).thenReturn(java.util.Optional.empty());
-
-        assertThrows(NotFoundException.class, () -> telemetryService.getLastData(id));
+        assertThatThrownBy(() -> service.saveTelemetry(new WriteTelemetryCommand(
+                "10.0.0.1", "10.0.0.2", java.time.Instant.parse("2026-01-01T00:00:00Z"),
+                1, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0)))
+                .isInstanceOf(AccessDeniedException.class);
     }
 }

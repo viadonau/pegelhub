@@ -10,4 +10,4 @@ PegelHub's clean measurement write API will require connectors to submit a TimeS
 
 ## Consequences
 
-Connector setup must know or discover TimeSeries identifiers before writing clean measurements. In exchange, Core receives a stable resource identity, AccessGrant checks become direct, and stored measurements no longer depend on protocol-specific naming.
+Connector setup must know or discover TimeSeries identifiers before writing clean measurements. In exchange, Core receives a stable resource identity, source-assignment and read-access checks remain direct, and stored measurements no longer depend on protocol-specific naming.

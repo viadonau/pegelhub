@@ -53,9 +53,13 @@ direction: "external-to-core"
 `direction` may be omitted because FTP defaults it to `external-to-core`; no
 other direction is accepted. `stationId` is the integer `location` parsed from
 the source file, not a Core Station UUID. A non-negative value filters to that
-location; a negative value disables location filtering. Optional `parameter`
-matching is case-insensitive for both parsers. Mapping files are loaded in
-sorted filename order, although FTP requires exactly one.
+location; a negative value disables location filtering. `parameter` is required
+and case-insensitive. Use `Wasserstand` for canonical water-level values,
+`WasserstandAbs` for metres-above-Adria water levels, `Abfluss` for discharge,
+or `WTemperatur` for water temperature. A missing or other parameter is
+rejected during startup, so one mapping cannot mix physical source
+representations. Mapping files are
+loaded in sorted filename order, although FTP requires exactly one.
 
 ZRXP timestamps are interpreted as UTC. ASC timestamps have no source offset
 and are interpreted in the connector JVM's default timezone. Set and verify the
@@ -65,8 +69,9 @@ The Keycloak client needs a token for the `pegelhub-core-api` audience and the
 Core role `measurement:write`. Register the same client ID as Connector
 metadata in Core before ingesting measurements. This connector does not submit
 telemetry and does not need `telemetry:write`. Core also requires the target
-time series source binding and `WRITE` grant
-described in the [library authorization prerequisites](../library/#core-authorization-prerequisites).
+time series source assignment to use the matching connector and the complete
+metadata hierarchy to be active. See the
+[library authorization prerequisites](../library/#core-authorization-prerequisites).
 
 ## Import behavior
 

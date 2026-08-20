@@ -75,11 +75,22 @@ public final class FtpConnectorConfigLoader {
             Objects.requireNonNull(timeSeriesId, "timeSeriesId");
             Objects.requireNonNull(stationId, "stationId");
             direction = direction == null ? MappingDirection.EXTERNAL_TO_CORE : direction;
-            parameter = optional(parameter);
+            parameter = requiredParameter(parameter);
         }
     }
 
-    private static String optional(String value) {
-        return value == null || value.isBlank() ? null : value.trim();
+    private static String requiredParameter(String value) {
+        if (value == null || value.isBlank()) {
+            throw new IllegalArgumentException(
+                    "parameter must be one of Wasserstand, WasserstandAbs, Abfluss, or WTemperatur");
+        }
+        String normalized = value.trim().toLowerCase(java.util.Locale.ROOT);
+        if (!normalized.equals("wasserstand")
+                && !normalized.equals("wasserstandabs")
+                && !normalized.equals("abfluss")
+                && !normalized.equals("wtemperatur")) {
+            throw new IllegalArgumentException("Unsupported FTP parameter: " + value);
+        }
+        return value.trim();
     }
 }

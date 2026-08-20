@@ -16,10 +16,8 @@ http:
     data: |-
       {
         "ownerId": "{{stationOwnerId}}",
-        "stationNumber": "bruno-{{workflowRunId}}",
         "name": "Bruno Workflow Station",
-        "waterBody": "Danube",
-        "location": "Vienna"
+        "waterBody": "Danube"
       }
   auth: inherit
 

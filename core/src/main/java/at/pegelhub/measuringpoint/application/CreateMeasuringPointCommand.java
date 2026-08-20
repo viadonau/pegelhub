@@ -1,18 +1,16 @@
 package at.pegelhub.measuringpoint.application;
 
-import at.pegelhub.measuringpoint.domain.BankSide;
+import at.pegelhub.measuringpoint.domain.MeasuringPointPosition;
+import at.pegelhub.measuringpoint.domain.WaterLevelReferences;
+import at.pegelhub.shared.metadata.MetadataStatus;
 import at.pegelhub.station.domain.StationId;
+
+import java.math.BigDecimal;
 
 public record CreateMeasuringPointCommand(
         StationId stationId,
         String name,
-        Double referenceLevel,
-        Integer referenceYear,
-        Double riverKilometer,
-        BankSide bank,
-        Double rnw,
-        Double mw,
-        Double hsw,
-        Double hw100
-) {
-}
+        MetadataStatus status,
+        MeasuringPointPosition position,
+        BigDecimal gaugeZeroElevationMAboveAdria,
+        WaterLevelReferences waterLevelReferences) { }

@@ -34,6 +34,7 @@ import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -109,9 +110,62 @@ public class FtpImportJobTest {
         }));
     }
 
+    @Test
+    public void convertsLitresPerSecondToCubicMetresPerSecond() throws Exception {
+        var mockClient = mock(FTPClient.class);
+        var file = new FTPFile();
+        file.setName("values.zrxp");
+        when(mockClient.listFiles(any(), any())).thenReturn(new FTPFile[]{file});
+        when(mockClient.retrieveFileStream(any())).thenReturn(InputStream.nullInputStream());
+        when(mockClient.completePendingCommand()).thenReturn(true);
+        when(mockClient.getReplyCode()).thenReturn(200);
+        when(mockClient.login(any(), any())).thenReturn(true);
+        var parser = mock(Parser.class);
+        var measurementEntry = entry("10001033", "Abfluss", "l/s", 1200);
+        when(parser.parse(any())).thenReturn(Stream.of(measurementEntry));
+        var config = buildConfig(ParserType.ZRXP, STATION_ID, "Abfluss", 21);
+
+        new FtpImportJob(mockClient, config, comm, parser).run();
+
+        verify(comm).sendMeasurements(argThat(measurements -> {
+            assertEquals(1, measurements.size());
+            assertEquals(1.2, measurements.getFirst().getValue());
+            return true;
+        }));
+    }
+
+    @Test
+    public void passesWaterTemperatureThroughInCelsius() throws Exception {
+        var mockClient = mock(FTPClient.class);
+        var file = new FTPFile();
+        file.setName("values.zrxp");
+        when(mockClient.listFiles(any(), any())).thenReturn(new FTPFile[]{file});
+        when(mockClient.retrieveFileStream(any())).thenReturn(InputStream.nullInputStream());
+        when(mockClient.completePendingCommand()).thenReturn(true);
+        when(mockClient.getReplyCode()).thenReturn(200);
+        when(mockClient.login(any(), any())).thenReturn(true);
+        var parser = mock(Parser.class);
+        var measurementEntry = entry("10001033", "WTemperatur", "\u00b0C", 18.4);
+        when(parser.parse(any())).thenReturn(Stream.of(measurementEntry));
+        var config = buildConfig(ParserType.ZRXP, STATION_ID, "WTemperatur", 21);
+
+        new FtpImportJob(mockClient, config, comm, parser).run();
+
+        verify(comm).sendMeasurements(argThat(measurements -> {
+            assertEquals(1, measurements.size());
+            assertEquals(18.4, measurements.getFirst().getValue());
+            return true;
+        }));
+    }
+
     private static Entry entry(String location, String parameter, double value) {
+        String unit = "WasserstandAbs".equalsIgnoreCase(parameter) ? "m ü.A." : "m3/s";
+        return entry(location, parameter, unit, value);
+    }
+
+    private static Entry entry(String location, String parameter, String unit, double value) {
         var entry = mock(Entry.class);
-        when(entry.getInfos()).thenReturn(Map.of("location", location, "parameter", parameter));
+        when(entry.getInfos()).thenReturn(Map.of("location", location, "parameter", parameter, "unit", unit));
         when(entry.getValues()).thenReturn(Map.of(Date.from(Instant.parse("2026-06-25T07:00:00Z")), Double.toString(value)));
         return entry;
     }

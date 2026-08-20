@@ -53,7 +53,7 @@ Only `external-to-core` is accepted. Mapping files are loaded in sorted
 filename order, and duplicate input names or resolved offsets fail startup.
 The Keycloak client needs the `pegelhub-core-api` audience and the lowercase
 Core role `measurement:write`.
-It also needs the target source binding and grant described in the
+It also needs the target source assignment described in the
 [library authorization prerequisites](../library/#core-authorization-prerequisites).
 
 ## Read behavior
@@ -101,4 +101,4 @@ For Compose-based deployments, use the
 | `Short read: expected 2 bytes` | RevPi process image and piControl configuration |
 | `Duplicate Input ...` | Keep one mapping per `revInput` |
 | `Duplicate resolved offset ...` | Reconcile piCtory names that resolve to the same offset |
-| Core receives no measurements | Core URL, issuer reachability, token audience/role, active connector registration, source binding, and `WRITE` grant |
+| Core receives no measurements | Core URL, issuer reachability, token audience/role, active connector registration, active metadata hierarchy, and matching source assignment |

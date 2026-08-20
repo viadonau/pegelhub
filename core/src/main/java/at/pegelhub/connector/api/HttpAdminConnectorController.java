@@ -11,10 +11,13 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+import java.util.UUID;
 
 import static java.util.Objects.requireNonNull;
 
@@ -31,6 +34,7 @@ public final class HttpAdminConnectorController {
     }
 
     @Operation(
+            operationId = "registerConnectorIdentity",
             summary = "openapi.connector.http-admin-connector-controller.registers-a-connector-identity-binding",
             description = "openapi.connector.http-admin-connector-controller.creates-connector-metadata-and-binds-it-to")
     @ApiResponses(value = {
@@ -38,7 +42,8 @@ public final class HttpAdminConnectorController {
                     responseCode = "201",
                     description = "openapi.connector.http-admin-connector-controller.returns-the-registered-connector",
                     content = @Content(schema = @Schema(implementation = ConnectorDto.class))),
-            @ApiResponse(responseCode = "400", description = "openapi.connector.http-admin-connector-controller.the-registration-payload-is-invalid", content = @Content)
+            @ApiResponse(responseCode = "400", description = "openapi.connector.http-admin-connector-controller.the-registration-payload-is-invalid", content = @Content),
+            @ApiResponse(responseCode = "409", description = "openapi.connector.http-admin-connector-controller.connector-client-already-registered", content = @Content)
     })
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
@@ -47,5 +52,25 @@ public final class HttpAdminConnectorController {
                 request.keycloakClientId(),
                 request.resolvedStatus(),
                 ConnectorMapper.toCommand(request.connector())));
+    }
+
+    @Operation(
+            operationId = "updateConnector",
+            summary = "openapi.connector.http-admin-connector-controller.updates-a-connector",
+            description = "openapi.connector.http-admin-connector-controller.replaces-mutable-connector-metadata")
+    @ApiResponses({
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "openapi.connector.http-admin-connector-controller.returns-the-updated-connector",
+                    content = @Content(schema = @Schema(implementation = ConnectorDto.class))),
+            @ApiResponse(responseCode = "400", description = "openapi.connector.http-admin-connector-controller.the-update-payload-is-invalid", content = @Content),
+            @ApiResponse(responseCode = "404", description = "openapi.connector.http-admin-connector-controller.the-connector-was-not-found", content = @Content)
+    })
+    @PutMapping("/{id}")
+    public ConnectorDto update(
+            @PathVariable UUID id,
+            @Valid @RequestBody UpdateConnectorRequest request) {
+        return ConnectorMapper.toResponse(connectorService.update(
+                new at.pegelhub.connector.domain.ConnectorId(id), ConnectorMapper.toCommand(request)));
     }
 }

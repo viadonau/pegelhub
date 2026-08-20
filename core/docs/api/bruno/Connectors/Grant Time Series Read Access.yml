@@ -1,0 +1,19 @@
+info:
+  name: Grant Time Series Read Access
+  type: http
+  seq: 5
+
+http:
+  method: PUT
+  url: "{{baseUrl}}/{{apiPath}}/connectors/{{connectorId}}/read-access/time-series/{{timeSeriesId}}"
+  headers:
+    - name: X-Auth-Profile
+      value: operator
+  auth: inherit
+
+runtime:
+  scripts:
+    - type: after-response
+      code: test('status is 204', () => expect(res.getStatus()).to.equal(204));
+
+docs: Grants a connector read access to one time series.

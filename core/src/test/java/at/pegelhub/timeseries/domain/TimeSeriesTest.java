@@ -2,6 +2,7 @@ package at.pegelhub.timeseries.domain;
 
 import at.pegelhub.connector.domain.ConnectorId;
 import at.pegelhub.measuringpoint.domain.MeasuringPointId;
+import at.pegelhub.shared.metadata.MetadataStatus;
 import org.junit.jupiter.api.Test;
 
 import java.util.UUID;
@@ -12,39 +13,50 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 final class TimeSeriesTest {
 
     private static final TimeSeriesId ID = new TimeSeriesId(UUID.fromString("036af782-314c-4e67-9857-c4dfe070cde3"));
-    private static final MeasuringPointId MEASURING_POINT_ID = new MeasuringPointId(
+    private static final MeasuringPointId POINT_ID = new MeasuringPointId(
             UUID.fromString("1acc430a-4269-414d-8cd8-4a60c7355c3a"));
-    private static final ConnectorId SOURCE_CONNECTOR_ID = new ConnectorId(
+    private static final ConnectorId CONNECTOR_ID = new ConnectorId(
             UUID.fromString("0cdb4ae9-20c4-4d47-bff2-cd7f03885201"));
-    private static final ObservedPropertyCode WATER_LEVEL = new ObservedPropertyCode("water-level");
-    private static final UnitCode CENTIMETER = new UnitCode("cm");
 
     @Test
-    void rejectsMissingRequiredValues() {
-        assertThrows(NullPointerException.class,
-                () -> new TimeSeries(null, MEASURING_POINT_ID, WATER_LEVEL, CENTIMETER, null, null));
-        assertThrows(NullPointerException.class,
-                () -> new TimeSeries(ID, null, WATER_LEVEL, CENTIMETER, null, null));
-        assertThrows(NullPointerException.class,
-                () -> new TimeSeries(ID, MEASURING_POINT_ID, null, CENTIMETER, null, null));
-        assertThrows(NullPointerException.class,
-                () -> new TimeSeries(ID, MEASURING_POINT_ID, WATER_LEVEL, null, null, null));
+    void createsCanonicalSeriesWithDerivedUnit() {
+        SourceAssignment source = new SourceAssignment(CONNECTOR_ID, SourceRepresentation.CANONICAL);
+        TimeSeries series = TimeSeries.create(
+                POINT_ID, new ObservedPropertyCode("water-level"), MetadataStatus.ACTIVE, source);
+
+        assertThat(series.id()).isNotNull();
+        assertThat(series.measuringPointId()).isEqualTo(POINT_ID);
+        assertThat(series.unit()).isEqualTo("cm");
+        assertThat(series.sourceConnectorId()).isEqualTo(CONNECTOR_ID);
+        assertThat(series.sourceRepresentation()).isEqualTo(SourceRepresentation.CANONICAL);
     }
 
     @Test
-    void createAssignsIdentity() {
-        var timeSeries = TimeSeries.create(
-                MEASURING_POINT_ID,
-                WATER_LEVEL,
-                CENTIMETER,
-                new ExternalTimeSeriesCode("main-stage"),
-                SOURCE_CONNECTOR_ID);
+    void updatePreservesImmutableIdentityFields() {
+        TimeSeries series = new TimeSeries(
+                ID, POINT_ID, new ObservedPropertyCode("water-temperature"), MetadataStatus.ACTIVE, null);
 
-        assertThat(timeSeries.id()).isNotNull();
-        assertThat(timeSeries.id().value()).isNotNull();
-        assertThat(timeSeries.measuringPointId()).isEqualTo(MEASURING_POINT_ID);
-        assertThat(timeSeries.observedProperty()).isEqualTo(WATER_LEVEL);
-        assertThat(timeSeries.unit()).isEqualTo(CENTIMETER);
-        assertThat(timeSeries.sourceConnectorId()).isEqualTo(SOURCE_CONNECTOR_ID);
+        TimeSeries updated = series.update(MetadataStatus.INACTIVE, null);
+
+        assertThat(updated.id()).isEqualTo(ID);
+        assertThat(updated.measuringPointId()).isEqualTo(POINT_ID);
+        assertThat(updated.observedProperty().value()).isEqualTo("water-temperature");
+        assertThat(updated.status()).isEqualTo(MetadataStatus.INACTIVE);
+    }
+
+    @Test
+    void sourceAssignmentRequiresBothValues() {
+        assertThrows(NullPointerException.class, () -> new SourceAssignment(null, SourceRepresentation.CANONICAL));
+        assertThrows(NullPointerException.class, () -> new SourceAssignment(CONNECTOR_ID, null));
+    }
+
+    @Test
+    void rejectsPropertyIncompatibleSourceRepresentation() {
+        assertThrows(IllegalArgumentException.class, () -> new TimeSeries(
+                ID,
+                POINT_ID,
+                new ObservedPropertyCode("water-temperature"),
+                MetadataStatus.ACTIVE,
+                new SourceAssignment(CONNECTOR_ID, SourceRepresentation.METRES_ABOVE_ADRIA)));
     }
 }

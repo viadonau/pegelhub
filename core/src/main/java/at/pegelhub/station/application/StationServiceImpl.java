@@ -5,6 +5,7 @@ import at.pegelhub.station.domain.Station;
 import at.pegelhub.station.domain.StationId;
 import at.pegelhub.station.persistence.StationRepository;
 import at.pegelhub.stationowner.application.StationOwnerService;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -28,10 +29,18 @@ class StationServiceImpl implements StationService {
         stationOwners.get(command.ownerId());
         return stations.save(Station.create(
                 command.ownerId(),
-                command.stationNumber(),
+                command.name(),
+                command.waterBody()));
+    }
+
+    @Override
+    @Transactional
+    public Station update(StationId id, UpdateStationCommand command) {
+        requireNonNull(command);
+        return stations.save(get(id).update(
                 command.name(),
                 command.waterBody(),
-                command.location()));
+                command.status()));
     }
 
     @Override

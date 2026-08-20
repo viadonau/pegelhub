@@ -1,7 +1,4 @@
-import {
-  MonitoringMeasuringPointDto,
-  MonitoringTimeSeriesDetailDto,
-} from '../../../core/api/monitoring.dto';
+import { MonitoringMeasuringPointDto } from '../../../core/api/monitoring.dto';
 
 export interface WaterLevelReference {
   label: string;
@@ -10,24 +7,20 @@ export interface WaterLevelReference {
 }
 
 export function waterLevelChartReferences(
-  measuringPoint: MonitoringMeasuringPointDto,
-  timeSeries: MonitoringTimeSeriesDetailDto,
+  point: MonitoringMeasuringPointDto,
 ): WaterLevelReference[] {
-  if (timeSeries.observedProperty !== 'water-level') {
-    return [];
-  }
-
-  const referenceYear = measuringPoint.referenceYear;
+  const references = point.waterLevelReferences;
+  if (!references) return [];
 
   return [
     {
-      label: waterLevelReferenceLabel('RNW', referenceYear),
-      value: measuringPoint.rnw,
+      label: waterLevelReferenceLabel('RNW', references.referenceSetYear),
+      value: references.rnwCm,
       tone: 'lower' as const,
     },
     {
-      label: waterLevelReferenceLabel('HSW', referenceYear),
-      value: measuringPoint.hsw,
+      label: waterLevelReferenceLabel('HSW', references.referenceSetYear),
+      value: references.hswCm,
       tone: 'upper' as const,
     },
   ].filter(isPresentReference);

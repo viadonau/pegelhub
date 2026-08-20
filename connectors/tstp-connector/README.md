@@ -61,7 +61,7 @@ ZRID. Catalog responses are cached in memory for 24 hours.
 Configure the Keycloak client for the `pegelhub-core-api` audience and only the
 direction-appropriate lowercase Core roles, such as `measurement:read` and
 `measurement:write`.
-The client also needs the registration and resource grants described in the
+The client also needs the registration and read-access relations described in the
 [library authorization prerequisites](../library/#core-authorization-prerequisites).
 
 ## Synchronization behavior

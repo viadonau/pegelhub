@@ -19,4 +19,6 @@ public interface TimeSeriesRepository {
     List<TimeSeries> findByMeasuringPointId(MeasuringPointId measuringPointId);
 
     List<TimeSeries> findByStationId(StationId stationId);
+
+    boolean hasAbsoluteSourceFor(MeasuringPointId measuringPointId);
 }

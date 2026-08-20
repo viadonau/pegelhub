@@ -3,11 +3,18 @@ import { Title } from '@angular/platform-browser';
 import { RouterLink } from '@angular/router';
 
 import { MonitoringApiService } from '../../core/api/monitoring-api.service';
+import { observedPropertyUnit } from '../../core/time-series/parameter-legend';
 import { PhContentStateComponent } from '../../ui/content-state/content-state.component';
 import { PhPageComponent } from '../../ui/page/page.component';
 import { PhCurrentReadingComponent } from './current-reading/current-reading.component';
 import { latestMeasurementView } from './model/measurement-view';
-import { timeSeriesDetailView } from './model/time-series-detail-view';
+import {
+  measuringPointFacts,
+  measurementTypeLabel,
+  timeSeriesFacts,
+  timeSeriesHeadingContext,
+} from './model/detail-projection';
+import { waterLevelChartReferences } from './model/water-level-reference';
 import { PhTimeSeriesMeasurementsComponent } from './time-series-measurements/time-series-measurements.component';
 import { PhTimeSeriesMetadataComponent } from './time-series-metadata/time-series-metadata.component';
 
@@ -27,27 +34,55 @@ import { PhTimeSeriesMetadataComponent } from './time-series-metadata/time-serie
 export class TimeSeriesDetailComponent {
   private readonly titleService = inject(Title);
   private readonly monitoringApi = inject(MonitoringApiService);
-
   readonly timeSeriesId = input('');
   private readonly normalizedTimeSeriesId = computed(() => this.timeSeriesId().trim());
   private readonly snapshotResource = this.monitoringApi.timeSeriesDetailResource(
     this.normalizedTimeSeriesId,
   );
 
-  private readonly snapshot = computed(() => {
-    if (!this.snapshotResource.hasValue() || this.snapshotResource.isLoading()) {
-      return null;
-    }
-
-    return this.snapshotResource.value();
+  protected readonly snapshot = computed(() =>
+    this.snapshotResource.hasValue() && !this.snapshotResource.isLoading()
+      ? this.snapshotResource.value()
+      : null,
+  );
+  protected readonly measuringPoint = computed(() => this.snapshot()?.measuringPoint ?? null);
+  protected readonly station = computed(() => this.snapshot()?.station ?? null);
+  protected readonly stationOwner = computed(() => this.snapshot()?.stationOwner ?? null);
+  protected readonly measurementTypeLabel = computed(() => measurementTypeLabel(this.snapshot()));
+  protected readonly unit = computed(() => this.snapshot()?.unit ?? '');
+  protected readonly displayUnit = computed(() => {
+    const snapshot = this.snapshot();
+    return snapshot ? observedPropertyUnit(snapshot.observedProperty, snapshot.unit) : '';
   });
-
-  protected readonly detail = computed(() => timeSeriesDetailView(this.snapshot()));
+  protected readonly headingContext = computed(() => {
+    const station = this.station();
+    const point = this.measuringPoint();
+    return station && point
+      ? timeSeriesHeadingContext(station, point.name, this.measurementTypeLabel())
+      : this.measurementTypeLabel();
+  });
+  protected readonly pointFacts = computed(() => {
+    const point = this.measuringPoint();
+    const owner = this.stationOwner();
+    return point && owner ? measuringPointFacts(point, owner) : [];
+  });
+  protected readonly seriesFacts = computed(() => {
+    const snapshot = this.snapshot();
+    return snapshot ? timeSeriesFacts(snapshot) : [];
+  });
+  protected readonly referenceLines = computed(() => {
+    const snapshot = this.snapshot();
+    const point = this.measuringPoint();
+    return snapshot?.observedProperty === 'water-level' && point
+      ? waterLevelChartReferences(point)
+      : [];
+  });
   protected readonly latestReading = computed(() => {
     const snapshot = this.snapshot();
-    return snapshot ? latestMeasurementView(snapshot.latestMeasurement, snapshot.unit) : null;
+    return snapshot ? latestMeasurementView(snapshot.latestMeasurement, this.displayUnit()) : null;
   });
   protected readonly loading = this.snapshotResource.isLoading;
+  protected readonly inactive = computed(() => this.snapshot()?.status === 'inactive');
   protected readonly error = computed(() =>
     this.snapshotResource.status() === 'error'
       ? 'Die Messreihe konnte nicht geladen werden. Bitte erneut versuchen oder den Datendienst prüfen.'
@@ -56,11 +91,10 @@ export class TimeSeriesDetailComponent {
 
   constructor() {
     effect(() => {
-      const view = this.detail();
-      const pointName = view.measuringPoint?.name;
-      const measurementTypeLabel = view.measurementTypeLabel;
-      const title = [pointName, measurementTypeLabel, 'PegelHub'].filter(Boolean).join(' · ');
-
+      const pointName = this.measuringPoint()?.name;
+      const title = [pointName, this.measurementTypeLabel(), 'PegelHub']
+        .filter(Boolean)
+        .join(' · ');
       this.titleService.setTitle(title || 'Messreihe · PegelHub');
     });
   }

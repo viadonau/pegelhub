@@ -52,6 +52,10 @@ committed.
 
 ## Operations
 
+The operational metadata catalog uses a clean Flyway V1 baseline. Before its
+first deployment, reset the PostgreSQL metadata and InfluxDB measurement volumes
+together as described in the [Flyway guide](../../core/docs/flyway.md).
+
 Initialize missing environment keys and server-generated secrets:
 
 ```sh

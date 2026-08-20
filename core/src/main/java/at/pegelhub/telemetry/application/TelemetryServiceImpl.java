@@ -1,9 +1,10 @@
 package at.pegelhub.telemetry.application;
 
 import at.pegelhub.connector.domain.Connector;
-import at.pegelhub.connector.domain.ConnectorStatus;
+import at.pegelhub.shared.metadata.MetadataStatus;
 import at.pegelhub.connector.persistence.ConnectorRepository;
 import at.pegelhub.security.CurrentActor;
+import at.pegelhub.security.PegelHubActorType;
 import at.pegelhub.shared.error.NotFoundException;
 import at.pegelhub.telemetry.domain.Telemetry;
 import at.pegelhub.telemetry.persistence.TelemetryRepository;
@@ -14,6 +15,8 @@ import java.util.List;
 import java.util.UUID;
 
 import static java.util.Objects.requireNonNull;
+import static at.pegelhub.security.PegelHubAuthority.SYSTEM_ADMIN;
+import static at.pegelhub.security.PegelHubAuthority.TELEMETRY_READ;
 
 @Service
 public class TelemetryServiceImpl implements TelemetryService {
@@ -33,9 +36,13 @@ public class TelemetryServiceImpl implements TelemetryService {
 
     @Override
     public Telemetry saveTelemetry(WriteTelemetryCommand command) {
-        Connector connector = connectorRepository.findByKeycloakClientId(currentActor.get().clientId())
+        var actor = currentActor.get();
+        if (actor.type() != PegelHubActorType.CLIENT) {
+            throw new AccessDeniedException("Only connector clients may send telemetry");
+        }
+        Connector connector = connectorRepository.findByKeycloakClientId(actor.clientId())
                 .orElseThrow(() -> new NotFoundException("Connector not registered"));
-        if (connector.status() != ConnectorStatus.ACTIVE) {
+        if (connector.status() != MetadataStatus.ACTIVE) {
             throw new AccessDeniedException("Connector is not active");
         }
         Telemetry telemetryForConnector = new Telemetry(
@@ -56,13 +63,24 @@ public class TelemetryServiceImpl implements TelemetryService {
 
     @Override
     public List<Telemetry> getByRange(String range) {
+        requireReadAccess();
         return telemetryRepository.getByRange(range);
     }
 
     @Override
     public Telemetry getLastData(UUID uuid) {
         requireNonNull(uuid);
+        requireReadAccess();
         return telemetryRepository.getLastData(uuid)
                 .orElseThrow(() -> new NotFoundException("No telemetry found for: " + uuid));
+    }
+
+    private void requireReadAccess() {
+        var actor = currentActor.get();
+        if (actor.type() == PegelHubActorType.USER
+                && (actor.hasAuthority(TELEMETRY_READ) || actor.hasAuthority(SYSTEM_ADMIN))) {
+            return;
+        }
+        throw new AccessDeniedException("Actor is not allowed to read telemetry");
     }
 }

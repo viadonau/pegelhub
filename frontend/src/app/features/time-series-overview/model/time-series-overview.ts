@@ -5,7 +5,10 @@ import {
   formatRelativeMeasurementAge,
   UI_LOCALE,
 } from '../../../core/measurement/measurement-format';
-import { observedPropertyLabel } from '../../../core/time-series/parameter-legend';
+import {
+  observedPropertyLabel,
+  observedPropertyUnit,
+} from '../../../core/time-series/parameter-legend';
 
 const PARAMETER_ORDER = new Map([
   ['water-level', 0],
@@ -38,7 +41,10 @@ export function timeSeriesOverviewViews(
       measurementTypeLabel: observedPropertyLabel(item.observedProperty),
       measuringPointName: item.measuringPoint.name,
       stationLabel: stationLabel(item.measuringPoint.name, item.station),
-      latestMeasurement: latestMeasurementView(item.unit, item.latestMeasurement),
+      latestMeasurement: latestMeasurementView(
+        observedPropertyUnit(item.observedProperty, item.unit),
+        item.latestMeasurement,
+      ),
       sortKey: {
         stationName: item.station.name,
         pointName: item.measuringPoint.name,
@@ -53,7 +59,7 @@ function stationLabel(
   pointName: string,
   station: MonitoringTimeSeriesSummaryDto['station'],
 ): string {
-  const context = [station.stationNumber, station.waterBody]
+  const context = [station.waterBody]
     .filter((value): value is string => Boolean(value?.trim()))
     .join(' · ');
 

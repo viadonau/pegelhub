@@ -16,6 +16,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
@@ -53,6 +54,26 @@ final class HttpStationController {
     @ResponseStatus(HttpStatus.CREATED)
     StationResponse create(@Valid @RequestBody CreateStationRequest request) {
         return StationMapper.toResponse(stations.create(StationMapper.toCommand(request)));
+    }
+
+    @Operation(
+            summary = "openapi.station.http-station-controller.updates-a-station",
+            description = "openapi.station.http-station-controller.replaces-station-metadata-requires-metadata-write")
+    @ApiResponses(value = {
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "openapi.station.http-station-controller.returns-the-updated-station",
+                    content = @Content(schema = @Schema(implementation = StationResponse.class))),
+            @ApiResponse(responseCode = "400", description = "openapi.station.http-station-controller.the-station-payload-is-invalid", content = @Content),
+            @ApiResponse(responseCode = "404", description = "openapi.station.http-station-controller.the-station-was-not-found", content = @Content),
+            @ApiResponse(responseCode = "409", description = "openapi.shared.metadata-conflict", content = @Content)
+    })
+    @PutMapping("/{id}")
+    StationResponse update(
+            @Parameter(description = "openapi.station.http-station-controller.station-identifier", required = true)
+            @PathVariable("id") UUID id,
+            @Valid @RequestBody UpdateStationRequest request) {
+        return StationMapper.toResponse(stations.update(new StationId(id), StationMapper.toCommand(request)));
     }
 
     @Operation(
