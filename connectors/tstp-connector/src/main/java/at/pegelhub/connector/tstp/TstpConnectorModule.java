@@ -23,6 +23,11 @@ public final class TstpConnectorModule implements ConnectorModule {
     }
 
     @Override
+    public void validate(ConnectorConfigDirectory configDirectory) throws Exception {
+        configLoader.load(configDirectory);
+    }
+
+    @Override
     public ConnectorRuntimeDefinition define(
             ConnectorConfigDirectory configDirectory,
             PegelHubClientFactory coreClients) throws Exception {

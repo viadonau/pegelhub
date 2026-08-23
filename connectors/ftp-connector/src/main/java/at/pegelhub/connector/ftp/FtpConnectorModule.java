@@ -22,6 +22,12 @@ public final class FtpConnectorModule implements ConnectorModule {
     }
 
     @Override
+    public void validate(ConnectorConfigDirectory configDirectory) throws Exception {
+        FtpConnectorConfig config = configLoader.load(configDirectory);
+        ParserFactory.getParser(config.source().parserType());
+    }
+
+    @Override
     public ConnectorRuntimeDefinition define(
             ConnectorConfigDirectory configDirectory,
             PegelHubClientFactory coreClients) throws Exception {

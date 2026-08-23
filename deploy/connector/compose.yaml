@@ -8,6 +8,7 @@ x-pegelhub-logging: &pegelhub-logging
 
 services:
   connector:
+    container_name: ${COMPOSE_PROJECT_NAME}-connector
     image: ${PEGELHUB_CONNECTOR_IMAGE:?Set PEGELHUB_CONNECTOR_IMAGE}
     logging: *pegelhub-logging
     pull_policy: always

@@ -118,6 +118,22 @@ if grep -F 'volume rm' "$fake_log" >/dev/null; then
   fail "An ordinary deployment reset data."
 fi
 
+sed \
+  -e 's/^PEGELHUB_HTTP_BIND=.*/PEGELHUB_HTTP_BIND=127.0.0.1:18080/' \
+  -e 's/^PEGELHUB_HTTPS_BIND=.*/PEGELHUB_HTTPS_BIND=127.0.0.1:18443/' \
+  -e 's/^PEGELHUB_HTTPS_URL_SUFFIX=.*/PEGELHUB_HTTPS_URL_SUFFIX=:18443/' \
+  -e 's/^PEGELHUB_HTTPS_CONTAINER_PORT=.*/PEGELHUB_HTTPS_CONTAINER_PORT=18443/' \
+  "$test_env" > "$test_root/rehearsal.env"
+test_env="$test_root/rehearsal.env"
+run_deploy --check sha-rehearsal >/dev/null
+
+sed 's/^PEGELHUB_HTTPS_CONTAINER_PORT=.*/PEGELHUB_HTTPS_CONTAINER_PORT=443/' \
+  "$test_env" > "$test_root/mismatched-rehearsal.env"
+test_env="$test_root/mismatched-rehearsal.env"
+if run_deploy --check sha-rehearsal >/dev/null 2>&1; then
+  fail "A mismatched rehearsal HTTPS listener was accepted."
+fi
+
 grep -F 'default: false' "$IMAGES_WORKFLOW" >/dev/null \
   || fail "The destructive workflow input must default to false."
 grep -F 'reset_data: ${{ github.event_name == '\''workflow_dispatch'\'' && inputs.reset_staging_data }}' \

@@ -26,6 +26,12 @@ public final class IecConnectorModule implements ConnectorModule {
     }
 
     @Override
+    public void validate(ConnectorConfigDirectory configDirectory) throws Exception {
+        IecConnectorConfig config = configLoader.load(configDirectory);
+        new IecMappingIndex(config.mappings());
+    }
+
+    @Override
     public ConnectorRuntimeDefinition define(
             ConnectorConfigDirectory configDirectory,
             PegelHubClientFactory coreClients) throws Exception {

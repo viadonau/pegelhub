@@ -32,6 +32,11 @@ class IecConnectorModuleTest {
     }
 
     @Test
+    void validationModeChecksConfigWithoutOpeningConnections() throws Exception {
+        new IecConnectorModule().validate(ConnectorConfigDirectory.at(Path.of("examples/config")));
+    }
+
+    @Test
     void shouldLoadAllConfigFieldsFromConnectorYaml() throws Exception {
         writeConnectorYaml("15s", "mappings");
         writeDefaultMapping();

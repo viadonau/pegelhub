@@ -35,6 +35,21 @@ The config and trust directories are mounted read-only. An empty `trust/`
 directory is valid in `system` mode; company CA certificates are placed there
 when `PEGELHUB_TRUST_MODE=custom` is selected.
 
+Validate a rendered configuration without opening the protocol, Core, or RevPi
+connections. This is safe while the corresponding legacy connector is still
+running:
+
+```sh
+docker compose \
+  --project-directory "$INSTANCE_DIR" \
+  --env-file "$INSTANCE_DIR/connector.env" \
+  -f deploy/connector/compose.yaml \
+  run --rm -e PEGELHUB_VALIDATE_CONFIG=true connector
+```
+
+Do not start the V2 connector service during rehearsal. At cutover, verify the
+legacy connector is stopped before starting its replacement.
+
 The mA connector additionally needs the RevPi device overlay:
 
 ```sh

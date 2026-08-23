@@ -33,6 +33,11 @@ class TstpConnectorModuleTest {
     }
 
     @Test
+    void validationModeChecksConfigWithoutOpeningConnections() throws Exception {
+        new TstpConnectorModule().validate(ConnectorConfigDirectory.at(Path.of("examples/config")));
+    }
+
+    @Test
     void loadsSortedMixedDirectionMappings() throws Exception {
         writeConnectorYaml(8030);
         writeMapping("20-outbound.yaml", SECOND_SERIES, 78, "core-to-external");

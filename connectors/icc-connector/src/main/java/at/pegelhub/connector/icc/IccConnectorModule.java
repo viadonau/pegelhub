@@ -21,6 +21,11 @@ public final class IccConnectorModule implements ConnectorModule {
     }
 
     @Override
+    public void validate(ConnectorConfigDirectory configDirectory) throws Exception {
+        configLoader.load(configDirectory);
+    }
+
+    @Override
     public ConnectorRuntimeDefinition define(
             ConnectorConfigDirectory configDirectory,
             PegelHubClientFactory coreClients) throws Exception {

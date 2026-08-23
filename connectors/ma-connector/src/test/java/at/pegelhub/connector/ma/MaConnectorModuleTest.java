@@ -31,6 +31,11 @@ class MaConnectorModuleTest {
     }
 
     @Test
+    void validationModeChecksConfigWithoutOpeningCoreOrRevPiConnections() throws Exception {
+        new MaConnectorModule().validate(ConnectorConfigDirectory.at(Path.of("examples/config")));
+    }
+
+    @Test
     void shouldLoadAllConfigFieldsFromConnectorYaml() throws Exception {
         writeConnectorYaml("5s", "mappings");
         writeDefaultMapping();

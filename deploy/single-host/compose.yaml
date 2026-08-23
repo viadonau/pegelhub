@@ -19,6 +19,7 @@ networks:
 
 services:
   caddy:
+    container_name: ${COMPOSE_PROJECT_NAME}-reverse-proxy
     image: caddy:2-alpine
     logging: *pegelhub-logging
     restart: unless-stopped
@@ -26,10 +27,11 @@ services:
       PEGELHUB_FRONTEND_HOSTNAME: ${PEGELHUB_FRONTEND_HOSTNAME}
       PEGELHUB_API_HOSTNAME: ${PEGELHUB_API_HOSTNAME}
       PEGELHUB_KEYCLOAK_HOSTNAME: ${PEGELHUB_KEYCLOAK_HOSTNAME}
+      PEGELHUB_HTTPS_URL_SUFFIX: ${PEGELHUB_HTTPS_URL_SUFFIX:-}
       PEGELHUB_TLS_MODE: ${PEGELHUB_TLS_MODE:-automatic}
     ports:
-      - "80:80"
-      - "443:443"
+      - "${PEGELHUB_HTTP_BIND:-80}:80"
+      - "${PEGELHUB_HTTPS_BIND:-443}:${PEGELHUB_HTTPS_CONTAINER_PORT:-443}"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - type: bind
@@ -48,6 +50,7 @@ services:
           - ${PEGELHUB_KEYCLOAK_HOSTNAME}
 
   meta-db:
+    container_name: ${COMPOSE_PROJECT_NAME}-meta-db
     image: postgres:14-alpine
     logging: *pegelhub-logging
     restart: unless-stopped
@@ -66,6 +69,7 @@ services:
       - pegelhub-staging
 
   data-db:
+    container_name: ${COMPOSE_PROJECT_NAME}-data-db
     image: influxdb:2.2-alpine
     logging: *pegelhub-logging
     restart: unless-stopped
@@ -110,6 +114,7 @@ services:
       - pegelhub-staging
 
   keycloak-db:
+    container_name: ${COMPOSE_PROJECT_NAME}-keycloak-db
     image: postgres:16-alpine
     logging: *pegelhub-logging
     restart: unless-stopped
@@ -129,6 +134,7 @@ services:
       - pegelhub-staging
 
   keycloak:
+    container_name: ${COMPOSE_PROJECT_NAME}-keycloak
     image: quay.io/keycloak/keycloak:26.2
     logging: *pegelhub-logging
     restart: unless-stopped
@@ -141,7 +147,7 @@ services:
       KC_DB_USERNAME: keycloak
       KC_DB_PASSWORD: ${KEYCLOAK_DB_PASSWORD}
       KC_HEALTH_ENABLED: "true"
-      KC_HOSTNAME: https://${PEGELHUB_KEYCLOAK_HOSTNAME}
+      KC_HOSTNAME: https://${PEGELHUB_KEYCLOAK_HOSTNAME}${PEGELHUB_HTTPS_URL_SUFFIX:-}
       KC_HOSTNAME_STRICT: "true"
       KC_HTTP_ENABLED: "true"
       KC_HTTP_PORT: 8080
@@ -165,6 +171,7 @@ services:
       - pegelhub-staging
 
   core-app:
+    container_name: ${COMPOSE_PROJECT_NAME}-core
     image: ghcr.io/viadonau/pegelhub-core:${PEGELHUB_IMAGE_TAG:?Set PEGELHUB_IMAGE_TAG}
     logging: *pegelhub-logging
     pull_policy: always
@@ -181,7 +188,7 @@ services:
       INFLUX_DATA_BUCKET: ${INFLUX_DATA_BUCKET}
       INFLUX_TELEMETRY_BUCKET: ${INFLUX_TELEMETRY_BUCKET}
       INFLUX_LATEST_RANGE: ${INFLUX_LATEST_RANGE:-72h}
-      KEYCLOAK_ISSUER_URI: https://${PEGELHUB_KEYCLOAK_HOSTNAME}/realms/pegelhub
+      KEYCLOAK_ISSUER_URI: https://${PEGELHUB_KEYCLOAK_HOSTNAME}${PEGELHUB_HTTPS_URL_SUFFIX:-}/realms/pegelhub
     depends_on:
       meta-db:
         condition: service_healthy

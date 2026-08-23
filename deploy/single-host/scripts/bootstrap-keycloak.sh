@@ -35,6 +35,7 @@ compose() {
   COMPOSE_PROFILES=keycloak-bootstrap \
   PEGELHUB_FRONTEND_HOSTNAME="$frontend_hostname" \
   PEGELHUB_KEYCLOAK_HOSTNAME="$keycloak_hostname" \
+  PEGELHUB_HTTPS_URL_SUFFIX="$https_url_suffix" \
   KEYCLOAK_ADMIN_USER="$keycloak_admin_user" \
   KEYCLOAK_ADMIN_PASSWORD="$keycloak_admin_password" \
   KEYCLOAK_DB="$keycloak_db" \
@@ -133,6 +134,7 @@ validate_public_hostname PEGELHUB_FRONTEND_HOSTNAME
 validate_public_hostname PEGELHUB_KEYCLOAK_HOSTNAME
 frontend_hostname=$(env_value PEGELHUB_FRONTEND_HOSTNAME)
 keycloak_hostname=$(env_value PEGELHUB_KEYCLOAK_HOSTNAME)
+https_url_suffix=$(env_value PEGELHUB_HTTPS_URL_SUFFIX)
 keycloak_admin_user=$(env_value KEYCLOAK_ADMIN_USER)
 keycloak_admin_password=$(env_value KEYCLOAK_ADMIN_PASSWORD)
 keycloak_db=$(env_value KEYCLOAK_DB)

@@ -9,7 +9,7 @@
 	}
 }
 
-https://{$PEGELHUB_FRONTEND_HOSTNAME} {
+https://{$PEGELHUB_FRONTEND_HOSTNAME}{$PEGELHUB_HTTPS_URL_SUFFIX} {
 	import tls-{$PEGELHUB_TLS_MODE}
 	encode zstd gzip
 	reverse_proxy frontend:80
@@ -18,13 +18,13 @@ https://{$PEGELHUB_FRONTEND_HOSTNAME} {
 	}
 }
 
-https://{$PEGELHUB_API_HOSTNAME} {
+https://{$PEGELHUB_API_HOSTNAME}{$PEGELHUB_HTTPS_URL_SUFFIX} {
 	import tls-{$PEGELHUB_TLS_MODE}
 	encode zstd gzip
 	reverse_proxy core-app:8080
 }
 
-https://{$PEGELHUB_KEYCLOAK_HOSTNAME} {
+https://{$PEGELHUB_KEYCLOAK_HOSTNAME}{$PEGELHUB_HTTPS_URL_SUFFIX} {
 	import tls-{$PEGELHUB_TLS_MODE}
 	encode zstd gzip
 	reverse_proxy keycloak:8080

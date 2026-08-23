@@ -1,10 +1,11 @@
 services:
   frontend:
+    container_name: ${COMPOSE_PROJECT_NAME}-frontend
     image: ${PEGELHUB_FRONTEND_IMAGE:?Set PEGELHUB_FRONTEND_IMAGE}
     restart: unless-stopped
     environment:
       PH_API_BASE_URL: /api/v1
-      PH_KEYCLOAK_URL: https://${PEGELHUB_KEYCLOAK_HOSTNAME}
+      PH_KEYCLOAK_URL: https://${PEGELHUB_KEYCLOAK_HOSTNAME}${PEGELHUB_HTTPS_URL_SUFFIX:-}
       PH_KEYCLOAK_REALM: pegelhub
       PH_KEYCLOAK_CLIENT_ID: pegelhub-frontend
       NGINX_API_UPSTREAM: http://core-app:8080

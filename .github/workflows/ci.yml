@@ -52,11 +52,20 @@ jobs:
       - name: Validate staging backend deployment
         run: deploy/single-host/tests/backend-deployment-test.sh
 
+      - name: Validate cutover Compose models
+        run: deploy/single-host/tests/cutover-readiness-test.sh
+
+      - name: Validate cutover release tooling
+        run: sh -n deploy/cutover/validate-release-manifest.sh
+
       - name: Validate provided certificate installation
         run: deploy/single-host/tests/certificate-installer-test.sh
 
       - name: Verify disposable staging Keycloak bootstrap
         run: deploy/single-host/tests/keycloak-bootstrap-integration.sh
+
+      - name: Verify service-client provisioning
+        run: deploy/single-host/tests/service-client-integration.sh
 
   frontend:
     name: Frontend Checks
