@@ -7,7 +7,7 @@ REPO_DIR=$(CDPATH= cd -- "$DEPLOY_DIR/../.." && pwd)
 DEPLOY_SCRIPT="$DEPLOY_DIR/scripts/deploy.sh"
 STAGING_ACTION="$REPO_DIR/.github/actions/staging-deploy/action.yml"
 IMAGES_WORKFLOW="$REPO_DIR/.github/workflows/images.yml"
-PROJECT_NAME=pegelhub-reset-test
+PROJECT_NAME=pegelhub-staging
 IMAGE_TAG=sha-reset-test
 
 fail() {
@@ -93,6 +93,15 @@ if run_deploy --reset-data wrong-project "$IMAGE_TAG" >/dev/null 2>&1; then
 fi
 [ ! -s "$fake_log" ] || fail "A rejected reset changed Docker state."
 
+sed 's/^COMPOSE_PROJECT_NAME=.*/COMPOSE_PROJECT_NAME=pegelhub-production/' \
+  "$test_env" > "$test_root/production.env"
+original_test_env="$test_env"
+test_env="$test_root/production.env"
+if run_deploy --reset-data pegelhub-production "$IMAGE_TAG" >/dev/null 2>&1; then
+  fail "A production data reset was accepted."
+fi
+test_env="$original_test_env"
+
 cat > "$state_dir/current-release.env" <<'EOF'
 PEGELHUB_IMAGE_TAG=sha-old-schema
 PREVIOUS_PEGELHUB_IMAGE_TAG=
@@ -116,6 +125,22 @@ grep -Fx 'PREVIOUS_PEGELHUB_IMAGE_TAG=' "$state_dir/current-release.env" >/dev/n
 run_deploy sha-next >/dev/null
 if grep -F 'volume rm' "$fake_log" >/dev/null; then
   fail "An ordinary deployment reset data."
+fi
+
+sed \
+  -e 's/^PEGELHUB_HTTP_BIND=.*/PEGELHUB_HTTP_BIND=127.0.0.1:18080/' \
+  -e 's/^PEGELHUB_HTTPS_BIND=.*/PEGELHUB_HTTPS_BIND=127.0.0.1:18443/' \
+  -e 's/^PEGELHUB_HTTPS_URL_SUFFIX=.*/PEGELHUB_HTTPS_URL_SUFFIX=:18443/' \
+  -e 's/^PEGELHUB_HTTPS_CONTAINER_PORT=.*/PEGELHUB_HTTPS_CONTAINER_PORT=18443/' \
+  "$test_env" > "$test_root/rehearsal.env"
+test_env="$test_root/rehearsal.env"
+run_deploy --check sha-rehearsal >/dev/null
+
+sed 's/^PEGELHUB_HTTPS_CONTAINER_PORT=.*/PEGELHUB_HTTPS_CONTAINER_PORT=443/' \
+  "$test_env" > "$test_root/mismatched-rehearsal.env"
+test_env="$test_root/mismatched-rehearsal.env"
+if run_deploy --check sha-rehearsal >/dev/null 2>&1; then
+  fail "A mismatched rehearsal HTTPS listener was accepted."
 fi
 
 grep -F 'default: false' "$IMAGES_WORKFLOW" >/dev/null \

@@ -32,6 +32,11 @@ class FtpConnectorModuleTest {
     }
 
     @Test
+    void validationModeChecksConfigWithoutOpeningConnections() throws Exception {
+        new FtpConnectorModule().validate(ConnectorConfigDirectory.at(Path.of("examples/config")));
+    }
+
+    @Test
     void shouldResolveConnectorConfigFromExplicitConfigDir() throws Exception {
         writeConfig("""
                 timeSeriesId: "11111111-1111-1111-1111-111111111111"

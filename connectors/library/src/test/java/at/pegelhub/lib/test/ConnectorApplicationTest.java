@@ -18,6 +18,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -34,6 +35,10 @@ class ConnectorApplicationTest {
             @Override
             public String name() {
                 return "test connector";
+            }
+
+            @Override
+            public void validate(ConnectorConfigDirectory configDirectory) {
             }
 
             @Override
@@ -74,6 +79,10 @@ class ConnectorApplicationTest {
             }
 
             @Override
+            public void validate(ConnectorConfigDirectory configDirectory) {
+            }
+
+            @Override
             public ConnectorRuntimeDefinition define(
                     ConnectorConfigDirectory configDirectory,
                     PegelHubClientFactory coreClients) {
@@ -91,11 +100,74 @@ class ConnectorApplicationTest {
         assertTrue(closed.get());
     }
 
+    @Test
+    void validateLoadsOnlyTheRequestedConfigurationDirectory() throws Exception {
+        AtomicBoolean defined = new AtomicBoolean(false);
+        AtomicReference<Path> validatedConfigDir = new AtomicReference<>();
+        ConnectorModule module = new ConnectorModule() {
+            @Override
+            public String name() {
+                return "validation test connector";
+            }
+
+            @Override
+            public void validate(ConnectorConfigDirectory configDirectory) {
+                validatedConfigDir.set(configDirectory.path());
+            }
+
+            @Override
+            public ConnectorRuntimeDefinition define(
+                    ConnectorConfigDirectory configDirectory,
+                    PegelHubClientFactory coreClients) {
+                defined.set(true);
+                return ConnectorRuntimeAssembly.begin(name()).complete();
+            }
+        };
+
+        ConnectorApplication.validate(
+                new String[]{"--validate-config", configDir.toString()}, module);
+
+        assertEquals(configDir, validatedConfigDir.get());
+        assertFalse(defined.get());
+    }
+
+    @Test
+    void validateUsesDefaultConfigDirectory() throws Exception {
+        AtomicReference<Path> validatedConfigDir = new AtomicReference<>();
+        ConnectorModule module = moduleCapturingConfigDirectory(new AtomicReference<>());
+
+        ConnectorApplication.validate(new String[]{"--validate-config"}, new ConnectorModule() {
+            @Override
+            public String name() {
+                return module.name();
+            }
+
+            @Override
+            public void validate(ConnectorConfigDirectory configDirectory) {
+                validatedConfigDir.set(configDirectory.path());
+            }
+
+            @Override
+            public ConnectorRuntimeDefinition define(
+                    ConnectorConfigDirectory configDirectory,
+                    PegelHubClientFactory coreClients) throws Exception {
+                return module.define(configDirectory, coreClients);
+            }
+        });
+
+        assertEquals(Path.of("/app/config"), validatedConfigDir.get());
+    }
+
     private static ConnectorModule moduleCapturingConfigDirectory(AtomicReference<Path> seenConfigDir) {
         return new ConnectorModule() {
             @Override
             public String name() {
                 return "test connector";
+            }
+
+            @Override
+            public void validate(ConnectorConfigDirectory configDirectory) {
+                seenConfigDir.set(configDirectory.path());
             }
 
             @Override

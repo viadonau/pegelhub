@@ -1,0 +1,37 @@
+{
+  "version": 1,
+  "sourceGitSha": "replace-with-40-character-main-sha",
+  "core": {
+    "tag": "sha-replace-me",
+    "digest": "sha256:replace-with-64-lowercase-hex"
+  },
+  "connectors": {
+    "ftp": {
+      "tag": "sha-replace-me",
+      "digest": "sha256:replace-with-64-lowercase-hex"
+    },
+    "icc": {
+      "tag": "sha-replace-me",
+      "digest": "sha256:replace-with-64-lowercase-hex"
+    },
+    "iec": {
+      "tag": "sha-replace-me",
+      "digest": "sha256:replace-with-64-lowercase-hex"
+    },
+    "ma": {
+      "tag": "sha-replace-me",
+      "digest": "sha256:replace-with-64-lowercase-hex"
+    },
+    "tstp": {
+      "tag": "sha-replace-me",
+      "digest": "sha256:replace-with-64-lowercase-hex"
+    }
+  },
+  "frontend": {
+    "digest": "sha256:replace-with-64-lowercase-hex"
+  },
+  "migration": {
+    "tag": "v2",
+    "digest": "sha256:replace-with-64-lowercase-hex"
+  }
+}

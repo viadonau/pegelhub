@@ -62,6 +62,7 @@ compose() {
 api_hostname=$(env_value PEGELHUB_API_HOSTNAME)
 frontend_hostname=$(env_value PEGELHUB_FRONTEND_HOSTNAME)
 keycloak_hostname=$(env_value PEGELHUB_KEYCLOAK_HOSTNAME)
+https_url_suffix=$(env_value PEGELHUB_HTTPS_URL_SUFFIX)
 compose_project_name=$(env_value COMPOSE_PROJECT_NAME)
 
 [ -n "$compose_project_name" ] || fail "COMPOSE_PROJECT_NAME is missing."
@@ -78,15 +79,24 @@ if [ "$(env_value PEGELHUB_TRUST_MODE)" = "custom" ]; then
   export CURL_CA_BUNDLE
 fi
 
-FRONTEND_BASE_URL=${FRONTEND_BASE_URL:-https://$frontend_hostname}
-API_BASE_URL=${API_BASE_URL:-https://$api_hostname}
-KEYCLOAK_ISSUER_URI=${KEYCLOAK_ISSUER_URI:-https://$keycloak_hostname/realms/pegelhub}
+FRONTEND_BASE_URL=${FRONTEND_BASE_URL:-https://$frontend_hostname$https_url_suffix}
+API_BASE_URL=${API_BASE_URL:-https://$api_hostname$https_url_suffix}
+KEYCLOAK_BASE_URL=${KEYCLOAK_BASE_URL:-https://$keycloak_hostname$https_url_suffix}
+FRONTEND_BASE_URL=${FRONTEND_BASE_URL%/}
+API_BASE_URL=${API_BASE_URL%/}
+KEYCLOAK_BASE_URL=${KEYCLOAK_BASE_URL%/}
+KEYCLOAK_ISSUER_URI=${KEYCLOAK_ISSUER_URI:-$KEYCLOAK_BASE_URL/realms/pegelhub}
+KEYCLOAK_ISSUER_URI=${KEYCLOAK_ISSUER_URI%/}
 
 unset \
   COMPOSE_PROJECT_NAME \
   PEGELHUB_FRONTEND_HOSTNAME \
   PEGELHUB_API_HOSTNAME \
   PEGELHUB_KEYCLOAK_HOSTNAME \
+  PEGELHUB_HTTP_BIND \
+  PEGELHUB_HTTPS_BIND \
+  PEGELHUB_HTTPS_URL_SUFFIX \
+  PEGELHUB_HTTPS_CONTAINER_PORT \
   PEGELHUB_TLS_MODE \
   PEGELHUB_TRUST_MODE \
   PEGELHUB_TLS_SERVER_DIR \
@@ -109,7 +119,7 @@ unset \
   KEYCLOAK_ADMIN_PASSWORD \
   CORE_JAVA_TOOL_OPTIONS
 
-for tls_url in "$FRONTEND_BASE_URL" "$API_BASE_URL" "https://$keycloak_hostname"; do
+for tls_url in "$FRONTEND_BASE_URL" "$API_BASE_URL" "$KEYCLOAK_BASE_URL"; do
   printf '%s\n' "Checking TLS handshake for $tls_url..."
   retry "TLS handshake for $tls_url" \
     sh -c 'curl -sS -o /dev/null "$1/"' sh "$tls_url"

@@ -110,6 +110,10 @@ compose() {
   PEGELHUB_FRONTEND_HOSTNAME="$compose_frontend_hostname" \
   PEGELHUB_API_HOSTNAME="$compose_api_hostname" \
   PEGELHUB_KEYCLOAK_HOSTNAME="$compose_keycloak_hostname" \
+  PEGELHUB_HTTP_BIND="$compose_http_bind" \
+  PEGELHUB_HTTPS_BIND="$compose_https_bind" \
+  PEGELHUB_HTTPS_URL_SUFFIX="$compose_https_url_suffix" \
+  PEGELHUB_HTTPS_CONTAINER_PORT="$compose_https_container_port" \
   PEGELHUB_TLS_MODE="$compose_tls_mode" \
   PEGELHUB_TRUST_MODE="$compose_trust_mode" \
   PEGELHUB_TLS_SERVER_DIR="$compose_tls_server_dir" \
@@ -206,6 +210,53 @@ validate_environment() {
   validate_public_hostname PEGELHUB_API_HOSTNAME
   validate_public_hostname PEGELHUB_KEYCLOAK_HOSTNAME
 
+  for binding_name in PEGELHUB_HTTP_BIND PEGELHUB_HTTPS_BIND; do
+    binding=$(env_value "$binding_name")
+    if [ -z "$binding" ]; then
+      case "$binding_name" in
+        PEGELHUB_HTTP_BIND) binding=80 ;;
+        *) binding=443 ;;
+      esac
+    fi
+    printf '%s\n' "$binding" \
+      | grep -Eq '^([0-9]{1,5}|(127[.]0[.]0[.]1|localhost):[0-9]{1,5})$' \
+      || fail "$binding_name must be a port or a loopback-address:port binding."
+    port=${binding##*:}
+    [ "$port" -ge 1 ] && [ "$port" -le 65535 ] \
+      || fail "$binding_name port must be between 1 and 65535."
+  done
+
+  https_url_suffix=$(env_value PEGELHUB_HTTPS_URL_SUFFIX)
+  case "$https_url_suffix" in
+    "") ;;
+    :*)
+      suffix_port=${https_url_suffix#:}
+      printf '%s\n' "$suffix_port" | grep -Eq '^[0-9]{1,5}$' \
+        || fail "PEGELHUB_HTTPS_URL_SUFFIX must be empty or :port."
+      [ "$suffix_port" -ge 1 ] && [ "$suffix_port" -le 65535 ] \
+        || fail "PEGELHUB_HTTPS_URL_SUFFIX port must be between 1 and 65535."
+      ;;
+    *) fail "PEGELHUB_HTTPS_URL_SUFFIX must be empty or :port." ;;
+  esac
+  https_binding=$(env_value PEGELHUB_HTTPS_BIND)
+  [ -n "$https_binding" ] || https_binding=443
+  https_binding_port=${https_binding##*:}
+  https_container_port=$(env_value PEGELHUB_HTTPS_CONTAINER_PORT)
+  [ -n "$https_container_port" ] || https_container_port=443
+  printf '%s\n' "$https_container_port" | grep -Eq '^[0-9]{1,5}$' \
+    || fail "PEGELHUB_HTTPS_CONTAINER_PORT must be a port."
+  [ "$https_container_port" -ge 1 ] && [ "$https_container_port" -le 65535 ] \
+    || fail "PEGELHUB_HTTPS_CONTAINER_PORT must be between 1 and 65535."
+  [ "$https_container_port" = "$https_binding_port" ] \
+    || fail "PEGELHUB_HTTPS_CONTAINER_PORT must match the published HTTPS port."
+  if [ "$https_binding_port" = 443 ]; then
+    [ -z "$https_url_suffix" ] || [ "$https_url_suffix" = :443 ] \
+      || fail "PEGELHUB_HTTPS_URL_SUFFIX must match PEGELHUB_HTTPS_BIND."
+  else
+    [ "$https_url_suffix" = ":$https_binding_port" ] \
+      || fail "Alternate HTTPS bindings require a matching PEGELHUB_HTTPS_URL_SUFFIX."
+  fi
+
   validate_retention INFLUX_DATA_RETENTION
   validate_retention INFLUX_TELEMETRY_RETENTION
 
@@ -224,6 +275,13 @@ load_compose_environment() {
   compose_frontend_hostname=$(env_value PEGELHUB_FRONTEND_HOSTNAME)
   compose_api_hostname=$(env_value PEGELHUB_API_HOSTNAME)
   compose_keycloak_hostname=$(env_value PEGELHUB_KEYCLOAK_HOSTNAME)
+  compose_http_bind=$(env_value PEGELHUB_HTTP_BIND)
+  [ -n "$compose_http_bind" ] || compose_http_bind=80
+  compose_https_bind=$(env_value PEGELHUB_HTTPS_BIND)
+  [ -n "$compose_https_bind" ] || compose_https_bind=443
+  compose_https_url_suffix=$(env_value PEGELHUB_HTTPS_URL_SUFFIX)
+  compose_https_container_port=$(env_value PEGELHUB_HTTPS_CONTAINER_PORT)
+  [ -n "$compose_https_container_port" ] || compose_https_container_port=443
   compose_tls_mode=$(env_value PEGELHUB_TLS_MODE)
   compose_trust_mode=$(env_value PEGELHUB_TRUST_MODE)
   compose_tls_server_dir=$(env_value PEGELHUB_TLS_SERVER_DIR)
@@ -261,6 +319,8 @@ load_compose_environment() {
 
 validate_reset_request() {
   [ -n "$RESET_DATA_CONFIRMATION" ] || return 0
+  [ "$compose_project_name" = "pegelhub-staging" ] \
+    || fail "--reset-data is restricted to the pegelhub-staging recovery project."
   [ "$RESET_DATA_CONFIRMATION" = "$compose_project_name" ] \
     || fail "--reset-data confirmation must exactly match COMPOSE_PROJECT_NAME ($compose_project_name)."
   [ "$CHECK_ONLY" = "false" ] || fail "--reset-data cannot be combined with --check."

@@ -34,6 +34,11 @@ class IccConnectorModuleTest {
     }
 
     @Test
+    void validationModeChecksConfigWithoutOpeningConnections() throws Exception {
+        new IccConnectorModule().validate(ConnectorConfigDirectory.at(Path.of("examples/config")));
+    }
+
+    @Test
     void shouldResolveAllConfigFilesFromExplicitConfigDir() throws Exception {
         String configDir = "/tmp/icc-config";
         ConnectorConfigDirectory configDirectory = ConnectorConfigDirectory.at(Path.of(configDir));

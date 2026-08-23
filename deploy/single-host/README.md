@@ -24,6 +24,25 @@ directory as `pegelhub.env`, choose a unique `COMPOSE_PROJECT_NAME`, and replace
 the example hostnames and secrets. Staging keeps
 `COMPOSE_PROJECT_NAME=pegelhub-staging` so existing named volumes are reused.
 
+Production upgrades use a new project name and therefore fresh volumes. Never
+reuse or remove the legacy project or its volumes during this cutover. For a
+side-by-side rehearsal, bind Caddy only to loopback and keep the public URL
+suffix aligned with the alternate HTTPS port:
+
+```dotenv
+COMPOSE_PROJECT_NAME=pegelhub-v2-host-a
+PEGELHUB_HTTP_BIND=127.0.0.1:18080
+PEGELHUB_HTTPS_BIND=127.0.0.1:18443
+PEGELHUB_HTTPS_URL_SUFFIX=:18443
+PEGELHUB_HTTPS_CONTAINER_PORT=18443
+```
+
+Before public cutover, change the bindings back to `80` and `443` and clear
+`PEGELHUB_HTTPS_URL_SUFFIX`, and restore
+`PEGELHUB_HTTPS_CONTAINER_PORT=443`. Permanent containers are named
+`<project>-<service>` for Checkmk. One-shot bootstrap containers remain
+Compose-generated.
+
 ## TLS and trust
 
 | Installation | `PEGELHUB_TLS_MODE` | `PEGELHUB_TRUST_MODE` |
@@ -52,17 +71,17 @@ committed.
 
 ## Operations
 
-The operational metadata catalog uses a clean Flyway V1 baseline. Before its
-first deployment, reset the PostgreSQL metadata and InfluxDB measurement volumes
-together. This is irreversible and deliberately requires the Compose project
-name as confirmation:
+The operational metadata catalog uses a clean Flyway V1 baseline. Staging has a
+confirmation-gated recovery reset for its existing disposable project:
 
 ```sh
 deploy/single-host/scripts/deploy.sh \
   --reset-data pegelhub-staging sha-<short-sha>
 ```
 
-The command preserves Caddy, Keycloak, and frontend state. GitHub's `Images`
+Never use `--reset-data` in production. Production creates a fresh V2 project
+and retains the complete legacy project. The staging command preserves Caddy,
+Keycloak, and frontend state. GitHub's `Images`
 workflow exposes the same operation only through the manual
 `reset_staging_data` input; ordinary push deployments never reset data. See the
 [Flyway guide](../../core/docs/flyway.md) for why the V2 reset is required.
@@ -93,6 +112,16 @@ For a new or deliberately emptied Keycloak database, stop Keycloak and run:
 
 ```sh
 deploy/single-host/scripts/bootstrap-keycloak.sh
+```
+
+Provision each durable connector identity with its exact Core roles. The
+protected secret is created once and is compared, never rotated, on reruns:
+
+```sh
+deploy/single-host/scripts/provision-service-client.sh \
+  iec-host-a \
+  /etc/pegelhub/host-a/secrets/IEC_HOST_A_CLIENT_SECRET \
+  metadata:read measurement:write
 ```
 
 Run route and internal health checks independently with:
