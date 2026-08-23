@@ -14,6 +14,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class IccSynchronizerTest {
@@ -67,11 +68,23 @@ class IccSynchronizerTest {
         assertTrue(external.sentMeasurements.isEmpty());
     }
 
+    @Test
+    void shouldNotSubmitAnEmptyMeasurementBatch() {
+        FakeCommunicator core = new FakeCommunicator(List.of());
+        FakeCommunicator external = new FakeCommunicator(List.of());
+
+        new IccSynchronizer(core, external, List.of(
+                new IccMapping(TIME_SERIES_ID, EXTERNAL_TIME_SERIES_ID, MappingDirection.CORE_TO_EXTERNAL)), Duration.ofHours(24)).run();
+
+        assertFalse(external.sendCalled);
+    }
+
     private static class FakeCommunicator implements PegelHubClient {
         private final Collection<Measurement> measurements;
         private UUID requestedTimeSeriesId;
         private Duration requestedTimespan;
         private List<Measurement> sentMeasurements = List.of();
+        private boolean sendCalled;
 
         private FakeCommunicator(Collection<Measurement> measurements) {
             this.measurements = measurements;
@@ -86,6 +99,7 @@ class IccSynchronizerTest {
 
         @Override
         public void sendMeasurements(List<Measurement> measurements) {
+            this.sendCalled = true;
             this.sentMeasurements = measurements;
         }
 

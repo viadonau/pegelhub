@@ -64,9 +64,8 @@ the configured polling interval, rewrites each measurement to the target time
 series ID, and submits that batch. Mapping failures are logged independently so
 later mappings still run.
 
-The current implementation also submits when the source returns no points.
-Current Core rejects an empty measurement batch, so an empty source window is
-logged as a mapping failure rather than a no-op.
+An empty source window is a no-op; the connector does not submit an empty batch
+to Core.
 
 The connector stores no cursor, copied-point ledger, retry queue, or durable
 state. Because the scheduler uses a fixed delay after processing, processing
