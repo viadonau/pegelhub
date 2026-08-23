@@ -100,7 +100,21 @@
             "buildTarget": "pegelhub-frontend-next:build:development",
             "tsConfig": "tsconfig.spec.json",
             "runner": "vitest",
-            "watch": false
+            "watch": false,
+            "exclude": ["**/*.browser.spec.ts"]
+          },
+          "configurations": {
+            "browser": {
+              "browsers": ["chromiumHeadless"],
+              "include": ["src/**/*.browser.spec.ts"],
+              "exclude": []
+            },
+            "coverage": {
+              "coverage": true,
+              "coverageInclude": ["src/**/*.ts"],
+              "coverageExclude": ["src/**/*.spec.ts", "src/**/*.browser.spec.ts", "src/testing/**"],
+              "coverageReporters": ["text-summary"]
+            }
           }
         }
       }
