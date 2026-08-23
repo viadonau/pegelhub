@@ -55,11 +55,15 @@ public class IccSynchronizer implements Runnable {
                             measurement.getObservedAt(),
                             measurement.getValue()))
                     .toList();
+            if (measurements.isEmpty()) {
+                LOG.debug("No recent measurements for TimeSeries {}; skipping sync", sourceTimeSeriesId);
+                return;
+            }
             target.sendMeasurements(measurements);
         } catch (NotFoundException nfe) {
-            LOG.error("No data found for TimeSeries " + sourceTimeSeriesId);
+            LOG.error("No data found for TimeSeries {}", sourceTimeSeriesId, nfe);
         } catch (Exception ex) {
-            LOG.error("Error when syncing data for TimeSeries " + sourceTimeSeriesId);
+            LOG.error("Error when syncing data for TimeSeries {}", sourceTimeSeriesId, ex);
         }
     }
 }
