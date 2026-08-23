@@ -1,0 +1,26 @@
+name: ${COMPOSE_PROJECT_NAME:?Set COMPOSE_PROJECT_NAME}
+
+x-pegelhub-logging: &pegelhub-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
+services:
+  connector:
+    image: ${PEGELHUB_CONNECTOR_IMAGE:?Set PEGELHUB_CONNECTOR_IMAGE}
+    logging: *pegelhub-logging
+    pull_policy: always
+    restart: unless-stopped
+    environment:
+      JAVA_TOOL_OPTIONS: ${CONNECTOR_JAVA_TOOL_OPTIONS:-}
+      PEGELHUB_TRUST_MODE: ${PEGELHUB_TRUST_MODE:-system}
+    volumes:
+      - type: bind
+        source: ./config
+        target: /app/config
+        read_only: true
+      - type: bind
+        source: ./trust
+        target: /run/pegelhub/extra-ca
+        read_only: true

@@ -3,19 +3,26 @@ set -eu
 
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 DEPLOY_DIR=$(CDPATH= cd -- "$SCRIPT_DIR/.." && pwd)
+. "$SCRIPT_DIR/../../lib/env-file.sh"
 COMPOSE_FILE="$DEPLOY_DIR/compose.yaml"
-ENV_FILE="${PEGELHUB_STAGING_ENV_FILE:-$DEPLOY_DIR/.env}"
-STATE_DIR="$DEPLOY_DIR/state"
+CONFIG_DIR=${PEGELHUB_CONFIG_DIR:-}
+ENV_FILE=${PEGELHUB_ENV_FILE:-}
+if [ -z "$ENV_FILE" ]; then
+  [ -n "$CONFIG_DIR" ] || { printf 'ERROR: Set PEGELHUB_CONFIG_DIR or PEGELHUB_ENV_FILE.\n' >&2; exit 1; }
+  ENV_FILE="$CONFIG_DIR/pegelhub.env"
+fi
+[ -n "$CONFIG_DIR" ] || CONFIG_DIR=$(CDPATH= cd -- "$(dirname -- "$ENV_FILE")" && pwd)
+STATE_DIR="${PEGELHUB_STATE_DIR:-}"
+[ -n "$STATE_DIR" ] || { printf 'ERROR: Set PEGELHUB_STATE_DIR.\n' >&2; exit 1; }
 CURRENT_RELEASE_FILE="$STATE_DIR/current-release.env"
 LEGACY_RENDERED_FILE="$STATE_DIR/compose.rendered.yaml"
-LOCK_DIR="$STATE_DIR/keycloak-bootstrap.lock"
+LOCK_DIR="$STATE_DIR/operation.lock"
 
 CHECK_ONLY=false
 ROLLBACK=false
 REFRESH_KEYCLOAK=false
 REQUESTED_TAG=""
 LOCK_OWNED=false
-LOCK_TOKEN=""
 compose_structure=""
 
 usage() {
@@ -42,14 +49,7 @@ cleanup() {
   [ -z "$compose_structure" ] || rm -f "$compose_structure"
   if [ "$LOCK_OWNED" = "true" ]; then
     LOCK_OWNED=false
-    recorded_token=""
-    if [ -f "$LOCK_DIR/owner" ]; then
-      IFS= read -r recorded_token < "$LOCK_DIR/owner" || true
-    fi
-    if [ -n "$LOCK_TOKEN" ] && [ "$recorded_token" = "$LOCK_TOKEN" ]; then
-      rm -f "$LOCK_DIR/owner"
-      rmdir "$LOCK_DIR" >/dev/null 2>&1 || true
-    fi
+    rmdir "$LOCK_DIR" >/dev/null 2>&1 || true
   fi
 }
 
@@ -63,12 +63,9 @@ exit_on_signal() {
 acquire_operation_lock() {
   mkdir -p "$STATE_DIR"
   if ! mkdir "$LOCK_DIR" 2>/dev/null; then
-    fail "Another staging deploy or Keycloak bootstrap operation is active."
+    fail "Another deploy or Keycloak bootstrap operation is active."
   fi
   chmod 700 "$LOCK_DIR"
-  LOCK_TOKEN="deploy-$$-$(date +%s)"
-  printf '%s\n' "$LOCK_TOKEN" > "$LOCK_DIR/owner"
-  chmod 600 "$LOCK_DIR/owner"
   LOCK_OWNED=true
 }
 
@@ -102,10 +99,13 @@ compose() {
   COMPOSE_PROJECT_NAME="$compose_project_name" \
   COMPOSE_IGNORE_ORPHANS=true \
   COMPOSE_REMOVE_ORPHANS=false \
-  FTP_CONFIG_DIR="$compose_ftp_config_dir" \
   PEGELHUB_FRONTEND_HOSTNAME="$compose_frontend_hostname" \
   PEGELHUB_API_HOSTNAME="$compose_api_hostname" \
   PEGELHUB_KEYCLOAK_HOSTNAME="$compose_keycloak_hostname" \
+  PEGELHUB_TLS_MODE="$compose_tls_mode" \
+  PEGELHUB_TRUST_MODE="$compose_trust_mode" \
+  PEGELHUB_TLS_SERVER_DIR="$compose_tls_server_dir" \
+  PEGELHUB_TRUST_DIR="$compose_trust_dir" \
   META_PASSWORD="$compose_meta_password" \
   META_DB="$compose_meta_db" \
   INFLUX_ADMIN_USER="$compose_influx_admin_user" \
@@ -124,7 +124,6 @@ compose() {
   CORE_JAVA_TOOL_OPTIONS="$compose_core_java_tool_options" \
   FLYWAY_BASELINE_ON_MIGRATE="$compose_flyway_baseline" \
   INFLUX_LATEST_RANGE="$compose_influx_latest_range" \
-  FTP_JAVA_TOOL_OPTIONS="$compose_ftp_java_tool_options" \
   PEGELHUB_IMAGE_TAG="$PEGELHUB_IMAGE_TAG" \
     docker compose \
       -p "$compose_project_name" \
@@ -133,34 +132,10 @@ compose() {
       "$@"
 }
 
-env_value() {
-  key="$1"
-  [ -f "$ENV_FILE" ] || return 0
-  awk -F= -v key="$key" '
-    $0 !~ /^[[:space:]]*(#|$)/ {
-      if ($1 == key) {
-        value = substr($0, length($1) + 2)
-        gsub(/^[[:space:]]+|[[:space:]]+$/, "", value)
-        gsub(/^"|"$/, "", value)
-        gsub(/^'\''|'\''$/, "", value)
-        print value
-      }
-    }
-  ' "$ENV_FILE" | tail -n 1
-}
-
 release_value() {
   key="$1"
   [ -f "$CURRENT_RELEASE_FILE" ] || return 0
   awk -F= -v key="$key" '$1 == key { print substr($0, length($1) + 2) }' "$CURRENT_RELEASE_FILE" | tail -n 1
-}
-
-resolve_path() {
-  path="$1"
-  case "$path" in
-    /*) printf '%s\n' "$path" ;;
-    *) printf '%s\n' "$DEPLOY_DIR/$path" ;;
-  esac
 }
 
 validate_retention() {
@@ -184,20 +159,20 @@ validate_public_hostname() {
     test|*.test)
       case "$compose_project_name" in
         pegelhub-keycloak-test-*) ;;
-        *) fail "$variable_name must not use a reserved test hostname for staging." ;;
+        *) fail "$variable_name must not use a reserved test hostname." ;;
       esac
       ;;
   esac
   case "$normalized" in
     ""|localhost|*.localhost|example|*.example|example.com|*.example.com|invalid|*.invalid)
-      fail "$variable_name must be a real staging hostname, not a placeholder or loopback address."
+      fail "$variable_name must be a real hostname, not a placeholder or loopback address."
       ;;
     *://*|*/*|*:*|.*|*.|*..*|*[!a-z0-9.-]*)
       fail "$variable_name must contain only a public DNS hostname without a scheme, port, or path."
       ;;
     *.*) ;;
     *)
-      fail "$variable_name must be a fully qualified staging hostname."
+      fail "$variable_name must be a fully qualified hostname."
       ;;
   esac
   if printf '%s\n' "$normalized" | grep -Eq '^[0-9]+([.][0-9]+){3}$|(^|[.])-|-([.]|$)'; then
@@ -206,17 +181,18 @@ validate_public_hostname() {
 }
 
 validate_environment() {
-  [ -f "$ENV_FILE" ] || fail "Missing $ENV_FILE. Copy .env.example to .env and fill it on the staging host."
-
-  environment=$(env_value PEGELHUB_ENVIRONMENT)
-  marker=$(env_value PEGELHUB_DEPLOY_MARKER)
-  [ "$environment" = "staging" ] || fail "PEGELHUB_ENVIRONMENT must be staging."
-  [ "$marker" = "pegelhub-staging" ] || fail "PEGELHUB_DEPLOY_MARKER must be pegelhub-staging."
-
+  [ -f "$ENV_FILE" ] || fail "Missing deployment env file: $ENV_FILE"
   compose_project_name=$(env_value COMPOSE_PROJECT_NAME)
-  case "$compose_project_name" in
-    pegelhub-staging|pegelhub-keycloak-test-*) ;;
-    *) fail "COMPOSE_PROJECT_NAME must identify the staging or disposable Keycloak test project." ;;
+  [ -n "$compose_project_name" ] || fail "COMPOSE_PROJECT_NAME is required."
+
+  case "$(env_value PEGELHUB_TLS_MODE)" in
+    automatic|provided) ;;
+    *) fail "PEGELHUB_TLS_MODE must be automatic or provided." ;;
+  esac
+
+  case "$(env_value PEGELHUB_TRUST_MODE)" in
+    system|custom) ;;
+    *) fail "PEGELHUB_TRUST_MODE must be system or custom." ;;
   esac
 
   validate_public_hostname PEGELHUB_FRONTEND_HOSTNAME
@@ -240,20 +216,28 @@ validate_environment() {
     fail "INFLUX_INTERNAL_BUCKET, INFLUX_DATA_BUCKET, and INFLUX_TELEMETRY_BUCKET must be different."
   fi
 
-  ftp_config_dir=$(env_value FTP_CONFIG_DIR)
-  [ -n "$ftp_config_dir" ] || ftp_config_dir="./ftp-config"
-  ftp_config_dir=$(resolve_path "$ftp_config_dir")
-  [ -d "$ftp_config_dir" ] || fail "FTP config directory does not exist: $ftp_config_dir"
-  [ -f "$ftp_config_dir/connector.yaml" ] || fail "Missing FTP connector.yaml in $ftp_config_dir"
-  [ -d "$ftp_config_dir/mappings" ] || fail "Missing FTP mappings directory in $ftp_config_dir"
-
 }
 
 load_compose_environment() {
-  compose_ftp_config_dir=$ftp_config_dir
   compose_frontend_hostname=$(env_value PEGELHUB_FRONTEND_HOSTNAME)
   compose_api_hostname=$(env_value PEGELHUB_API_HOSTNAME)
   compose_keycloak_hostname=$(env_value PEGELHUB_KEYCLOAK_HOSTNAME)
+  compose_tls_mode=$(env_value PEGELHUB_TLS_MODE)
+  compose_trust_mode=$(env_value PEGELHUB_TRUST_MODE)
+  compose_tls_server_dir=$(env_value PEGELHUB_TLS_SERVER_DIR)
+  [ -n "$compose_tls_server_dir" ] || compose_tls_server_dir="$CONFIG_DIR/tls/server"
+  compose_trust_dir=$(env_value PEGELHUB_TRUST_DIR)
+  [ -n "$compose_trust_dir" ] || compose_trust_dir="$CONFIG_DIR/tls/trust"
+  [ -d "$compose_tls_server_dir" ] || fail "Missing TLS server directory: $compose_tls_server_dir"
+  [ -d "$compose_trust_dir" ] || fail "Missing trust directory: $compose_trust_dir"
+  if [ "$compose_tls_mode" = "provided" ]; then
+    set -- "$compose_tls_server_dir"/current/*.pem
+    [ -f "$1" ] || fail "Provided TLS mode requires an installed current certificate release."
+  fi
+  if [ "$compose_trust_mode" = "custom" ]; then
+    set -- "$compose_trust_dir"/*.crt
+    [ -f "$1" ] || fail "Custom trust mode requires at least one *.crt certificate."
+  fi
   compose_meta_password=$(env_value META_PASSWORD)
   compose_meta_db=$(env_value META_DB)
   compose_influx_admin_user=$(env_value INFLUX_ADMIN_USER)
@@ -272,7 +256,6 @@ load_compose_environment() {
   compose_core_java_tool_options=$(env_value CORE_JAVA_TOOL_OPTIONS)
   compose_flyway_baseline=$(env_value FLYWAY_BASELINE_ON_MIGRATE)
   compose_influx_latest_range=$(env_value INFLUX_LATEST_RANGE)
-  compose_ftp_java_tool_options=$(env_value FTP_JAVA_TOOL_OPTIONS)
 }
 
 select_tag() {
@@ -299,12 +282,12 @@ validate_compose_structure() {
   structure="$1"
 
   if grep -Eq '^[[:space:]]+build:' "$structure"; then
-    fail "Staging Compose contains a build section. Staging must deploy registry images."
+    fail "Deployment Compose contains a build section; deploy registry images instead."
   fi
 
   if grep -Eq 'target: (5432|5444|8081|8082|8111|9000)' "$structure" ||
      grep -Eq 'published: "?((5432|5444|8081|8082|8111|9000))"?' "$structure"; then
-    fail "Staging Compose publishes a database, actuator, InfluxDB, Keycloak, or management port."
+    fail "Deployment Compose publishes a database, actuator, InfluxDB, Keycloak, or management port."
   fi
 }
 
@@ -313,13 +296,9 @@ validate_compose_images() {
 
   if ! printf '%s\n' "$images" \
     | grep -Fx "ghcr.io/viadonau/pegelhub-core:$PEGELHUB_IMAGE_TAG" >/dev/null; then
-    fail "Staging Compose does not use the requested Core image tag."
+    fail "Deployment Compose does not use the requested Core image tag."
   fi
 
-  if ! printf '%s\n' "$images" \
-    | grep -Fx "ghcr.io/viadonau/pegelhub-ftp-connector:$PEGELHUB_IMAGE_TAG" >/dev/null; then
-    fail "Staging Compose does not use the requested FTP connector image tag."
-  fi
 }
 
 record_release() {
@@ -351,7 +330,7 @@ validate_compose_images
 rm -f "$compose_structure"
 compose_structure=""
 
-printf '%s\n' "Validated staging Compose for image tag $PEGELHUB_IMAGE_TAG."
+printf '%s\n' "Validated deployment Compose for image tag $PEGELHUB_IMAGE_TAG."
 
 if [ "$CHECK_ONLY" = "true" ]; then
   printf '%s\n' "Check only; no images pulled and no services changed."
@@ -362,23 +341,24 @@ acquire_operation_lock
 
 if [ -f "$LEGACY_RENDERED_FILE" ]; then
   rm -f "$LEGACY_RENDERED_FILE"
-  printf '%s\n' "Removed the legacy rendered Compose artifact from protected staging state."
+  printf '%s\n' "Removed the legacy rendered Compose artifact from protected deployment state."
 fi
 
-printf '%s\n' "Pulling staging images..."
+printf '%s\n' "Pulling deployment images..."
 compose pull
 
 if [ "$REFRESH_KEYCLOAK" = "true" ]; then
-  printf '%s\n' "Recreating staging Keycloak for theme/config reload; realm state is unchanged..."
+  printf '%s\n' "Recreating Keycloak for theme/config reload; realm state is unchanged..."
   compose up -d --force-recreate keycloak
 fi
 
-printf '%s\n' "Starting staging stack..."
+printf '%s\n' "Starting deployment stack..."
 compose up -d
 
-printf '%s\n' "Running staging smoke checks..."
-PEGELHUB_STAGING_ENV_FILE="$ENV_FILE" "$SCRIPT_DIR/smoke.sh"
+printf '%s\n' "Running deployment smoke checks..."
+PEGELHUB_CONFIG_DIR="$CONFIG_DIR" PEGELHUB_STATE_DIR="$STATE_DIR" \
+  PEGELHUB_ENV_FILE="$ENV_FILE" "$SCRIPT_DIR/smoke.sh"
 
 record_release
 
-printf '%s\n' "Staging deploy complete for image tag $PEGELHUB_IMAGE_TAG."
+printf '%s\n' "Deployment complete for image tag $PEGELHUB_IMAGE_TAG."

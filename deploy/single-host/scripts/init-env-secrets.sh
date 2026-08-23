@@ -3,39 +3,26 @@ set -eu
 
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 DEPLOY_DIR=$(CDPATH= cd -- "$SCRIPT_DIR/.." && pwd)
-ENV_FILE="${PEGELHUB_STAGING_ENV_FILE:-$DEPLOY_DIR/.env}"
-ENV_EXAMPLE_FILE="$DEPLOY_DIR/.env.example"
+. "$SCRIPT_DIR/../../lib/env-file.sh"
+CONFIG_DIR=${PEGELHUB_CONFIG_DIR:-}
+[ -n "$CONFIG_DIR" ] || { printf 'ERROR: Set PEGELHUB_CONFIG_DIR.\n' >&2; exit 1; }
+ENV_FILE="${PEGELHUB_ENV_FILE:-$CONFIG_DIR/pegelhub.env}"
+ENV_EXAMPLE_FILE="${PEGELHUB_ENV_EXAMPLE_FILE:-$DEPLOY_DIR/pegelhub.env.example}"
 
 fail() {
   printf '%s\n' "ERROR: $*" >&2
   exit 1
 }
 
-env_value() {
-  key="$1"
-  [ -f "$ENV_FILE" ] || return 0
-  awk -F= -v key="$key" '
-    $0 !~ /^[[:space:]]*(#|$)/ {
-      if ($1 == key) {
-        value = substr($0, length($1) + 2)
-        gsub(/^[[:space:]]+|[[:space:]]+$/, "", value)
-        gsub(/^"|"$/, "", value)
-        gsub(/^'\''|'\''$/, "", value)
-        print value
-      }
-    }
-  ' "$ENV_FILE" | tail -n 1
-}
-
 generate_secret() {
-  command -v openssl >/dev/null 2>&1 || fail "openssl is required to generate staging secrets."
+  command -v openssl >/dev/null 2>&1 || fail "openssl is required to generate deployment secrets."
   openssl rand -base64 32 | tr -d '\n'
 }
 
 should_initialize() {
   value="$1"
   case "$value" in
-    ""|replace-with-staging-*|CHANGE_ME|changeme)
+    ""|replace-with-staging-*|replace-with-pegelhub-*|CHANGE_ME|changeme)
       return 0
       ;;
     *)
@@ -47,7 +34,7 @@ should_initialize() {
 replace_or_append() {
   key="$1"
   value="$2"
-  tmp_file=$(mktemp "$DEPLOY_DIR/.env.XXXXXX")
+  tmp_file=$(mktemp "$CONFIG_DIR/.env.XXXXXX")
 
   awk -v key="$key" -v value="$value" '
     BEGIN { found = 0 }

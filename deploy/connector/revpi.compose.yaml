@@ -1,0 +1,4 @@
+services:
+  connector:
+    devices:
+      - "/dev/piControl0:/dev/piControl0"

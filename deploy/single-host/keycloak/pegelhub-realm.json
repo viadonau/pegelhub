@@ -1,7 +1,7 @@
 {
   "realm": "pegelhub",
   "enabled": true,
-  "displayName": "PegelHub Staging",
+  "displayName": "PegelHub",
   "loginTheme": "pegelhub",
   "internationalizationEnabled": true,
   "supportedLocales": [

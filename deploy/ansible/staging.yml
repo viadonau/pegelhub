@@ -29,6 +29,9 @@
           - pegelhub_staging_repo_url | length > 0
           - pegelhub_staging_repo_dir | length > 0
           - pegelhub_staging_repo_version | length > 0
+          - pegelhub_staging_config_dir == "/etc/pegelhub/staging"
+          - pegelhub_staging_data_dir == "/var/lib/pegelhub/staging"
+          - pegelhub_staging_ftp_connector_dir == "/etc/pegelhub/connectors/staging-ftp"
 
   tasks:
     - name: Install base packages
@@ -149,33 +152,75 @@
       become: true
       become_user: "{{ pegelhub_staging_deploy_user }}"
 
-    - name: Create staging runtime directories
+    - name: Create staging configuration directories
       ansible.builtin.file:
-        path: "{{ pegelhub_staging_repo_dir }}/{{ item.path }}"
+        path: "{{ item.path }}"
         state: directory
         owner: "{{ pegelhub_staging_deploy_user }}"
         group: "{{ pegelhub_staging_deploy_group }}"
         mode: "{{ item.mode }}"
       loop:
-        - path: deploy/staging/ftp-config
-          mode: "0700"
-        - path: deploy/staging/state
+        - path: "{{ pegelhub_staging_config_dir }}"
           mode: "0750"
+        - path: "{{ pegelhub_staging_config_dir }}/tls"
+          mode: "0700"
+        - path: "{{ pegelhub_staging_config_dir }}/tls/server"
+          mode: "0700"
+        - path: "{{ pegelhub_staging_config_dir }}/tls/trust"
+          mode: "0755"
+        - path: "{{ pegelhub_staging_data_dir }}"
+          mode: "0750"
+        - path: "{{ pegelhub_staging_data_dir }}/state"
+          mode: "0750"
+        - path: "{{ pegelhub_staging_ftp_connector_dir }}"
+          mode: "0750"
+        - path: "{{ pegelhub_staging_ftp_connector_dir }}/config"
+          mode: "0700"
+        - path: "{{ pegelhub_staging_ftp_connector_dir }}/trust"
+          mode: "0755"
+
+    - name: Create staging FTP connector env file from example when missing
+      ansible.builtin.copy:
+        src: "{{ pegelhub_staging_repo_dir }}/deploy/connector/connector.env.example"
+        dest: "{{ pegelhub_staging_ftp_connector_dir }}/connector.env"
+        remote_src: true
+        force: false
+        owner: "{{ pegelhub_staging_deploy_user }}"
+        group: "{{ pegelhub_staging_deploy_group }}"
+        mode: "0640"
+      register: staging_connector_env
+
+    - name: Name a new staging FTP connector project
+      ansible.builtin.lineinfile:
+        path: "{{ pegelhub_staging_ftp_connector_dir }}/connector.env"
+        regexp: '^COMPOSE_PROJECT_NAME='
+        line: 'COMPOSE_PROJECT_NAME=pegelhub-staging-ftp'
+      when: staging_connector_env.changed
 
     - name: Create staging env file from example when missing
       ansible.builtin.copy:
-        src: "{{ pegelhub_staging_repo_dir }}/deploy/staging/.env.example"
-        dest: "{{ pegelhub_staging_repo_dir }}/deploy/staging/.env"
+        src: "{{ pegelhub_staging_repo_dir }}/deploy/single-host/pegelhub.env.example"
+        dest: "{{ pegelhub_staging_config_dir }}/pegelhub.env"
         remote_src: true
         force: false
         owner: "{{ pegelhub_staging_deploy_user }}"
         group: "{{ pegelhub_staging_deploy_group }}"
         mode: "0600"
+      register: staging_platform_env
+
+    - name: Name a new staging platform project
+      ansible.builtin.lineinfile:
+        path: "{{ pegelhub_staging_config_dir }}/pegelhub.env"
+        regexp: '^COMPOSE_PROJECT_NAME='
+        line: 'COMPOSE_PROJECT_NAME=pegelhub-staging'
+      when: staging_platform_env.changed
 
     - name: Sync missing staging env template keys
       ansible.builtin.command:
-        cmd: "{{ pegelhub_staging_repo_dir }}/deploy/staging/scripts/sync-env-template.sh"
-        chdir: "{{ pegelhub_staging_repo_dir }}/deploy/staging"
+        cmd: "{{ pegelhub_staging_repo_dir }}/deploy/single-host/scripts/sync-env-template.sh"
+        chdir: "{{ pegelhub_staging_repo_dir }}"
+      environment:
+        PEGELHUB_CONFIG_DIR: "{{ pegelhub_staging_config_dir }}"
       become: true
       become_user: "{{ pegelhub_staging_deploy_user }}"
       register: sync_env_template_result
@@ -183,8 +228,10 @@
 
     - name: Initialize server-local staging secrets
       ansible.builtin.command:
-        cmd: "{{ pegelhub_staging_repo_dir }}/deploy/staging/scripts/init-env-secrets.sh"
-        chdir: "{{ pegelhub_staging_repo_dir }}/deploy/staging"
+        cmd: "{{ pegelhub_staging_repo_dir }}/deploy/single-host/scripts/init-env-secrets.sh"
+        chdir: "{{ pegelhub_staging_repo_dir }}"
+      environment:
+        PEGELHUB_CONFIG_DIR: "{{ pegelhub_staging_config_dir }}"
       become: true
       become_user: "{{ pegelhub_staging_deploy_user }}"
       register: init_env_secrets_result
@@ -194,11 +241,12 @@
       ansible.builtin.debug:
         msg:
           - "Staging host bootstrap complete."
-          - "Review {{ pegelhub_staging_repo_dir }}/deploy/staging/.env and fill hostnames and the Core image tag."
+          - "Review {{ pegelhub_staging_config_dir }}/pegelhub.env and fill hostnames and the Core image tag."
           - "Missing keys from .env.example are appended without overwriting existing values."
           - "Server-local database and Keycloak secrets are initialized automatically when placeholders are present."
-          - "After manually enrolling the staging FTP client, create connector.yaml and mappings/*.yaml under {{ pegelhub_staging_repo_dir }}/deploy/staging/ftp-config."
+          - "After manually enrolling the staging FTP client, create connector.yaml and mappings/*.yaml under {{ pegelhub_staging_ftp_connector_dir }}/config, and set its Core and Keycloak URLs to the published staging FQDNs."
           - "This playbook does not import or reset Keycloak; use the explicit bootstrap only for a stopped, new or deliberately emptied Keycloak database."
           - "Log in to GHCR on the staging host if packages are private."
-          - "Run {{ pegelhub_staging_repo_dir }}/deploy/staging/scripts/deploy.sh --check sha-<short-sha> as {{ pegelhub_staging_deploy_user }}."
-          - "Frontend releases use the same checkout and deploy user but are activated separately through deploy/staging/scripts/deploy-frontend.sh."
+          - "Run deploy/single-host/scripts/deploy.sh with PEGELHUB_CONFIG_DIR={{ pegelhub_staging_config_dir }} and PEGELHUB_STATE_DIR={{ pegelhub_staging_data_dir }}/state."
+          - "The staging FTP connector is deployed separately with deploy/connector/compose.yaml and {{ pegelhub_staging_ftp_connector_dir }}/connector.env."
+          - "Frontend releases use the same checkout and deploy user but are activated separately through deploy/single-host/scripts/deploy-frontend.sh."

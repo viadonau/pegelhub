@@ -1,4 +1,16 @@
+# Automatic mode uses Caddy's built-in certificate management, so its dynamic
+# import intentionally has no additional directives.
+(tls-automatic) {
+}
+
+(tls-provided) {
+	tls {
+		load /etc/caddy/certificates/current
+	}
+}
+
 https://{$PEGELHUB_FRONTEND_HOSTNAME} {
+	import tls-{$PEGELHUB_TLS_MODE}
 	encode zstd gzip
 	reverse_proxy frontend:80
 	handle_errors {
@@ -7,11 +19,13 @@ https://{$PEGELHUB_FRONTEND_HOSTNAME} {
 }
 
 https://{$PEGELHUB_API_HOSTNAME} {
+	import tls-{$PEGELHUB_TLS_MODE}
 	encode zstd gzip
 	reverse_proxy core-app:8080
 }
 
 https://{$PEGELHUB_KEYCLOAK_HOSTNAME} {
+	import tls-{$PEGELHUB_TLS_MODE}
 	encode zstd gzip
 	reverse_proxy keycloak:8080
 }

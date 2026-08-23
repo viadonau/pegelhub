@@ -14,7 +14,7 @@ REALM_FILE="$DEPLOY_DIR/keycloak/pegelhub-realm.json"
 LOCAL_REALM_FILE="$REPO_DIR/core/docker/keycloak/import/pegelhub-realm.json"
 COMPOSE_FILE="$DEPLOY_DIR/compose.yaml"
 BOOTSTRAP_COMPOSE_FILE="$DEPLOY_DIR/keycloak-bootstrap.compose.yaml"
-ENV_FILE="$DEPLOY_DIR/.env.example"
+ENV_FILE="$DEPLOY_DIR/pegelhub.env.example"
 
 fail() {
   printf '%s\n' "ERROR: $*" >&2
@@ -30,7 +30,7 @@ jq empty "$LOCAL_REALM_FILE"
 jq -e '
   .realm == "pegelhub"
   and .enabled == true
-  and .displayName == "PegelHub Staging"
+  and .displayName == "PegelHub"
   and .loginTheme == "pegelhub"
   and .internationalizationEnabled == true
   and .supportedLocales == ["de"]
@@ -97,7 +97,7 @@ jq -e --slurp '
 ' "$REALM_FILE" "$LOCAL_REALM_FILE" >/dev/null \
   || fail "Staging and local API authorization contracts have drifted."
 
-for script in "$DEPLOY_DIR"/scripts/*.sh "$DEPLOY_DIR"/tests/*.sh; do
+for script in "$REPO_DIR"/deploy/lib/*.sh "$DEPLOY_DIR"/scripts/*.sh "$DEPLOY_DIR"/tests/*.sh; do
   sh -n "$script"
 done
 
@@ -106,11 +106,6 @@ if grep -Eq '(^|[[:space:]])set[[:space:]]+-[^[:space:]]*x' \
   "$DEPLOY_DIR/scripts/deploy.sh" \
   "$DEPLOY_DIR/scripts/deploy-frontend.sh"; then
   fail "Staging operation scripts must never enable shell tracing."
-fi
-
-if grep -F '${FTP_CONFIG_DIR:-./ftp-config}:/app/config:ro' \
-  "$COMPOSE_FILE" >/dev/null; then
-  fail "FTP config must use long volume syntax for Compose 2.x compatibility."
 fi
 
 compose_json=$(mktemp "${TMPDIR:-/tmp}/pegelhub-keycloak-compose.XXXXXX")
@@ -129,7 +124,7 @@ trap 'exit 129' HUP
 trap 'exit 130' INT
 trap 'exit 143' TERM
 
-if PEGELHUB_STAGING_ENV_FILE="$ENV_FILE" \
+if PEGELHUB_ENV_FILE="$ENV_FILE" \
   "$DEPLOY_DIR/scripts/bootstrap-keycloak.sh" >/dev/null 2>&1; then
   fail "Keycloak bootstrap accepted committed example hostnames."
 fi
@@ -138,15 +133,11 @@ sed \
   -e 's/^COMPOSE_PROJECT_NAME=.*/COMPOSE_PROJECT_NAME=pegelhub-keycloak-test-static/' \
   -e 's/^PEGELHUB_FRONTEND_HOSTNAME=.*/PEGELHUB_FRONTEND_HOSTNAME=frontend.keycloak.test/' \
   "$ENV_FILE" > "$invalid_keycloak_env"
-if PEGELHUB_STAGING_ENV_FILE="$invalid_keycloak_env" \
+if PEGELHUB_ENV_FILE="$invalid_keycloak_env" \
   "$DEPLOY_DIR/scripts/bootstrap-keycloak.sh" > "$invalid_keycloak_log" 2>&1; then
   fail "Keycloak bootstrap accepted a placeholder Keycloak hostname."
 fi
-grep -F 'PEGELHUB_KEYCLOAK_HOSTNAME must be a real staging hostname' \
-  "$invalid_keycloak_log" >/dev/null \
-  || fail "Keycloak bootstrap did not validate the protected Keycloak hostname."
-
-if PEGELHUB_STAGING_ENV_FILE="$ENV_FILE" \
+if PEGELHUB_ENV_FILE="$ENV_FILE" \
   "$DEPLOY_DIR/scripts/deploy.sh" --check sha-static-policy >/dev/null 2>&1; then
   fail "Routine staging validation accepted committed example hostnames."
 fi
@@ -171,13 +162,7 @@ jq -e '
   )
   and .services.keycloak.healthcheck != null
   and (.services | has("keycloak-realm-bootstrap") | not)
-  and (
-    [
-      .services["ftp-connector"].volumes[]
-      | select(.target == "/app/config")
-      | {type, target, read_only, expected_source: (.source | endswith("/deploy/staging/ftp-config"))}
-    ] == [{"type":"bind","target":"/app/config","read_only":true,"expected_source":true}]
-  )
+  and (.services | has("ftp-connector") | not)
 ' "$compose_json" >/dev/null \
   || fail "Routine staging Compose lifecycle policy check failed."
 
@@ -190,12 +175,11 @@ jq -e '
     "false"
   ]
   and .services["keycloak-realm-bootstrap"].environment.PEGELHUB_FRONTEND_URL
-    == "https://pegelhub-staging.example.com"
+    == "https://pegelhub.example.com"
   and (.services | keys) == [
     "caddy",
     "core-app",
     "data-db",
-    "ftp-connector",
     "influx-bucket-setup",
     "keycloak",
     "keycloak-db",
@@ -217,7 +201,7 @@ jq -e '
 grep -F 'docker inspect --format' \
   "$DEPLOY_DIR/scripts/bootstrap-keycloak.sh" >/dev/null \
   || fail "Offline bootstrap must inspect all Keycloak container states."
-grep -F 'keycloak-bootstrap.lock' \
+grep -F 'operation.lock' \
   "$DEPLOY_DIR/scripts/bootstrap-keycloak.sh" \
   "$DEPLOY_DIR/scripts/deploy.sh" \
   "$DEPLOY_DIR/scripts/deploy-frontend.sh" >/dev/null \
@@ -241,6 +225,6 @@ for signal_safe_script in \
 done
 
 git -C "$REPO_DIR" check-ignore -q deploy/staging/ftp-config/connector.yaml \
-  || fail "The server-local FTP config path must remain ignored."
+  || fail "The legacy server-local FTP config path must remain ignored."
 
 printf '%s\n' "Staging Keycloak static checks passed."

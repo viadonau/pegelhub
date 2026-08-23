@@ -55,8 +55,8 @@ schema.
      > metadata-before-flyway.sql
    ```
 
-   Use the same commands with `deploy/staging/.env` and
-   `deploy/staging/compose.yaml` on staging.
+   Use `/etc/pegelhub/staging/pegelhub.env` with
+   `deploy/single-host/compose.yaml` on staging.
 
 2. Open `psql` and confirm that Flyway has not already adopted the schema:
 
@@ -140,7 +140,7 @@ schema.
    release-specific image tag:
 
    ```sh
-   deploy/staging/scripts/deploy.sh <image-tag>
+   deploy/single-host/scripts/deploy.sh <image-tag>
    ```
 
 6. Confirm that Core starts successfully, then inspect the history table:

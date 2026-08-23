@@ -4,7 +4,7 @@ set -eu
 TEST_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 DEPLOY_DIR=$(CDPATH= cd -- "$TEST_DIR/.." && pwd)
 REPO_DIR=$(CDPATH= cd -- "$DEPLOY_DIR/../.." && pwd)
-ENV_EXAMPLE="$DEPLOY_DIR/.env.example"
+ENV_EXAMPLE="$DEPLOY_DIR/pegelhub.env.example"
 DEPLOY_SCRIPT="$DEPLOY_DIR/scripts/deploy-frontend.sh"
 STAGING_ACTION="$REPO_DIR/.github/actions/staging-deploy/action.yml"
 
@@ -33,18 +33,18 @@ fake_lock="$test_root/operation.lock"
 fake_log="$test_root/docker.log"
 fake_active_image="$test_root/active-image"
 test_output="$test_root/output.log"
-ftp_config="$test_root/ftp-config"
+trust_dir="$test_root/tls/trust"
 
 cleanup() {
   rm -rf "$test_root"
 }
 trap cleanup EXIT
 
-docker compose \
+COMPOSE_PROJECT_NAME=pegelhub-staging docker compose \
   --env-file "$ENV_EXAMPLE" \
   -f "$DEPLOY_DIR/compose.yaml" \
   config --format json > "$base_compose_json"
-PEGELHUB_FRONTEND_IMAGE="$IMAGE_ONE" docker compose \
+COMPOSE_PROJECT_NAME=pegelhub-staging PEGELHUB_FRONTEND_IMAGE="$IMAGE_ONE" docker compose \
   --env-file "$ENV_EXAMPLE" \
   -f "$DEPLOY_DIR/compose.yaml" \
   -f "$DEPLOY_DIR/frontend.compose.yaml" \
@@ -54,7 +54,7 @@ jq -e '
   (.services | has("frontend") | not)
   and .services.caddy != null
   and .services["core-app"] != null
-  and .networks["pegelhub-staging"] != null
+  and .networks["pegelhub-staging"].name == "pegelhub-staging_pegelhub-staging"
 ' "$base_compose_json" >/dev/null \
   || fail "Backend-only staging Compose must remain valid."
 
@@ -66,7 +66,7 @@ jq -e --arg image "$IMAGE_ONE" '
     "PH_API_BASE_URL": "/api/v1",
     "PH_KEYCLOAK_CLIENT_ID": "pegelhub-frontend",
     "PH_KEYCLOAK_REALM": "pegelhub",
-    "PH_KEYCLOAK_URL": "https://auth-pegelhub-staging.example.com"
+    "PH_KEYCLOAK_URL": "https://auth.pegelhub.example.com"
   }
   and .services.frontend.logging == {
     "driver": "json-file",
@@ -83,7 +83,7 @@ grep -F 'COMPOSE_IGNORE_ORPHANS=true' "$DEPLOY_DIR/scripts/deploy.sh" >/dev/null
   || fail "Backend deploys must preserve the separately managed frontend."
 grep -F 'COMPOSE_REMOVE_ORPHANS=false' "$DEPLOY_DIR/scripts/deploy.sh" >/dev/null \
   || fail "Backend deploys must disable inherited orphan removal."
-grep -F 'keycloak-bootstrap.lock' "$DEPLOY_SCRIPT" >/dev/null \
+grep -F 'operation.lock' "$DEPLOY_SCRIPT" >/dev/null \
   || fail "Frontend deploys must share the staging operation lock."
 for workflow in \
   "$REPO_DIR/.github/workflows/images.yml" \
@@ -91,24 +91,27 @@ for workflow in \
   grep -F 'uses: ./.github/actions/staging-deploy' "$workflow" >/dev/null \
     || fail "Staging workflows must share the remote deployment action."
 done
-grep -F 'deploy/staging/scripts/deploy.sh "$DEPLOY_IMAGE"' \
+grep -F 'deploy/single-host/scripts/deploy.sh "$DEPLOY_IMAGE"' \
   "$STAGING_ACTION" >/dev/null \
   || fail "The staging action must support backend deployment."
-grep -F 'deploy/staging/scripts/deploy-frontend.sh "$DEPLOY_IMAGE"' \
+grep -F 'deploy/single-host/scripts/deploy-frontend.sh "$DEPLOY_IMAGE"' \
   "$STAGING_ACTION" >/dev/null \
   || fail "The staging action must support frontend deployment."
 git -C "$REPO_DIR" check-ignore -q deploy/staging/state/frontend-release.env \
   || fail "Frontend release state must remain ignored."
 
-mkdir -p "$ftp_config/mappings" "$fake_bin" "$fake_state"
-: > "$ftp_config/connector.yaml"
+mkdir -p "$fake_bin" "$fake_state" "$trust_dir"
 : > "$fake_log"
 
 sed \
   -e 's/^COMPOSE_PROJECT_NAME=.*/COMPOSE_PROJECT_NAME=pegelhub-staging/' \
   -e 's/^PEGELHUB_FRONTEND_HOSTNAME=.*/PEGELHUB_FRONTEND_HOSTNAME=frontend.staging.example.net/' \
-  -e "s|^FTP_CONFIG_DIR=.*|FTP_CONFIG_DIR=$ftp_config|" \
+  -e 's/^PEGELHUB_TRUST_MODE=.*/PEGELHUB_TRUST_MODE=custom/' \
+  -e "s|^PEGELHUB_TRUST_DIR=.*|PEGELHUB_TRUST_DIR=$trust_dir|" \
   "$ENV_EXAMPLE" > "$test_env"
+openssl req -x509 -newkey rsa:2048 -nodes -days 30 -subj '/CN=frontend-root' \
+  -keyout "$test_root/root.key" -out "$test_root/root.pem" >/dev/null 2>&1
+openssl x509 -in "$test_root/root.pem" -outform DER -out "$trust_dir/private-root.crt"
 
 cat > "$fake_bin/docker" <<'FAKE_DOCKER'
 #!/bin/sh
@@ -137,6 +140,9 @@ cat > "$fake_bin/curl" <<'FAKE_CURL'
 #!/bin/sh
 set -eu
 
+[ -s "${CURL_CA_BUNDLE:?}" ]
+grep -q -- '-----BEGIN CERTIFICATE-----' "$CURL_CA_BUNDLE"
+
 active_image=""
 if [ -f "$FAKE_ACTIVE_IMAGE_FILE" ]; then
   IFS= read -r active_image < "$FAKE_ACTIVE_IMAGE_FILE"
@@ -154,9 +160,9 @@ run_deploy() {
     FAKE_SMOKE_FAIL_IMAGE="${FAKE_SMOKE_FAIL_IMAGE:-}" \
     FRONTEND_SMOKE_RETRIES=1 \
     FRONTEND_SMOKE_RETRY_DELAY_SECONDS=0 \
-    PEGELHUB_STAGING_ENV_FILE="$test_env" \
-    PEGELHUB_STAGING_LOCK_DIR="$fake_lock" \
-    PEGELHUB_STAGING_STATE_DIR="$fake_state" \
+    PEGELHUB_ENV_FILE="$test_env" \
+    PEGELHUB_LOCK_DIR="$fake_lock" \
+    PEGELHUB_STATE_DIR="$fake_state" \
     "$DEPLOY_SCRIPT" "$@"
 }
 
@@ -182,6 +188,9 @@ if run_deploy "$IMAGE_TWO" > "$test_output" 2>&1; then
   fail "A failed smoke check incorrectly completed deployment."
 fi
 unset FAKE_SMOKE_FAIL_IMAGE
+if grep -F 'Frontend rollback failed' "$test_output" >/dev/null; then
+  fail "Custom CA bundle disappeared before frontend rollback smoke."
+fi
 grep -Fx "$IMAGE_ONE" "$fake_active_image" >/dev/null \
   || fail "A failed activation did not restore the previous image."
 grep -Fx "FRONTEND_IMAGE=$IMAGE_ONE" "$fake_state/frontend-release.env" >/dev/null \
@@ -217,5 +226,6 @@ mkdir "$fake_lock"
 if run_deploy "$IMAGE_ONE" > "$test_output" 2>&1; then
   fail "Frontend deployment ignored the shared staging operation lock."
 fi
+rmdir "$fake_lock"
 
 printf '%s\n' "Staging frontend deployment checks passed."
