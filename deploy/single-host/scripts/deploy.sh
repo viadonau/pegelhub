@@ -319,6 +319,8 @@ load_compose_environment() {
 
 validate_reset_request() {
   [ -n "$RESET_DATA_CONFIRMATION" ] || return 0
+  [ "$compose_project_name" = "pegelhub-staging" ] \
+    || fail "--reset-data is restricted to the pegelhub-staging recovery project."
   [ "$RESET_DATA_CONFIRMATION" = "$compose_project_name" ] \
     || fail "--reset-data confirmation must exactly match COMPOSE_PROJECT_NAME ($compose_project_name)."
   [ "$CHECK_ONLY" = "false" ] || fail "--reset-data cannot be combined with --check."

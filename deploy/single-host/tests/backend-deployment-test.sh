@@ -7,7 +7,7 @@ REPO_DIR=$(CDPATH= cd -- "$DEPLOY_DIR/../.." && pwd)
 DEPLOY_SCRIPT="$DEPLOY_DIR/scripts/deploy.sh"
 STAGING_ACTION="$REPO_DIR/.github/actions/staging-deploy/action.yml"
 IMAGES_WORKFLOW="$REPO_DIR/.github/workflows/images.yml"
-PROJECT_NAME=pegelhub-reset-test
+PROJECT_NAME=pegelhub-staging
 IMAGE_TAG=sha-reset-test
 
 fail() {
@@ -92,6 +92,15 @@ if run_deploy --reset-data wrong-project "$IMAGE_TAG" >/dev/null 2>&1; then
   fail "A mismatched reset confirmation was accepted."
 fi
 [ ! -s "$fake_log" ] || fail "A rejected reset changed Docker state."
+
+sed 's/^COMPOSE_PROJECT_NAME=.*/COMPOSE_PROJECT_NAME=pegelhub-production/' \
+  "$test_env" > "$test_root/production.env"
+original_test_env="$test_env"
+test_env="$test_root/production.env"
+if run_deploy --reset-data pegelhub-production "$IMAGE_TAG" >/dev/null 2>&1; then
+  fail "A production data reset was accepted."
+fi
+test_env="$original_test_env"
 
 cat > "$state_dir/current-release.env" <<'EOF'
 PEGELHUB_IMAGE_TAG=sha-old-schema
