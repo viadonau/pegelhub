@@ -8,6 +8,9 @@ pegelhub_staging_repo_url: https://github.com/viadonau/pegelhub.git
 pegelhub_staging_repo_dir: /opt/pegelhub
 
 pegelhub_staging_repo_version: main
+pegelhub_staging_config_dir: /etc/pegelhub/staging
+pegelhub_staging_data_dir: /var/lib/pegelhub/staging
+pegelhub_staging_ftp_connector_dir: /etc/pegelhub/connectors/staging-ftp
 
 # Optional: public key matching the STAGING_SSH_PRIVATE_KEY secret used by the
 # repository staging environment. Leave empty to manage authorized_keys

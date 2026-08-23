@@ -10,7 +10,7 @@ TEST_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 DEPLOY_DIR=$(CDPATH= cd -- "$TEST_DIR/.." && pwd)
 COMPOSE_FILE="$DEPLOY_DIR/compose.yaml"
 BOOTSTRAP_COMPOSE_FILE="$DEPLOY_DIR/keycloak-bootstrap.compose.yaml"
-ENV_TEMPLATE="$DEPLOY_DIR/.env.example"
+ENV_TEMPLATE="$DEPLOY_DIR/pegelhub.env.example"
 PROJECT_NAME="pegelhub-keycloak-test-$(date +%s)-$$"
 TEMP_DIR=$(mktemp -d "${TMPDIR:-/tmp}/$PROJECT_NAME.XXXXXX")
 ENV_FILE="$TEMP_DIR/.env"
@@ -184,7 +184,7 @@ assert_seed_state() {
   jq -e '
     .realm == "pegelhub"
     and .enabled == true
-    and .displayName == "PegelHub Staging"
+    and .displayName == "PegelHub"
     and .loginTheme == "pegelhub"
     and .internationalizationEnabled == true
     and .supportedLocales == ["de"]
@@ -271,9 +271,12 @@ sed \
   -e "s/^PEGELHUB_FRONTEND_HOSTNAME=.*/PEGELHUB_FRONTEND_HOSTNAME=$TEST_FRONTEND_HOSTNAME/" \
   -e "s/^PEGELHUB_API_HOSTNAME=.*/PEGELHUB_API_HOSTNAME=$TEST_API_HOSTNAME/" \
   -e "s/^PEGELHUB_KEYCLOAK_HOSTNAME=.*/PEGELHUB_KEYCLOAK_HOSTNAME=$TEST_KEYCLOAK_HOSTNAME/" \
+  -e "s|^PEGELHUB_TLS_SERVER_DIR=.*|PEGELHUB_TLS_SERVER_DIR=$TEMP_DIR/tls/server|" \
+  -e "s|^PEGELHUB_TRUST_DIR=.*|PEGELHUB_TRUST_DIR=$TEMP_DIR/tls/trust|" \
   "$ENV_TEMPLATE" > "$ENV_FILE"
+mkdir -p "$TEMP_DIR/state" "$TEMP_DIR/tls/server" "$TEMP_DIR/tls/trust"
 chmod 600 "$ENV_FILE"
-PEGELHUB_STAGING_ENV_FILE="$ENV_FILE" \
+PEGELHUB_CONFIG_DIR="$TEMP_DIR" PEGELHUB_STATE_DIR="$TEMP_DIR/state" PEGELHUB_ENV_FILE="$ENV_FILE" \
   "$DEPLOY_DIR/scripts/init-env-secrets.sh" >/dev/null
 
 awk -F= '
@@ -288,7 +291,7 @@ awk -F= '
 ' "$ENV_FILE" > "$SECRET_VALUES_FILE"
 chmod 600 "$SECRET_VALUES_FILE"
 
-if ! PEGELHUB_STAGING_ENV_FILE="$ENV_FILE" \
+if ! PEGELHUB_CONFIG_DIR="$TEMP_DIR" PEGELHUB_STATE_DIR="$TEMP_DIR/state" PEGELHUB_ENV_FILE="$ENV_FILE" \
   PEGELHUB_KEYCLOAK_HOSTNAME=caller-override.invalid \
   "$DEPLOY_DIR/scripts/bootstrap-keycloak.sh" \
   > "$BOOTSTRAP_LOG" 2>&1; then
@@ -302,7 +305,7 @@ runtime_keycloak_hostname=$(normal_compose exec -T keycloak printenv KC_HOSTNAME
 inspect_state
 assert_seed_state
 
-if PEGELHUB_STAGING_ENV_FILE="$ENV_FILE" \
+if PEGELHUB_CONFIG_DIR="$TEMP_DIR" PEGELHUB_STATE_DIR="$TEMP_DIR/state" PEGELHUB_ENV_FILE="$ENV_FILE" \
   "$DEPLOY_DIR/scripts/bootstrap-keycloak.sh" >/dev/null 2>&1; then
   fail "Offline realm bootstrap did not refuse to run while Keycloak was online."
 fi
@@ -313,7 +316,7 @@ kcadm create clients -r pegelhub \
   -s publicClient=true >/dev/null 2>&1
 normal_compose stop keycloak >/dev/null
 
-if ! PEGELHUB_STAGING_ENV_FILE="$ENV_FILE" \
+if ! PEGELHUB_CONFIG_DIR="$TEMP_DIR" PEGELHUB_STATE_DIR="$TEMP_DIR/state" PEGELHUB_ENV_FILE="$ENV_FILE" \
   "$DEPLOY_DIR/scripts/bootstrap-keycloak.sh" \
   > "$REBOOTSTRAP_LOG" 2>&1; then
   grep '^ERROR:' "$REBOOTSTRAP_LOG" >&2 || true

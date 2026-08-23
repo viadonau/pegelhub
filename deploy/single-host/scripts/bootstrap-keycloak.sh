@@ -1,7 +1,7 @@
 #!/bin/sh
 
-# Initializes the PegelHub realm in a fresh or deliberately emptied staging
-# Keycloak database. The script validates protected staging configuration,
+# Initializes the PegelHub realm in a fresh or deliberately emptied single-host
+# Keycloak database. The script validates protected host configuration,
 # serializes against normal deploys, requires Keycloak to be stopped, runs the
 # dedicated offline importer, and then starts the normal Keycloak service.
 # Re-running it does not migrate or overwrite an existing realm, and it never
@@ -10,13 +10,20 @@ set -eu
 
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 DEPLOY_DIR=$(CDPATH= cd -- "$SCRIPT_DIR/.." && pwd)
+. "$SCRIPT_DIR/../../lib/env-file.sh"
 COMPOSE_FILE="$DEPLOY_DIR/compose.yaml"
 BOOTSTRAP_COMPOSE_FILE="$DEPLOY_DIR/keycloak-bootstrap.compose.yaml"
-ENV_FILE="${PEGELHUB_STAGING_ENV_FILE:-$DEPLOY_DIR/.env}"
-STATE_DIR="$DEPLOY_DIR/state"
-LOCK_DIR="$STATE_DIR/keycloak-bootstrap.lock"
+CONFIG_DIR=${PEGELHUB_CONFIG_DIR:-}
+ENV_FILE=${PEGELHUB_ENV_FILE:-}
+if [ -z "$ENV_FILE" ]; then
+  [ -n "$CONFIG_DIR" ] || { printf 'ERROR: Set PEGELHUB_CONFIG_DIR or PEGELHUB_ENV_FILE.\n' >&2; exit 1; }
+  ENV_FILE="$CONFIG_DIR/pegelhub.env"
+fi
+[ -n "$CONFIG_DIR" ] || CONFIG_DIR=$(CDPATH= cd -- "$(dirname -- "$ENV_FILE")" && pwd)
+STATE_DIR="${PEGELHUB_STATE_DIR:-}"
+[ -n "$STATE_DIR" ] || { printf 'ERROR: Set PEGELHUB_STATE_DIR.\n' >&2; exit 1; }
+LOCK_DIR="$STATE_DIR/operation.lock"
 LOCK_OWNED=false
-LOCK_TOKEN=""
 
 fail() {
   printf '%s\n' "ERROR: $*" >&2
@@ -41,28 +48,12 @@ compose() {
       "$@"
 }
 
-env_value() {
-  key="$1"
-  [ -f "$ENV_FILE" ] || return 0
-  awk -F= -v key="$key" '
-    $0 !~ /^[[:space:]]*(#|$)/ {
-      if ($1 == key) {
-        value = substr($0, length($1) + 2)
-        gsub(/^[[:space:]]+|[[:space:]]+$/, "", value)
-        gsub(/^"|"$/, "", value)
-        gsub(/^'\''|'\''$/, "", value)
-        print value
-      }
-    }
-  ' "$ENV_FILE" | tail -n 1
-}
-
 reject_placeholder() {
   variable_name="$1"
   value=$(env_value "$variable_name")
   case "$value" in
-    ""|replace-with-staging-*|CHANGE_ME|changeme)
-      fail "$variable_name must be initialized in the protected staging env file."
+    ""|replace-with-staging-*|replace-with-pegelhub-*|CHANGE_ME|changeme)
+      fail "$variable_name must be initialized in the protected deployment env file."
       ;;
   esac
 }
@@ -76,20 +67,20 @@ validate_public_hostname() {
     test|*.test)
       case "$compose_project_name" in
         pegelhub-keycloak-test-*) ;;
-        *) fail "$variable_name must not use a reserved test hostname for staging." ;;
+        *) fail "$variable_name must not use a reserved test hostname." ;;
       esac
       ;;
   esac
   case "$normalized" in
     ""|localhost|*.localhost|example|*.example|example.com|*.example.com|invalid|*.invalid)
-      fail "$variable_name must be a real staging hostname, not a placeholder or loopback address."
+      fail "$variable_name must be a real hostname, not a placeholder or loopback address."
       ;;
     *://*|*/*|*:*|.*|*.|*..*|*[!a-z0-9.-]*)
       fail "$variable_name must contain only a public DNS hostname without a scheme, port, or path."
       ;;
     *.*) ;;
     *)
-      fail "$variable_name must be a fully qualified staging hostname."
+      fail "$variable_name must be a fully qualified hostname."
       ;;
   esac
   if printf '%s\n' "$normalized" | grep -Eq '^[0-9]+([.][0-9]+){3}$|(^|[.])-|-([.]|$)'; then
@@ -100,14 +91,7 @@ validate_public_hostname() {
 cleanup() {
   if [ "$LOCK_OWNED" = "true" ]; then
     LOCK_OWNED=false
-    recorded_token=""
-    if [ -f "$LOCK_DIR/owner" ]; then
-      IFS= read -r recorded_token < "$LOCK_DIR/owner" || true
-    fi
-    if [ -n "$LOCK_TOKEN" ] && [ "$recorded_token" = "$LOCK_TOKEN" ]; then
-      rm -f "$LOCK_DIR/owner"
-      rmdir "$LOCK_DIR" >/dev/null 2>&1 || true
-    fi
+    rmdir "$LOCK_DIR" >/dev/null 2>&1 || true
   fi
 }
 
@@ -121,12 +105,9 @@ exit_on_signal() {
 acquire_lock() {
   mkdir -p "$STATE_DIR"
   if ! mkdir "$LOCK_DIR" 2>/dev/null; then
-    fail "Another staging deploy or Keycloak bootstrap operation is active."
+    fail "Another deploy or Keycloak bootstrap operation is active."
   fi
   chmod 700 "$LOCK_DIR"
-  LOCK_TOKEN="bootstrap-$$-$(date +%s)"
-  printf '%s\n' "$LOCK_TOKEN" > "$LOCK_DIR/owner"
-  chmod 600 "$LOCK_DIR/owner"
   LOCK_OWNED=true
   trap cleanup EXIT
   trap 'exit_on_signal 129' HUP
@@ -141,20 +122,13 @@ reject_active_keycloak() {
       '{{.State.Running}} {{.State.Paused}} {{.State.Restarting}}' \
       "$container_id")
     [ "$state" = "false false false" ] \
-      || fail "Stop staging Keycloak completely before offline realm bootstrap. The script never stops it automatically."
+      || fail "Stop Keycloak completely before offline realm bootstrap. The script never stops it automatically."
   done
 }
 
-[ -f "$ENV_FILE" ] || fail "Missing protected staging env file: $ENV_FILE"
-[ "$(env_value PEGELHUB_ENVIRONMENT)" = "staging" ] \
-  || fail "PEGELHUB_ENVIRONMENT must be staging."
-[ "$(env_value PEGELHUB_DEPLOY_MARKER)" = "pegelhub-staging" ] \
-  || fail "PEGELHUB_DEPLOY_MARKER must be pegelhub-staging."
+[ -f "$ENV_FILE" ] || fail "Missing protected deployment env file: $ENV_FILE"
 compose_project_name=$(env_value COMPOSE_PROJECT_NAME)
-case "$compose_project_name" in
-  pegelhub-staging|pegelhub-keycloak-test-*) ;;
-  *) fail "COMPOSE_PROJECT_NAME must identify the staging or disposable Keycloak test project." ;;
-esac
+[ -n "$compose_project_name" ] || fail "COMPOSE_PROJECT_NAME is required."
 validate_public_hostname PEGELHUB_FRONTEND_HOSTNAME
 validate_public_hostname PEGELHUB_KEYCLOAK_HOSTNAME
 frontend_hostname=$(env_value PEGELHUB_FRONTEND_HOSTNAME)
@@ -171,13 +145,13 @@ reject_placeholder KEYCLOAK_ADMIN_PASSWORD
 acquire_lock
 reject_active_keycloak
 
-printf '%s\n' "Starting the staging Keycloak database only..."
+printf '%s\n' "Starting the Keycloak database only..."
 compose up -d --wait keycloak-db
 
-printf '%s\n' "Importing the staging realm only when it is absent..."
+printf '%s\n' "Importing the realm only when it is absent..."
 compose run --rm --no-deps -T keycloak-realm-bootstrap
 
-printf '%s\n' "Starting staging Keycloak without startup import..."
+printf '%s\n' "Starting Keycloak without startup import..."
 compose up -d --wait keycloak
 
-printf '%s\n' "Staging Keycloak bootstrap complete."
+printf '%s\n' "Keycloak bootstrap complete."

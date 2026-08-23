@@ -1,6 +1,6 @@
-name: ${COMPOSE_PROJECT_NAME:-pegelhub-staging}
+name: ${COMPOSE_PROJECT_NAME:?Set COMPOSE_PROJECT_NAME}
 
-x-staging-logging: &staging-logging
+x-pegelhub-logging: &pegelhub-logging
   driver: json-file
   options:
     max-size: "10m"
@@ -20,17 +20,22 @@ networks:
 services:
   caddy:
     image: caddy:2-alpine
-    logging: *staging-logging
+    logging: *pegelhub-logging
     restart: unless-stopped
     environment:
       PEGELHUB_FRONTEND_HOSTNAME: ${PEGELHUB_FRONTEND_HOSTNAME}
       PEGELHUB_API_HOSTNAME: ${PEGELHUB_API_HOSTNAME}
       PEGELHUB_KEYCLOAK_HOSTNAME: ${PEGELHUB_KEYCLOAK_HOSTNAME}
+      PEGELHUB_TLS_MODE: ${PEGELHUB_TLS_MODE:-automatic}
     ports:
       - "80:80"
       - "443:443"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - type: bind
+        source: ${PEGELHUB_TLS_SERVER_DIR:-./tls/server}
+        target: /etc/caddy/certificates
+        read_only: true
       - caddy-config:/config
       - caddy-data:/data
     depends_on:
@@ -44,7 +49,7 @@ services:
 
   meta-db:
     image: postgres:14-alpine
-    logging: *staging-logging
+    logging: *pegelhub-logging
     restart: unless-stopped
     environment:
       POSTGRES_PASSWORD: ${META_PASSWORD}
@@ -62,7 +67,7 @@ services:
 
   data-db:
     image: influxdb:2.2-alpine
-    logging: *staging-logging
+    logging: *pegelhub-logging
     restart: unless-stopped
     environment:
       DOCKER_INFLUXDB_INIT_MODE: setup
@@ -84,7 +89,7 @@ services:
 
   influx-bucket-setup:
     image: influxdb:2.2-alpine
-    logging: *staging-logging
+    logging: *pegelhub-logging
     restart: "no"
     entrypoint: ["/bin/sh", "/usr/local/bin/configure-buckets.sh"]
     environment:
@@ -106,7 +111,7 @@ services:
 
   keycloak-db:
     image: postgres:16-alpine
-    logging: *staging-logging
+    logging: *pegelhub-logging
     restart: unless-stopped
     environment:
       POSTGRES_USER: keycloak
@@ -125,7 +130,7 @@ services:
 
   keycloak:
     image: quay.io/keycloak/keycloak:26.2
-    logging: *staging-logging
+    logging: *pegelhub-logging
     restart: unless-stopped
     command: ["start"]
     environment:
@@ -161,11 +166,12 @@ services:
 
   core-app:
     image: ghcr.io/viadonau/pegelhub-core:${PEGELHUB_IMAGE_TAG:?Set PEGELHUB_IMAGE_TAG}
-    logging: *staging-logging
+    logging: *pegelhub-logging
     pull_policy: always
     restart: unless-stopped
     environment:
       JAVA_TOOL_OPTIONS: ${CORE_JAVA_TOOL_OPTIONS:-}
+      PEGELHUB_TRUST_MODE: ${PEGELHUB_TRUST_MODE:-system}
       DB_URI: meta-db:5432/${META_DB}
       DB_USER: postgres
       DB_PASSWORD: ${META_PASSWORD}
@@ -186,27 +192,10 @@ services:
         condition: service_completed_successfully
       keycloak:
         condition: service_started
-    networks:
-      - pegelhub-staging
-
-  ftp-connector:
-    image: ghcr.io/viadonau/pegelhub-ftp-connector:${PEGELHUB_IMAGE_TAG:?Set PEGELHUB_IMAGE_TAG}
-    logging: *staging-logging
-    pull_policy: always
-    restart: unless-stopped
-    environment:
-      JAVA_TOOL_OPTIONS: ${FTP_JAVA_TOOL_OPTIONS:-}
     volumes:
-      # Long syntax keeps Compose 2.x no-interpolate validation from parsing
-      # the default-value colon as a volume separator.
       - type: bind
-        source: ${FTP_CONFIG_DIR:-./ftp-config}
-        target: /app/config
+        source: ${PEGELHUB_TRUST_DIR:-./tls/trust}
+        target: /run/pegelhub/extra-ca
         read_only: true
-    depends_on:
-      core-app:
-        condition: service_started
-      keycloak:
-        condition: service_started
     networks:
       - pegelhub-staging

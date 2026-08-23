@@ -134,7 +134,7 @@ them independently.
 | [`connectors/ma-connector/`](connectors/ma-connector/) | Reads raw process-image values from Revolution Pi hardware |
 | [`connectors/tstp-connector/`](connectors/tstp-connector/) | Exchanges measurements with the TSTP HTTP API |
 | [`frontend/`](frontend/) | Angular monitoring application, browser runtime configuration, and frontend image |
-| [`deploy/staging/`](deploy/staging/) | Staging topology, deployment scripts, policy checks, smoke tests, and rollback |
+| [`deploy/single-host/`](deploy/single-host/) | Reusable ingress, deployment scripts, TLS/trust policy, smoke tests, and rollback |
 | [`deploy/ansible/`](deploy/ansible/) | Debian and Ubuntu staging-host provisioning |
 | [`docs/`](docs/) | Architecture documentation and decision records |
 | [`.github/workflows/`](.github/workflows/) | Pull-request verification and independent image delivery workflows |
@@ -249,10 +249,15 @@ Core and connector images are published through the
 [Frontend Delivery workflow](.github/workflows/frontend-delivery.yml). Each path
 activates the relevant component through the shared staging deployment action.
 
-The supported remote topology is a single Docker Compose host behind Caddy.
-Both delivery paths share the GitHub `staging` Environment, SSH configuration,
-deployment lock, smoke tests, and rollback state. Operational procedures live
-in the [staging runbook](deploy/staging/README.md).
+The supported remote platform topology is a single Docker Compose host behind
+Caddy. Connector instances run as separate Compose projects and may live on
+that host or on the hardware/network where their external system is located.
+The platform and frontend delivery paths share the GitHub `staging` Environment,
+SSH configuration, deployment lock, smoke tests, and rollback state. Connector
+deployment uses the same SSH action but has an explicit Compose-only activation
+and no automatic rollback. Operational procedures live in the
+[single-host runbook](deploy/single-host/README.md) and the
+[connector Compose runner](deploy/connector/README.md).
 
 ## Documentation
 
@@ -262,7 +267,8 @@ in the [staging runbook](deploy/staging/README.md).
 - [Architecture decision records](docs/adr/)
 - [Local Keycloak realm and OAuth clients](core/docs/keycloak-local-dev.md)
 - [InfluxDB buckets, retention, and time handling](core/docs/influxdb.md)
-- [Staging deployment and rollback](deploy/staging/README.md)
+- [Single-host deployment and rollback](deploy/single-host/README.md)
+- [Independent connector Compose deployments](deploy/connector/README.md)
 - [Staging host provisioning](deploy/ansible/README.md)
 - [Bruno API collection](core/docs/api/bruno/README.md)
 

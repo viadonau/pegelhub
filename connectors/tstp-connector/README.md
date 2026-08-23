@@ -91,3 +91,6 @@ docker run --rm \
 Replace the checked-in illustrative endpoints and credentials in an ignored
 copy before connecting to real systems. Core, Keycloak, and TSTP addresses must
 be reachable from inside the connector container.
+
+For Compose-based deployments, use the
+[shared connector runner](../../deploy/connector/).

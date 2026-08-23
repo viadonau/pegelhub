@@ -120,12 +120,11 @@ jobs:
           platforms: ${{ matrix.platform }}
 
   deploy-staging:
-    name: Deploy Staging
+    name: Deploy Staging Platform
     runs-on: ubuntu-latest
     needs:
       - core
-      - connectors
-    if: ${{ startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main' || (github.event_name == 'workflow_dispatch' && inputs.deploy_staging) }}
+    if: ${{ (github.event_name == 'push' && (startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main')) || (github.event_name == 'workflow_dispatch' && inputs.deploy_staging) }}
     timeout-minutes: 15
     environment: staging
     permissions:
@@ -156,6 +155,52 @@ jobs:
         with:
           target: backend
           image: ${{ steps.image-tag.outputs.image_tag }}
+          deploy_ref: ${{ github.ref_name }}
+          repo_dir: ${{ vars.STAGING_REPO_DIR }}
+          host: ${{ vars.STAGING_SSH_HOST }}
+          port: ${{ vars.STAGING_SSH_PORT || '22' }}
+          username: ${{ vars.STAGING_SSH_USER }}
+          key: ${{ secrets.STAGING_SSH_PRIVATE_KEY }}
+          fingerprint: ${{ secrets.STAGING_SSH_FINGERPRINT }}
+
+  deploy-staging-ftp:
+    name: Deploy Staging FTP Connector
+    runs-on: ubuntu-latest
+    needs:
+      - connectors
+      - deploy-staging
+    if: ${{ (github.event_name == 'push' && (startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main')) || (github.event_name == 'workflow_dispatch' && inputs.deploy_staging) }}
+    timeout-minutes: 15
+    environment: staging
+    permissions:
+      contents: read
+    concurrency:
+      group: staging-deploy
+      cancel-in-progress: false
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Resolve image tag
+        id: image-tag
+        shell: bash
+        run: |
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            image_tag="${GITHUB_REF_NAME}"
+          else
+            image_tag="sha-${GITHUB_SHA::7}"
+          fi
+
+          echo "image_tag=${image_tag}" >> "$GITHUB_OUTPUT"
+          echo "Deploying FTP connector image tag ${image_tag} to staging."
+
+      - name: Deploy FTP connector
+        uses: ./.github/actions/staging-deploy
+        with:
+          target: connector
+          connector_instance_dir: /etc/pegelhub/connectors/staging-ftp
+          image: ghcr.io/${{ github.repository_owner }}/pegelhub-ftp-connector:${{ steps.image-tag.outputs.image_tag }}
           deploy_ref: ${{ github.ref_name }}
           repo_dir: ${{ vars.STAGING_REPO_DIR }}
           host: ${{ vars.STAGING_SSH_HOST }}

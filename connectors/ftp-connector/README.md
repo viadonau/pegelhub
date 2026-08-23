@@ -96,6 +96,5 @@ credentials are intentionally unusable. Core, Keycloak, and FTP addresses must
 be resolvable and reachable from inside the connector container. Never commit
 real client or FTP secrets.
 
-Staging runs this connector inside the supported Compose topology. Its
-server-local configuration and manual Keycloak enrollment are documented in
-the [staging guide](../../deploy/staging/#ftp-connector-configuration).
+For Compose-based deployments, use the
+[shared connector runner](../../deploy/connector/).

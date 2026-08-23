@@ -184,7 +184,7 @@ Swagger UI, OpenAPI documents, the configured actuator health/info surface, and
 route and HTTP method. Use the lowercase role values above when configuring
 Keycloak. Local realm details live in
 [the local Keycloak guide](docs/keycloak-local-dev.md); staging identity
-operations live in the [staging guide](../deploy/staging/#ftp-connector-configuration).
+operations live in the [single-host deployment guide](../deploy/single-host/).
 
 ## Troubleshooting
 
@@ -203,5 +203,5 @@ operations live in the [staging guide](../deploy/staging/#ftp-connector-configur
 
 `docker-compose.yaml`, `.env.example`, and `docker/` are for local development.
 The currently supported remote workflow is staging, documented in
-[`deploy/staging/`](../deploy/staging/). Runtime secrets belong in ignored host
+[`deploy/single-host/`](../deploy/single-host/). Runtime secrets belong in ignored host
 configuration or a secret manager, never in this repository.

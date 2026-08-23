@@ -3,11 +3,13 @@
 This Ansible playbook prepares a Debian or Ubuntu host for the repository's
 supported staging deployment. It installs Docker Engine and Compose, creates a
 deploy user, installs an optional SSH public key, checks out PegelHub, and
-initializes ignored staging directories and configuration.
+initializes platform configuration under `/etc/pegelhub/staging`, the staging
+FTP connector instance under `/etc/pegelhub/connectors/staging-ftp`, and
+mutable state under `/var/lib/pegelhub/staging`.
 
 It does not deploy application images, import or reset Keycloak, create an FTP
 client, or place runtime secrets in GitHub. Those operations belong to the
-[staging deployment guide](../staging/).
+[single-host deployment guide](../single-host/).
 
 ## Prerequisites
 
@@ -61,10 +63,16 @@ ansible-playbook \
   deploy/ansible/staging.yml
 ```
 
-The playbook is designed to preserve existing host values. It creates
-`deploy/staging/.env` from `.env.example` only when missing, appends newly added
-template keys without replacing existing values, and initializes empty or
-placeholder database and Keycloak secrets without printing them.
+The playbook preserves existing host values. It creates
+`/etc/pegelhub/staging/pegelhub.env` from the tracked example only when missing,
+appends new template keys without replacing values, and initializes placeholder
+secrets without printing them. Existing checkout-local runtime files must be
+moved manually before the first deployment:
+
+- `deploy/staging/.env` to `/etc/pegelhub/staging/pegelhub.env`
+- `deploy/staging/state/` to `/var/lib/pegelhub/staging/state/`
+- `deploy/staging/ftp-config/` to
+  `/etc/pegelhub/connectors/staging-ftp/config/`
 
 ## Complete the host setup
 
@@ -72,18 +80,31 @@ Run the following completion steps on the staging host from the repository
 checkout, unless a step explicitly refers to GitHub.
 
 1. Log out and back in as the deploy user if Docker group membership is new.
-2. Review the host's `deploy/staging/.env`; replace hostname and image-tag
-   placeholders while keeping `PEGELHUB_ENVIRONMENT=staging` and
-   `PEGELHUB_DEPLOY_MARKER=pegelhub-staging`.
+2. Review `/etc/pegelhub/staging/pegelhub.env`; replace hostname and image-tag
+   placeholders while keeping `COMPOSE_PROJECT_NAME=pegelhub-staging`.
 3. Log in to GHCR on the host if the published packages require authentication.
-4. Enroll the FTP connector identity and create the ignored
-   `deploy/staging/ftp-config/connector.yaml` and `mappings/*.yaml` as described
-   in the [staging guide](../staging/#ftp-connector-configuration).
+4. Enroll the FTP connector identity and create the host-owned
+   `/etc/pegelhub/connectors/staging-ftp/config/connector.yaml` and
+   `mappings/*.yaml`. Use the published staging API and Keycloak FQDNs rather
+   than Compose service names.
 5. Validate the host configuration with the intended image tag. This check does
    not verify that the tag exists in GHCR:
 
 ```bash
-deploy/staging/scripts/deploy.sh --check sha-<short-sha>
+PEGELHUB_CONFIG_DIR=/etc/pegelhub/staging \
+PEGELHUB_STATE_DIR=/var/lib/pegelhub/staging/state \
+  deploy/single-host/scripts/deploy.sh --check sha-<short-sha>
+```
+
+Validate the separate FTP Compose project with its intended image reference:
+
+```bash
+INSTANCE_DIR=/etc/pegelhub/connectors/staging-ftp
+PEGELHUB_CONNECTOR_IMAGE=ghcr.io/viadonau/pegelhub-ftp-connector:sha-<short-sha> \
+docker compose \
+  --project-directory "$INSTANCE_DIR" \
+  --env-file "$INSTANCE_DIR/connector.env" \
+  -f deploy/connector/compose.yaml config --quiet
 ```
 
 For a new or deliberately emptied Keycloak database, use the explicit staging

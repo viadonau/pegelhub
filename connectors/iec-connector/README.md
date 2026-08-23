@@ -85,6 +85,9 @@ Replace the illustrative endpoints and credentials in an ignored copy before
 running it against real systems. Core, Keycloak, and IEC addresses must be
 reachable from inside the connector container.
 
+For Compose-based deployments, use the
+[shared connector runner](../../deploy/connector/).
+
 ## Protocol dependency
 
 The implementation uses [OpenMUC j60870](https://www.openmuc.org/j60870/),

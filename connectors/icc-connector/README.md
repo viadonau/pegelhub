@@ -88,3 +88,6 @@ docker run --rm \
 The checked-in configuration is a schema example, not a working environment.
 Both Core and Keycloak addresses must be reachable from inside the connector
 container. Keep real client secrets in an ignored, read-only mounted directory.
+
+For Compose-based deployments, use the
+[shared connector runner](../../deploy/connector/).

@@ -1,10 +1,14 @@
 name: Staging Deploy
-description: Update the staging checkout and run a versioned deploy script.
+description: Update the checkout and run the reusable single-host deploy scripts with staging configuration.
 
 inputs:
   target:
-    description: Deployment target (backend or frontend).
+    description: Deployment target (backend, frontend, or connector).
     required: true
+  connector_instance_dir:
+    description: Host directory for the connector instance when target is connector.
+    required: false
+    default: ''
   image:
     description: Image tag or immutable image reference passed to the deploy script.
     required: true
@@ -40,6 +44,7 @@ runs:
         DEPLOY_IMAGE: ${{ inputs.image }}
         DEPLOY_REF: ${{ inputs.deploy_ref }}
         DEPLOY_TARGET: ${{ inputs.target }}
+        CONNECTOR_INSTANCE_DIR: ${{ inputs.connector_instance_dir }}
         STAGING_REPO_DIR: ${{ inputs.repo_dir }}
       with:
         host: ${{ inputs.host }}
@@ -48,7 +53,7 @@ runs:
         key: ${{ inputs.key }}
         fingerprint: ${{ inputs.fingerprint }}
         command_timeout: 15m
-        envs: STAGING_REPO_DIR,DEPLOY_REF,DEPLOY_TARGET,DEPLOY_IMAGE
+        envs: STAGING_REPO_DIR,DEPLOY_REF,DEPLOY_TARGET,DEPLOY_IMAGE,CONNECTOR_INSTANCE_DIR
         script: |
           set -eu
           cd "$STAGING_REPO_DIR"
@@ -67,10 +72,22 @@ runs:
 
           case "$DEPLOY_TARGET" in
             backend)
-              deploy/staging/scripts/deploy.sh "$DEPLOY_IMAGE"
+              PEGELHUB_CONFIG_DIR=/etc/pegelhub/staging \
+              PEGELHUB_STATE_DIR=/var/lib/pegelhub/staging/state \
+                deploy/single-host/scripts/deploy.sh "$DEPLOY_IMAGE"
               ;;
             frontend)
-              deploy/staging/scripts/deploy-frontend.sh "$DEPLOY_IMAGE"
+              PEGELHUB_CONFIG_DIR=/etc/pegelhub/staging \
+              PEGELHUB_STATE_DIR=/var/lib/pegelhub/staging/state \
+                deploy/single-host/scripts/deploy-frontend.sh "$DEPLOY_IMAGE"
+              ;;
+            connector)
+              connector_dir=${CONNECTOR_INSTANCE_DIR:?Set connector_instance_dir for connector deployments}
+              PEGELHUB_CONNECTOR_IMAGE="$DEPLOY_IMAGE" docker compose \
+                --project-directory "$connector_dir" \
+                --env-file "$connector_dir/connector.env" \
+                -f deploy/connector/compose.yaml \
+                up -d --pull always --wait --wait-timeout 30 connector
               ;;
             *)
               echo "Unknown deployment target: $DEPLOY_TARGET" >&2

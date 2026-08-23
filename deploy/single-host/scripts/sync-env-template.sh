@@ -3,8 +3,10 @@ set -eu
 
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 DEPLOY_DIR=$(CDPATH= cd -- "$SCRIPT_DIR/.." && pwd)
-ENV_FILE="${PEGELHUB_STAGING_ENV_FILE:-$DEPLOY_DIR/.env}"
-ENV_EXAMPLE_FILE="${PEGELHUB_STAGING_ENV_EXAMPLE_FILE:-$DEPLOY_DIR/.env.example}"
+CONFIG_DIR=${PEGELHUB_CONFIG_DIR:-}
+[ -n "$CONFIG_DIR" ] || { printf 'ERROR: Set PEGELHUB_CONFIG_DIR.\n' >&2; exit 1; }
+ENV_FILE="${PEGELHUB_ENV_FILE:-$CONFIG_DIR/pegelhub.env}"
+ENV_EXAMPLE_FILE="${PEGELHUB_ENV_EXAMPLE_FILE:-$DEPLOY_DIR/pegelhub.env.example}"
 
 fail() {
   printf '%s\n' "ERROR: $*" >&2
@@ -22,8 +24,8 @@ if [ ! -f "$ENV_FILE" ]; then
   exit 0
 fi
 
-append_file=$(mktemp "$DEPLOY_DIR/.env.append.XXXXXX")
-added_file=$(mktemp "$DEPLOY_DIR/.env.added.XXXXXX")
+append_file=$(mktemp "$CONFIG_DIR/.env.append.XXXXXX")
+added_file=$(mktemp "$CONFIG_DIR/.env.added.XXXXXX")
 cleanup() {
   rm -f "$append_file" "$added_file"
 }

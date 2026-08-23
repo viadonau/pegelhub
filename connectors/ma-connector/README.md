@@ -90,6 +90,9 @@ shows the same device, host mapping, and read-only configuration mount for a
 managed container. Adapt its image and config path for the target host. Real
 credentials belong in an ignored directory, not in the image or repository.
 
+For Compose-based deployments, use the
+[shared connector runner](../../deploy/connector/), including its RevPi overlay.
+
 ## Troubleshooting
 
 | Symptom | Check |

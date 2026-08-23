@@ -224,7 +224,7 @@ available.
 ## Deployment container
 
 Deployment operators should use the repository's
-[staging frontend runbook](../deploy/staging/README.md#deploy-and-roll-back-the-frontend).
+[single-host runbook](../deploy/single-host/README.md#operations).
 This section describes the frontend image contract that runbook consumes.
 
 The multi-stage [Dockerfile](Dockerfile) builds with Node 24 and serves the static bundle from
@@ -255,7 +255,7 @@ image delivery path:
 The repository owns the `staging` GitHub Environment, SSH and Compose topology, deployment lock,
 frontend and Core-proxy smoke checks, release state, and the attempted restoration of the previous
 digest after a failed activation. See the
-[staging frontend runbook](../deploy/staging/README.md#deploy-and-roll-back-the-frontend) for the
+[single-host runbook](../deploy/single-host/README.md#operations) for the
 deployment procedure.
 
 ## Troubleshooting
@@ -306,5 +306,5 @@ machine.
 - [PegelHub Core](../core/README.md): Core runtime and API documentation entry point.
 - [Local Keycloak development](../core/docs/keycloak-local-dev.md): issuer, browser client, roles,
   and realm-import behavior.
-- [Staging deployment](../deploy/staging/README.md#deploy-and-roll-back-the-frontend):
+- [Single-host deployment](../deploy/single-host/README.md#operations):
   frontend activation, smoke checks, and rollback ownership.

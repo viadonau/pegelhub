@@ -29,9 +29,11 @@ jobs:
       - name: Validate Compose files
         run: |
           docker compose --env-file core/.env.example -f core/docker-compose.yaml config --quiet
-          docker compose --env-file deploy/staging/.env.example -f deploy/staging/compose.yaml config --quiet
-          PEGELHUB_FRONTEND_IMAGE=ghcr.io/viadonau/pegelhub-frontend@sha256:0000000000000000000000000000000000000000000000000000000000000000 docker compose --env-file deploy/staging/.env.example -f deploy/staging/compose.yaml -f deploy/staging/frontend.compose.yaml config --quiet
-          docker compose --env-file deploy/staging/.env.example -f deploy/staging/compose.yaml -f deploy/staging/keycloak-bootstrap.compose.yaml --profile keycloak-bootstrap config --quiet
+          docker compose --env-file deploy/single-host/pegelhub.env.example -f deploy/single-host/compose.yaml config --quiet
+          PEGELHUB_FRONTEND_IMAGE=ghcr.io/viadonau/pegelhub-frontend@sha256:0000000000000000000000000000000000000000000000000000000000000000 docker compose --env-file deploy/single-host/pegelhub.env.example -f deploy/single-host/compose.yaml -f deploy/single-host/frontend.compose.yaml config --quiet
+          docker compose --env-file deploy/single-host/pegelhub.env.example -f deploy/single-host/compose.yaml -f deploy/single-host/keycloak-bootstrap.compose.yaml --profile keycloak-bootstrap config --quiet
+          docker compose --env-file deploy/connector/connector.env.example --project-directory "$GITHUB_WORKSPACE" -f deploy/connector/compose.yaml config --quiet
+          docker compose --env-file deploy/connector/connector.env.example --project-directory "$GITHUB_WORKSPACE" -f deploy/connector/compose.yaml -f deploy/connector/revpi.compose.yaml config --quiet
 
       - name: Build Core through local Compose
         run: docker compose --env-file core/.env.example -f core/docker-compose.yaml build core-app
@@ -42,13 +44,16 @@ jobs:
           docker/tests/java-entrypoint-image-test.sh
 
       - name: Validate staging Keycloak policy
-        run: deploy/staging/tests/keycloak-static-test.sh
+        run: deploy/single-host/tests/keycloak-static-test.sh
 
       - name: Validate staging frontend deployment
-        run: deploy/staging/tests/frontend-deployment-test.sh
+        run: deploy/single-host/tests/frontend-deployment-test.sh
+
+      - name: Validate provided certificate installation
+        run: deploy/single-host/tests/certificate-installer-test.sh
 
       - name: Verify disposable staging Keycloak bootstrap
-        run: deploy/staging/tests/keycloak-bootstrap-integration.sh
+        run: deploy/single-host/tests/keycloak-bootstrap-integration.sh
 
   frontend:
     name: Frontend Checks
