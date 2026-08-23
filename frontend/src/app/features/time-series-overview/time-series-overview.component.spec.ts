@@ -1,87 +1,97 @@
-import { signal } from '@angular/core';
+import { provideHttpClient } from '@angular/common/http';
+import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { By } from '@angular/platform-browser';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { provideRouter } from '@angular/router';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { MonitoringApiService } from '../../core/api/monitoring-api.service';
-import { MonitoringTimeSeriesCollectionDto } from '../../core/api/monitoring.dto';
-import { PhTimeSeriesGridComponent } from './time-series-grid/time-series-grid.component';
+import { RUNTIME_CONFIG } from '../../core/config/runtime-config';
+import { monitoringCollectionFixture, TEST_RUNTIME_CONFIG } from '../../../testing/fixtures';
 import { TimeSeriesOverviewComponent } from './time-series-overview.component';
 
 describe('TimeSeriesOverviewComponent', () => {
-  let resource: ReturnType<typeof fakeResource<MonitoringTimeSeriesCollectionDto>>;
+  let http: HttpTestingController;
 
   beforeEach(() => {
-    resource = fakeResource({
-      items: [
-        {
-          id: 'series-w',
-          observedProperty: 'water-level',
-          unit: 'cm',
-          measuringPoint: { id: 'point-1', name: 'Hauptpegel' },
-          station: {
-            id: 'station-1',
-            name: 'Wien Brigittenau',
-            waterBody: 'Donau',
-          },
-          latestMeasurement: { observedAt: '2026-07-22T10:00:00Z', value: 312.5 },
-        },
-      ],
-    });
-
     TestBed.configureTestingModule({
       imports: [TimeSeriesOverviewComponent],
       providers: [
-        {
-          provide: MonitoringApiService,
-          useValue: { timeSeriesCollectionResource: vi.fn(() => resource) },
-        },
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        provideRouter([]),
+        { provide: RUNTIME_CONFIG, useValue: TEST_RUNTIME_CONFIG },
       ],
     });
+    http = TestBed.inject(HttpTestingController);
   });
 
-  it('projects the monitoring response directly for the grid', () => {
+  afterEach(() => http.verify());
+
+  it('loads and renders the operator-facing monitoring collection', async () => {
     const fixture = createComponent();
-    const grid = fixture.debugElement.query(By.directive(PhTimeSeriesGridComponent))
-      .componentInstance as PhTimeSeriesGridComponent;
 
-    expect(grid.rows()[0]).toMatchObject({
-      id: 'series-w',
-      measuringPointName: 'Hauptpegel',
-      latestMeasurement: { valueLabel: '312,5 cm' },
-    });
-    expect(normalizedText(fixture)).toContain('1 Messreihe');
-  });
+    expect(text(fixture)).toContain('Inhalte werden geladen');
 
-  it('updates the result summary when grid filtering changes', () => {
-    const fixture = createComponent();
-    const grid = fixture.debugElement.query(By.directive(PhTimeSeriesGridComponent))
-      .componentInstance as PhTimeSeriesGridComponent;
-
-    grid.visibleCountChange.emit(0);
+    http
+      .expectOne('/api/v1/monitoring/time-series?latestWithin=365d')
+      .flush(monitoringCollectionFixture());
+    TestBed.tick();
     fixture.detectChanges();
 
-    expect(normalizedText(fixture)).toContain('0 von 1 Messreihen');
-    expect(grid.emptyMessage()).toBe('Keine Messreihe entspricht den Filtern.');
+    await vi.waitFor(() => {
+      const rendered = text(fixture);
+      expect(rendered).toContain('2 Messreihen');
+      expect(rendered).toContain('Hauptpegel');
+      expect(rendered).toContain('312,5 cm');
+      expect(rendered).toContain('Durchflussmesser');
+      expect(rendered).toContain('Kein Messwert');
+
+      const rowElements = fixture.nativeElement.querySelectorAll(
+        '[role="row"]',
+      ) as NodeListOf<Element>;
+      const rows = Array.from(rowElements).map(
+        (row) => row.textContent?.replace(/\s+/g, ' ').trim() ?? '',
+      );
+      expect(rows.findIndex((row) => row.includes('Durchflussmesser'))).toBeLessThan(
+        rows.findIndex((row) => row.includes('Hauptpegel')),
+      );
+    });
+  });
+
+  it('shows the genuine empty state for an empty collection', async () => {
+    const fixture = createComponent();
+
+    http.expectOne('/api/v1/monitoring/time-series?latestWithin=365d').flush({ items: [] });
+    TestBed.tick();
+    fixture.detectChanges();
+
+    await vi.waitFor(() => {
+      expect(text(fixture)).toContain('0 Messreihen');
+      expect(text(fixture)).toContain('Keine Messreihen vorhanden.');
+    });
+  });
+
+  it('shows a useful error when the monitoring request fails', async () => {
+    const fixture = createComponent();
+
+    http
+      .expectOne('/api/v1/monitoring/time-series?latestWithin=365d')
+      .flush('unavailable', { status: 503, statusText: 'Service Unavailable' });
+    await vi.waitFor(() => {
+      TestBed.tick();
+      fixture.detectChanges();
+      expect(text(fixture)).toContain('Die Messreihenübersicht konnte nicht geladen werden.');
+      expect(text(fixture)).not.toContain('Keine Messreihen vorhanden.');
+    });
   });
 });
 
 function createComponent(): ComponentFixture<TimeSeriesOverviewComponent> {
   const fixture = TestBed.createComponent(TimeSeriesOverviewComponent);
   fixture.detectChanges();
+  TestBed.tick();
   return fixture;
 }
 
-function fakeResource<T>(initialValue: T) {
-  return {
-    value: signal(initialValue),
-    hasValue: () => true,
-    status: signal('resolved'),
-    isLoading: signal(false),
-    reload: vi.fn(),
-  };
-}
-
-function normalizedText(fixture: ComponentFixture<unknown>): string {
+function text(fixture: ComponentFixture<unknown>): string {
   return fixture.nativeElement.textContent.replace(/\s+/g, ' ').trim();
 }
