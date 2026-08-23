@@ -21,6 +21,7 @@ LOCK_DIR="$STATE_DIR/operation.lock"
 CHECK_ONLY=false
 ROLLBACK=false
 REFRESH_KEYCLOAK=false
+RESET_DATA_CONFIRMATION=""
 REQUESTED_TAG=""
 LOCK_OWNED=false
 compose_structure=""
@@ -29,11 +30,13 @@ usage() {
   cat <<USAGE
 Usage:
   $0 [--check] [--refresh-keycloak] <image-tag>
+  $0 --reset-data <compose-project-name> <image-tag>
   $0 --rollback
 
 Examples:
   $0 --check sha-42bd19b
   $0 --refresh-keycloak sha-42bd19b
+  $0 --reset-data pegelhub-staging sha-42bd19b
   $0 sha-42bd19b
   $0 v0.1.0
   $0 --rollback
@@ -79,6 +82,11 @@ while [ "$#" -gt 0 ]; do
       ;;
     --refresh-keycloak)
       REFRESH_KEYCLOAK=true
+      ;;
+    --reset-data)
+      [ "$#" -ge 2 ] || fail "--reset-data requires the Compose project name as confirmation."
+      RESET_DATA_CONFIRMATION="$2"
+      shift
       ;;
     -h|--help)
       usage
@@ -251,6 +259,14 @@ load_compose_environment() {
   compose_influx_latest_range=$(env_value INFLUX_LATEST_RANGE)
 }
 
+validate_reset_request() {
+  [ -n "$RESET_DATA_CONFIRMATION" ] || return 0
+  [ "$RESET_DATA_CONFIRMATION" = "$compose_project_name" ] \
+    || fail "--reset-data confirmation must exactly match COMPOSE_PROJECT_NAME ($compose_project_name)."
+  [ "$CHECK_ONLY" = "false" ] || fail "--reset-data cannot be combined with --check."
+  [ "$ROLLBACK" = "false" ] || fail "--reset-data cannot be combined with --rollback."
+}
+
 select_tag() {
   if [ "$ROLLBACK" = "true" ]; then
     [ -z "$REQUESTED_TAG" ] || fail "--rollback cannot be combined with an explicit image tag."
@@ -306,8 +322,18 @@ record_release() {
   } > "$CURRENT_RELEASE_FILE"
 }
 
+reset_data() {
+  printf '%s\n' "Resetting PostgreSQL metadata and InfluxDB measurements for $compose_project_name..."
+  compose rm --stop --force core-app influx-bucket-setup data-db meta-db
+  docker volume rm \
+    "${compose_project_name}_metastore-data" \
+    "${compose_project_name}_datastore-data"
+  rm -f "$CURRENT_RELEASE_FILE"
+}
+
 validate_environment
 load_compose_environment
+validate_reset_request
 PEGELHUB_IMAGE_TAG=$(select_tag)
 export PEGELHUB_IMAGE_TAG
 
@@ -339,6 +365,10 @@ fi
 
 printf '%s\n' "Pulling deployment images..."
 compose pull
+
+if [ -n "$RESET_DATA_CONFIRMATION" ]; then
+  reset_data
+fi
 
 if [ "$REFRESH_KEYCLOAK" = "true" ]; then
   printf '%s\n' "Recreating Keycloak for theme/config reload; realm state is unchanged..."

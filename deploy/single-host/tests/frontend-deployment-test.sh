@@ -91,7 +91,7 @@ for workflow in \
   grep -F 'uses: ./.github/actions/staging-deploy' "$workflow" >/dev/null \
     || fail "Staging workflows must share the remote deployment action."
 done
-grep -F 'deploy/single-host/scripts/deploy.sh "$DEPLOY_IMAGE"' \
+grep -F 'deploy/single-host/scripts/deploy.sh "$@"' \
   "$STAGING_ACTION" >/dev/null \
   || fail "The staging action must support backend deployment."
 grep -F 'deploy/single-host/scripts/deploy-frontend.sh "$DEPLOY_IMAGE"' \

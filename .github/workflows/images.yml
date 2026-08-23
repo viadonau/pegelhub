@@ -8,6 +8,11 @@ on:
         required: true
         type: boolean
         default: true
+      reset_staging_data:
+        description: Irreversibly reset staging metadata and measurements before deployment.
+        required: true
+        type: boolean
+        default: false
   push:
     branches:
       - main
@@ -154,6 +159,7 @@ jobs:
         uses: ./.github/actions/staging-deploy
         with:
           target: backend
+          reset_data: ${{ github.event_name == 'workflow_dispatch' && inputs.reset_staging_data }}
           image: ${{ steps.image-tag.outputs.image_tag }}
           deploy_ref: ${{ github.ref_name }}
           repo_dir: ${{ vars.STAGING_REPO_DIR }}
