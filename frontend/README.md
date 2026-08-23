@@ -29,6 +29,8 @@ technical documentation are English.
 - Bash and standard POSIX command-line tools for repository scripts
 - Docker for the [Core local stack](../README.md#start-locally) and image validation
 - `curl` for Core startup and image validation
+- Chromium for browser tests; install it once with
+  `npm --prefix frontend exec playwright install chromium`
 
 The shell examples assume macOS, Linux, or a comparable POSIX environment such as WSL. The
 checked-in `package-lock.json` is the dependency source of truth; use `npm ci` for a clean install
@@ -193,7 +195,9 @@ when working from the repository root.
 | `npm start`              | Start the dev server on port 4200 with the Core proxy.                          |
 | `npm run start:4201`     | Start on port 4201; Keycloak must allow that origin.                            |
 | `npm run watch`          | Rebuild the development bundle when source files change.                        |
-| `npm test`               | Run the Vitest unit suite once.                                                 |
+| `npm test`               | Run the fast happy-dom Vitest suite once.                                       |
+| `npm run test:browser`   | Run the focused route suite in headless Chromium.                               |
+| `npm run test:coverage`  | Print diagnostic coverage for all frontend TypeScript; no threshold is applied. |
 | `npm run typecheck`      | Type-check application and test TypeScript projects.                            |
 | `npm run format:check`   | Check repository formatting with Prettier.                                      |
 | `npm run format`         | Rewrite supported files with Prettier.                                          |
@@ -209,6 +213,10 @@ inputs are `FRONTEND_BASE_URL`, `LOCAL_OPERATOR_CLIENT_ID`, `LOCAL_OPERATOR_CLIE
 `LIVE_STACK_SMOKE_TIMEOUT_MS`. Provisioning is documented in the
 [local Keycloak guide](../core/docs/keycloak-local-dev.md#local-realm-contents). Supply sensitive
 overrides only through the environment; do not commit them.
+
+Browser tests use the real Angular router, feature components, and API services, but mock Keycloak
+and Core responses. They verify behavior in Chromium and do not replace `npm run smoke:live`, which
+checks a running frontend against the local Keycloak and Core stack.
 
 Before opening a pull request, run at least:
 
