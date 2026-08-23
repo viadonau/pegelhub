@@ -98,6 +98,7 @@ network_id=$(docker network ls \
 [ -n "$network_id" ] || fail "The disposable Keycloak network is missing."
 
 docker run --rm \
+  --user "$(id -u):$(id -g)" \
   --network "$network_id" \
   --volume "$SECRET_FILE:/run/client-secret:ro" \
   curlimages/curl:8.12.1 \
