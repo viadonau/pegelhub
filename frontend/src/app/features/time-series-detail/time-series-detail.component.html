@@ -40,13 +40,15 @@
         />
       }
 
-      <ph-time-series-measurements
-        [timeSeriesId]="timeSeriesId()"
-        [observedProperty]="snapshot()?.observedProperty ?? ''"
-        [unit]="displayUnit()"
-        [referenceLines]="referenceLines()"
-        (refresh)="reloadSnapshot()"
-      />
+      @if (historyAvailable()) {
+        <ph-time-series-measurements
+          [timeSeriesId]="timeSeriesId()"
+          [observedProperty]="snapshot()?.observedProperty ?? ''"
+          [unit]="displayUnit()"
+          [referenceLines]="referenceLines()"
+          (refresh)="reloadSnapshot()"
+        />
+      }
     </div>
   </ph-content-state>
 </ph-page>
