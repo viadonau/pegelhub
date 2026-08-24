@@ -55,9 +55,10 @@ scripts/local-stack.sh health
 The imported disposable realm includes a browser user authorized for this monitoring UI. Obtain its
 local-only sign-in details from the repository's
 [local Keycloak guide](../core/docs/keycloak-local-dev.md#local-realm-contents).
-Custom browser users need the Core `metadata:read` and `measurement:read` client roles. Keycloak
-owns identities; the local realm definition and operational guidance live under `core/`. Do not put
-credentials in frontend configuration or duplicate them here.
+Custom browser users should join Keycloak's `/monitoring-users` group, which grants the Core
+`metadata:read` and `measurement:read` client roles. Keycloak owns identities; the local realm
+definition and operational guidance live under `core/`. Do not put credentials in frontend
+configuration or duplicate them here.
 
 Then, from the repository root, start the frontend:
 

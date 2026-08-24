@@ -104,6 +104,16 @@ metadata:read
 system:admin
 ```
 
+Browser access group:
+
+```text
+/monitoring-users
+```
+
+The group grants `metadata:read` and `measurement:read` from
+`pegelhub-core-api`. Shared deployments should add browser users to this group
+instead of assigning those roles directly.
+
 Local-only client-credentials clients:
 
 | Client id | Secret | Purpose |
@@ -115,14 +125,23 @@ Local-only client-credentials clients:
 These are throwaway local credentials. Never reuse them outside local
 development.
 
-Local browser account:
+Fresh-realm local browser account:
 
-| Username | Password | Client | Core roles |
+| Username | Password | Group | Client |
 | --- | --- | --- | --- |
-| `pegel` | `pegel` | `pegelhub-frontend` | `metadata:read`, `measurement:read` |
+| `pegel` | `local-dev-passphrase` | `/monitoring-users` | `pegelhub-frontend` |
 
 This account and password are checked-in, disposable local fixtures. Never
 enable or reuse them in a shared, staging, or production realm.
+
+Fresh local realms enforce the same 12-character password policy and temporary
+brute-force lockout policy as the deployment realm seed. **Forgot password** is
+disabled because the local stack has no SMTP service. To exercise onboarding,
+create a disposable local user, join `/monitoring-users`, and set a temporary
+password in the Keycloak Admin Console. Existing local volumes are not rewritten
+when the realm JSON changes. For an existing volume, reset `pegel` and align its
+group membership in the Admin Console before expecting the fresh-realm values in
+the table above.
 
 ## Request a connector token
 

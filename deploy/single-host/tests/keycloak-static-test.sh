@@ -15,6 +15,8 @@ LOCAL_REALM_FILE="$REPO_DIR/core/docker/keycloak/import/pegelhub-realm.json"
 COMPOSE_FILE="$DEPLOY_DIR/compose.yaml"
 BOOTSTRAP_COMPOSE_FILE="$DEPLOY_DIR/keycloak-bootstrap.compose.yaml"
 ENV_FILE="$DEPLOY_DIR/pegelhub.env.example"
+THEME_DIR="$REPO_DIR/core/docker/keycloak/themes/pegelhub/login"
+THEME_PROPERTIES="$THEME_DIR/theme.properties"
 
 fail() {
   printf '%s\n' "ERROR: $*" >&2
@@ -23,6 +25,29 @@ fail() {
 
 command -v jq >/dev/null 2>&1 || fail "jq is required."
 command -v docker >/dev/null 2>&1 || fail "docker is required."
+
+theme_stylesheet=$(sed -n 's/^styles=//p' "$THEME_PROPERTIES")
+printf '%s\n' "$theme_stylesheet" \
+  | grep -Eq '^css/login[.][0-9a-f]{12}[.]css$' \
+  || fail "The login theme stylesheet must use a content-hashed filename."
+grep -Fx 'contentHashPattern=css/login[.][0-9a-f]{12}[.]css' \
+  "$THEME_PROPERTIES" >/dev/null \
+  || fail "The login theme must declare its content-hash pattern."
+
+theme_stylesheet_file="$THEME_DIR/resources/$theme_stylesheet"
+[ -f "$theme_stylesheet_file" ] \
+  || fail "The configured login theme stylesheet does not exist."
+if command -v sha256sum >/dev/null 2>&1; then
+  theme_stylesheet_hash=$(sha256sum "$theme_stylesheet_file" | cut -c 1-12)
+elif command -v shasum >/dev/null 2>&1; then
+  theme_stylesheet_hash=$(shasum -a 256 "$theme_stylesheet_file" | cut -c 1-12)
+else
+  fail "sha256sum or shasum is required."
+fi
+case "$theme_stylesheet" in
+  "css/login.$theme_stylesheet_hash.css") ;;
+  *) fail "The login theme stylesheet filename does not match its content hash." ;;
+esac
 
 jq empty "$REALM_FILE"
 jq empty "$LOCAL_REALM_FILE"
@@ -35,6 +60,27 @@ jq -e '
   and .internationalizationEnabled == true
   and .supportedLocales == ["de"]
   and .defaultLocale == "de"
+  and .accessTokenLifespan == 600
+  and .resetPasswordAllowed == false
+  and .passwordPolicy == "length(12) and notUsername and notEmail"
+  and .bruteForceProtected == true
+  and .permanentLockout == false
+  and .bruteForceStrategy == "MULTIPLE"
+  and .failureFactor == 10
+  and .waitIncrementSeconds == 60
+  and .maxFailureWaitSeconds == 900
+  and .maxDeltaTimeSeconds == 43200
+  and .quickLoginCheckMilliSeconds == 1000
+  and .minimumQuickLoginWaitSeconds == 60
+  and .groups == [
+    {
+      "name": "monitoring-users",
+      "clientRoles": {
+        "pegelhub-core-api": ["metadata:read", "measurement:read"]
+      }
+    }
+  ]
+  and .defaultGroups == []
   and .users == []
   and ([.clients[].clientId] | sort)
     == ["pegelhub-core-api", "pegelhub-frontend"]
@@ -90,6 +136,56 @@ jq -e --slurp '
   | .[1] as $local
   | $staging.roles.client["pegelhub-core-api"]
       == $local.roles.client["pegelhub-core-api"]
+    and $staging.accessTokenLifespan == 600
+    and $local.accessTokenLifespan == 600
+    and $staging.passwordPolicy == $local.passwordPolicy
+    and $staging.resetPasswordAllowed == $local.resetPasswordAllowed
+    and $staging.bruteForceProtected == $local.bruteForceProtected
+    and $staging.permanentLockout == $local.permanentLockout
+    and $staging.bruteForceStrategy == $local.bruteForceStrategy
+    and $staging.failureFactor == $local.failureFactor
+    and $staging.waitIncrementSeconds == $local.waitIncrementSeconds
+    and $staging.maxFailureWaitSeconds == $local.maxFailureWaitSeconds
+    and $staging.maxDeltaTimeSeconds == $local.maxDeltaTimeSeconds
+    and $staging.quickLoginCheckMilliSeconds == $local.quickLoginCheckMilliSeconds
+    and $staging.minimumQuickLoginWaitSeconds == $local.minimumQuickLoginWaitSeconds
+    and $staging.groups == $local.groups
+    and $staging.defaultGroups == []
+    and $local.defaultGroups == []
+    and (
+      [$local.users[]
+        | select(.username == "pegel")
+        | {
+            username,
+            enabled,
+            firstName,
+            lastName,
+            email,
+            emailVerified,
+            credentials,
+            groups,
+            clientRoles: (.clientRoles // {})
+          }
+      ] == [
+        {
+          "username": "pegel",
+          "enabled": true,
+          "firstName": "Local",
+          "lastName": "Web Operator",
+          "email": "local-web-operator@pegelhub.test",
+          "emailVerified": true,
+          "credentials": [
+            {
+              "type": "password",
+              "value": "local-dev-passphrase",
+              "temporary": false
+            }
+          ],
+          "groups": ["/monitoring-users"],
+          "clientRoles": {}
+        }
+      ]
+    )
     and (
       [$staging.clientScopes[] | select(.name | startswith("pegelhub-"))]
       == [$local.clientScopes[] | select(.name | startswith("pegelhub-"))]
