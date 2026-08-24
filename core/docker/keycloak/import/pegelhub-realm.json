@@ -12,6 +12,17 @@
   "ssoSessionIdleTimeout": 1800,
   "ssoSessionMaxLifespan": 3600,
   "sslRequired": "external",
+  "resetPasswordAllowed": false,
+  "passwordPolicy": "length(12) and notUsername and notEmail",
+  "bruteForceProtected": true,
+  "permanentLockout": false,
+  "bruteForceStrategy": "MULTIPLE",
+  "failureFactor": 10,
+  "waitIncrementSeconds": 60,
+  "maxFailureWaitSeconds": 900,
+  "maxDeltaTimeSeconds": 43200,
+  "quickLoginCheckMilliSeconds": 1000,
+  "minimumQuickLoginWaitSeconds": 60,
   "roles": {
     "realm": [
       {
@@ -241,6 +252,18 @@
       }
     ]
   },
+  "groups": [
+    {
+      "name": "monitoring-users",
+      "clientRoles": {
+        "pegelhub-core-api": [
+          "metadata:read",
+          "measurement:read"
+        ]
+      }
+    }
+  ],
+  "defaultGroups": [],
   "clients": [
     {
       "clientId": "pegelhub-core-api",
@@ -405,16 +428,13 @@
       "credentials": [
         {
           "type": "password",
-          "value": "pegel",
+          "value": "local-dev-passphrase",
           "temporary": false
         }
       ],
-      "clientRoles": {
-        "pegelhub-core-api": [
-          "measurement:read",
-          "metadata:read"
-        ]
-      }
+      "groups": [
+        "/monitoring-users"
+      ]
     }
   ]
 }
