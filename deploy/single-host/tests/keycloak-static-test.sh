@@ -35,6 +35,27 @@ jq -e '
   and .internationalizationEnabled == true
   and .supportedLocales == ["de"]
   and .defaultLocale == "de"
+  and .accessTokenLifespan == 600
+  and .resetPasswordAllowed == false
+  and .passwordPolicy == "length(12) and notUsername and notEmail"
+  and .bruteForceProtected == true
+  and .permanentLockout == false
+  and .bruteForceStrategy == "MULTIPLE"
+  and .failureFactor == 10
+  and .waitIncrementSeconds == 60
+  and .maxFailureWaitSeconds == 900
+  and .maxDeltaTimeSeconds == 43200
+  and .quickLoginCheckMilliSeconds == 1000
+  and .minimumQuickLoginWaitSeconds == 60
+  and .groups == [
+    {
+      "name": "monitoring-users",
+      "clientRoles": {
+        "pegelhub-core-api": ["metadata:read", "measurement:read"]
+      }
+    }
+  ]
+  and .defaultGroups == []
   and .users == []
   and ([.clients[].clientId] | sort)
     == ["pegelhub-core-api", "pegelhub-frontend"]
@@ -90,6 +111,56 @@ jq -e --slurp '
   | .[1] as $local
   | $staging.roles.client["pegelhub-core-api"]
       == $local.roles.client["pegelhub-core-api"]
+    and $staging.accessTokenLifespan == 600
+    and $local.accessTokenLifespan == 600
+    and $staging.passwordPolicy == $local.passwordPolicy
+    and $staging.resetPasswordAllowed == $local.resetPasswordAllowed
+    and $staging.bruteForceProtected == $local.bruteForceProtected
+    and $staging.permanentLockout == $local.permanentLockout
+    and $staging.bruteForceStrategy == $local.bruteForceStrategy
+    and $staging.failureFactor == $local.failureFactor
+    and $staging.waitIncrementSeconds == $local.waitIncrementSeconds
+    and $staging.maxFailureWaitSeconds == $local.maxFailureWaitSeconds
+    and $staging.maxDeltaTimeSeconds == $local.maxDeltaTimeSeconds
+    and $staging.quickLoginCheckMilliSeconds == $local.quickLoginCheckMilliSeconds
+    and $staging.minimumQuickLoginWaitSeconds == $local.minimumQuickLoginWaitSeconds
+    and $staging.groups == $local.groups
+    and $staging.defaultGroups == []
+    and $local.defaultGroups == []
+    and (
+      [$local.users[]
+        | select(.username == "pegel")
+        | {
+            username,
+            enabled,
+            firstName,
+            lastName,
+            email,
+            emailVerified,
+            credentials,
+            groups,
+            clientRoles: (.clientRoles // {})
+          }
+      ] == [
+        {
+          "username": "pegel",
+          "enabled": true,
+          "firstName": "Local",
+          "lastName": "Web Operator",
+          "email": "local-web-operator@pegelhub.test",
+          "emailVerified": true,
+          "credentials": [
+            {
+              "type": "password",
+              "value": "local-dev-passphrase",
+              "temporary": false
+            }
+          ],
+          "groups": ["/monitoring-users"],
+          "clientRoles": {}
+        }
+      ]
+    )
     and (
       [$staging.clientScopes[] | select(.name | startswith("pegelhub-"))]
       == [$local.clientScopes[] | select(.name | startswith("pegelhub-"))]

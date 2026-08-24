@@ -20,9 +20,12 @@
         <div class="ph-login-header-inner">
             <div class="ph-login-brand">
                 <img src="${url.resourcesPath}/img/pegelhub-logo.png" alt="" class="ph-login-brand-logo" />
-                <span class="ph-login-brand-wordmark">
-                    <span class="ph-login-brand-org">viadonau</span>
-                </span>
+                <div class="ph-login-brand-partners">
+                    <img src="${url.resourcesPath}/img/viadonau-logo.svg" alt="viadonau" class="ph-login-partner-logo" />
+                    <img src="${url.resourcesPath}/img/dhk-logo.jpg"
+                         alt="DHK – Donau Hochwasserschutz Konkurrenz"
+                         class="ph-login-partner-logo ph-login-partner-logo--dhk" />
+                </div>
             </div>
         </div>
     </header>
@@ -37,7 +40,7 @@
 
             <#-- Server-side messages (errors / warnings / info) -->
             <#if displayMessage && message?has_content && (message.type != 'warning' || !isAppInitiatedAction??)>
-                <div class="ph-alert ph-alert--${message.type}" role="alert">
+                <div id="ph-global-message" class="ph-alert ph-alert--${message.type}" role="alert">
                     <span>${kcSanitize(message.summary)?no_esc}</span>
                 </div>
             </#if>
