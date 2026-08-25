@@ -40,6 +40,7 @@ describe('PhLineChartComponent', () => {
     const options = viewModel.chartOptions();
     const annotations = options.plugins?.annotation?.annotations;
 
+    expect(options.font?.family).toContain('Source Sans 3 Variable');
     expect(annotations).toEqual([
       expect.objectContaining({
         type: 'line',
