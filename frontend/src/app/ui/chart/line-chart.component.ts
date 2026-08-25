@@ -36,6 +36,8 @@ const WATER_LEVEL_MIN_VISIBLE_SPAN_M = 0.1;
 const DEFAULT_RELATIVE_MIN_VISIBLE_SPAN = 0.02;
 const DEFAULT_MIN_VISIBLE_SPAN = 1;
 const LOW_DENSITY_POINT_LIMIT = 16;
+const CHART_FONT_FAMILY =
+  "'Source Sans 3 Variable', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
 
 @Component({
   selector: 'ph-line-chart',
@@ -123,6 +125,9 @@ export class PhLineChartComponent {
     return {
       animation: false,
       maintainAspectRatio: false,
+      font: {
+        family: CHART_FONT_FAMILY,
+      },
       layout: {
         padding: {
           top: 6,
