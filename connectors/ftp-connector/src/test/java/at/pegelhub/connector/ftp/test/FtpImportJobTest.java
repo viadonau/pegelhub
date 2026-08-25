@@ -135,6 +135,30 @@ public class FtpImportJobTest {
     }
 
     @Test
+    public void acceptsHydamsCubicMetresPerSecondUnit() throws Exception {
+        var mockClient = mock(FTPClient.class);
+        var file = new FTPFile();
+        file.setName("values.zrxp");
+        when(mockClient.listFiles(any(), any())).thenReturn(new FTPFile[]{file});
+        when(mockClient.retrieveFileStream(any())).thenReturn(InputStream.nullInputStream());
+        when(mockClient.completePendingCommand()).thenReturn(true);
+        when(mockClient.getReplyCode()).thenReturn(200);
+        when(mockClient.login(any(), any())).thenReturn(true);
+        var parser = mock(Parser.class);
+        var measurementEntry = entry("10001030", "Abfluss", "CUMC", 118.8);
+        when(parser.parse(any())).thenReturn(Stream.of(measurementEntry));
+        var config = buildConfig(ParserType.ZRXP, 10001030, "Abfluss", 21);
+
+        new FtpImportJob(mockClient, config, comm, parser).run();
+
+        verify(comm).sendMeasurements(argThat(measurements -> {
+            assertEquals(1, measurements.size());
+            assertEquals(118.8, measurements.getFirst().getValue());
+            return true;
+        }));
+    }
+
+    @Test
     public void passesWaterTemperatureThroughInCelsius() throws Exception {
         var mockClient = mock(FTPClient.class);
         var file = new FTPFile();

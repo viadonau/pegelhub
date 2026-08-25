@@ -28,4 +28,18 @@ public class ZRXPParserTest {
         assertEquals("Wasserstand", entries.getFirst().getInfos().get("parameter"));
         assertEquals(2, entries.getFirst().getValues().size());
     }
+
+    @Test
+    public void readsHydamsLatin1Headers() throws IOException {
+        var input = """
+                #CDASANAMEWien Brigittenau|*|
+                #REXCHANGEHYDAMSEX_10001030_WasserstandAbs|*|CUNITm ü.A.|*|RINVAL-777|*|
+                20260625070000 157.3
+                """;
+
+        var parser = ParserFactory.getParser(ParserType.ZRXP);
+        var entries = parser.parse(new ByteArrayInputStream(input.getBytes(StandardCharsets.ISO_8859_1))).toList();
+
+        assertEquals("m ü.A.", entries.getFirst().getInfos().get("unit"));
+    }
 }
