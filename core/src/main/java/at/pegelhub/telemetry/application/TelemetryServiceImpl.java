@@ -68,11 +68,11 @@ public class TelemetryServiceImpl implements TelemetryService {
     }
 
     @Override
-    public Telemetry getLastData(UUID uuid) {
-        requireNonNull(uuid);
+    public Telemetry getLastData(UUID connectorId) {
+        requireNonNull(connectorId);
         requireReadAccess();
-        return telemetryRepository.getLastData(uuid)
-                .orElseThrow(() -> new NotFoundException("No telemetry found for: " + uuid));
+        return telemetryRepository.getLastData(connectorId)
+                .orElseThrow(() -> new NotFoundException("No telemetry found for connector: " + connectorId));
     }
 
     private void requireReadAccess() {

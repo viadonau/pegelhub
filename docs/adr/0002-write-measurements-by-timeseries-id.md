@@ -1,6 +1,14 @@
 # Write Measurements By TimeSeries Identity
 
-PegelHub's clean measurement write API will require connectors to submit a TimeSeries identifier, observed time, and value. Protocol-specific addresses such as IEC IOAs, FTP column names, station numbers, or channel names may be mapped to TimeSeries identifiers by connector configuration or compatibility adapters, but they are not part of the core Measurement identity.
+## Status
+
+Accepted and implemented.
+
+PegelHub's measurement write API requires connectors to submit a TimeSeries
+identifier, observed time, and value. Protocol-specific addresses such as IEC
+IOAs, FTP column names, station numbers, or channel names map to TimeSeries
+identifiers in connector configuration; they are not part of the Core
+Measurement identity.
 
 ## Considered Options
 

@@ -8,6 +8,7 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
@@ -59,7 +60,9 @@ public class ZRXPParser implements Parser {
             Date date = deconstructDateString(dateString);
             String value = splits[1];
             assert entry != null;
-            entry.values.put(date, value);
+            if (!isInvalidValue(value, entry.invalidValue)) {
+                entry.values.put(date, value);
+            }
         }
         if (entry != null) {
             entries.add(entry);
@@ -82,11 +85,21 @@ public class ZRXPParser implements Parser {
                 entry.infos.put("location", customSplits[1]);
                 entry.infos.put("parameter", customSplits[2]);
             } else if (s.startsWith("RINVAL")) {
-                // ignore
-                continue;
+                entry.invalidValue = s.substring("RINVAL".length()).trim();
             } else {
                 throw new IllegalStateException(String.format("Unknown symbol read at start: \"%s\"", s));
             }
+        }
+    }
+
+    private boolean isInvalidValue(String value, String invalidValue) {
+        if (invalidValue == null) {
+            return false;
+        }
+        try {
+            return new BigDecimal(value).compareTo(new BigDecimal(invalidValue)) == 0;
+        } catch (NumberFormatException ignored) {
+            return value.equals(invalidValue);
         }
     }
 

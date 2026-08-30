@@ -11,9 +11,8 @@
     </parent>
 
     <artifactId>icc-connector</artifactId>
-    <version>1.0.0-SNAPSHOT</version>
-    <name>Pegelhub ICC Connector</name>
-    <description>ICC connector for Pegelhub.</description>
+    <name>PegelHub ICC Connector</name>
+    <description>Copies measurements between PegelHub Core instances</description>
 
     <dependencies>
         <dependency>

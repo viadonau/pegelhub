@@ -34,9 +34,11 @@ chmod 600 "$CONFIG_ROOT/iec-connector/connector.yaml"
 ```
 
 `connector.yaml` defines the Core URL and client-credentials authentication, a
-positive polling interval ending in `s`, `m`, or `h`, and the IEC server
-`host`, `port`, and `commonAddress`. `mappings.directory` defaults to
-`mappings`.
+positive polling interval ending in `s`, `m`, or `h` (case-insensitive), and
+the IEC server `host`, `port`, and `commonAddress`. The common address is used
+for the startup interrogation and outbound ASDUs. Inbound values are selected
+by configured IOA; the current listener does not filter them by ASDU common
+address. `mappings.directory` defaults to `mappings`.
 
 Example mapping:
 
@@ -59,12 +61,20 @@ The client also needs the registration and resource grants described in the
 
 ## Transfer behavior
 
+The connector performs no unit conversion. For `external-to-core`, configure
+the target time series source representation to match the physical IEC value:
+normally `canonical`, or `metres-above-adria` only when a water-level value is
+an elevation and the measuring point has a gauge zero. For `core-to-external`,
+Core returns canonical values, so the IEC destination must expect the observed
+property's canonical unit.
+
 For `external-to-core`, the IEC listener accepts short-float `M_ME_NC_1` and
 `M_ME_TF_1` values only for configured inbound IOAs. It stamps them with the
 connector's receipt time; the implementation does not retain the IEC timestamp
-or quality flags. Each poll drains the in-memory queue and submits one Core
-batch per IOA. A failed submission is logged after the batch has been drained,
-so it is not durably retried.
+or quality flags. Each poll merges the received queue into one in-memory pending
+batch per IOA and attempts each batch independently. Failed submissions remain
+pending for a later poll; they are lost if the connector process stops before a
+successful retry.
 
 For `core-to-external`, each poll reads the latest Core value within the shared
 client's fixed 365-day search window and sends it as an `M_ME_NC_1` short float.
@@ -90,5 +100,6 @@ For Compose-based deployments, use the
 
 ## Protocol dependency
 
-The implementation uses [OpenMUC j60870](https://www.openmuc.org/j60870/),
-currently versioned in this module's `pom.xml`.
+The implementation uses
+[OpenMUC j60870](https://www.openmuc.org/iec-60870-5-104/), currently versioned
+in this module's `pom.xml`.

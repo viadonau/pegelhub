@@ -36,7 +36,7 @@ final class TelemetryFluxRowMapper {
     List<Telemetry> toTelemetries(List<FluxTable> tables) {
         requireNonNull(tables);
         // Flux returns one row per field; rebuild each Telemetry point by merging
-        // rows with the same station identifier and timestamp.
+        // rows with the same connector identifier and timestamp.
         Map<TelemetryPointKey, MutableTelemetryPoint> points = new LinkedHashMap<>();
         for (FluxTable table : tables) {
             mergeTableRows(table, points);
@@ -59,7 +59,7 @@ final class TelemetryFluxRowMapper {
         copyStationIpAddresses(record, point);
     }
 
-    // Row(measurement=station-a, time=t) --> existing or new Telemetry point for (station-a, t).
+    // Row(measurement=connector-a, time=t) --> existing or new Telemetry point for (connector-a, t).
     private MutableTelemetryPoint pointFor(FluxRecord record, Map<TelemetryPointKey, MutableTelemetryPoint> points) {
         TelemetryPointKey key = pointKey(record);
         return points.computeIfAbsent(
@@ -67,7 +67,7 @@ final class TelemetryFluxRowMapper {
                 ignored -> new MutableTelemetryPoint(key.stationIdentifier(), key.timestamp()));
     }
 
-    // Row measurement/time columns --> key used to join field rows from the same Telemetry point.
+    // Connector measurement/time columns --> key used to join rows from the same Telemetry point.
     private TelemetryPointKey pointKey(FluxRecord record) {
         requireNonNull(record);
         Instant timestamp = record.getTime();

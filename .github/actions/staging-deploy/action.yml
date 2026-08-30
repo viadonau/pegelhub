@@ -1,5 +1,5 @@
 name: Staging Deploy
-description: Update the checkout and run the reusable single-host deploy scripts with staging configuration.
+description: Update the checkout and deploy a single-host service or connector with staging configuration.
 
 inputs:
   target:

@@ -16,6 +16,7 @@ import at.pegelhub.lib.config.CoreConnection;
 import at.pegelhub.lib.model.Measurement;
 import org.apache.commons.net.ftp.FTPClient;
 import org.apache.commons.net.ftp.FTPFile;
+import org.apache.commons.net.ftp.FTPFileFilter;
 import org.junit.jupiter.api.*;
 import org.mockftpserver.fake.FakeFtpServer;
 import org.mockftpserver.fake.UserAccount;
@@ -30,6 +31,8 @@ import java.io.InputStream;
 import java.net.URI;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayDeque;
+import java.util.Calendar;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
@@ -158,6 +161,72 @@ public class FtpImportJobTest {
         }));
     }
 
+    @Test
+    public void reprocessesTheSameFilenameWhenItsModifiedTimestampChanges() throws Exception {
+        var mockClient = mock(FTPClient.class);
+        var files = new ArrayDeque<>(List.of(
+                ftpFile("values.asc", Instant.now().minusSeconds(2)),
+                ftpFile("values.asc", Instant.now().minusSeconds(1))));
+        when(mockClient.listFiles(any(), any())).thenAnswer(answer -> {
+            FTPFile file = files.removeFirst();
+            FTPFileFilter filter = answer.getArgument(1);
+            return filter.accept(file) ? new FTPFile[]{file} : new FTPFile[0];
+        });
+        when(mockClient.retrieveFileStream(any())).thenReturn(InputStream.nullInputStream());
+        when(mockClient.completePendingCommand()).thenReturn(true);
+        when(mockClient.getReplyCode()).thenReturn(200);
+        when(mockClient.login(any(), any())).thenReturn(true);
+        var parser = mock(Parser.class);
+        when(parser.getType()).thenReturn(ParserType.ASC);
+        when(parser.parse(any())).thenAnswer(answer -> Stream.of(entry("10001033", "Abfluss", 118.8)));
+        var task = new FtpImportJob(mockClient, config, comm, parser);
+
+        task.run();
+        task.run();
+
+        verify(comm, times(2)).sendMeasurements(anyList());
+        assertEquals(0, files.size());
+    }
+
+    @Test
+    public void retriesAFileWhenTheFtpTransferDoesNotComplete() throws Exception {
+        var mockClient = mock(FTPClient.class);
+        FTPFile file = ftpFile("values.asc", Instant.now().minusSeconds(1));
+        var files = new ArrayDeque<>(List.of(file, file));
+        when(mockClient.listFiles(any(), any())).thenAnswer(answer -> {
+            FTPFile listedFile = files.removeFirst();
+            FTPFileFilter filter = answer.getArgument(1);
+            return filter.accept(listedFile) ? new FTPFile[]{listedFile} : new FTPFile[0];
+        });
+        when(mockClient.retrieveFileStream(any())).thenReturn(InputStream.nullInputStream());
+        when(mockClient.completePendingCommand()).thenReturn(false, true);
+        when(mockClient.getReplyCode()).thenReturn(200);
+        when(mockClient.login(any(), any())).thenReturn(true);
+        var parser = mock(Parser.class);
+        when(parser.getType()).thenReturn(ParserType.ASC);
+        when(parser.parse(any())).thenAnswer(answer -> Stream.of(entry("10001033", "Abfluss", 118.8)));
+        var task = new FtpImportJob(mockClient, config, comm, parser);
+
+        task.run();
+        verify(comm, never()).sendMeasurements(anyList());
+        task.run();
+
+        verify(mockClient, times(2)).completePendingCommand();
+        verify(mockClient, times(2)).retrieveFileStream(any());
+        verify(comm, times(1)).sendMeasurements(anyList());
+        assertEquals(0, files.size());
+    }
+
+    private static FTPFile ftpFile(String name, Instant modifiedAt) {
+        FTPFile file = new FTPFile();
+        file.setName(name);
+        file.setType(FTPFile.FILE_TYPE);
+        Calendar timestamp = Calendar.getInstance();
+        timestamp.setTime(Date.from(modifiedAt));
+        file.setTimestamp(timestamp);
+        return file;
+    }
+
     private static Entry entry(String location, String parameter, double value) {
         String unit = "WasserstandAbs".equalsIgnoreCase(parameter) ? "m ü.A." : "m3/s";
         return entry(location, parameter, unit, value);
@@ -228,6 +297,19 @@ public class FtpImportJobTest {
             task.run();
 
             verify(comm, times(1)).sendMeasurements(anyList());
+        }
+
+        @Test
+        @Tag("SingleEntry.asc")
+        public void ftpTaskRetriesAFileWhenCoreRejectsTheBatch() {
+            doThrow(new RuntimeException("Core unavailable"))
+                    .doNothing()
+                    .when(comm).sendMeasurements(anyList());
+
+            task.run();
+            task.run();
+
+            verify(comm, times(2)).sendMeasurements(anyList());
         }
 
         @Test

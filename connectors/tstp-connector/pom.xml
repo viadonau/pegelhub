@@ -11,10 +11,9 @@
     </parent>
 
     <artifactId>tstp-connector</artifactId>
-    <version>1.0.0-SNAPSHOT</version>
 
-    <name>Pegelhub TSTP Connector</name>
-    <description>Project for Pegelhub TSTP Connector</description>
+    <name>PegelHub TSTP Connector</name>
+    <description>Exchanges measurements between PegelHub Core and a TSTP HTTP server</description>
 
     <dependencies>
         <dependency>

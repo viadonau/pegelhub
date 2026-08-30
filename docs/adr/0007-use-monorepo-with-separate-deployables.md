@@ -32,8 +32,8 @@ The Java and Angular applications remain separate deployables:
   aggregator POM.
 - Angular continues to use its own `package.json`, npm lockfile, Dockerfile,
   tests, and Node toolchain under `frontend/`.
-- Core and frontend keep separate container images, health checks, releases,
-  deployment actions, and rollback state.
+- Core and frontend keep separate container images, health checks, delivery
+  workflows and scripts, releases, and rollback state.
 - HTTP and OpenAPI remain the integration seam. The frontend does not import
   backend implementation classes or persistence models.
 - CI uses path filters so frontend-only changes do not publish backend images,

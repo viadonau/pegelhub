@@ -12,9 +12,7 @@ import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.Random;
 
-/**
- * Iec test server. Only for testing!
- */
+/** Development-only IEC 60870-5-104 sample server for manual connector testing. */
 public class SampleServer {
 
     private static final Logger LOG = LoggerFactory.getLogger(ServerListener.class);

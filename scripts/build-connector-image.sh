@@ -8,6 +8,8 @@ usage() {
   cat <<'USAGE'
 Usage: build-connector-image.sh <connector> [docker build args...]
 
+Builds pegelhub-<connector>:local using the repository root as Docker context.
+
 Connectors:
   ftp-connector
   icc-connector
@@ -18,6 +20,9 @@ Connectors:
 Examples:
   scripts/build-connector-image.sh ftp-connector
   scripts/build-connector-image.sh ma-connector --no-cache
+
+Environment:
+  PEGELHUB_REPO_ROOT  Override the repository root detected from this script.
 USAGE
 }
 

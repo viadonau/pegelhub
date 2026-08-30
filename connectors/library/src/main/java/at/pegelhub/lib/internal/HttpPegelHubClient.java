@@ -29,6 +29,7 @@ import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
@@ -38,6 +39,7 @@ import java.util.UUID;
 public class HttpPegelHubClient implements PegelHubClient {
 
     private static final String LATEST_MEASUREMENT_WINDOW = "365d";
+    private static final int SYNCHRONIZATION_READ_LIMIT = 10_000;
     private final String measurementRoute;
     private final URL baseUrl;
     private final CloseableHttpClient client;
@@ -103,27 +105,15 @@ public class HttpPegelHubClient implements PegelHubClient {
     }
 
     @Override
-    public Collection<Measurement> getMeasurementsOfTimeSeries(UUID timeSeriesId, Duration lookback) {
-        try {
-            final URI uri = measurementsUri(timeSeriesId, "last=" + urlEncode(durationLiteral(lookback)));
-            final var http = new HttpGet(uri);
-            authorize(http);
+    public Collection<Measurement> getMeasurementsOfTimeSeries(UUID timeSeriesId, Instant from, Instant to) {
+        Objects.requireNonNull(from, "from");
+        Objects.requireNonNull(to, "to");
+        if (!to.isAfter(from)) {
+            throw new IllegalArgumentException("to must be after from");
+        }
 
-            return client.execute(http, response -> {
-                if (response.getCode() == 404) {
-                    EntityUtils.consume(response.getEntity());
-                    throw new NotFoundException("time series does not exist");
-                }
-                requireOk(response.getCode(), response.getEntity());
-                var json = EntityUtils.toString(response.getEntity());
-                var gson = gsonWithInstantSupport();
-                var result = gson.fromJson(json, MeasurementListReceiveDto.class);
-                if (result.truncated()) {
-                    throw new IllegalStateException(
-                            "Core truncated the measurement lookback for time series " + timeSeriesId);
-                }
-                return result.toMeasurements(timeSeriesId);
-            });
+        try {
+            return readMeasurementWindow(timeSeriesId, from, to);
         } catch (NotFoundException nfe) {
             throw new NotFoundException(nfe.getMessage());
         } catch (Exception e) {
@@ -131,11 +121,45 @@ public class HttpPegelHubClient implements PegelHubClient {
         }
     }
 
-    private static String durationLiteral(Duration duration) {
-        if (duration == null || duration.isZero() || duration.isNegative()) {
-            throw new IllegalArgumentException("lookback must be positive");
+    private List<Measurement> readMeasurementWindow(UUID timeSeriesId, Instant from, Instant to)
+            throws IOException, URISyntaxException {
+        MeasurementListReceiveDto page = readMeasurementPage(timeSeriesId, from, to);
+        List<Measurement> pageMeasurements = page.toMeasurements(timeSeriesId);
+        if (!page.truncated()) {
+            return pageMeasurements;
         }
-        return duration.toSeconds() + "s";
+
+        Instant middle = from.plus(Duration.between(from, to).dividedBy(2));
+        if (!middle.isAfter(from) || !middle.isBefore(to)) {
+            throw new IllegalStateException(
+                    "Core truncated an indivisible synchronization window for time series " + timeSeriesId);
+        }
+
+        List<Measurement> measurements = new ArrayList<>();
+        measurements.addAll(readMeasurementWindow(timeSeriesId, from, middle));
+        measurements.addAll(readMeasurementWindow(timeSeriesId, middle, to));
+        return measurements;
+    }
+
+    private MeasurementListReceiveDto readMeasurementPage(
+            UUID timeSeriesId,
+            Instant from,
+            Instant to) throws IOException, URISyntaxException {
+        String query = "from=" + urlEncode(from.toString())
+                + "&to=" + urlEncode(to.toString())
+                + "&order=asc&limit=" + SYNCHRONIZATION_READ_LIMIT;
+        HttpGet http = new HttpGet(measurementsUri(timeSeriesId, query));
+        authorize(http);
+
+        return client.execute(http, response -> {
+            if (response.getCode() == 404) {
+                EntityUtils.consume(response.getEntity());
+                throw new NotFoundException("time series does not exist");
+            }
+            requireOk(response.getCode(), response.getEntity());
+            String json = EntityUtils.toString(response.getEntity());
+            return gsonWithInstantSupport().fromJson(json, MeasurementListReceiveDto.class);
+        });
     }
 
     @Override

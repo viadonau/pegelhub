@@ -19,19 +19,9 @@ public interface TelemetryRepository {
      */
     Telemetry saveTelemetry(Telemetry telemetry);
 
-    /**
-     * Queries a telemetry from the repository.
-     *
-     * @param range in which the returned values reside.
-     * @return the telemetries in that range.
-     */
+    /** Returns telemetry in the relative {@code range}. */
     List<Telemetry> getByRange(String range);
 
-    /**
-     * Queries the last telemetry from the repository.
-     *
-     * @param uuid of the telemetry.
-     * @return the last telemetry with that uuid, or empty when none exists.
-     */
-    Optional<Telemetry> getLastData(UUID uuid);
+    /** Returns the latest telemetry for a connector identifier, if present. */
+    Optional<Telemetry> getLastData(UUID connectorId);
 }

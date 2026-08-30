@@ -9,8 +9,8 @@
     <version>2.0.0-SNAPSHOT</version>
     <packaging>pom</packaging>
 
-    <name>Pegelhub Connectors Parent</name>
-    <description>Parent POM for the plain Java library and connectors</description>
+    <name>PegelHub Connectors Parent</name>
+    <description>Parent build for the shared connector library and protocol connectors</description>
 
     <modules>
         <module>library</module>

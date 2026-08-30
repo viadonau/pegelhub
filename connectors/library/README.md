@@ -32,6 +32,15 @@ The HTTP client obtains a short-lived token with the OAuth 2.0
 a bearer token. Core still validates issuer, the `pegelhub-core-api` audience,
 and lowercase client roles such as `measurement:write`.
 
+Window reads require an inclusive `from`, an exclusive `to`, and `to > from`.
+They request at most 10,000 ascending points at a time and bisect a truncated
+window until the explicit interval is complete. An indivisible window that
+still exceeds the limit fails rather than silently dropping points. Mismatched
+responses also fail. Latest-value reads use a fixed 365-day window. Every
+outgoing measurement must provide a time-series ID, observation timestamp, and
+value. Client creation configures a 10-second connection-request timeout, a
+10-second connect timeout, and a 30-second response timeout.
+
 ## Application entry point
 
 Connector mains delegate startup to the shared application:
@@ -82,6 +91,7 @@ Shared conventions are:
 - main configuration file: `connector.yaml`
 - default mapping directory: `mappings`
 - polling interval: a positive integer followed by `s`, `m`, or `h`
+  (case-insensitive)
 - directions: `external-to-core` and `core-to-external`
 - timestamps: `Instant`, serialized as ISO-8601 UTC such as
   `2026-04-25T10:15:30Z`

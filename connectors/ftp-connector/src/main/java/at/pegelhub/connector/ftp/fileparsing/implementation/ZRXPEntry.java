@@ -9,6 +9,7 @@ import java.util.Map;
 public class ZRXPEntry implements Entry {
     final Map<Date, String> values = new HashMap<>();
     final Map<String, String> infos = new HashMap<>();
+    String invalidValue;
 
     @Override
     public Map<Date, String> getValues() {

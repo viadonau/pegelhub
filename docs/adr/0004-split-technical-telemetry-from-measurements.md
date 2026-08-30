@@ -1,6 +1,16 @@
 # Split Technical Telemetry From Measurements
 
-PegelHub will keep technical connector telemetry separate from hydrological Measurements. Values that describe the station or water body, such as water temperature or air temperature, should be modeled as TimeSeries Measurements; values that describe connector runtime or health, such as battery voltage, cycle time, IP addresses, software version, or field strength, belong to a connector telemetry/runtime model.
+## Status
+
+Accepted and partially implemented. Measurements and telemetry use separate
+APIs and InfluxDB buckets. The existing telemetry payload still contains legacy
+water- and air-temperature fields pending a dedicated telemetry redesign.
+
+PegelHub keeps technical connector telemetry separate from hydrological
+Measurements. New values that describe the station or water body, such as water
+temperature, belong in TimeSeries Measurements. Values that describe connector
+runtime or health, such as battery voltage, cycle time, IP addresses, or field
+strength, belong in connector telemetry.
 
 ## Considered Options
 
@@ -10,4 +20,7 @@ PegelHub will keep technical connector telemetry separate from hydrological Meas
 
 ## Consequences
 
-The first rewrite should not let the existing Telemetry class dictate the Measurement model. Telemetry cleanup can happen after the main Measurement rewrite, but the target direction is clear: observed environmental values are Measurements; technical runtime values are Connector telemetry.
+The Measurement model is independent of the legacy-shaped Telemetry record.
+Existing telemetry temperature fields remain a compatibility concern until that
+slice is redesigned; they do not establish the model for new environmental
+observations.

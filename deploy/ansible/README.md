@@ -45,7 +45,7 @@ test -f deploy/ansible/group_vars/staging.yml || \
 Set the target host and bootstrap SSH user in `staging.ini`. Review all values
 in `staging.yml`, especially:
 
-- `pegelhub_staging_repo_version`: branch, tag, or commit initially checked out
+- `pegelhub_staging_repo_version`: branch, tag, or commit checked out on each run
 - `pegelhub_staging_deploy_authorized_key`: public half of the staging deploy key
 - `pegelhub_staging_repo_dir`: must match GitHub's `STAGING_REPO_DIR`
 - `pegelhub_staging_deploy_user`: must match GitHub's `STAGING_SSH_USER`
@@ -66,8 +66,12 @@ ansible-playbook \
 The playbook preserves existing host values. It creates
 `/etc/pegelhub/staging/pegelhub.env` from the tracked example only when missing,
 appends new template keys without replacing values, and initializes placeholder
-secrets without printing them. Existing checkout-local runtime files must be
-moved manually before the first deployment:
+secrets without printing them.
+
+### Migrating the retired checkout-local layout
+
+Installations that still use the former `deploy/staging/` runtime layout must
+move these files before the first deployment with the current playbook:
 
 - `deploy/staging/.env` to `/etc/pegelhub/staging/pegelhub.env`
 - `deploy/staging/state/` to `/var/lib/pegelhub/staging/state/`

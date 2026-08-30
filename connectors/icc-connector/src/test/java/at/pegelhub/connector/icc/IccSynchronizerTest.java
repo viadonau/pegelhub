@@ -6,8 +6,11 @@ import at.pegelhub.lib.exception.NotFoundException;
 import at.pegelhub.lib.model.Measurement;
 import org.junit.jupiter.api.Test;
 
-import java.time.Instant;
+import java.time.Clock;
 import java.time.Duration;
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -15,10 +18,13 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 class IccSynchronizerTest {
     private static final UUID TIME_SERIES_ID = UUID.fromString("11111111-1111-1111-1111-111111111111");
     private static final UUID EXTERNAL_TIME_SERIES_ID = UUID.fromString("22222222-2222-2222-2222-222222222222");
+    private static final Instant SYNC_AT = Instant.parse("2026-06-07T11:00:00Z");
 
     @Test
     void shouldSyncCoreMeasurementsToExternalCore() {
@@ -26,11 +32,10 @@ class IccSynchronizerTest {
         FakeCommunicator core = new FakeCommunicator(measurements);
         FakeCommunicator external = new FakeCommunicator(List.of());
 
-        new IccSynchronizer(core, external, List.of(
-                new IccMapping(TIME_SERIES_ID, EXTERNAL_TIME_SERIES_ID, MappingDirection.CORE_TO_EXTERNAL)), Duration.ofHours(24)).run();
+        synchronizer(core, external, MappingDirection.CORE_TO_EXTERNAL).run();
 
         assertEquals(TIME_SERIES_ID, core.requestedTimeSeriesId);
-        assertEquals(Duration.ofHours(24), core.requestedTimespan);
+        assertEquals(List.of(new ReadWindow(SYNC_AT.minus(Duration.ofHours(24)), SYNC_AT)), core.requestedWindows);
         assertEquals(1, external.sentMeasurements.size());
         Measurement sent = external.sentMeasurements.getFirst();
         assertEquals(EXTERNAL_TIME_SERIES_ID, sent.getTimeSeriesId());
@@ -44,11 +49,10 @@ class IccSynchronizerTest {
         FakeCommunicator core = new FakeCommunicator(List.of());
         FakeCommunicator external = new FakeCommunicator(measurements);
 
-        new IccSynchronizer(core, external, List.of(
-                new IccMapping(TIME_SERIES_ID, EXTERNAL_TIME_SERIES_ID, MappingDirection.EXTERNAL_TO_CORE)), Duration.ofHours(24)).run();
+        synchronizer(core, external, MappingDirection.EXTERNAL_TO_CORE).run();
 
         assertEquals(EXTERNAL_TIME_SERIES_ID, external.requestedTimeSeriesId);
-        assertEquals(Duration.ofHours(24), external.requestedTimespan);
+        assertEquals(List.of(new ReadWindow(SYNC_AT.minus(Duration.ofHours(24)), SYNC_AT)), external.requestedWindows);
         assertEquals(1, core.sentMeasurements.size());
         Measurement sent = core.sentMeasurements.getFirst();
         assertEquals(TIME_SERIES_ID, sent.getTimeSeriesId());
@@ -61,31 +65,78 @@ class IccSynchronizerTest {
         PegelHubClient core = new MissingTimeSeriesCommunicator();
         FakeCommunicator external = new FakeCommunicator(List.of());
 
-        new IccSynchronizer(core, external, List.of(
-                new IccMapping(TIME_SERIES_ID, EXTERNAL_TIME_SERIES_ID, MappingDirection.CORE_TO_EXTERNAL)), Duration.ofHours(24)).run();
+        synchronizer(core, external, MappingDirection.CORE_TO_EXTERNAL).run();
 
         assertTrue(external.sentMeasurements.isEmpty());
+    }
+
+    @Test
+    void retriesTheSameStartBoundaryAfterTargetFailure() {
+        Instant nextCycle = SYNC_AT.plus(Duration.ofMinutes(10));
+        Clock clock = mock(Clock.class);
+        when(clock.instant()).thenReturn(SYNC_AT, nextCycle);
+        FakeCommunicator core = new FakeCommunicator(List.of(
+                new Measurement(TIME_SERIES_ID, SYNC_AT.minusSeconds(30), 42.0)));
+        FakeCommunicator external = new FakeCommunicator(List.of());
+        external.failNextSend = true;
+        IccSynchronizer synchronizer = new IccSynchronizer(
+                core,
+                external,
+                List.of(new IccMapping(
+                        TIME_SERIES_ID,
+                        EXTERNAL_TIME_SERIES_ID,
+                        MappingDirection.CORE_TO_EXTERNAL)),
+                Duration.ofHours(24),
+                clock);
+
+        synchronizer.run();
+        synchronizer.run();
+
+        Instant initialFrom = SYNC_AT.minus(Duration.ofHours(24));
+        assertEquals(
+                List.of(new ReadWindow(initialFrom, SYNC_AT), new ReadWindow(initialFrom, nextCycle)),
+                core.requestedWindows);
+        assertEquals(2, external.sendAttempts);
+    }
+
+    private static IccSynchronizer synchronizer(
+            PegelHubClient core,
+            FakeCommunicator external,
+            MappingDirection direction) {
+        return new IccSynchronizer(
+                core,
+                external,
+                List.of(new IccMapping(TIME_SERIES_ID, EXTERNAL_TIME_SERIES_ID, direction)),
+                Duration.ofHours(24),
+                Clock.fixed(SYNC_AT, ZoneOffset.UTC));
     }
 
     private static class FakeCommunicator implements PegelHubClient {
         private final Collection<Measurement> measurements;
         private UUID requestedTimeSeriesId;
-        private Duration requestedTimespan;
+        private final List<ReadWindow> requestedWindows = new ArrayList<>();
         private List<Measurement> sentMeasurements = List.of();
+        private boolean failNextSend;
+        private int sendAttempts;
 
         private FakeCommunicator(Collection<Measurement> measurements) {
             this.measurements = measurements;
         }
 
         @Override
-        public Collection<Measurement> getMeasurementsOfTimeSeries(UUID timeSeriesId, Duration timespan) {
+        public Collection<Measurement> getMeasurementsOfTimeSeries(UUID timeSeriesId, Instant from, Instant to) {
             this.requestedTimeSeriesId = timeSeriesId;
-            this.requestedTimespan = timespan;
+            this.requestedWindows.add(new ReadWindow(from, to));
             return measurements;
         }
 
         @Override
         public void sendMeasurements(List<Measurement> measurements) {
+            sendAttempts++;
+            if (failNextSend) {
+                failNextSend = false;
+                throw new RuntimeException("target unavailable");
+            }
             this.sentMeasurements = measurements;
         }
 
@@ -101,7 +152,7 @@ class IccSynchronizerTest {
 
     private static class MissingTimeSeriesCommunicator implements PegelHubClient {
         @Override
-        public Collection<Measurement> getMeasurementsOfTimeSeries(UUID timeSeriesId, Duration timespan) {
+        public Collection<Measurement> getMeasurementsOfTimeSeries(UUID timeSeriesId, Instant from, Instant to) {
             throw new NotFoundException("missing");
         }
 
@@ -117,5 +168,8 @@ class IccSynchronizerTest {
         @Override
         public void close() {
         }
+    }
+
+    private record ReadWindow(Instant from, Instant to) {
     }
 }

@@ -7,9 +7,7 @@ import java.time.Instant;
 import static at.pegelhub.shared.validation.Validations.requirePositive;
 import static java.util.Objects.requireNonNull;
 
-/**
- * Data class for telemetry which represents an entry in the time series database (InfluxDB) in the "telemetry" (telemetry) bucket.
- */
+/** Technical telemetry stored for the connector identified by {@link #measurement()}. */
 @Schema(description = "openapi.telemetry.telemetry.technical-telemetry-entry-written-by-a-connector")
 public record Telemetry(
         @Schema(description = "openapi.telemetry.telemetry.connector-identifier-assigned-from-the-authenticated-client",
@@ -21,21 +19,21 @@ public record Telemetry(
         String stationIPAddressExtern,
         @Schema(description = "openapi.telemetry.write-telemetry-request.time-at-which-the-telemetry-was-observed", example = "2026-06-17T12:00:00Z")
         Instant timestamp,
-        @Schema(description = "openapi.telemetry.telemetry.positive-connector-cycle-time", example = "60")
+        @Schema(description = "openapi.telemetry.write-telemetry-request.non-negative-connector-cycle-time", example = "60")
         Integer cycleTime,
         @Schema(description = "openapi.telemetry.write-telemetry-request.water-temperature-in-degrees-celsius", example = "12.4", nullable = true)
         Double temperatureWater,
         @Schema(description = "openapi.telemetry.write-telemetry-request.air-temperature-in-degrees-celsius", example = "18.7", nullable = true)
         Double temperatureAir,
-        @Schema(description = "openapi.telemetry.telemetry.positive-battery-voltage", example = "12.2", nullable = true)
+        @Schema(description = "openapi.telemetry.write-telemetry-request.non-negative-battery-voltage", example = "12.2", nullable = true)
         Double performanceVoltageBattery,
-        @Schema(description = "openapi.telemetry.telemetry.positive-supply-voltage", example = "24.0", nullable = true)
+        @Schema(description = "openapi.telemetry.write-telemetry-request.non-negative-supply-voltage", example = "24.0", nullable = true)
         Double performanceVoltageSupply,
-        @Schema(description = "openapi.telemetry.telemetry.positive-battery-current", example = "1.2", nullable = true)
+        @Schema(description = "openapi.telemetry.write-telemetry-request.non-negative-battery-current", example = "1.2", nullable = true)
         Double performanceElectricityBattery,
-        @Schema(description = "openapi.telemetry.telemetry.positive-supply-current", example = "0.8", nullable = true)
+        @Schema(description = "openapi.telemetry.write-telemetry-request.non-negative-supply-current", example = "0.8", nullable = true)
         Double performanceElectricitySupply,
-        @Schema(description = "openapi.telemetry.telemetry.positive-transmission-field-strength", example = "87.0", nullable = true)
+        @Schema(description = "openapi.telemetry.write-telemetry-request.non-negative-transmission-field-strength", example = "87.0", nullable = true)
         Double fieldStrengthTransmission) {
     public Telemetry {
         requireNonNull(measurement);

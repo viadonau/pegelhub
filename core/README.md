@@ -158,24 +158,31 @@ The runtime role values are:
 
 | Role | Scope |
 | --- | --- |
-| `metadata:read` | Read metadata resources |
-| `metadata:write` | Write metadata resources on routes that expose write operations |
-| `measurement:read` | Read time-series measurements |
-| `measurement:write` | Submit measurements as an authenticated connector |
-| `telemetry:read` | Read technical telemetry |
-| `telemetry:write` | Submit technical telemetry |
-| `system:admin` | Connector identity registration, protected actuator access, measurement-read bypass, and explicit metadata or telemetry route fallbacks |
+| `metadata:read` | Read metadata as a `USER` actor |
+| `metadata:write` | Read and change metadata as a `USER` actor |
+| `measurement:read` | Read measurements as a user, or as an authorized connector |
+| `measurement:write` | Submit measurements as a `CLIENT` connector |
+| `telemetry:read` | Read connector telemetry as a `USER` actor |
+| `telemetry:write` | Submit telemetry as a `CLIENT` connector |
+| `system:admin` | Register connector identities, access protected actuator routes, and use explicit administrative fallbacks |
 
 Connector measurement access also uses `pegelhub_actor_type`, the token client
 ID, active Connector metadata, time-series source ownership, and explicit read
 access relations. The [connector library guide](../connectors/library/#core-authorization-prerequisites)
 summarizes those prerequisites.
 
-`system:admin` is not a universal authorization bypass. In particular,
-`POST /api/v1/measurements` still requires `measurement:write`, a `CLIENT`
-actor, an active registered Connector, exact source ownership, and an active
-Station -> MeasuringPoint -> TimeSeries path. Telemetry writes permitted by `system:admin` still
-resolve an active Connector from the token client ID.
+Measurement values are stored in the observed property's canonical unit. A
+source assignment using `canonical` is stored unchanged; a water-level source
+using `metres-above-adria` is converted to centimetres relative to the measuring
+point's `gaugeZeroElevationMAboveAdria`.
+
+`system:admin` is not a universal authorization bypass. Metadata and telemetry
+reads, connector registration, and monitoring views still require a `USER`
+actor. In particular, `POST /api/v1/measurements` still requires
+`measurement:write`, a `CLIENT` actor, an active registered Connector, exact
+source ownership, and an active Station -> MeasuringPoint -> TimeSeries path.
+Telemetry writes permitted by `system:admin` still resolve an active Connector
+from the token client ID.
 
 Swagger UI, OpenAPI documents, the configured actuator health/info surface, and
 `/api/v1/measurements/system-time` are public. API authorization is enforced per

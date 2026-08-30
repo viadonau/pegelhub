@@ -64,8 +64,7 @@ final class HttpStationOwnerController {
                     description = "openapi.stationowner.http-station-owner-controller.returns-the-updated-station-owner",
                     content = @Content(schema = @Schema(implementation = StationOwnerResponse.class))),
             @ApiResponse(responseCode = "400", description = "openapi.stationowner.http-station-owner-controller.the-station-owner-payload-is-invalid", content = @Content),
-            @ApiResponse(responseCode = "404", description = "openapi.stationowner.http-station-owner-controller.the-station-owner-was-not-found", content = @Content),
-            @ApiResponse(responseCode = "409", description = "openapi.shared.metadata-conflict", content = @Content)
+            @ApiResponse(responseCode = "404", description = "openapi.stationowner.http-station-owner-controller.the-station-owner-was-not-found", content = @Content)
     })
     @PutMapping("/{id}")
     StationOwnerResponse update(
@@ -84,7 +83,7 @@ final class HttpStationOwnerController {
                     description = "openapi.stationowner.http-station-owner-controller.returns-the-station-owner",
                     content = @Content(schema = @Schema(implementation = StationOwnerResponse.class))),
             @ApiResponse(responseCode = "400", description = "openapi.stationowner.http-station-owner-controller.the-station-owner-uuid-is-invalid", content = @Content),
-            @ApiResponse(responseCode = "404", description = "openapi.station.http-station-controller.the-station-owner-was-not-found", content = @Content)
+            @ApiResponse(responseCode = "404", description = "openapi.stationowner.http-station-owner-controller.the-station-owner-was-not-found", content = @Content)
     })
     @GetMapping("/{id}")
     StationOwnerResponse get(@Parameter(description = "openapi.station.create-station-request.station-owner-identifier", required = true) @PathVariable UUID id) {

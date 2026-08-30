@@ -1,6 +1,7 @@
 # Parking Lot
 
-Loose project memory for work that should not interrupt the current slice. Keep entries short; when one becomes active, pull it into a branch, issue, or ADR.
+Loose project memory for work that should not interrupt the current slice. Keep
+entries short; when one becomes active, pull it into a branch, issue, or ADR.
 
 - Caddy company/public modes
   Clarify whether deployment needs separate internal-company and public-facing modes, and what differs in routing, TLS, auth, and config.
@@ -16,8 +17,10 @@ Loose project memory for work that should not interrupt the current slice. Keep 
 - API response shape cleanup
   Standardize response conventions, especially measurement reads, so the API stops exposing domain-ish wrappers accidentally.
 
-- Request DTO Bean Validation
-  Replace constructor-only checks and hand-authored OpenAPI requiredness with Jakarta Bean Validation (`@NotNull`, `@NotBlank`, `@Size`, and nested `@Valid`) at controller boundaries, then let Springdoc derive required and nullable request-schema constraints from the enforced runtime contract.
+- Request DTO contract constraints
+  Complete Jakarta Bean Validation and OpenAPI schema constraints across the
+  remaining request DTOs, keeping domain constructors as the final invariant
+  boundary.
 
 - Connector configuration model
   Merge duplicated/legacy config concepts and align connector runtime config with the new Core domain and auth model.
@@ -25,17 +28,11 @@ Loose project memory for work that should not interrupt the current slice. Keep 
 - Connector mapping execution and diagnostics
   Standardize startup validation, semantic mapping identity, per-mapping failure isolation, cycle summaries, and runtime error reporting across FTP, ICC, IEC, mA, and TSTP. Decide whether configuration source names remain available at runtime before introducing a shared mapping wrapper.
 
-- Caddy/frontend/backend deployment docs
-  Tighten wording around deployment modes, env vars, and how frontend, Core, Keycloak, and Caddy fit together.
-
 - Shared Compose base
   Extract genuinely common local and staging service definitions into a shared Compose base with thin environment-specific overrides, so database, InfluxDB, Keycloak, and Core changes have one source of truth while local and staging policy remains explicit.
 
 - Staging container logging policy
   Investigate whether log rotation should remain explicit in each Compose file or move to host-wide Docker daemon defaults, including the Ansible ownership and migration impact for existing containers.
-
-- Domain migration PR/docs wording
-  Clean up task/PR language after the domain migration branch is stable, so the documented intent matches the final shape.
 
 - Influx persistence follow-up
   Collect concrete query performance and InfluxBucketOperations gateway issues before doing a broader cleanup; the obvious shared Flux query leakage is already reduced.

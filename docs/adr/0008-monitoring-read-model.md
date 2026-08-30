@@ -1,5 +1,9 @@
 # Add A Monitoring Read Model
 
+## Status
+
+Accepted and implemented.
+
 ## Context
 
 The operator overview and detail screens need complete rows that combine

@@ -2,11 +2,13 @@ package at.pegelhub.timeseries.domain;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonValue;
+import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.util.Locale;
 
 import static java.util.Objects.requireNonNull;
 
+@Schema(description = "openapi.timeseries.source-representation", enumAsRef = true)
 public enum SourceRepresentation {
     CANONICAL("canonical"),
     METRES_ABOVE_ADRIA("metres-above-adria");

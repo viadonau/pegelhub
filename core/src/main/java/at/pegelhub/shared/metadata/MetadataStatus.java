@@ -9,7 +9,7 @@ import java.util.Locale;
 import static java.util.Objects.requireNonNull;
 
 /** Lifecycle shared by operational metadata resources. */
-@Schema(description = "active or inactive operational metadata", enumAsRef = true)
+@Schema(description = "openapi.shared.metadata-status", enumAsRef = true)
 public enum MetadataStatus {
     ACTIVE("active"),
     INACTIVE("inactive");

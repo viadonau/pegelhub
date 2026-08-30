@@ -18,4 +18,4 @@ runtime:
     - type: after-response
       code: test('status is 200', () => expect(res.getStatus()).to.equal(200));
 
-docs: Gets the latest telemetry entry for the configured id.
+docs: Gets the latest telemetry entry for the configured connector id.

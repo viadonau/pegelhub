@@ -106,7 +106,7 @@ flowchart LR
     Frontend -->|"same-origin /api proxy"| Core["Core HTTP API"]
     Systems["Protocol and field systems"] ---|"protocol adapters"| Connectors["FTP / ICC / IEC / mA / TSTP connectors"]
     Connectors <-->|"OAuth-protected reads and writes"| Core
-    Keycloak -->|"client-credentials tokens"| Connectors
+    Connectors -->|"client-credentials token requests"| Keycloak
     Core --> PostgreSQL["PostgreSQL metadata"]
     Core --> InfluxDB["InfluxDB measurements and telemetry"]
 ```
@@ -135,6 +135,7 @@ them independently.
 | [`connectors/tstp-connector/`](connectors/tstp-connector/) | Exchanges measurements with the TSTP HTTP API |
 | [`frontend/`](frontend/) | Angular monitoring application, browser runtime configuration, and frontend image |
 | [`deploy/single-host/`](deploy/single-host/) | Reusable ingress, deployment scripts, TLS/trust policy, smoke tests, and rollback |
+| [`deploy/connector/`](deploy/connector/) | Shared Compose runner for independently deployed connector instances |
 | [`deploy/ansible/`](deploy/ansible/) | Debian and Ubuntu staging-host provisioning |
 | [`docs/`](docs/) | Architecture documentation and decision records |
 | [`.github/workflows/`](.github/workflows/) | Pull-request verification and independent image delivery workflows |
@@ -248,16 +249,20 @@ contains the endpoint matrix and actor model.
 
 Core and connector images are published through the
 [Images workflow](.github/workflows/images.yml). The frontend image uses the
-[Frontend Delivery workflow](.github/workflows/frontend-delivery.yml). Each path
-activates the relevant component through the shared staging deployment action.
+[Frontend Delivery workflow](.github/workflows/frontend-delivery.yml). On an
+eligible staging run, the Images workflow activates Core and the staging FTP
+connector; the other connector images are published without an automatic
+deployment. Frontend delivery activates its image independently. All three use
+the shared staging deployment action.
 
 The supported remote platform topology is a single Docker Compose host behind
 Caddy. Connector instances run as separate Compose projects and may live on
 that host or on the hardware/network where their external system is located.
 The platform and frontend delivery paths share the GitHub `staging` Environment,
-SSH configuration, deployment lock, smoke tests, and rollback state. Connector
-deployment uses the same SSH action but has an explicit Compose-only activation
-and no automatic rollback. Operational procedures live in the
+SSH configuration, deployment lock, and smoke checks, while keeping independent
+release records and rollback commands. Automated FTP connector deployment uses
+the same SSH action but has a Compose-only activation and no automatic rollback.
+Operational procedures live in the
 [single-host runbook](deploy/single-host/README.md) and the
 [connector Compose runner](deploy/connector/README.md).
 

@@ -149,7 +149,7 @@ validate_retention() {
   fail "$variable_name must be 0s or a positive whole number of hours, days, or weeks."
 }
 
-validate_public_hostname() {
+validate_deployment_hostname() {
   variable_name="$1"
   hostname=$(env_value "$variable_name")
   normalized=$(printf '%s' "$hostname" | tr '[:upper:]' '[:lower:]')
@@ -167,7 +167,7 @@ validate_public_hostname() {
       fail "$variable_name must be a real hostname, not a placeholder or loopback address."
       ;;
     *://*|*/*|*:*|.*|*.|*..*|*[!a-z0-9.-]*)
-      fail "$variable_name must contain only a public DNS hostname without a scheme, port, or path."
+      fail "$variable_name must contain only a fully qualified DNS hostname without a scheme, port, or path."
       ;;
     *.*) ;;
     *)
@@ -194,9 +194,9 @@ validate_environment() {
     *) fail "PEGELHUB_TRUST_MODE must be system or custom." ;;
   esac
 
-  validate_public_hostname PEGELHUB_FRONTEND_HOSTNAME
-  validate_public_hostname PEGELHUB_API_HOSTNAME
-  validate_public_hostname PEGELHUB_KEYCLOAK_HOSTNAME
+  validate_deployment_hostname PEGELHUB_FRONTEND_HOSTNAME
+  validate_deployment_hostname PEGELHUB_API_HOSTNAME
+  validate_deployment_hostname PEGELHUB_KEYCLOAK_HOSTNAME
 
   validate_retention INFLUX_DATA_RETENTION
   validate_retention INFLUX_TELEMETRY_RETENTION

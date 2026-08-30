@@ -2,11 +2,13 @@ package at.pegelhub.connector.domain;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonValue;
+import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.util.Locale;
 
 import static java.util.Objects.requireNonNull;
 
+@Schema(description = "openapi.connector.connector-type", enumAsRef = true)
 public enum ConnectorType {
     FTP("ftp"),
     TSTP("tstp"),

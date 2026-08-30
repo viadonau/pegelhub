@@ -28,4 +28,21 @@ public class ZRXPParserTest {
         assertEquals("Wasserstand", entries.getFirst().getInfos().get("parameter"));
         assertEquals(2, entries.getFirst().getValues().size());
     }
+
+    @Test
+    public void skipsValuesMatchingTheDeclaredInvalidSentinel() throws IOException {
+        var input = """
+                #REXCHANGEHYDAMSEX_10001033_Wasserstand|*|CUNITcm|*|RINVAL-777|*|
+                20260625070000 282
+                20260625071500 -777.0
+                """;
+
+        var parser = ParserFactory.getParser(ParserType.ZRXP);
+        var entry = parser.parse(new ByteArrayInputStream(input.getBytes(StandardCharsets.UTF_8)))
+                .findFirst()
+                .orElseThrow();
+
+        assertEquals(1, entry.getValues().size());
+        assertEquals("282", entry.getValues().values().iterator().next());
+    }
 }
