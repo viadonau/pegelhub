@@ -54,7 +54,18 @@ committed.
 
 The operational metadata catalog uses a clean Flyway V1 baseline. Before its
 first deployment, reset the PostgreSQL metadata and InfluxDB measurement volumes
-together as described in the [Flyway guide](../../core/docs/flyway.md).
+together. This is irreversible and deliberately requires the Compose project
+name as confirmation:
+
+```sh
+deploy/single-host/scripts/deploy.sh \
+  --reset-data pegelhub-staging sha-<short-sha>
+```
+
+The command preserves Caddy, Keycloak, and frontend state. GitHub's `Images`
+workflow exposes the same operation only through the manual
+`reset_staging_data` input; ordinary push deployments never reset data. See the
+[Flyway guide](../../core/docs/flyway.md) for why the V2 reset is required.
 
 Initialize missing environment keys and server-generated secrets:
 
