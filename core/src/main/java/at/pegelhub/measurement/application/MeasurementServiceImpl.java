@@ -33,10 +33,7 @@ public class MeasurementServiceImpl implements MeasurementService {
         this.clock = requireNonNull(clock);
     }
 
-    /**
-     * processes the measurements to be saved to the time series database
-     * @param writeMeasurements to save.
-     */
+    /** Authorizes, normalizes, and stores one measurement batch. */
     @Override
     public void writeMeasurements(WriteMeasurements writeMeasurements) {
         Instant receivedAt = Instant.now(clock);

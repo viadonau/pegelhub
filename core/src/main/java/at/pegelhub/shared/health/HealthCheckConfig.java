@@ -9,10 +9,7 @@ import org.springframework.context.annotation.Configuration;
 
 import java.util.List;
 
-/**
- * Configuration that checks the status of the InfluxDB
- * Needs to be changed if another time series database is going to be used
- */
+/** Configures health checks for the shared InfluxDB client and application buckets. */
 @Configuration
 public class HealthCheckConfig {
 

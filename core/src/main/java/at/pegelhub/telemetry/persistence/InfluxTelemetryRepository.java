@@ -81,23 +81,15 @@ public class InfluxTelemetryRepository implements TelemetryRepository {
         return telemetry;
     }
 
-    /**
-     * @param range in which the returned values reside.
-     * @return the values from the specified range
-     */
     @Override
     public List<Telemetry> getByRange(String range) {
         String query = queryBuilder.range(new PegelhubDurationLiteral(range));
         return rowMapper.toTelemetries(influx.query(query));
     }
 
-    /**
-     * @param uuid of the desired telemetry
-     * @return the corresponding {@link Telemetry} to the specified {@link UUID}
-     */
     @Override
-    public Optional<Telemetry> getLastData(UUID uuid) {
-        String query = queryBuilder.latestTelemetry(uuid, latestRange);
+    public Optional<Telemetry> getLastData(UUID connectorId) {
+        String query = queryBuilder.latestTelemetry(connectorId, latestRange);
 
         List<Telemetry> telemetries = rowMapper.toTelemetries(influx.query(query));
         return telemetries.stream()

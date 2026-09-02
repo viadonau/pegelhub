@@ -8,23 +8,19 @@ public interface RevPiReader {
      *
      * @param variableName variable name as defined in piCtory
      * @return byte offset in the process image
-     * @throws RuntimeException if resolution fails or the device is unavailable
      */
     int resolveOffsetByName(String variableName);
 
     /**
-     * Reads an int value at the given process image offset. This represents the measurement from an input.
+     * Reads an unsigned, little-endian 16-bit value at a process-image byte offset.
      *
      * @param offset byte offset in the process image
-     * @return the read int
-     * @throws RuntimeException if the read fails or the device is unavailable
+     * @return a value from 0 through 65535
      */
     int readFromOffset(int offset);
 
     /**
      * Releases native resources and closes the device handle.
-     *
-     * @throws RuntimeException if closing the device fails
      */
     void close();
 }

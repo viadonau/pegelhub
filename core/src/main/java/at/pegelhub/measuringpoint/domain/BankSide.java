@@ -2,8 +2,10 @@ package at.pegelhub.measuringpoint.domain;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonValue;
+import io.swagger.v3.oas.annotations.media.Schema;
 
 /** Canonical bank values used by metadata and monitoring read models. */
+@Schema(description = "openapi.measuringpoint.bank-side", enumAsRef = true)
 public enum BankSide {
     LEFT("left"),
     RIGHT("right");

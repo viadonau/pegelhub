@@ -26,6 +26,7 @@ public final class ObservedPropertyController {
             summary = "openapi.timeseries.observed-property-controller.lists-canonical-observed-properties")
     @ApiResponse(
             responseCode = "200",
+            description = "openapi.timeseries.observed-property-controller.returns-canonical-observed-properties",
             content = @Content(array = @ArraySchema(schema = @Schema(implementation = ObservedPropertyResponse.class))))
     @GetMapping
     public List<ObservedPropertyResponse> list() {

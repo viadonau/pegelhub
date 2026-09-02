@@ -55,9 +55,15 @@ public final class HttpConnectorReadAccessController {
     @Operation(
             operationId = "revokeConnectorStationReadAccess",
             summary = "openapi.access.http-connector-read-access-controller.revoke-station-read-access")
-    @ApiResponse(
-            responseCode = "204",
-            description = "openapi.access.http-connector-read-access-controller.read-access-revoked")
+    @ApiResponses({
+            @ApiResponse(
+                    responseCode = "204",
+                    description = "openapi.access.http-connector-read-access-controller.read-access-revoked"),
+            @ApiResponse(
+                    responseCode = "404",
+                    description = "openapi.access.http-connector-read-access-controller.connector-or-station-not-found",
+                    content = @Content)
+    })
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void revokeStation(@PathVariable UUID connectorId, @PathVariable UUID stationId) {
         access.revokeStation(new ConnectorId(connectorId), new StationId(stationId));
@@ -85,9 +91,15 @@ public final class HttpConnectorReadAccessController {
     @Operation(
             operationId = "revokeConnectorTimeSeriesReadAccess",
             summary = "openapi.access.http-connector-read-access-controller.revoke-time-series-read-access")
-    @ApiResponse(
-            responseCode = "204",
-            description = "openapi.access.http-connector-read-access-controller.read-access-revoked")
+    @ApiResponses({
+            @ApiResponse(
+                    responseCode = "204",
+                    description = "openapi.access.http-connector-read-access-controller.read-access-revoked"),
+            @ApiResponse(
+                    responseCode = "404",
+                    description = "openapi.access.http-connector-read-access-controller.connector-or-time-series-not-found",
+                    content = @Content)
+    })
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void revokeTimeSeries(@PathVariable UUID connectorId, @PathVariable UUID timeSeriesId) {
         access.revokeTimeSeries(new ConnectorId(connectorId), new TimeSeriesId(timeSeriesId));

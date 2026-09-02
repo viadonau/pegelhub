@@ -16,9 +16,9 @@ public final class MaInputMappingIndex {
 
 
     /**
-     * Loads inputs from YAML files, resolves RevPi offsets, and prepares communicators.
+     * Resolves the configured piCtory variable names and indexes their Core time series.
      *
-     * @throws Exception if the input directory cannot be scanned or initialization fails
+     * @throws Exception if a variable cannot be resolved or mappings resolve ambiguously
      */
     public void loadInputs() throws Exception {
         Set<String> seen = new HashSet<>();
@@ -54,10 +54,10 @@ public final class MaInputMappingIndex {
     }
 
     /**
-     * Returns the communicator assigned to a resolved offset.
+     * Returns the Core time-series ID assigned to a resolved offset.
      *
      * @param offset resolved RevPi input offset
-     * @return optional communicator for the offset
+     * @return configured time-series ID, if any
      */
     public Optional<UUID> getTimeSeriesId(int offset) {
         return Optional.ofNullable(inputs.get(offset));

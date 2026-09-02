@@ -64,17 +64,17 @@ public class HttpTelemetryController {
     }
 
     @Operation(
-            summary = "openapi.telemetry.http-telemetry-controller.gets-the-latest-telemetry-entry-for-an",
+            summary = "openapi.telemetry.http-telemetry-controller.gets-the-latest-telemetry-entry-for-a-connector",
             description = "openapi.telemetry.http-telemetry-controller.returns-the-most-recent-telemetry-entry-for")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "openapi.telemetry.http-telemetry-controller.returns-the-telemetry-entry",
                     content = {@Content(mediaType = "application/json", schema = @Schema(implementation = Telemetry.class))}),
             @ApiResponse(responseCode = "400", description = "openapi.telemetry.http-telemetry-controller.the-uuid-is-invalid", content = @Content),
-            @ApiResponse(responseCode = "500", description = "openapi.telemetry.http-telemetry-controller.the-latest-telemetry-entry-could-not-be", content = @Content)
+            @ApiResponse(responseCode = "404", description = "openapi.telemetry.http-telemetry-controller.no-telemetry-was-found-for-the-connector", content = @Content)
     })
     @GetMapping("/last/{uuid}")
     public Telemetry findTelemetryById(
-            @Parameter(description = "openapi.telemetry.http-telemetry-controller.measurement-or-station-telemetry-identifier", required = true)
+            @Parameter(description = "openapi.telemetry.http-telemetry-controller.connector-identifier", required = true)
             @PathVariable UUID uuid) {
         return telemetryService.getLastData(uuid);
     }

@@ -72,6 +72,6 @@ final class MeasurementReadQueryResolverTest {
                 "500ms",
                 null)))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("Invalid Pegelhub duration");
+                .hasMessageContaining("Invalid PegelHub duration");
     }
 }

@@ -7,7 +7,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Duration format used by Pegelhub APIs and Flux adapters.
+ * Duration format used by PegelHub APIs and Flux adapters.
  */
 public record PegelhubDurationLiteral(String value) {
 
@@ -18,11 +18,11 @@ public record PegelhubDurationLiteral(String value) {
 
     public PegelhubDurationLiteral {
         if (value == null) {
-            throw new IllegalArgumentException("Pegelhub duration must not be null");
+            throw new IllegalArgumentException("PegelHub duration must not be null");
         }
         value = value.trim();
         if (value.isEmpty()) {
-            throw new IllegalArgumentException("Pegelhub duration must not be empty");
+            throw new IllegalArgumentException("PegelHub duration must not be empty");
         }
         parse(value);
     }
@@ -81,7 +81,7 @@ public record PegelhubDurationLiteral(String value) {
     }
 
     private static IllegalArgumentException invalid(String value) {
-        return new IllegalArgumentException("Invalid Pegelhub duration: " + value);
+        return new IllegalArgumentException("Invalid PegelHub duration: " + value);
     }
 
     @Override

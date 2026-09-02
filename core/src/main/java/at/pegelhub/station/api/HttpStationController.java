@@ -65,8 +65,7 @@ final class HttpStationController {
                     description = "openapi.station.http-station-controller.returns-the-updated-station",
                     content = @Content(schema = @Schema(implementation = StationResponse.class))),
             @ApiResponse(responseCode = "400", description = "openapi.station.http-station-controller.the-station-payload-is-invalid", content = @Content),
-            @ApiResponse(responseCode = "404", description = "openapi.station.http-station-controller.the-station-was-not-found", content = @Content),
-            @ApiResponse(responseCode = "409", description = "openapi.shared.metadata-conflict", content = @Content)
+            @ApiResponse(responseCode = "404", description = "openapi.station.http-station-controller.the-station-was-not-found", content = @Content)
     })
     @PutMapping("/{id}")
     StationResponse update(
@@ -85,7 +84,7 @@ final class HttpStationController {
                     description = "openapi.station.http-station-controller.returns-the-station",
                     content = @Content(schema = @Schema(implementation = StationResponse.class))),
             @ApiResponse(responseCode = "400", description = "openapi.station.http-station-controller.the-station-uuid-is-invalid", content = @Content),
-            @ApiResponse(responseCode = "404", description = "openapi.measuringpoint.http-measuring-point-controller.the-station-was-not-found", content = @Content)
+            @ApiResponse(responseCode = "404", description = "openapi.station.http-station-controller.the-station-was-not-found", content = @Content)
     })
     @GetMapping("/{id}")
     StationResponse get(@Parameter(description = "openapi.station.http-station-controller.station-identifier", required = true) @PathVariable UUID id) {

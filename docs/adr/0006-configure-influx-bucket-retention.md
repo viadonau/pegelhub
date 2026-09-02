@@ -1,6 +1,10 @@
 # Configure InfluxDB Bucket Retention At Deployment
 
-PegelHub will configure retention separately for measurement data and technical
+## Status
+
+Accepted and implemented.
+
+PegelHub configures retention separately for measurement data and technical
 telemetry when the Compose stack starts.
 
 ## Considered Options

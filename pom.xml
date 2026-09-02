@@ -10,8 +10,8 @@
     
     <packaging>pom</packaging>
 
-    <name>Pegelhub Repository</name>
-    <description>Repository aggregator POM for the Pegelhub project</description>
+    <name>PegelHub Repository</name>
+    <description>Aggregator POM for PegelHub Core and connectors</description>
 
     <modules>
         <module>connectors</module>

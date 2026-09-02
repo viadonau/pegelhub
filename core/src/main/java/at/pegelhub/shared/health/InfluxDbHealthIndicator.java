@@ -9,10 +9,7 @@ import org.springframework.util.Assert;
 
 import java.util.List;
 
-/**
- * Component Class that performs the check on the InfluxDb.
- * Needs to be changed if another time series database is going to be used.
- */
+/** Reports whether InfluxDB responds and both application buckets are queryable. */
 public class InfluxDbHealthIndicator extends AbstractHealthIndicator {
 
     private final InfluxDBClient influxDbClient;

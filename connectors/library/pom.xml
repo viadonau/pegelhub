@@ -11,8 +11,8 @@
     </parent>
 
     <artifactId>library</artifactId>
-    <name>Pegelhub Connector Library</name>
-    <description>A jar library for connecting and interacting with a PegelHubCore instance as a connector.</description>
+    <name>PegelHub Connector Library</name>
+    <description>Shared runtime, configuration, OAuth, and Core HTTP client for PegelHub connectors</description>
     <packaging>jar</packaging>
 
     <dependencies>

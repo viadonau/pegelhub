@@ -78,6 +78,18 @@ deploy/single-host/scripts/deploy-frontend.sh \
   ghcr.io/viadonau/pegelhub-frontend@sha256:<64-lowercase-hex>
 ```
 
+Roll back the frontend independently:
+
+```sh
+deploy/single-host/scripts/deploy-frontend.sh --rollback
+```
+
+Backend and frontend release records are independent. Backend rollback selects
+the previous Core image tag and reconciles the base stack; infrastructure
+services that use mutable image tags can also advance during that operation.
+Frontend rollback changes only the frontend image digest. Both operations
+serialize through the shared lock in `PEGELHUB_STATE_DIR`.
+
 For a new or deliberately emptied Keycloak database, stop Keycloak and run:
 
 ```sh
@@ -142,7 +154,7 @@ Password** is enabled but is not a default action. Under **Realm settings** >
 absent. Existing passwords remain valid until they are next changed. Do not
 rerun the offline bootstrap as an update mechanism.
 
-Deploy this theme change with:
+Recreate Keycloak after updating its mounted theme or startup configuration:
 
 ```sh
 deploy/single-host/scripts/deploy.sh --refresh-keycloak <image-tag>

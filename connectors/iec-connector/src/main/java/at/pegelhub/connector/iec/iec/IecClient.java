@@ -10,18 +10,18 @@ public interface IecClient {
     void disconnect();
 
     /**
-     * Send an outgoing measurement to the IEC server for a given IOA.
+     * Sends a measurement to the IEC server for an IOA.
      *
-     * @param ioa the given IOA
-     * @param measurement the given Measurements to send
+     * @param ioa target information object address
+     * @param measurement measurement to send
      */
     void sendMeasurement(int ioa, Measurement measurement);
 
     /**
-     * Drain all received measurements currently buffered by the client and return them
-     * grouped by IOA. Non-blocking - returns an empty map if no data is available.
+     * Drains the currently buffered measurements, grouped by IOA.
      *
-     * @return Measurements grouped by IOA
+     * @return an empty map when no data is available
+     * @throws InterruptedException if an implementation is interrupted while draining
      */
     Map<Integer, List<Measurement>> drainGroupedMeasurements() throws InterruptedException;
 }

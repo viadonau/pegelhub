@@ -2,6 +2,7 @@ package at.pegelhub.connector.api;
 
 import at.pegelhub.connector.application.ConnectorService;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -68,6 +69,7 @@ public final class HttpAdminConnectorController {
     })
     @PutMapping("/{id}")
     public ConnectorDto update(
+            @Parameter(description = "openapi.connector.connector-dto.connector-identifier", required = true)
             @PathVariable UUID id,
             @Valid @RequestBody UpdateConnectorRequest request) {
         return ConnectorMapper.toResponse(connectorService.update(

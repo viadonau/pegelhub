@@ -22,11 +22,7 @@ import java.util.Map;
 
 import static java.util.Objects.requireNonNull;
 
-/**
- * Influx implementation for {@code MeasurementRepository}.
- * Implements the storing/adding of data to the time series database.
- * Needs to be rewritten if time series database is going to be exchanged.
- */
+/** InfluxDB implementation of {@link MeasurementRepository}. */
 @Repository
 public class InfluxMeasurementRepository implements MeasurementRepository {
 

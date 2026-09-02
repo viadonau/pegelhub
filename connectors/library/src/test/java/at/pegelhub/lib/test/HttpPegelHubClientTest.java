@@ -14,9 +14,10 @@ import org.junit.jupiter.api.*;
 import java.io.*;
 import java.net.MalformedURLException;
 import java.net.URI;
-import java.time.Duration;
 import java.net.URL;
+import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -28,6 +29,9 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 public class HttpPegelHubClientTest {
+    private static final Instant READ_FROM = Instant.parse("2026-06-16T00:00:00Z");
+    private static final Instant READ_TO = Instant.parse("2026-06-17T00:00:00Z");
+
     public CloseableHttpClient httpClient;
     public CoreAuthentication authentication;
     public HttpPegelHubClient phc;
@@ -73,7 +77,7 @@ public class HttpPegelHubClientTest {
         });
 
         phc.getMeasurementsOfTimeSeries(
-                UUID.fromString("395c0232-d110-40fd-bd7f-2bb4a0f2009d"), Duration.ofHours(72));
+                UUID.fromString("395c0232-d110-40fd-bd7f-2bb4a0f2009d"), READ_FROM, READ_TO);
 
         assertEquals("http://keycloak.local/token", requestUris.get(0));
         assertEquals("Bearer local-access-token", authorizationHeaders.get(1));
@@ -99,7 +103,7 @@ public class HttpPegelHubClientTest {
         });
 
         phc.getMeasurementsOfTimeSeries(
-                UUID.fromString("395c0232-d110-40fd-bd7f-2bb4a0f2009d"), Duration.ofHours(72));
+                UUID.fromString("395c0232-d110-40fd-bd7f-2bb4a0f2009d"), READ_FROM, READ_TO);
 
         assertFalse(requestUris.getFirst().contains("apiKey"));
     }
@@ -143,11 +147,12 @@ public class HttpPegelHubClientTest {
 
             UUID timeSeriesId = UUID.fromString("395c0232-d110-40fd-bd7f-2bb4a0f2009d");
 
-            Collection<Measurement> measurements = phc.getMeasurementsOfTimeSeries(timeSeriesId, Duration.ofHours(72));
+            Collection<Measurement> measurements = phc.getMeasurementsOfTimeSeries(timeSeriesId, READ_FROM, READ_TO);
 
             assertFalse(measurements.isEmpty());
             assertEquals(
-                    "http://localhost:1111/api/v1/time-series/395c0232-d110-40fd-bd7f-2bb4a0f2009d/measurements?last=259200s",
+                    "http://localhost:1111/api/v1/time-series/395c0232-d110-40fd-bd7f-2bb4a0f2009d/measurements"
+                            + "?from=2026-06-16T00%3A00%3A00Z&to=2026-06-17T00%3A00%3A00Z&order=asc&limit=10000",
                     requestUris.get(1));
         }
 
@@ -157,7 +162,7 @@ public class HttpPegelHubClientTest {
 
             UUID timeSeriesId = UUID.fromString("395c0232-d110-40fd-bd7f-2bb4a0f2009d");
             Collection<Measurement> measurements =
-                    phc.getMeasurementsOfTimeSeries(timeSeriesId, Duration.ofHours(24));
+                    phc.getMeasurementsOfTimeSeries(timeSeriesId, READ_FROM, READ_TO);
 
             assertEquals(1, measurements.size());
             Measurement measurement = measurements.iterator().next();
@@ -167,14 +172,106 @@ public class HttpPegelHubClientTest {
         }
 
         @Test
-        void getMeasurementsRejectsTruncatedLookbacks() throws IOException {
-            mockSuccessfulResponse(getResource("CoreMeasurementListTruncatedResponse.json"));
+        void getMeasurementsBisectsTruncatedWindows() throws IOException {
+            Instant middle = READ_FROM.plus(Duration.between(READ_FROM, READ_TO).dividedBy(2));
+            Instant firstObservedAt = middle.minusSeconds(1);
+            Instant secondObservedAt = middle.plusSeconds(1);
+            var pages = new ArrayDeque<>(List.of(
+                    measurementListResponse(uuid, true, middle, 0.0),
+                    measurementListResponse(uuid, false, firstObservedAt, 1.0),
+                    measurementListResponse(uuid, false, secondObservedAt, 2.0)));
+            List<String> requestUris = new ArrayList<>();
+            when(httpClient.execute(any(), any(HttpClientResponseHandler.class))).thenAnswer(answer -> {
+                var request = (org.apache.hc.client5.http.classic.methods.HttpUriRequestBase)
+                        answer.getRawArguments()[0];
+                var responseCallback = (HttpClientResponseHandler<?>) answer.getRawArguments()[1];
+                boolean tokenRequest = request.getUri().toString().contains("keycloak.local");
+                ClassicHttpResponse response = mock(ClassicHttpResponse.class);
+                HttpEntity entity = mock(HttpEntity.class);
+                String body = tokenRequest
+                        ? "{\"access_token\":\"local-access-token\",\"expires_in\":300}"
+                        : pages.removeFirst();
+                if (!tokenRequest) {
+                    requestUris.add(request.getUri().toString());
+                }
+                when(entity.getContent()).thenReturn(new ByteArrayInputStream(body.getBytes()));
+                when(response.getEntity()).thenReturn(entity);
+                when(response.getCode()).thenReturn(HttpStatus.SC_OK);
+                return responseCallback.handleResponse(response);
+            });
+
+            Collection<Measurement> measurements =
+                    phc.getMeasurementsOfTimeSeries(uuid, READ_FROM, READ_TO);
+
+            assertEquals(List.of(firstObservedAt, secondObservedAt), measurements.stream()
+                    .map(Measurement::getObservedAt)
+                    .toList());
+            assertTrue(pages.isEmpty());
+            assertEquals(3, requestUris.size());
+            assertTrue(requestUris.get(1).contains("to=2026-06-16T12%3A00%3A00Z"));
+            assertTrue(requestUris.get(2).contains("from=2026-06-16T12%3A00%3A00Z"));
+        }
+
+        @Test
+        void getMeasurementsPreservesMidpointAndSharedTimestampsWhenBisecting() throws IOException {
+            Instant middle = READ_FROM.plus(Duration.between(READ_FROM, READ_TO).dividedBy(2));
+            Instant beforeMiddle = middle.minusNanos(1);
+            Instant afterMiddle = middle.plusNanos(1);
+            var pages = new ArrayDeque<>(List.of(
+                    measurementListResponse(uuid, true, middle, 0.0),
+                    measurementListResponse(uuid, false, beforeMiddle, 1.0),
+                    measurementListResponse(uuid, false, List.of(
+                            new Measurement(uuid, middle, 2.0),
+                            new Measurement(uuid, middle, 3.0),
+                            new Measurement(uuid, afterMiddle, 4.0)))));
+            List<String> requestUris = new ArrayList<>();
+            when(httpClient.execute(any(), any(HttpClientResponseHandler.class))).thenAnswer(answer -> {
+                var request = (org.apache.hc.client5.http.classic.methods.HttpUriRequestBase)
+                        answer.getRawArguments()[0];
+                var responseCallback = (HttpClientResponseHandler<?>) answer.getRawArguments()[1];
+                boolean tokenRequest = request.getUri().toString().contains("keycloak.local");
+                ClassicHttpResponse response = mock(ClassicHttpResponse.class);
+                HttpEntity entity = mock(HttpEntity.class);
+                String body = tokenRequest
+                        ? "{\"access_token\":\"local-access-token\",\"expires_in\":300}"
+                        : pages.removeFirst();
+                if (!tokenRequest) {
+                    requestUris.add(request.getUri().toString());
+                }
+                when(entity.getContent()).thenReturn(new ByteArrayInputStream(body.getBytes()));
+                when(response.getEntity()).thenReturn(entity);
+                when(response.getCode()).thenReturn(HttpStatus.SC_OK);
+                return responseCallback.handleResponse(response);
+            });
+
+            List<Measurement> measurements = List.copyOf(
+                    phc.getMeasurementsOfTimeSeries(uuid, READ_FROM, READ_TO));
+
+            assertEquals(List.of(beforeMiddle, middle, middle, afterMiddle), measurements.stream()
+                    .map(Measurement::getObservedAt)
+                    .toList());
+            assertEquals(List.of(1.0, 2.0, 3.0, 4.0), measurements.stream()
+                    .map(Measurement::getValue)
+                    .toList());
+            assertTrue(pages.isEmpty());
+            assertEquals(3, requestUris.size());
+            assertTrue(requestUris.get(1).contains("to=2026-06-16T12%3A00%3A00Z"));
+            assertTrue(requestUris.get(2).contains("from=2026-06-16T12%3A00%3A00Z"));
+        }
+
+        @Test
+        void getMeasurementsRejectsTruncatedIndivisibleWindow() throws IOException {
+            mockSuccessfulResponse(measurementListResponse(
+                    uuid,
+                    true,
+                    READ_FROM,
+                    2.73));
 
             RuntimeException error = assertThrows(RuntimeException.class,
-                    () -> phc.getMeasurementsOfTimeSeries(uuid, Duration.ofHours(24)));
+                    () -> phc.getMeasurementsOfTimeSeries(uuid, READ_FROM, READ_FROM.plusNanos(1)));
 
             assertInstanceOf(IllegalStateException.class, error.getCause());
-            assertTrue(error.getCause().getMessage().contains("truncated"));
+            assertTrue(error.getCause().getMessage().contains("indivisible"));
         }
 
         @Test
@@ -182,7 +279,7 @@ public class HttpPegelHubClientTest {
             mockSuccessfulResponse(getResource("CoreMeasurementListResponse.json"));
 
             RuntimeException error = assertThrows(RuntimeException.class,
-                    () -> phc.getMeasurementsOfTimeSeries(uuid, Duration.ofHours(24)));
+                    () -> phc.getMeasurementsOfTimeSeries(uuid, READ_FROM, READ_TO));
 
             assertInstanceOf(IllegalStateException.class, error.getCause());
             assertTrue(error.getCause().getMessage().contains(uuid.toString()));
@@ -231,7 +328,7 @@ public class HttpPegelHubClientTest {
             mockTokenSuccessAndCoreResponse(HttpStatus.SC_UNAUTHORIZED, "unauthorized");
 
             RuntimeException error = assertThrows(RuntimeException.class,
-                    () -> phc.getMeasurementsOfTimeSeries(uuid, Duration.ofHours(72)));
+                    () -> phc.getMeasurementsOfTimeSeries(uuid, READ_FROM, READ_TO));
 
             assertNotNull(error.getCause());
             assertTrue(error.getCause().getMessage().contains("401"));
@@ -370,6 +467,37 @@ public class HttpPegelHubClientTest {
 
     private URL baseUrl() throws MalformedURLException {
         return URI.create("http://localhost:1111/").toURL();
+    }
+
+    private String measurementListResponse(
+            UUID timeSeriesId,
+            boolean truncated,
+            Instant observedAt,
+            double value) {
+        return measurementListResponse(
+                timeSeriesId,
+                truncated,
+                List.of(new Measurement(timeSeriesId, observedAt, value)));
+    }
+
+    private String measurementListResponse(
+            UUID timeSeriesId,
+            boolean truncated,
+            List<Measurement> measurements) {
+        String values = measurements.stream()
+                .map(measurement -> """
+                        {"observedAt": "%s", "value": %s}
+                        """.formatted(measurement.getObservedAt(), measurement.getValue()).strip())
+                .collect(Collectors.joining(",\n"));
+        return """
+                {
+                  "timeSeriesId": "%s",
+                  "truncated": %s,
+                  "measurements": [
+                    %s
+                  ]
+                }
+                """.formatted(timeSeriesId, truncated, values);
     }
 
     private String getResource(String name) throws IOException {

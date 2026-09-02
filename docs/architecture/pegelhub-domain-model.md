@@ -18,10 +18,10 @@ erDiagram
 
     StationOwner { uuid id PK string name string shortName string notes }
     Station { uuid id PK uuid ownerId FK string name string waterBody string status }
-    MeasuringPoint { uuid id PK uuid stationId FK string name string status decimal position decimal pnp }
-    TimeSeries { uuid id PK uuid measuringPointId FK string observedProperty string status uuid sourceConnectorId string sourceRepresentation }
+    MeasuringPoint { uuid id PK uuid stationId FK string name string status decimal riverKilometer string bank decimal latitude decimal longitude decimal gaugeZeroElevationMAboveAdria int referenceSetYear decimal rnwCm decimal mwCm decimal hswCm decimal hw100Cm }
+    TimeSeries { uuid id PK uuid measuringPointId FK string observedProperty string status uuid sourceConnectorId FK string sourceRepresentation }
     Connector { uuid id PK string name string type string keycloakClientId string status }
-    Measurement { uuid timeSeriesId instant observedAt instant receivedAt decimal value uuid submittedByConnectorId }
+    Measurement { uuid timeSeriesId instant observedAt instant receivedAt double value uuid submittedByConnectorId }
 ```
 
 ## Catalog Rules
@@ -51,10 +51,11 @@ The observed-property catalog currently contains `water-level` (`cm`),
 
 Spring Security enforces coarse authorities at HTTP boundaries. Application
 policies then distinguish operator users from connector clients and resolve
-resource relationships. A connector can read a station or time series only
-through an explicit read-access table. A measurement write additionally needs
-an active connector, an active Station -> MeasuringPoint -> TimeSeries path,
-and a matching active source assignment. There are no WRITE access grants.
+resource relationships. A connector can read measurements for a TimeSeries
+only through an explicit station- or TimeSeries-read-access row. A measurement
+write additionally needs an active connector, an active
+Station -> MeasuringPoint -> TimeSeries path, and a matching source assignment.
+There are no WRITE access grants.
 
 ## Monitoring Read Model
 
@@ -65,6 +66,8 @@ resolve one window from the injected clock and use one grouped Influx query for
 latest values. Chart history remains independently reloadable through
 `/time-series/{id}/measurements/buckets`.
 
-Coordinates are intentionally not included in the monitoring projection yet.
-German labels, formatting, relative timestamps, and reference-line presentation
-remain frontend concerns.
+Monitoring accepts user actors with `metadata:read` and `measurement:read`, or
+`system:admin`; connector actors cannot use these views. Coordinates remain in
+the administrative MeasuringPoint response and are intentionally excluded from
+the monitoring projection. German labels, formatting, relative timestamps, and
+reference-line presentation remain frontend concerns.

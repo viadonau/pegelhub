@@ -5,9 +5,7 @@ import java.util.Map;
 
 import static java.util.Objects.requireNonNull;
 
-/**
- * Validations, which can be used to check the quality of members in data classes
- */
+/** Shared precondition checks for domain values. */
 public class Validations {
 
     private Validations() {
@@ -55,14 +53,14 @@ public class Validations {
 
     public static double requirePositive(double value) {
         if (value < 0) {
-            throw new IllegalArgumentException("Number must be positive");
+            throw new IllegalArgumentException("Number must be non-negative");
         }
         return value;
     }
 
     public static long requirePositive(long value) {
         if (value < 0) {
-            throw new IllegalArgumentException("Number must be positive");
+            throw new IllegalArgumentException("Number must be non-negative");
         }
         return value;
     }

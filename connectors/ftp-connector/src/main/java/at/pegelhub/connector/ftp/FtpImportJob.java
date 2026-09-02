@@ -10,7 +10,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.*;
-import java.time.Duration;
 import java.time.Instant;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -18,8 +17,8 @@ import java.util.stream.Stream;
 
 public class FtpImportJob implements Runnable {
     private static final Logger LOG = LoggerFactory.getLogger(FtpImportJob.class);
-    private final HashSet<String> processedFiles = new HashSet<>();
-    private final Duration durationToLookBack;
+    private final Set<FtpFileKey> processedFiles = new HashSet<>();
+    private final Instant lookBackStart;
     private final FTPClient ftp;
     private final FtpConnectorConfig config;
     private final PegelHubClient communicator;
@@ -30,13 +29,10 @@ public class FtpImportJob implements Runnable {
         this.config = config;
         this.communicator = communicator;
         this.parser = parser;
-        this.durationToLookBack = config.pollInterval();
+        this.lookBackStart = Instant.now().minus(config.pollInterval());
     }
 
-    /**
-     * The connection to the FTP Server. Reads the file and tries to parse it. If successful, the parsed Measurements get
-     * transferred to Pegelhub Core
-      */
+    /** Imports recent, unprocessed files from the configured FTP directory into Core. */
     @Override
     public void run(){
         try {
@@ -69,39 +65,28 @@ public class FtpImportJob implements Runnable {
         }
 
         try {
-            // 1) list files
-            // 2) process files
-            // 3) send processed data to core
-
-            // 1)
-
-            FTPFileFilter filter = file -> file != null
-                        && file.isFile()
-                        && file.getName() != null
-                        && file.getTimestampInstant() != null
-                        && file.getName().endsWith(parser.getType().fileSuffix)
-                        && file.getTimestampInstant().isAfter(getLookBackTimestamp())
-                        && !processedFiles.contains(file.getName());
-
             FTPFile[] files;
             try {
                 LOG.debug("Listing files under {}", config.source().directory());
-                files = ftp.listFiles(config.source().directory(), filter);
+                files = ftp.listFiles(config.source().directory(), this::shouldProcess);
             } catch (IOException e) {
                 LOG.error("Can't list files!", e);
                 return;
             }
 
-            // 2)
-            List<Measurement> measurements = Arrays.stream(files)
-                    .flatMap(this::parseFile)
+            List<ParsedFile> parsedFiles = Arrays.stream(files)
+                    .map(this::parseFile)
+                    .flatMap(Optional::stream)
+                    .toList();
+            List<Measurement> measurements = parsedFiles.stream()
+                    .flatMap(file -> file.entries().stream())
                     .flatMap(this::convertEntryToMeasurementStream)
                     .collect(Collectors.toList());
 
-            // 3)
             if (!measurements.isEmpty()) {
                 communicator.sendMeasurements(measurements);
             }
+            parsedFiles.stream().map(ParsedFile::key).forEach(processedFiles::add);
         } catch (Exception e) {
             LOG.error("Unhandled Exception was thrown!", e);
         } finally {
@@ -118,34 +103,46 @@ public class FtpImportJob implements Runnable {
         }
     }
 
-    private Instant getLookBackTimestamp() {
-        return Instant.now().minus(durationToLookBack);
+    private boolean shouldProcess(FTPFile file) {
+        return file != null
+                && file.isFile()
+                && file.getName() != null
+                && file.getTimestampInstant() != null
+                && file.getName().endsWith(parser.getType().fileSuffix)
+                && file.getTimestampInstant().isAfter(lookBackStart)
+                && !processedFiles.contains(FtpFileKey.from(file));
     }
 
-    private Stream<Entry> parseFile(FTPFile file) {
+    private Optional<ParsedFile> parseFile(FTPFile file) {
         String remoteDirectory = config.source().directory();
         final String formatString = remoteDirectory.endsWith("/") ? "%s%s" : "%s/%s";
         final String fileLocation = String.format(formatString, remoteDirectory, file.getName());
         LOG.debug("Parsing FTP file {} from {}", file.getName(), fileLocation);
         InputStream fileStream = getFileInputStream(fileLocation);
 
-        Stream<Entry> returnvalue = Stream.of();
         if (fileStream == null) {
-            return returnvalue;
+            return Optional.empty();
         }
-        try {
-            returnvalue = parser.parse(fileStream);
-            ftp.completePendingCommand();
-            processedFiles.add(file.getName());
+
+        List<Entry> entries;
+        try (fileStream; Stream<Entry> parsedEntries = parser.parse(fileStream)) {
+            entries = parsedEntries.toList();
         } catch (IOException e) {
             LOG.error("Error while reading file!", e);
+            return Optional.empty();
         }
+
         try {
-            fileStream.close();
-        } catch (Exception e) {
-            LOG.error("Stream did not close", e);
+            if (!ftp.completePendingCommand()) {
+                LOG.error("FTP transfer did not complete for {}.", fileLocation);
+                return Optional.empty();
+            }
+        } catch (IOException e) {
+            LOG.error("Could not complete FTP transfer for {}.", fileLocation, e);
+            return Optional.empty();
         }
-        return returnvalue;
+
+        return Optional.of(new ParsedFile(FtpFileKey.from(file), entries));
     }
 
     private InputStream getFileInputStream(String location) {
@@ -177,7 +174,6 @@ public class FtpImportJob implements Runnable {
         }
 
         return e.getValues().entrySet().stream().map(value -> {
-            // TODO the check if the location is correct should be refactored into the parser or something like that
             if (!Util.canParseDouble(value.getValue()) || !Util.canParseDouble(e.getInfos().get("location"))) {
                 return null;
             }
@@ -226,5 +222,14 @@ public class FtpImportJob implements Runnable {
                 .replace("³", "3")
                 .replace(" ", "")
                 .replace(".", "");
+    }
+
+    private record FtpFileKey(String name, Instant modifiedAt) {
+        private static FtpFileKey from(FTPFile file) {
+            return new FtpFileKey(file.getName(), file.getTimestampInstant());
+        }
+    }
+
+    private record ParsedFile(FtpFileKey key, List<Entry> entries) {
     }
 }

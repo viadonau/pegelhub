@@ -11,9 +11,8 @@
     </parent>
 
     <artifactId>ma-connector</artifactId>
-    <version>1.0.0-SNAPSHOT</version>
-    <name>Pegelhub MA Connector</name>
-    <description>MA connector for Pegelhub.</description>
+    <name>PegelHub mA Connector</name>
+    <description>Imports Revolution Pi process-image inputs into PegelHub Core</description>
 
     <dependencies>
         <dependency>

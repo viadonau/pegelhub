@@ -18,8 +18,8 @@ Each connector instance is a directory outside the repository:
 Copy [`connector.env.example`](connector.env.example) into the instance as
 `connector.env`, then set a unique project name and the connector image.
 
-`connector.env` contains the project name, immutable connector image, trust
-mode, and optional Java settings. The Compose file resolves `./config` and
+`connector.env` contains the project name, versioned connector image reference,
+trust mode, and optional Java settings. The Compose file resolves `./config` and
 `./trust` relative to the instance directory through `--project-directory`:
 
 ```sh

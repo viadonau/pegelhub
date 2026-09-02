@@ -20,17 +20,17 @@ Commands:
   compose-down           Stop and remove local compose containers; keep volumes.
   restart [service]      Restart one service, default: core-app.
   logs [service]         Show recent logs for one service or all.
-  logs-errors [service]  Show recent warning/error-looking log lines only.
+  logs-errors [service]  Show warning/error-looking lines for one service or all.
   health                 Check actuator health.
   wait-health [seconds]  Wait for actuator health, default: 120 seconds.
   smoke [--raw]          Run low-risk actuator and API smoke checks; default is compact.
   api-get <path>         Run a safe GET request against CORE_BASE_URL.
 
 Environment:
-  PEGELHUB_REPO_ROOT     Override repository root when the skill is copied.
+  PEGELHUB_REPO_ROOT     Override the repository root detected from this script.
   CORE_BASE_URL          Override core API base URL. Default: http://localhost:8080
   ACTUATOR_BASE_URL      Override actuator base URL. Default: http://localhost:8081
-  TAIL                   Log line count for logs command. Default: 160
+  TAIL                   Override log line count. Defaults: logs 160, logs-errors 300
 USAGE
 }
 

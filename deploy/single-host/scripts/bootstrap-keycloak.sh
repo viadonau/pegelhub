@@ -58,7 +58,7 @@ reject_placeholder() {
   esac
 }
 
-validate_public_hostname() {
+validate_deployment_hostname() {
   variable_name="$1"
   hostname=$(env_value "$variable_name")
   normalized=$(printf '%s' "$hostname" | tr '[:upper:]' '[:lower:]')
@@ -76,7 +76,7 @@ validate_public_hostname() {
       fail "$variable_name must be a real hostname, not a placeholder or loopback address."
       ;;
     *://*|*/*|*:*|.*|*.|*..*|*[!a-z0-9.-]*)
-      fail "$variable_name must contain only a public DNS hostname without a scheme, port, or path."
+      fail "$variable_name must contain only a fully qualified DNS hostname without a scheme, port, or path."
       ;;
     *.*) ;;
     *)
@@ -129,8 +129,8 @@ reject_active_keycloak() {
 [ -f "$ENV_FILE" ] || fail "Missing protected deployment env file: $ENV_FILE"
 compose_project_name=$(env_value COMPOSE_PROJECT_NAME)
 [ -n "$compose_project_name" ] || fail "COMPOSE_PROJECT_NAME is required."
-validate_public_hostname PEGELHUB_FRONTEND_HOSTNAME
-validate_public_hostname PEGELHUB_KEYCLOAK_HOSTNAME
+validate_deployment_hostname PEGELHUB_FRONTEND_HOSTNAME
+validate_deployment_hostname PEGELHUB_KEYCLOAK_HOSTNAME
 frontend_hostname=$(env_value PEGELHUB_FRONTEND_HOSTNAME)
 keycloak_hostname=$(env_value PEGELHUB_KEYCLOAK_HOSTNAME)
 keycloak_admin_user=$(env_value KEYCLOAK_ADMIN_USER)

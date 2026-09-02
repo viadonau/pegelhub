@@ -58,6 +58,7 @@ final class MonitoringController {
     })
     @GetMapping("/{timeSeriesId}")
     MonitoringResponse.TimeSeriesDetail get(
+            @Parameter(description = "openapi.measurement.measurement-api.time-series-identifier", required = true)
             @PathVariable UUID timeSeriesId,
             @Parameter(description = "openapi.monitoring.monitoring-controller.latest-measurement-window-up-to-365-days", example = "365d")
             @RequestParam(defaultValue = "365d") String latestWithin) {

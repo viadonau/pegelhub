@@ -34,9 +34,10 @@ chmod 600 "$CONFIG_ROOT/tstp-connector/connector.yaml"
 ```
 
 `connector.yaml` defines the Core URL and client-credentials authentication, a
-positive polling interval ending in `s`, `m`, or `h`, and the TSTP server host
-and port. The implementation constructs a plain HTTP endpoint; it does not
-support an HTTPS scheme setting. `mappings.directory` defaults to `mappings`.
+positive polling interval ending in `s`, `m`, or `h` (case-insensitive), and
+the TSTP server host and port. The implementation constructs an unauthenticated
+plain HTTP endpoint; it has no HTTPS scheme or TSTP credential setting.
+`mappings.directory` defaults to `mappings`.
 
 Example mapping:
 
@@ -56,7 +57,17 @@ mappings in that polling cycle from running.
 
 For every station, the connector queries the TSTP catalog with
 `Parameter=Wasserstand` and `Hauptreihe=true`, then uses the first returned
-ZRID. Catalog responses are cached in memory for 24 hours.
+ZRID. Resolved ZRIDs are cached in memory for 24 hours.
+
+TSTP binary timestamps are interpreted and emitted as UTC with whole-second
+precision. Inbound 32-bit floating-point values are rounded to two decimal
+places and forwarded without unit conversion. Outbound values are cast to
+32-bit floats and sent to the water-level ZRID selected above; the request
+declares series type `Z` and unit `cm`. Both directions therefore require a Core
+time series with observed property `water-level`, whose canonical unit is `cm`.
+For `external-to-core`, its source assignment must use representation
+`canonical`; `metres-above-adria` would incorrectly convert the incoming
+centimetre value as an elevation.
 
 Configure the Keycloak client for the `pegelhub-core-api` audience and only the
 direction-appropriate lowercase Core roles, such as `measurement:read` and
@@ -66,18 +77,20 @@ The client also needs the registration and read-access relations described in th
 
 ## Synchronization behavior
 
-Successful mapping runs advance a per-mapping synchronization boundary. After
-the initial inclusive window, each logical window is
-`(previous boundary, current cycle boundary]`. Core lookbacks request one extra
-second and are filtered back to that logical window. Polling uses fixed delay,
-so the next cycle begins after the prior cycle has completed and the configured
-interval has elapsed.
+The first cycle reads the half-open window `[cycle time - polling interval,
+cycle time)`. Successful mapping runs advance an in-memory boundary, and the
+next window is `[previous cycle time, current cycle time)`. Both TSTP and Core
+results are filtered to those exact boundaries. TSTP cycle times are truncated
+to whole seconds to match the protocol. Polling uses fixed delay, so each new
+window also covers the prior cycle's processing time.
 
 The catalog cache and synchronization boundaries exist only in process memory.
 After restart, each mapping starts again with a window equal to one polling
 interval, which can replay values that were already transferred. Failed
-mappings keep their previous boundary for the next cycle. There is no durable
-checkpoint or exactly-once guarantee.
+mappings keep their previous start boundary and retry an enlarged window on the
+next cycle. Late source data whose observation time falls in an already
+completed window can be missed. There is no durable checkpoint or exactly-once
+guarantee.
 
 ## Run the image
 

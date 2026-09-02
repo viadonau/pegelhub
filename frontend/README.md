@@ -145,9 +145,9 @@ replaces `assets/config.json` at **container startup**, not image build time:
 This split lets one immutable image move between environments without rebuilding Angular. These
 settings are public application configuration, not a place for passwords, tokens, or client
 secrets. An unavailable file, invalid JSON, or a missing or blank required string prevents bootstrap
-and produces a dedicated startup error page. The loader does not otherwise validate non-empty
-values. A malformed Keycloak URL can fail during application configuration; other incorrect API or
-Keycloak values fail when the corresponding service is used.
+and produces a dedicated startup error page. Beyond presence and nonblank strings, the loader does
+not validate value formats. A malformed Keycloak URL can fail during application configuration;
+other incorrect API or Keycloak values fail when the corresponding service is used.
 
 ### API proxies
 
@@ -193,6 +193,7 @@ when working from the repository root.
 | ------------------------ | ------------------------------------------------------------------------------- |
 | `npm start`              | Start the dev server on port 4200 with the Core proxy.                          |
 | `npm run start:4201`     | Start on port 4201; Keycloak must allow that origin.                            |
+| `npm run start:no-proxy` | Start on port 4200 without forwarding `/api`; requires a CORS-enabled API URL.  |
 | `npm run watch`          | Rebuild the development bundle when source files change.                        |
 | `npm test`               | Run the Vitest unit suite once.                                                 |
 | `npm run typecheck`      | Type-check application and test TypeScript projects.                            |
@@ -210,6 +211,9 @@ inputs are `FRONTEND_BASE_URL`, `LOCAL_OPERATOR_CLIENT_ID`, `LOCAL_OPERATOR_CLIE
 `LIVE_STACK_SMOKE_TIMEOUT_MS`. Provisioning is documented in the
 [local Keycloak guide](../core/docs/keycloak-local-dev.md#local-realm-contents). Supply sensitive
 overrides only through the environment; do not commit them.
+
+`npm run image:validate -- <image-tag>` overrides the temporary image tag used by image validation;
+without an argument it uses `pegelhub-frontend:production-validation`.
 
 Before opening a pull request, run at least:
 
@@ -301,8 +305,8 @@ machine.
 
 ## Further documentation
 
-- [Operator station metadata note](docs/operator-station-metadata.md): source-data observations for
-  possible future metadata work; it does not describe an implemented administration feature.
+- [Legacy station source notes](docs/operator-station-metadata.md): historical CSV observations,
+  current Core mappings, and import caveats; no CSV import workflow is implemented.
 - [Brand assets](public/brand/README.md): bundled asset purpose, provenance, and maintenance rules.
 - [PegelHub Core](../core/README.md): Core runtime and API documentation entry point.
 - [Local Keycloak development](../core/docs/keycloak-local-dev.md): issuer, browser client, roles,

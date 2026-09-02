@@ -38,7 +38,7 @@ chmod 600 "$CONFIG_ROOT/ma-connector/connector.yaml"
 ```
 
 `connector.yaml` defines the Core URL and client-credentials authentication and
-a positive polling interval ending in `s`, `m`, or `h`.
+a positive polling interval ending in `s`, `m`, or `h` (case-insensitive).
 `mappings.directory` defaults to `mappings`.
 
 Each mapping names one piCtory input:
@@ -59,12 +59,13 @@ It also needs the target source assignment described in the
 ## Read behavior
 
 At startup, the native reader resolves configured piCtory variables to byte
-offsets. Each polling cycle reads an unsigned, little-endian two-byte value from
-every offset in `/dev/piControl0`. All values in a cycle receive the same
-connector timestamp and are submitted to Core one at a time. A failed read or
-Core submission is logged for that offset. It is not retained or retried; a
-later poll takes a new sample with a new timestamp. There is no durable sample
-queue.
+offsets. Each mapped variable must be a byte-aligned 16-bit value: the reader
+does not inspect piCtory's bit position or declared width. Each polling cycle
+reads an unsigned, little-endian two-byte value from every offset in
+`/dev/piControl0`. All values in a cycle receive the same connector timestamp
+and are submitted to Core one at a time. A failed read or Core submission is
+logged for that offset. It is not retained or retried; a later poll takes a new
+sample with a new timestamp. There is no durable sample queue.
 
 ## Run on Revolution Pi
 

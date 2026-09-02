@@ -21,6 +21,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class TstpSynchronizerTest {
     private static final UUID INBOUND_SERIES = UUID.fromString("11111111-1111-1111-1111-111111111111");
@@ -66,6 +67,20 @@ class TstpSynchronizerTest {
     }
 
     @Test
+    void doesNotCacheCatalogEntriesWithoutAZrid() {
+        FakeTstpClient tstp = new FakeTstpClient();
+        tstp.stationsWithoutZrid.add(11);
+        TstpCatalogResolver resolver = new TstpCatalogResolver(tstp);
+
+        assertThrows(IllegalStateException.class,
+                () -> resolver.resolveZrid(11));
+
+        tstp.stationsWithoutZrid.clear();
+        assertEquals("zrid-11", resolver.resolveZrid(11));
+        assertEquals(List.of(11, 11), tstp.catalogRequests);
+    }
+
+    @Test
     void coversElapsedTimeBetweenFixedDelayCycles() {
         Instant startedAt = Instant.parse("2026-06-07T10:00:00Z");
         MutableClock clock = new MutableClock(startedAt);
@@ -86,10 +101,36 @@ class TstpSynchronizerTest {
 
         assertEquals(2, clock.readCount());
         assertEquals(
-                List.of(Duration.ofMinutes(10).plusSeconds(1), Duration.ofMinutes(10).plusSeconds(21)),
-                core.lookbacks);
+                List.of(
+                        new ReadWindow(startedAt.minus(Duration.ofMinutes(10)), startedAt),
+                        new ReadWindow(startedAt, clock.current())),
+                core.readWindows);
         assertEquals(new ReadWindow(startedAt.minus(Duration.ofMinutes(10)), startedAt), tstp.readWindows.get(0));
         assertEquals(new ReadWindow(startedAt, clock.current()), tstp.readWindows.get(1));
+    }
+
+    @Test
+    void retainsTheInitialStartBoundaryAfterFailure() {
+        Instant startedAt = Instant.parse("2026-06-07T10:00:00Z");
+        MutableClock clock = new MutableClock(startedAt);
+        FakeCoreClient core = new FakeCoreClient(List.of());
+        FakeTstpClient tstp = new FakeTstpClient();
+        tstp.failingStations.add(11);
+        TstpSynchronizer synchronizer = synchronizer(
+                core,
+                tstp,
+                List.of(mapping(INBOUND_SERIES, 11, MappingDirection.EXTERNAL_TO_CORE)),
+                Duration.ofMinutes(10),
+                clock);
+
+        synchronizer.run();
+        clock.advance(Duration.ofMinutes(12));
+        tstp.failingStations.clear();
+        synchronizer.run();
+
+        assertEquals(
+                List.of(new ReadWindow(startedAt.minus(Duration.ofMinutes(10)), clock.current())),
+                tstp.readWindows);
     }
 
     private static TstpSynchronizer synchronizer(
@@ -129,7 +170,7 @@ class TstpSynchronizerTest {
 
     private static final class FakeCoreClient implements PegelHubClient {
         private final Collection<Measurement> outbound;
-        private final List<Duration> lookbacks = new ArrayList<>();
+        private final List<ReadWindow> readWindows = new ArrayList<>();
         private List<Measurement> sent = List.of();
 
         private FakeCoreClient(Collection<Measurement> outbound) {
@@ -137,8 +178,8 @@ class TstpSynchronizerTest {
         }
 
         @Override
-        public Collection<Measurement> getMeasurementsOfTimeSeries(UUID timeSeriesId, Duration lookback) {
-            lookbacks.add(lookback);
+        public Collection<Measurement> getMeasurementsOfTimeSeries(UUID timeSeriesId, Instant from, Instant to) {
+            readWindows.add(new ReadWindow(from, to));
             return outbound;
         }
 
@@ -160,6 +201,7 @@ class TstpSynchronizerTest {
     private static final class FakeTstpClient implements TstpClient {
         private final List<Integer> catalogRequests = new ArrayList<>();
         private final List<Integer> failingStations = new ArrayList<>();
+        private final List<Integer> stationsWithoutZrid = new ArrayList<>();
         private final List<String> operations = new ArrayList<>();
         private final List<ReadWindow> readWindows = new ArrayList<>();
         private List<Measurement> readMeasurements = List.of();
@@ -179,7 +221,9 @@ class TstpSynchronizerTest {
                 throw new IllegalStateException("catalog unavailable");
             }
             XmlQueryTsAttribut attribute = new XmlQueryTsAttribut();
-            attribute.setZrid("zrid-" + stationId);
+            if (!stationsWithoutZrid.contains(stationId)) {
+                attribute.setZrid("zrid-" + stationId);
+            }
             XmlQueryResponse response = new XmlQueryResponse();
             response.setDef(List.of(attribute));
             return response;

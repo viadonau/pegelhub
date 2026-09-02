@@ -35,7 +35,8 @@ chmod 600 "$CONFIG_ROOT/icc-connector/connector.yaml"
 
 `connector.yaml` defines `localCore` and `remoteCore`, each with `baseUrl` and
 client-credentials authentication. It also defines a positive polling interval
-ending in `s`, `m`, or `h`. `mappings.directory` defaults to `mappings`.
+ending in `s`, `m`, or `h` (case-insensitive). `mappings.directory` defaults to
+`mappings`.
 
 Each mapping relates one local and one remote Core time series:
 
@@ -50,6 +51,13 @@ direction: "core-to-external"
 - `external-to-core` reads `externalTimeSeriesId` from remote Core and writes
   `timeSeriesId` to local Core.
 
+Core returns measurements in each observed property's canonical unit, and ICC
+copies the numeric value without conversion. The source and target time series
+must therefore describe the same observed property. On the target Core, the
+source assignment must name the writing ICC connector and use representation
+`canonical`; using `metres-above-adria` would reinterpret a canonical
+water-level value as an elevation.
+
 Mapping files are processed in sorted filename order. Configure each Keycloak
 client for the `pegelhub-core-api` audience and only the read or write roles
 needed on that side, using the lowercase runtime values such as
@@ -59,22 +67,19 @@ the [library authorization prerequisites](../library/#core-authorization-prerequ
 
 ## Transfer behavior
 
-Every cycle reads the source's relative lookback window, whose duration equals
-the configured polling interval, rewrites each measurement to the target time
-series ID, and submits that batch. Mapping failures are logged independently so
-later mappings still run.
+The first cycle reads the half-open source window `[cycle time - polling
+interval, cycle time)`. After a mapping succeeds, its next window begins at the
+previous cycle time and ends at the new cycle time. These explicit boundaries
+include the scheduler's processing delay, so successive successful windows do
+not leave a timing gap. Measurements are rewritten to the target time-series ID
+before submission. An empty source window is a successful no-op.
 
-The current implementation also submits when the source returns no points.
-Current Core rejects an empty measurement batch, so an empty source window is
-logged as a mapping failure rather than a no-op.
-
-The connector stores no cursor, copied-point ledger, retry queue, or durable
-state. Because the scheduler uses a fixed delay after processing, processing
-time can leave a gap between successive lookback windows. Late source data
-outside the current window can be missed. A restart less than one polling
-interval after the prior cycle can overlap that cycle's lookback and resubmit
-data. Treat this as best-effort recent-window copying, not a lossless or
-exactly-once replication mechanism.
+Mapping failures are logged independently so later mappings still run. A
+failed mapping keeps its previous start boundary and retries the enlarged
+window on the next cycle. Boundaries exist only in process memory: restarting
+replays up to one polling interval, and late source data written outside an
+already completed window can still be missed. There is no durable checkpoint
+or exactly-once guarantee.
 
 ## Run the image
 

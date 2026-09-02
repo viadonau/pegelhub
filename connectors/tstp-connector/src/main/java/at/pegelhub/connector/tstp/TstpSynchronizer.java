@@ -26,7 +26,7 @@ final class TstpSynchronizer implements Runnable {
     private final List<TstpMapping> mappings;
     private final Duration initialLookback;
     private final Clock clock;
-    private final Map<TstpMapping, Instant> synchronizedThrough = new HashMap<>();
+    private final Map<TstpMapping, Instant> nextSyncFrom = new HashMap<>();
 
     TstpSynchronizer(
             PegelHubClient coreClient,
@@ -57,9 +57,12 @@ final class TstpSynchronizer implements Runnable {
         Instant cycleUntil = clock.instant().truncatedTo(ChronoUnit.SECONDS);
 
         for (TstpMapping mapping : mappings) {
+            Instant from = nextSyncFrom.computeIfAbsent(
+                    mapping,
+                    ignored -> cycleUntil.minus(initialLookback));
             try {
-                synchronizeMapping(mapping, cycleUntil);
-                synchronizedThrough.put(mapping, cycleUntil);
+                synchronizeMapping(mapping, from, cycleUntil);
+                nextSyncFrom.put(mapping, cycleUntil);
             } catch (Exception e) {
                 LOG.error("TSTP mapping failed: timeSeriesId={}, stationId={}, direction={}",
                         mapping.timeSeriesId(),
@@ -70,17 +73,16 @@ final class TstpSynchronizer implements Runnable {
         }
     }
 
-    private void synchronizeMapping(TstpMapping mapping, Instant until) {
-        String zrid = catalogResolver.resolveZrid(mapping.stationId());
+    private void synchronizeMapping(TstpMapping mapping, Instant from, Instant until) {
+        if (!until.isAfter(from)) {
+            return;
+        }
 
-        Instant previousBoundary = synchronizedThrough.get(mapping);
-        Instant requestedFrom = previousBoundary == null ? until.minus(initialLookback) : previousBoundary;
-        Instant from = requestedFrom.isBefore(until) ? requestedFrom : until.minusSeconds(1);
-        boolean includeStart = previousBoundary == null;
+        String zrid = catalogResolver.resolveZrid(mapping.stationId());
 
         if (mapping.direction() == MappingDirection.EXTERNAL_TO_CORE) {
             List<Measurement> measurements = tstpClient.readMeasurements(zrid, from, until).stream()
-                    .filter(measurement -> isInsideWindow(measurement, from, until, includeStart))
+                    .filter(measurement -> isInsideWindow(measurement, from, until))
                     .toList();
 
             if (measurements.isEmpty()) {
@@ -94,11 +96,10 @@ final class TstpSynchronizer implements Runnable {
             return;
         }
 
-        Duration coreLookback = Duration.between(from, until).plusSeconds(1);
         List<Measurement> measurements = coreClient
-                .getMeasurementsOfTimeSeries(mapping.timeSeriesId(), coreLookback)
+                .getMeasurementsOfTimeSeries(mapping.timeSeriesId(), from, until)
                 .stream()
-                .filter(measurement -> isInsideWindow(measurement, from, until, includeStart))
+                .filter(measurement -> isInsideWindow(measurement, from, until))
                 .sorted(Comparator.comparing(Measurement::getObservedAt))
                 .toList();
 
@@ -112,13 +113,9 @@ final class TstpSynchronizer implements Runnable {
     private boolean isInsideWindow(
             Measurement measurement,
             Instant from,
-            Instant until,
-            boolean includeStart) {
-        boolean afterStart = includeStart
-                ? !measurement.getObservedAt().isBefore(from)
-                : measurement.getObservedAt().isAfter(from);
-
-        return afterStart && !measurement.getObservedAt().isAfter(until);
+            Instant until) {
+        return !measurement.getObservedAt().isBefore(from)
+                && measurement.getObservedAt().isBefore(until);
     }
 
     private Measurement withTimeSeriesId(Measurement measurement, TstpMapping mapping) {

@@ -11,9 +11,8 @@
     </parent>
 
     <artifactId>ftp-connector</artifactId>
-    <version>1.0.0-SNAPSHOT</version>
-    <name>Pegelhub FTP Connector</name>
-    <description>FTP connector for Pegelhub.</description>
+    <name>PegelHub FTP Connector</name>
+    <description>Imports ASC and ZRXP measurements from FTP into PegelHub Core</description>
 
     <properties>
         <commons-net.version>3.10.0</commons-net.version>
