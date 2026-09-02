@@ -204,7 +204,7 @@ public class FtpImportJob implements Runnable {
         return switch (parameter.trim().toLowerCase(Locale.ROOT)) {
             case "wasserstandabs" -> normalized.equals("mua") || normalized.equals("müa");
             case "wasserstand" -> normalized.equals("cm") || normalized.equals("mm");
-            case "abfluss" -> normalized.equals("m3/s") || normalized.equals("l/s");
+            case "abfluss" -> normalized.equals("m3/s") || normalized.equals("l/s") || normalized.equals("cumc");
             case "wtemperatur" -> normalized.equals("°c") || normalized.equals("c") || normalized.equals("cel");
             default -> false;
         };

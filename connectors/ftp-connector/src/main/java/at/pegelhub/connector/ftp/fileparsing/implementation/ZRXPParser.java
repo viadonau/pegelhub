@@ -8,6 +8,7 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
@@ -27,7 +28,7 @@ public class ZRXPParser implements Parser {
     public Stream<Entry> parse(InputStream is) throws IOException {
         List<String> lines = null;
 
-        try (BufferedReader br = new BufferedReader(new InputStreamReader(is))) {
+        try (BufferedReader br = new BufferedReader(new InputStreamReader(is, StandardCharsets.ISO_8859_1))) {
             lines = br.lines()
                     .filter(l -> !l.isBlank())
                     .filter(l -> !l.startsWith("##"))
