@@ -1,4 +1,4 @@
-import { Component, computed, effect, inject, input } from '@angular/core';
+import { Component, computed, effect, inject, input, signal } from '@angular/core';
 import { Title } from '@angular/platform-browser';
 import { RouterLink } from '@angular/router';
 
@@ -39,6 +39,7 @@ export class TimeSeriesDetailComponent {
   private readonly snapshotResource = this.monitoringApi.timeSeriesDetailResource(
     this.normalizedTimeSeriesId,
   );
+  private readonly loadedSnapshotId = signal<string | null>(null);
 
   protected readonly snapshot = computed(() =>
     this.snapshotResource.hasValue() && !this.snapshotResource.isLoading()
@@ -82,6 +83,14 @@ export class TimeSeriesDetailComponent {
     return snapshot ? latestMeasurementView(snapshot.latestMeasurement, this.displayUnit()) : null;
   });
   protected readonly loading = this.snapshotResource.isLoading;
+  protected readonly historyAvailable = computed(() => {
+    const timeSeriesId = this.normalizedTimeSeriesId();
+
+    return (
+      this.snapshotResource.hasValue() ||
+      (timeSeriesId.length > 0 && this.loadedSnapshotId() === timeSeriesId)
+    );
+  });
   protected readonly inactive = computed(() => this.snapshot()?.status === 'inactive');
   protected readonly error = computed(() =>
     this.snapshotResource.status() === 'error'
@@ -90,6 +99,12 @@ export class TimeSeriesDetailComponent {
   );
 
   constructor() {
+    effect(() => {
+      if (this.snapshotResource.hasValue()) {
+        this.loadedSnapshotId.set(this.normalizedTimeSeriesId());
+      }
+    });
+
     effect(() => {
       const pointName = this.measuringPoint()?.name;
       const title = [pointName, this.measurementTypeLabel(), 'PegelHub']

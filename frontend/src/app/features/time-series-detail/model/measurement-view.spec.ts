@@ -33,4 +33,27 @@ describe('measurement view', () => {
       measurementChartSeries(buckets, 'water-level')?.points.map((point) => point.value),
     ).toEqual([301, 305]);
   });
+
+  it('returns no chart series for an empty bucket response', () => {
+    expect(
+      measurementChartSeries(
+        { timeSeriesId: 'series-1', window: null, resolution: null, points: [] },
+        'water-level',
+      ),
+    ).toBeNull();
+  });
+
+  it('preserves a malformed timestamp instead of inventing a display date', () => {
+    const series = measurementChartSeries(
+      {
+        timeSeriesId: 'series-1',
+        window: null,
+        resolution: null,
+        points: [{ from: 'not-a-date', to: 'not-a-date', value: 301, sampleCount: 1 }],
+      },
+      'water-level',
+    );
+
+    expect(series?.points).toEqual([{ label: 'not-a-date', value: 301 }]);
+  });
 });

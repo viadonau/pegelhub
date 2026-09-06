@@ -1,6 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
 import type { ChartOptions } from 'chart.js';
+import { UIChart } from 'primeng/chart';
 import { describe, expect, it } from 'vitest';
 
 import { PhLineChartComponent } from './line-chart.component';
@@ -33,11 +34,10 @@ describe('PhLineChartComponent', () => {
     ]);
     fixture.componentRef.setInput('unit', 'cm');
 
-    const viewModel = fixture.componentInstance as unknown as {
-      chartOptions: () => ChartOptions<'line'>;
-      yAxisBounds: () => { min: number; max: number } | null;
-    };
-    const options = viewModel.chartOptions();
+    fixture.detectChanges();
+
+    const chart = fixture.debugElement.query(By.directive(UIChart)).injector.get(UIChart);
+    const options: ChartOptions<'line'> = chart.options;
     const annotations = options.plugins?.annotation?.annotations;
 
     expect(options.font?.family).toContain('Source Sans 3 Variable');
@@ -53,7 +53,7 @@ describe('PhLineChartComponent', () => {
         label: expect.objectContaining({ content: 'HSW 2020 · 480 cm' }),
       }),
     ]);
-    expect(viewModel.yAxisBounds()?.min).toBeLessThanOrEqual(162);
-    expect(viewModel.yAxisBounds()?.max).toBeGreaterThanOrEqual(480);
+    expect(options.scales?.['y']?.min).toBeLessThanOrEqual(162);
+    expect(options.scales?.['y']?.max).toBeGreaterThanOrEqual(480);
   });
 });
