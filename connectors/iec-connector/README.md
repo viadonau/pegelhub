@@ -61,6 +61,13 @@ The client also needs the registration and resource grants described in the
 
 ## Transfer behavior
 
+IEC connection recovery runs immediately and then every 10 seconds after the
+previous attempt completes, without a retry limit. An unavailable IEC server or
+temporary DNS failure does not block connector startup. Closed or stopped
+connections are replaced using j60870's existing connection and protocol timeouts;
+successful connections perform the startup interrogation again. Recovery does
+not depend on measurements changing. Shutdown stops further connection attempts.
+
 The connector performs no unit conversion. For `external-to-core`, configure
 the target time series source representation to match the physical IEC value:
 normally `canonical`, or `metres-above-adria` only when a water-level value is
@@ -71,7 +78,9 @@ property's canonical unit.
 For `external-to-core`, the IEC listener accepts short-float `M_ME_NC_1` and
 `M_ME_TF_1` values only for configured inbound IOAs. It stamps them with the
 connector's receipt time; the implementation does not retain the IEC timestamp
-or quality flags. Each poll merges the received queue into one in-memory pending
+or quality flags. Non-finite values (`NaN` and positive/negative infinity) are
+logged and discarded before queuing, without discarding valid readings.
+Each poll merges the received queue into one in-memory pending
 batch per IOA and attempts each batch independently. Failed submissions remain
 pending for a later poll; they are lost if the connector process stops before a
 successful retry.
@@ -81,6 +90,9 @@ client's fixed 365-day search window and sends it as an `M_ME_NC_1` short float.
 There is no sent-value checkpoint, so an unchanged latest value is sent again
 on later polls. The connector is therefore a best-effort protocol bridge, not
 an exactly-once queue.
+
+Connection recovery does not backfill missed history or detect arbitrary stuck
+workers. Pending measurements remain memory-only and can be lost on restart.
 
 ## Run the image
 

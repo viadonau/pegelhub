@@ -6,7 +6,9 @@ import java.util.List;
 import java.util.Map;
 
 public interface IecClient {
+    /** Makes one connection attempt if unavailable; repeated calls retain a healthy connection. */
     void connect();
+    /** Permanently stops this client and closes its connection; later connect calls do nothing. */
     void disconnect();
 
     /**

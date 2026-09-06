@@ -9,7 +9,6 @@ import org.openmuc.j60870.ie.*;
 
 import java.io.IOException;
 import java.net.InetAddress;
-import java.time.Duration;
 import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.BlockingQueue;
@@ -19,46 +18,66 @@ import java.util.stream.Collectors;
 @Slf4j
 @RequiredArgsConstructor
 public class IecClientImpl implements IecClient {
-    private Connection connection;
-    private final InetAddress host;
+    private volatile Connection connection;
+    private final String host;
     private final int port;
     private final int commonAddress;
     private final Set<Integer> registeredProtocolToCoreIoas;
     private final BlockingQueue<ReceivedMeasurement> measurementQueue = new LinkedBlockingQueue<>();
+    private final Object lifecycle = new Object();
+    private volatile boolean stopped;
+    private boolean connecting;
 
     @Override
     public void connect() {
-        if (this.connection != null) {
-            try {
-                this.connection.close();
-            } catch (Exception ignore) {
+        Connection previous;
+        synchronized (lifecycle) {
+            if (stopped || connecting || Thread.currentThread().isInterrupted()
+                    || (connection != null && !connection.isClosed() && !connection.isStopped())) {
+                return;
             }
-            this.connection = null;
+            connecting = true;
+            previous = connection;
+            connection = null;
         }
 
-        for (int attempt = 1; attempt <= 10; attempt++) {
-            log.info("Attempting to rebuild IEC connection (attempt {}/{})", attempt, 10);
-            try {
-                Connection c = new ClientConnectionBuilder(host)
-                        .setPort(port)
-                        .build();
-
-                c.startDataTransfer(createIecListener());
-                c.interrogation(this.commonAddress, CauseOfTransmission.ACTIVATION, new IeQualifierOfInterrogation(20));
-
-                this.connection = c;
-                log.info("Connected to IEC server at {}:{}", host, port);
+        Connection candidate = null;
+        try {
+            if (previous != null) {
+                previous.close();
+            }
+            log.info("Attempting IEC connection to {}:{}", host, port);
+            candidate = new ClientConnectionBuilder(InetAddress.getByName(host)).setPort(port).build();
+            if (stopped || Thread.currentThread().isInterrupted()) {
                 return;
-            } catch (IOException e) {
-                log.warn("Failed to connect: {}", e.toString());
-                if (attempt == 10) {
-                    throw new RuntimeException("Quit reconnecting to IEC-Server", e);
+            }
+            candidate.startDataTransfer(createIecListener());
+            // j60870 can return from STARTDT with the interrupt flag set.
+            if (stopped || Thread.currentThread().isInterrupted()) {
+                return;
+            }
+            candidate.interrogation(commonAddress, CauseOfTransmission.ACTIVATION, new IeQualifierOfInterrogation(20));
+            if (candidate.isClosed() || candidate.isStopped()) {
+                throw new IOException("IEC connection closed or stopped during startup");
+            }
+            synchronized (lifecycle) {
+                if (stopped || Thread.currentThread().isInterrupted()) {
+                    return;
                 }
-                try {
-                    Thread.sleep(Duration.ofSeconds(10).toMillis());
-                } catch (InterruptedException ex) {
-                    Thread.currentThread().interrupt();
-                    throw new RuntimeException(ex);
+                connection = candidate;
+                candidate = null;
+            }
+            log.info("Connected to IEC server at {}:{}", host, port);
+        } catch (IOException e) {
+            log.warn("IEC connection failed; a later scheduled attempt will retry: {}", e.toString());
+        } finally {
+            try {
+                if (candidate != null) {
+                    candidate.close();
+                }
+            } finally {
+                synchronized (lifecycle) {
+                    connecting = false;
                 }
             }
         }
@@ -66,14 +85,24 @@ public class IecClientImpl implements IecClient {
 
     @Override
     public void disconnect() {
-        if (connection != null) {
-            connection.close();
+        Connection previous;
+        synchronized (lifecycle) {
+            stopped = true;
+            previous = connection;
+            connection = null;
+        }
+        if (previous != null) {
+            previous.close();
             log.info("Disconnected from IEC server");
         }
     }
 
     @Override
     public void sendMeasurement(int ioa, Measurement measurement) {
+        Connection current = connection;
+        if (stopped || current == null || current.isClosed() || current.isStopped()) {
+            throw new IllegalStateException("IEC connection is unavailable; retry on a later poll");
+        }
         float value = measurement.getValue().floatValue();
 
         InformationElement[] elements = new InformationElement[]{
@@ -97,9 +126,10 @@ public class IecClientImpl implements IecClient {
         log.info("Sending ASDU with IOA {} and value {}", ioa, value);
 
         try {
-            connection.send(asdu);
+            current.send(asdu);
         } catch (IOException e) {
-            log.error("Error while sending ASDU: {}", e.getMessage());
+            current.close();
+            throw new IllegalStateException("Failed sending IEC measurement", e);
         }
     }
 
@@ -129,7 +159,6 @@ public class IecClientImpl implements IecClient {
             @Override
             public void connectionClosed(IOException e) {
                 log.info("Received connection closed signal: {}", e != null ? e.getMessage() : "(no message)");
-                connect();
             }
 
             @Override
@@ -158,6 +187,10 @@ public class IecClientImpl implements IecClient {
 
             InformationElement[] elems = sets[0];
             double value = ((IeShortFloat) elems[0]).getValue();
+            if (!Double.isFinite(value)) {
+                log.warn("Ignoring non-finite IEC measurement for IOA {}: {}", ioa, value);
+                return;
+            }
 
             Instant currentTime = Instant.now();
             Measurement m = new Measurement(null, currentTime, value);

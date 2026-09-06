@@ -5,10 +5,13 @@ import at.pegelhub.connector.iec.config.IecConnectorConfigLoader;
 import at.pegelhub.connector.iec.datapoints.DataPointMapping;
 import at.pegelhub.lib.config.ConnectorConfigDirectory;
 import at.pegelhub.lib.config.MappingDirection;
+import at.pegelhub.lib.PegelHubClient;
+import at.pegelhub.lib.PegelHubClientFactory;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.nio.file.Files;
+import java.net.InetAddress;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
@@ -17,10 +20,26 @@ import java.util.UUID;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.mockito.Mockito.*;
 
 class IecConnectorModuleTest {
     @TempDir
     Path tmp;
+
+    @Test
+    void defersDnsResolutionUntilScheduledConnectionAttempt() throws Exception {
+        writeConnectorYaml("15s", "mappings");
+        writeDefaultMapping();
+        var core = mock(PegelHubClient.class);
+        var factory = mock(PegelHubClientFactory.class);
+        when(factory.create(any())).thenReturn(core);
+
+        try (var dns = mockStatic(InetAddress.class)) {
+            assertNotNull(new IecConnectorModule().define(configDirectory(), factory));
+            dns.verifyNoInteractions();
+        }
+    }
 
     @Test
     void shouldLoadCheckedInExampleConfiguration() throws Exception {
