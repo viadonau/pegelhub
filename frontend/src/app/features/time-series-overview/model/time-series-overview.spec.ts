@@ -1,65 +1,87 @@
 import { describe, expect, it } from 'vitest';
 
-import { formatMeasurementTimestamp } from '../../../core/measurement/measurement-format';
 import { MonitoringTimeSeriesSummaryDto } from '../../../core/api/monitoring.dto';
+import { formatMeasurementTimestamp } from '../../../core/measurement/measurement-format';
 import { timeSeriesOverviewViews } from './time-series-overview';
 
-const item = (
+function item(
   id: string,
+  stationName: string,
+  pointName: string,
   property: string,
   latestMeasurement: MonitoringTimeSeriesSummaryDto['latestMeasurement'] = null,
-): MonitoringTimeSeriesSummaryDto => ({
-  id,
-  observedProperty: property,
-  unit: property === 'discharge' ? 'm3/s' : property === 'water-temperature' ? 'Cel' : 'cm',
-  measuringPoint: { id: 'point-1', name: 'Hauptpegel' },
-  station: {
-    id: 'station-1',
-    name: 'Wien Brigittenau',
-    waterBody: 'Donau',
-  },
-  latestMeasurement,
-});
+): MonitoringTimeSeriesSummaryDto {
+  return {
+    id,
+    observedProperty: property,
+    unit: property === 'discharge' ? 'm3/s' : property === 'water-temperature' ? 'Cel' : 'cm',
+    measuringPoint: { id: `point-${id}`, name: pointName },
+    station: { id: `station-${id}`, name: stationName, waterBody: 'Donau' },
+    latestMeasurement,
+  };
+}
 
 describe('time-series overview projection', () => {
-  it('keeps one row per backend TimeSeries item and sorts canonical properties', () => {
+  it('orders stations, points, canonical properties, unknown labels, then stable IDs', () => {
     const rows = timeSeriesOverviewViews([
-      item('series-q', 'discharge'),
-      item('series-wt', 'water-temperature'),
-      item('series-w', 'water-level'),
-      item('series-unknown', 'conductivity'),
+      item('series-z', 'Wien', 'Pegel B', 'water-level'),
+      item('series-unknown-z', 'Wien', 'Pegel A', 'zeta'),
+      item('series-q', 'Wien', 'Pegel A', 'discharge'),
+      item('series-wt', 'Wien', 'Pegel A', 'water-temperature'),
+      item('series-unknown-a-2', 'Wien', 'Pegel A', 'alpha'),
+      item('series-w', 'Wien', 'Pegel A', 'water-level'),
+      item('series-unknown-a-1', 'Wien', 'Pegel A', 'alpha'),
+      item('series-first', 'Korneuburg', 'Pegel Z', 'discharge'),
     ]);
 
     expect(rows.map((row) => row.id)).toEqual([
+      'series-first',
       'series-w',
       'series-wt',
       'series-q',
-      'series-unknown',
+      'series-unknown-a-1',
+      'series-unknown-a-2',
+      'series-unknown-z',
+      'series-z',
     ]);
-    expect(rows[0]).toMatchObject({
-      measurementTypeLabel: 'Wasserstand',
-      stationLabel: 'Wien Brigittenau · Donau',
-    });
   });
 
-  it('projects each latest measurement without cross-series state', () => {
-    const views = timeSeriesOverviewViews([
-      item('series-w', 'water-level', {
+  it('avoids repeating a same-name station and uses canonical presentation values', () => {
+    const [row] = timeSeriesOverviewViews([
+      item('series-w', ' Hauptpegel ', 'hauptpegel', 'water-level', {
         observedAt: '2026-07-22T10:00:00Z',
         value: 312.5,
       }),
-      item('series-empty', 'water-temperature'),
     ]);
 
-    const level = views.find((row) => row.id === 'series-w');
-    expect(level?.latestMeasurement).toMatchObject({
-      value: 312.5,
-      valueLabel: '312,5 cm',
-      observedAt: '2026-07-22T10:00:00Z',
-      timestamp: formatMeasurementTimestamp('2026-07-22T10:00:00Z'),
+    expect(row).toMatchObject({
+      measurementTypeLabel: 'Wasserstand',
+      stationLabel: 'Donau',
+      latestMeasurement: {
+        value: 312.5,
+        valueLabel: '312,5 cm',
+        observedAt: '2026-07-22T10:00:00Z',
+        timestamp: formatMeasurementTimestamp('2026-07-22T10:00:00Z'),
+      },
     });
-    expect(views.find((row) => row.id === 'series-empty')?.latestMeasurement.valueLabel).toBe(
-      'Kein Messwert',
+  });
+
+  it('keeps a real empty measurement distinct from the number zero', () => {
+    const rows = timeSeriesOverviewViews([
+      item('series-zero', 'Wien', 'Pegel A', 'discharge', {
+        observedAt: '2026-07-22T10:00:00Z',
+        value: 0,
+      }),
+      item('series-empty', 'Wien', 'Pegel B', 'water-temperature'),
+    ]);
+
+    expect(rows.find((row) => row.id === 'series-zero')?.latestMeasurement.valueLabel).toBe(
+      '0 m³/s',
     );
+    expect(rows.find((row) => row.id === 'series-empty')?.latestMeasurement).toMatchObject({
+      value: null,
+      valueLabel: 'Kein Messwert',
+      activityLabel: 'Keine Aktivität',
+    });
   });
 });
