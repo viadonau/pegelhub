@@ -143,8 +143,10 @@ export class PhLineChartComponent {
           padding: 10,
           displayColors: false,
           boxPadding: 4,
-          titleFont: { size: 12, weight: 600 },
-          bodyFont: { size: 12, weight: 500 },
+          // Tooltips resolve fonts separately from the chart's base font.
+          titleFont: { family: CHART_FONT_FAMILY, size: 12, weight: 600 },
+          bodyFont: { family: CHART_FONT_FAMILY, size: 12, weight: 500 },
+          footerFont: { family: CHART_FONT_FAMILY },
           callbacks: {
             label: (ctx) => {
               const unit = this.unit();
