@@ -30,6 +30,7 @@ public final class IccConnectorModule implements ConnectorModule {
         LOG.info("ExternalCoreUrl: {}", config.remoteCore().baseUrl());
         LOG.info("Mappings: {}", config.mappings());
         LOG.info("Interval: {}", config.pollInterval());
+        LOG.info("Overlap: {}", config.overlap());
 
         try (ConnectorRuntimeAssembly runtime = ConnectorRuntimeAssembly.begin(name())) {
             PegelHubClient coreClient = runtime.own(coreClients.create(config.localCore()));
@@ -37,7 +38,8 @@ public final class IccConnectorModule implements ConnectorModule {
 
             runtime.fixedDelayTask(
                     "icc-sync",
-                    new IccSynchronizer(coreClient, externalClient, config.mappings(), config.pollInterval()),
+                    new IccSynchronizer(coreClient, externalClient, config.mappings(),
+                            config.pollInterval(), config.overlap()),
                     config.pollInterval());
             return runtime.complete();
         }

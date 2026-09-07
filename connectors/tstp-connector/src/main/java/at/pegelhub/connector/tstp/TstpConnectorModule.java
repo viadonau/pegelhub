@@ -40,7 +40,8 @@ public final class TstpConnectorModule implements ConnectorModule {
                     tstpClient,
                     new TstpCatalogResolver(tstpClient),
                     config.mappings(),
-                    config.pollInterval());
+                    config.pollInterval(),
+                    config.overlap());
 
             runtime.fixedDelayTask("tstp-sync", synchronizer, config.pollInterval());
 

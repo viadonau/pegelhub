@@ -66,7 +66,8 @@ public final class HttpTstpClient implements TstpClient {
     public List<Measurement> readMeasurements(String zrid, Instant readFrom, Instant readUntil) {
         URI uri = commandUri("Get&ZRID=" + zrid
                 + "&Von=" + TSTP_TIME.format(readFrom)
-                + "&Bis=" + TSTP_TIME.format(readUntil));
+                + "&Bis=" + TSTP_TIME.format(readUntil)
+                + "&WERTE=True");
 
         LOG.debug("TSTP GET {}", uri);
 
@@ -87,7 +88,7 @@ public final class HttpTstpClient implements TstpClient {
         List<Measurement> sorted = new ArrayList<>(measurements);
         sorted.sort(Comparator.comparing(Measurement::getObservedAt));
 
-        URI uri = commandUri("PUT&ZRID=" + zrid);
+        URI uri = commandUri("PUT&ZRID=" + zrid + "&QUAL=0");
         HttpRequest request = request(uri)
                 .POST(HttpRequest.BodyPublishers.ofString(xmlCodec.writeRequest(sorted)))
                 .build();

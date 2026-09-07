@@ -10,5 +10,6 @@ public record IccConnectorConfig(
         CoreConnection localCore,
         CoreConnection remoteCore,
         Duration pollInterval,
+        Duration overlap,
         List<IccMapping> mappings
 ) {}

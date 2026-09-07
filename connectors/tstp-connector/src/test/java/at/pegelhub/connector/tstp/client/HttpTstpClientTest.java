@@ -1,6 +1,7 @@
 package at.pegelhub.connector.tstp.client;
 
 import at.pegelhub.connector.tstp.codec.TstpXmlCodec;
+import at.pegelhub.connector.tstp.codec.TstpBinaryCodec;
 import at.pegelhub.connector.tstp.service.model.XmlTsResponse;
 import at.pegelhub.lib.model.Measurement;
 import com.sun.net.httpserver.HttpServer;
@@ -15,6 +16,8 @@ import java.time.Instant;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
+import java.nio.charset.StandardCharsets;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -28,6 +31,37 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class HttpTstpClientTest {
+    @Test
+    void transmitsCompleteRawIntervalOverHttp() throws Exception {
+        AtomicReference<String> query = new AtomicReference<>();
+        AtomicReference<String> body = new AtomicReference<>();
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/", exchange -> {
+            query.set(exchange.getRequestURI().getQuery());
+            body.set(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
+            byte[] confirmation = "<TSR RELEASE=\"1\">confirm</TSR>".getBytes(StandardCharsets.UTF_8);
+            exchange.sendResponseHeaders(200, confirmation.length);
+            exchange.getResponseBody().write(confirmation);
+            exchange.close();
+        });
+        server.start();
+        TstpXmlCodec codec = new TstpXmlCodec(new TstpBinaryCodec());
+        Instant first = Instant.parse("2026-06-07T10:00:00Z");
+        try (HttpTstpClient client = HttpTstpClient.open("127.0.0.1", server.getAddress().getPort(), codec)) {
+            client.writeMeasurements("raw-series", List.of(
+                    new Measurement(null, first.plusSeconds(600), 3),
+                    new Measurement(null, first, 1),
+                    new Measurement(null, first.plusSeconds(300), 2)));
+            assertEquals("Cmd=PUT&ZRID=raw-series&QUAL=0", query.get());
+            List<Measurement> decoded = codec.parseMeasurements(body.get());
+            assertEquals(List.of(first, first.plusSeconds(300), first.plusSeconds(600)),
+                    decoded.stream().map(Measurement::getObservedAt).toList());
+            assertEquals(List.of(1.0, 2.0, 3.0), decoded.stream().map(Measurement::getValue).toList());
+        } finally {
+            server.stop(0);
+        }
+    }
+
     @Test
     @SuppressWarnings({"rawtypes", "unchecked"})
     void readMeasurementsPreservesTstpQueryFormat() throws Exception {
@@ -49,7 +83,7 @@ class HttpTstpClientTest {
         verify(httpClient).send(
                 argThat(request -> request.uri().toString().equals(
                         "http://localhost:8030/?Cmd=Get&ZRID=PK8n4XrPPUfYpndH6GLH6A"
-                                + "&Von=2026-07-19T10:15:30Z&Bis=2026-07-19T11:45:00Z")),
+                                + "&Von=2026-07-19T10:15:30Z&Bis=2026-07-19T11:45:00Z&WERTE=True")),
                 any(HttpResponse.BodyHandler.class));
     }
 
@@ -76,6 +110,10 @@ class HttpTstpClientTest {
 
         assertEquals(List.of(later, earlier), immutable);
         verify(codec).writeRequest(List.of(earlier, later));
+        verify(httpClient).send(
+                argThat(request -> request.uri().toString().equals(
+                        "http://localhost:8030/?Cmd=PUT&ZRID=zrid&QUAL=0")),
+                any(HttpResponse.BodyHandler.class));
     }
 
     @Test

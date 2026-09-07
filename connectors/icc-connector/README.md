@@ -67,19 +67,29 @@ the [library authorization prerequisites](../library/#core-authorization-prerequ
 
 ## Transfer behavior
 
-The first cycle reads the half-open source window `[cycle time - polling
-interval, cycle time)`. After a mapping succeeds, its next window begins at the
-previous cycle time and ends at the new cycle time. These explicit boundaries
-include the scheduler's processing delay, so successive successful windows do
-not leave a timing gap. Measurements are rewritten to the target time-series ID
-before submission. An empty source window is a successful no-op.
+Both directions reread a recent overlap so readings arriving after an earlier
+successful poll can still be delivered. Optional `polling.overlap` defaults to
+`1h` and uses the same positive `s`, `m`, or `h` literals as `polling.interval`.
+The first cycle reads `[cycle time - polling interval - overlap, cycle time)`.
+After success, including an empty result, the next start is the cycle time
+minus overlap, never moving backwards. The next read ends at its new cycle time.
+This covers scheduler processing time without delaying newly available data.
+
+The entire source window is resent with the target time-series ID and original
+observation timestamps. Keep the writing connector identity stable: repeated
+writes update the same Core measurement identity, including its receipt time.
 
 Mapping failures are logged independently so later mappings still run. A
 failed mapping keeps its previous start boundary and retries the enlarged
 window on the next cycle. Boundaries exist only in process memory: restarting
-replays up to one polling interval, and late source data written outside an
-already completed window can still be missed. There is no durable checkpoint
-or exactly-once guarantee.
+reads one polling interval plus overlap, not the previous process's checkpoint.
+Late readings older than the overlap can still be missed after successful
+polls. Size overlap for observation-to-source-visibility delay at each hop,
+including all upstream polling and processing. One hour allows margin for
+normal 5-15-minute polling along the planned route; hourly upstream polling
+requires a larger downstream overlap (for example, `2h`).
+There is no historical-backfill service, durable checkpoint, or exactly-once
+guarantee.
 
 ## Run the image
 

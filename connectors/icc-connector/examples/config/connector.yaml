@@ -11,6 +11,7 @@ remoteCore:
     clientId: "icc-external"
     clientSecret: "secret"
 polling:
-  interval: "1h"
+  interval: "15m"
+  overlap: "1h"
 mappings:
   directory: "mappings"

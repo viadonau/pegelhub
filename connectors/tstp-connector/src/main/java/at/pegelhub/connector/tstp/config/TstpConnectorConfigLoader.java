@@ -7,7 +7,7 @@ import at.pegelhub.lib.config.CoreConnection;
 import at.pegelhub.lib.config.LoadedMapping;
 import at.pegelhub.lib.config.MappingDirection;
 import at.pegelhub.lib.config.MappingFilesConfig;
-import at.pegelhub.lib.config.PollingConfig;
+import at.pegelhub.lib.config.WindowedPollingConfig;
 
 import java.io.IOException;
 import java.time.Duration;
@@ -25,6 +25,7 @@ public final class TstpConnectorConfigLoader {
     public TstpConnectorConfig load(ConnectorConfigDirectory configDirectory) throws IOException {
         TstpConfigFile configFile = configDirectory.readYaml("connector.yaml", TstpConfigFile.class);
         Duration pollInterval = configFile.polling().duration();
+        Duration overlap = configFile.polling().overlapDuration();
 
         List<LoadedMapping<TstpMapping>> loadedMappings = ConnectorMappingLoader.loadRequired(
                 configDirectory,
@@ -44,6 +45,7 @@ public final class TstpConnectorConfigLoader {
                 configFile.core(),
                 configFile.tstp().server(),
                 pollInterval,
+                overlap,
                 loadedMappings.stream().map(LoadedMapping::value).toList()
         );
     }
@@ -109,7 +111,7 @@ public final class TstpConnectorConfigLoader {
 
     private record TstpConfigFile(
             CoreConnection core,
-            PollingConfig polling,
+            WindowedPollingConfig polling,
             MappingFilesConfig mappings,
             TstpSection tstp
     ) {

@@ -2,6 +2,7 @@ package at.pegelhub.connector.icc;
 
 import at.pegelhub.lib.PegelHubClient;
 import at.pegelhub.lib.config.MappingDirection;
+import at.pegelhub.lib.config.WindowedPollingConfig;
 import at.pegelhub.lib.exception.NotFoundException;
 import at.pegelhub.lib.model.Measurement;
 import org.slf4j.Logger;
@@ -23,15 +24,27 @@ public class IccSynchronizer implements Runnable {
     private final PegelHubClient externalClient;
     private final List<IccMapping> mappings;
     private final Duration initialLookback;
+    private final Duration overlap;
     private final Clock clock;
     private final Map<IccMapping, Instant> nextSyncFrom = new HashMap<>();
 
+    /** Uses a one-hour replay overlap in addition to the initial lookback. */
     public IccSynchronizer(
             PegelHubClient coreClient,
             PegelHubClient externalClient,
             List<IccMapping> mappings,
             Duration initialLookback) {
-        this(coreClient, externalClient, mappings, initialLookback, Clock.systemUTC());
+        this(coreClient, externalClient, mappings, initialLookback,
+                WindowedPollingConfig.DEFAULT_OVERLAP, Clock.systemUTC());
+    }
+
+    public IccSynchronizer(
+            PegelHubClient coreClient,
+            PegelHubClient externalClient,
+            List<IccMapping> mappings,
+            Duration initialLookback,
+            Duration overlap) {
+        this(coreClient, externalClient, mappings, initialLookback, overlap, Clock.systemUTC());
     }
 
     IccSynchronizer(
@@ -40,10 +53,25 @@ public class IccSynchronizer implements Runnable {
             List<IccMapping> mappings,
             Duration initialLookback,
             Clock clock) {
+        this(coreClient, externalClient, mappings, initialLookback,
+                WindowedPollingConfig.DEFAULT_OVERLAP, clock);
+    }
+
+    IccSynchronizer(
+            PegelHubClient coreClient,
+            PegelHubClient externalClient,
+            List<IccMapping> mappings,
+            Duration initialLookback,
+            Duration overlap,
+            Clock clock) {
+        if (overlap.isNegative() || overlap.isZero()) {
+            throw new IllegalArgumentException("overlap must be positive");
+        }
         this.coreClient = coreClient;
         this.externalClient = externalClient;
         this.mappings = List.copyOf(mappings);
         this.initialLookback = initialLookback;
+        this.overlap = overlap;
         this.clock = clock;
     }
 
@@ -54,7 +82,7 @@ public class IccSynchronizer implements Runnable {
         for (IccMapping mapping : mappings) {
             Instant from = nextSyncFrom.computeIfAbsent(
                     mapping,
-                    ignored -> cycleUntil.minus(initialLookback));
+                    ignored -> cycleUntil.minus(initialLookback).minus(overlap));
             boolean coreToExternal = mapping.direction() == MappingDirection.CORE_TO_EXTERNAL;
             PegelHubClient source = coreToExternal ? coreClient : externalClient;
             PegelHubClient target = coreToExternal ? externalClient : coreClient;
@@ -66,7 +94,10 @@ public class IccSynchronizer implements Runnable {
                     : mapping.timeSeriesId();
             try {
                 sync(source, target, sourceTimeSeriesId, targetTimeSeriesId, from, cycleUntil);
-                nextSyncFrom.put(mapping, cycleUntil);
+                Instant nextFrom = cycleUntil.minus(overlap);
+                if (nextFrom.isAfter(from)) {
+                    nextSyncFrom.put(mapping, nextFrom);
+                }
             } catch (NotFoundException nfe) {
                 LOG.error("Source TimeSeries {} was not found", sourceTimeSeriesId);
             } catch (Exception ex) {
