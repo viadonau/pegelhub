@@ -59,20 +59,29 @@ the [library authorization prerequisites](../library/#core-authorization-prerequ
 
 ## Transfer behavior
 
-Every cycle reads an explicit half-open `[from, to)` source window,
-rewrites each measurement to the target time
-series ID, and submits that batch. Mapping failures are logged independently so
-later mappings still run.
+Both directions reread a recent overlap so readings arriving after an earlier
+successful poll can still be delivered. Optional `polling.overlap` defaults to
+`1h` and uses the same positive `s`, `m`, or `h` literals as `polling.interval`.
+The first cycle reads `[cycle time - polling interval - overlap, cycle time)`.
+After success, including an empty result, the next start is the cycle time
+minus overlap, never moving backwards. The next read ends at its new cycle time.
+This covers scheduler processing time without delaying newly available data.
 
-An empty source window is a no-op; the connector does not submit an empty batch
-to Core.
+The entire source window is resent with the target time-series ID and original
+observation timestamps. Keep the writing connector identity stable: repeated
+writes update the same Core measurement identity, including its receipt time.
 
-Each mapping retains its starting boundary after failure and advances only
-after successful processing, including empty results. Clock rollback does not
-rewind that boundary. The first window covers one polling interval.
-Progress exists only in memory: restart resets the window, and late data
-outside the current window can be missed. This is not durable or exactly-once
-replication.
+Mapping failures are logged independently so later mappings still run. A
+failed mapping keeps its previous start boundary and retries the enlarged
+window on the next cycle. Boundaries exist only in process memory: restarting
+reads one polling interval plus overlap, not the previous process's checkpoint.
+Late readings older than the overlap can still be missed after successful
+polls. Size overlap for observation-to-source-visibility delay at each hop,
+including all upstream polling and processing. One hour allows margin for
+normal 5-15-minute polling along the planned route; hourly upstream polling
+requires a larger downstream overlap (for example, `2h`).
+There is no historical-backfill service, durable checkpoint, or exactly-once
+guarantee.
 
 ## Run the image
 

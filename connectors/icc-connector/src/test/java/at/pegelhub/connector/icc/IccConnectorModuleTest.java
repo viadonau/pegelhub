@@ -31,6 +31,7 @@ class IccConnectorModuleTest {
         assertEquals("http://core.local:8080/", config.localCore().baseUrl().toString());
         assertEquals("http://external-core.local:8080/", config.remoteCore().baseUrl().toString());
         assertEquals(2, config.mappings().size());
+        assertEquals(java.time.Duration.ofHours(1), config.overlap());
     }
 
     @Test
@@ -60,6 +61,7 @@ class IccConnectorModuleTest {
         assertEquals("http://external.local:8080/", config.remoteCore().baseUrl().toString());
         assertEquals("external-client", config.remoteCore().authentication().clientId());
         assertEquals(java.time.Duration.ofMinutes(15), config.pollInterval());
+        assertEquals(java.time.Duration.ofHours(2), config.overlap());
         assertEquals(List.of(
                 new IccMapping(first, firstExternal, MappingDirection.CORE_TO_EXTERNAL),
                 new IccMapping(second, secondExternal, MappingDirection.EXTERNAL_TO_CORE)), config.mappings());
@@ -84,6 +86,17 @@ class IccConnectorModuleTest {
         verify(core).close();
     }
 
+    @Test
+    void defaultsOverlapForExistingConfigurationsAndRejectsInvalidOverrides() throws Exception {
+        writeConfig(UUID.fromString("11111111-1111-1111-1111-111111111111"));
+        Path file = tmp.resolve("connector.yaml");
+        String yaml = Files.readString(file);
+        Files.writeString(file, yaml.replace("  overlap: \"2h\"\n", ""));
+        assertEquals(java.time.Duration.ofHours(1), new IccConnectorConfigLoader().load(configDirectory()).overlap());
+        Files.writeString(file, yaml.replace("overlap: \"2h\"", "overlap: \"0s\""));
+        assertThrows(IllegalArgumentException.class, () -> new IccConnectorConfigLoader().load(configDirectory()));
+    }
+
     private ConnectorConfigDirectory configDirectory() {
         return ConnectorConfigDirectory.at(tmp);
     }
@@ -104,6 +117,7 @@ class IccConnectorModuleTest {
                     clientSecret: "external-secret"
                 polling:
                   interval: "15m"
+                  overlap: "2h"
                 """);
         Files.createDirectories(tmp.resolve("mappings"));
         for (int i = 0; i < ids.length; i++) {

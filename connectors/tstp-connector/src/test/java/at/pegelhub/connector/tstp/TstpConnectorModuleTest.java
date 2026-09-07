@@ -30,6 +30,7 @@ class TstpConnectorModuleTest {
 
         assertEquals("127.0.0.1", config.server().host());
         assertEquals(123, config.mappings().getFirst().stationId());
+        assertEquals(Duration.ofHours(1), config.overlap());
     }
 
     @Test
@@ -43,6 +44,7 @@ class TstpConnectorModuleTest {
         assertEquals("127.0.0.2", config.server().host());
         assertEquals(8030, config.server().port());
         assertEquals(Duration.ofSeconds(10), config.pollInterval());
+        assertEquals(Duration.ofHours(2), config.overlap());
         assertEquals(2, config.mappings().size());
         assertEquals(MappingDirection.EXTERNAL_TO_CORE, config.mappings().get(0).direction());
         assertEquals(MappingDirection.CORE_TO_EXTERNAL, config.mappings().get(1).direction());
@@ -91,6 +93,18 @@ class TstpConnectorModuleTest {
         assertTrue(error.getMessage().contains("tstp.server.port"));
     }
 
+    @Test
+    void defaultsOverlapForExistingConfigurationsAndRejectsInvalidOverrides() throws Exception {
+        writeConnectorYaml(8030);
+        writeMapping("one.yaml", FIRST_SERIES, 77, "core-to-external");
+        Path file = configDirectory.resolve("connector.yaml");
+        String yaml = Files.readString(file);
+        Files.writeString(file, yaml.replace("  overlap: \"2h\"\n", ""));
+        assertEquals(Duration.ofHours(1), loadConfig().overlap());
+        Files.writeString(file, yaml.replace("overlap: \"2h\"", "overlap: \"0s\""));
+        assertThrows(IllegalArgumentException.class, this::loadConfig);
+    }
+
     private TstpConnectorConfig loadConfig() throws Exception {
         return new TstpConnectorConfigLoader().load(ConnectorConfigDirectory.at(configDirectory));
     }
@@ -105,6 +119,7 @@ class TstpConnectorModuleTest {
                     clientSecret: "secret"
                 polling:
                   interval: "10s"
+                  overlap: "2h"
                 tstp:
                   server:
                     host: "127.0.0.2"
