@@ -14,7 +14,6 @@ import at.pegelhub.lib.runtime.ConnectorModule;
 import at.pegelhub.lib.runtime.ConnectorRuntimeAssembly;
 import at.pegelhub.lib.runtime.ConnectorRuntimeDefinition;
 
-import java.net.InetAddress;
 import java.time.Duration;
 
 public final class IecConnectorModule implements ConnectorModule {
@@ -36,15 +35,15 @@ public final class IecConnectorModule implements ConnectorModule {
             PegelHubClient client = runtime.own(coreClients.create(config.coreConnection()));
 
             IecClient iecClient = new IecClientImpl(
-                    InetAddress.getByName(config.server().host()),
+                    config.server().host(),
                     config.server().port(),
                     config.server().commonAddress(),
                     mappingIndex.protocolToCoreIoas());
             runtime.own(iecClient::disconnect);
 
             runtime
-                    .threadCount(2)
-                    .onStart(iecClient::connect)
+                    .threadCount(3)
+                    .fixedDelayTask("iec-reconnect", iecClient::connect, Duration.ofSeconds(10))
                     .fixedDelayTask("iec-to-core", new IecToCoreJob(iecClient, mappingIndex, client),
                             Duration.ofSeconds(1), config.pollInterval())
                     .fixedDelayTask("core-to-iec", new CoreToIecJob(iecClient, mappingIndex, client),

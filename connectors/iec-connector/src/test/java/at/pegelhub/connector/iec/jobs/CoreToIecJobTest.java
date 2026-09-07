@@ -52,6 +52,28 @@ class CoreToIecJobTest {
     }
 
     @Test
+    void continuesOtherIoasAfterReadOrSendFailure() {
+        var iec = mock(IecClient.class);
+        var mappings = mock(IecMappingIndex.class);
+        var core = mock(PegelHubClient.class);
+        var first = UUID.randomUUID();
+        var second = UUID.randomUUID();
+        var third = UUID.randomUUID();
+        when(mappings.coreToProtocolIoas()).thenReturn(new LinkedHashSet<>(List.of(11, 22, 33)));
+        when(mappings.getTimeSeriesId(11)).thenReturn(Optional.of(first));
+        when(mappings.getTimeSeriesId(22)).thenReturn(Optional.of(second));
+        when(mappings.getTimeSeriesId(33)).thenReturn(Optional.of(third));
+        when(core.getLatestMeasurementOfTimeSeries(first)).thenThrow(new RuntimeException("Core unavailable"));
+        when(core.getLatestMeasurementOfTimeSeries(second)).thenReturn(Optional.of(m(2)));
+        when(core.getLatestMeasurementOfTimeSeries(third)).thenReturn(Optional.of(m(3)));
+        doThrow(new IllegalStateException("IEC unavailable")).when(iec).sendMeasurement(eq(22), any());
+
+        new CoreToIecJob(iec, mappings, core).run();
+
+        verify(iec).sendMeasurement(eq(33), any());
+    }
+
+    @Test
     void shouldConvertCanonicalCentimetresToMetresAboveAdria() {
         UUID timeSeriesId = UUID.fromString("395c0232-d110-40fd-bd7f-2bb4a0f2009d");
         IecClient iec = mock(IecClient.class);

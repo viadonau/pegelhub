@@ -18,17 +18,17 @@ public class CoreToIecJob implements Runnable {
 
     @Override
     public void run() {
-        try {
-            mappingIndex.coreToProtocolIoas().forEach(ioa ->
+        for (int ioa : mappingIndex.coreToProtocolIoas()) {
+            try {
                     mappingIndex.getTimeSeriesId(ioa).ifPresentOrElse(
                             timeSeriesId -> coreClient.getLatestMeasurementOfTimeSeries(timeSeriesId)
                                     .ifPresentOrElse(
                                             latest -> iecClient.sendMeasurement(ioa, toIecMeasurement(ioa, latest)),
                                             () -> log.info("No measurement found for TimeSeries of IOA: {}.", ioa)),
-                            () -> log.info("No TimeSeries ID configured for IOA: {}.", ioa))
-            );
-        } catch (Exception e) {
-            log.info("Error sending measurements: {}", e.getMessage());
+                            () -> log.info("No TimeSeries ID configured for IOA: {}.", ioa));
+            } catch (Exception e) {
+                log.warn("Error sending measurement for IOA {}", ioa, e);
+            }
         }
     }
 

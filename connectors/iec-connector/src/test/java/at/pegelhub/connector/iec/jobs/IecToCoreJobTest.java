@@ -75,4 +75,27 @@ class IecToCoreJobTest {
         // Then
         verify(comm, times(2)).sendMeasurements(anyList());
     }
+
+    @Test
+    void shouldRetryABatchWhenCoreTemporarilyRejectsIt() throws Exception {
+        IecClient client = mock(IecClient.class);
+        IecMappingIndex registry = mock(IecMappingIndex.class);
+        PegelHubClient comm = mock(PegelHubClient.class);
+        UUID timeSeriesId = UUID.fromString("395c0232-d110-40fd-bd7f-2bb4a0f2009d");
+
+        when(client.drainGroupedMeasurements())
+                .thenReturn(Map.of(42, List.of(m(10))))
+                .thenReturn(Map.of());
+        when(registry.getTimeSeriesId(42)).thenReturn(Optional.of(timeSeriesId));
+        doThrow(new RuntimeException("Core unavailable"))
+                .doNothing()
+                .when(comm).sendMeasurements(anyList());
+
+        IecToCoreJob job = new IecToCoreJob(client, registry, comm);
+        job.run();
+        job.run();
+
+        verify(comm, times(2)).sendMeasurements(argThat(measurements ->
+                measurements.size() == 1 && timeSeriesId.equals(measurements.getFirst().getTimeSeriesId())));
+    }
 }
