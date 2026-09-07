@@ -5,7 +5,8 @@ core:
     clientId: "connector"
     clientSecret: "secret"
 polling:
-  interval: "30s"
+  interval: "15m"
+  overlap: "1h"
 mappings:
   directory: "mappings"
 tstp:

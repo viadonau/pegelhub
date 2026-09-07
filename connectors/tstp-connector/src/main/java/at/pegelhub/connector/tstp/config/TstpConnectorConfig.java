@@ -10,5 +10,6 @@ public record TstpConnectorConfig(
         CoreConnection coreConnection,
         TstpServer server,
         Duration pollInterval,
+        Duration overlap,
         List<TstpMapping> mappings
 ) {}

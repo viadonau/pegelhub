@@ -67,21 +67,56 @@ The client also needs the registration and read-access relations described in th
 
 ## Synchronization behavior
 
-Successful mapping runs advance a per-mapping synchronization boundary. Each
-logical window is half-open `[previous boundary, current cycle boundary)`;
-clock rollback never rewinds progress. Polling uses fixed delay,
-so the next cycle begins after the prior cycle has completed and the configured
-interval has elapsed.
-
-The catalog cache and synchronization boundaries exist only in process memory.
-After restart, each mapping starts again with a window equal to one polling
-interval, which can replay values that were already transferred. Failed
-mappings keep their previous boundary for the next cycle. There is no durable
-checkpoint or exactly-once guarantee.
-
 Writes succeed only when the response message is exactly `confirm`
 (case-insensitive, ignoring surrounding whitespace). A negative or ambiguous
 confirmation leaves the mapping's earlier boundary intact for retry.
+
+Both directions reread recent data using optional `polling.overlap`, default
+`1h`. It accepts the same positive `s`, `m`, or `h` literals as the interval.
+The first read is `[cycle time - polling interval - overlap, cycle time)`.
+After success, including an empty result, the next start is the cycle time
+minus overlap, never moving backwards. Both sources are filtered to half-open
+boundaries, and cycle times remain truncated to whole seconds. Fixed-delay
+polling includes processing time in the next window without adding a delivery
+delay. TSTP reads request recorded points (`WERTE=True`), not interpolated
+window-boundary values; the existing highest-available-quality selection remains.
+
+The catalog cache and synchronization boundaries exist only in process memory.
+After restart, each mapping reads one polling interval plus overlap, which can
+replay values already transferred. Failed
+mappings keep their previous start boundary and retry an enlarged window on the
+next cycle. After successful polls, arrivals older than the overlap can still
+be missed. Size overlap for the cumulative observation-to-source-visibility
+delay, including IEC and ICC upstream. One hour allows margin for normal
+5-15-minute polling along the planned route; use a larger overlap for slower
+upstream polling (for example, `2h` with hourly ICC). This is bounded recent
+replay, not historical backfill or a durable checkpoint.
+
+### Raw-data ownership and rollout gate
+
+Outbound writes explicitly select raw quality layer `0` (`QUAL=0`).
+PegelHub must be the sole writer of that mapped raw layer; corrections belong
+in higher TSTP quality layers. Each write contains the complete sorted source
+interval, including previously sent neighbors. Do not send only the newly
+discovered late readings: TSTP replaces data within the submitted span.
+The connector does not read/merge destination edits or write correction layers.
+See the [TSTP specification, sections 4.2-4.4](https://www.toposoft.de/formate_protokolle/tstp_protokoll.pdf).
+
+Before enabling this in production, use an approved test series on the deployed
+TSTP version/configuration:
+
+1. Write raw readings with an intermediate reading initially absent, and put a
+   correction in a higher layer.
+2. Deliver the missing raw reading through a complete overlapping interval,
+   then replay that interval again.
+3. Read back raw and corrected layers. Verify the late reading, its neighbors,
+   surrounding data, and the higher-layer correction. Also verify recorded-point
+   reads do not synthesize boundary values.
+4. Check configured post-PUT actions tolerate repeated writes.
+
+Unit tests verify connector behavior, not the actual server's layer isolation
+or post-write actions. Treat an unperformed server check as an open rollout
+gate. There is no exactly-once guarantee.
 
 ## Run the image
 

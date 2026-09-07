@@ -4,6 +4,7 @@ import at.pegelhub.connector.tstp.catalog.TstpCatalogResolver;
 import at.pegelhub.connector.tstp.client.TstpClient;
 import at.pegelhub.lib.PegelHubClient;
 import at.pegelhub.lib.config.MappingDirection;
+import at.pegelhub.lib.config.WindowedPollingConfig;
 import at.pegelhub.lib.model.Measurement;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -25,6 +26,7 @@ final class TstpSynchronizer implements Runnable {
     private final TstpCatalogResolver catalogResolver;
     private final List<TstpMapping> mappings;
     private final Duration initialLookback;
+    private final Duration overlap;
     private final Clock clock;
     private final Map<TstpMapping, Instant> nextSyncFrom = new HashMap<>();
 
@@ -33,8 +35,9 @@ final class TstpSynchronizer implements Runnable {
             TstpClient tstpClient,
             TstpCatalogResolver catalogResolver,
             List<TstpMapping> mappings,
-            Duration initialLookback) {
-        this(coreClient, tstpClient, catalogResolver, mappings, initialLookback, Clock.systemUTC());
+            Duration initialLookback,
+            Duration overlap) {
+        this(coreClient, tstpClient, catalogResolver, mappings, initialLookback, overlap, Clock.systemUTC());
     }
 
     TstpSynchronizer(
@@ -44,11 +47,27 @@ final class TstpSynchronizer implements Runnable {
             List<TstpMapping> mappings,
             Duration initialLookback,
             Clock clock) {
+        this(coreClient, tstpClient, catalogResolver, mappings, initialLookback,
+                WindowedPollingConfig.DEFAULT_OVERLAP, clock);
+    }
+
+    TstpSynchronizer(
+            PegelHubClient coreClient,
+            TstpClient tstpClient,
+            TstpCatalogResolver catalogResolver,
+            List<TstpMapping> mappings,
+            Duration initialLookback,
+            Duration overlap,
+            Clock clock) {
+        if (overlap.isNegative() || overlap.isZero()) {
+            throw new IllegalArgumentException("overlap must be positive");
+        }
         this.coreClient = coreClient;
         this.tstpClient = tstpClient;
         this.catalogResolver = catalogResolver;
         this.mappings = List.copyOf(mappings);
         this.initialLookback = initialLookback;
+        this.overlap = overlap;
         this.clock = clock;
     }
 
@@ -59,13 +78,16 @@ final class TstpSynchronizer implements Runnable {
         for (TstpMapping mapping : mappings) {
             Instant from = nextSyncFrom.computeIfAbsent(
                     mapping,
-                    ignored -> cycleUntil.minus(initialLookback));
+                    ignored -> cycleUntil.minus(initialLookback).minus(overlap));
             if (!cycleUntil.isAfter(from)) {
                 continue;
             }
             try {
                 synchronizeMapping(mapping, from, cycleUntil);
-                nextSyncFrom.put(mapping, cycleUntil);
+                Instant nextFrom = cycleUntil.minus(overlap);
+                if (nextFrom.isAfter(from)) {
+                    nextSyncFrom.put(mapping, nextFrom);
+                }
             } catch (Exception e) {
                 LOG.error("TSTP mapping failed: timeSeriesId={}, stationId={}, direction={}",
                         mapping.timeSeriesId(),
@@ -110,6 +132,7 @@ final class TstpSynchronizer implements Runnable {
             return;
         }
 
+        // PUT replaces the covered span, so replay neighbors as well as late arrivals.
         tstpClient.writeMeasurements(zrid, measurements);
     }
 
