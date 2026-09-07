@@ -79,6 +79,27 @@ class HttpTstpClientTest {
     }
 
     @Test
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    void writeMeasurementsRejectsNegativeConfirmationText() throws Exception {
+        HttpClient httpClient = mock(HttpClient.class);
+        TstpXmlCodec codec = mock(TstpXmlCodec.class);
+        HttpResponse<String> httpResponse = mock(HttpResponse.class);
+        XmlTsResponse rejection = new XmlTsResponse();
+        rejection.setMessage("not confirmed");
+
+        when(codec.writeRequest(any())).thenReturn("request");
+        when(httpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class))).thenReturn(httpResponse);
+        when(httpResponse.statusCode()).thenReturn(200);
+        when(httpResponse.body()).thenReturn("response");
+        when(codec.parseWriteResponse("response")).thenReturn(rejection);
+        HttpTstpClient client = new HttpTstpClient("localhost", 8030, httpClient, codec);
+
+        assertThrows(TstpClientException.class, () -> client.writeMeasurements(
+                "zrid",
+                List.of(new Measurement(null, Instant.parse("2026-06-07T10:00:00Z"), 1.0))));
+    }
+
+    @Test
     void acceptedButStalledRequestTimesOut() throws Exception {
         CountDownLatch accepted = new CountDownLatch(1);
         CountDownLatch release = new CountDownLatch(1);

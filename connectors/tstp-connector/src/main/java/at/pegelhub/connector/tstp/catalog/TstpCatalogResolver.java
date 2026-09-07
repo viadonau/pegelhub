@@ -16,7 +16,7 @@ public final class TstpCatalogResolver {
 
     private final TstpClient client;
     private final Clock clock;
-    private final Map<Integer, CachedCatalog> catalogs = new HashMap<>();
+    private final Map<Integer, CachedZrid> catalogEntries = new HashMap<>();
 
     public TstpCatalogResolver(TstpClient client) {
         this(client, Clock.systemUTC());
@@ -28,20 +28,29 @@ public final class TstpCatalogResolver {
     }
 
     public synchronized String resolveZrid(int stationId) {
-        CachedCatalog cached = catalogs.get(stationId);
+        CachedZrid cached = catalogEntries.get(stationId);
         Instant now = clock.instant();
 
         if (cached == null || !cached.loadedAt().plus(CACHE_DURATION).isAfter(now)) {
-            cached = new CachedCatalog(client.readCatalog(stationId), now);
-            catalogs.put(stationId, cached);
+            String zrid = requireZrid(client.readCatalog(stationId), stationId);
+            cached = new CachedZrid(zrid, now);
+            catalogEntries.put(stationId, cached);
         }
 
-        List<XmlQueryTsAttribut> entries = cached.catalog().getDef();
+        return cached.zrid();
+    }
+
+    private String requireZrid(XmlQueryResponse catalog, int stationId) {
+        if (catalog == null) {
+            throw new IllegalStateException("TSTP did not return a catalog for station " + stationId);
+        }
+        List<XmlQueryTsAttribut> entries = catalog.getDef();
         if (entries == null || entries.isEmpty()) {
             throw new IllegalStateException("TSTP catalog did not contain entries for station " + stationId);
         }
 
-        String zrid = entries.getFirst().getZrid();
+        XmlQueryTsAttribut firstEntry = entries.getFirst();
+        String zrid = firstEntry == null ? null : firstEntry.getZrid();
         if (zrid == null || zrid.isBlank()) {
             throw new IllegalStateException("TSTP catalog did not contain a ZRID for station " + stationId);
         }
@@ -49,8 +58,8 @@ public final class TstpCatalogResolver {
         return zrid;
     }
 
-    private record CachedCatalog(
-            XmlQueryResponse catalog,
+    private record CachedZrid(
+            String zrid,
             Instant loadedAt
     ) {}
 }

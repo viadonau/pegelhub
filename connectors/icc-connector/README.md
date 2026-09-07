@@ -59,21 +59,20 @@ the [library authorization prerequisites](../library/#core-authorization-prerequ
 
 ## Transfer behavior
 
-Every cycle reads the source's relative lookback window, whose duration equals
-the configured polling interval, rewrites each measurement to the target time
+Every cycle reads an explicit half-open `[from, to)` source window,
+rewrites each measurement to the target time
 series ID, and submits that batch. Mapping failures are logged independently so
 later mappings still run.
 
 An empty source window is a no-op; the connector does not submit an empty batch
 to Core.
 
-The connector stores no cursor, copied-point ledger, retry queue, or durable
-state. Because the scheduler uses a fixed delay after processing, processing
-time can leave a gap between successive lookback windows. Late source data
-outside the current window can be missed. A restart less than one polling
-interval after the prior cycle can overlap that cycle's lookback and resubmit
-data. Treat this as best-effort recent-window copying, not a lossless or
-exactly-once replication mechanism.
+Each mapping retains its starting boundary after failure and advances only
+after successful processing, including empty results. Clock rollback does not
+rewind that boundary. The first window covers one polling interval.
+Progress exists only in memory: restart resets the window, and late data
+outside the current window can be missed. This is not durable or exactly-once
+replication.
 
 ## Run the image
 

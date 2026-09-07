@@ -94,6 +94,14 @@ README for configuration fields, mapping cardinality, and supported directions.
 
 ## Core authorization prerequisites
 
+Core and token HTTP requests use 10-second connection and pool-acquisition
+timeouts and a 30-second response timeout. The HTTP client does not retry;
+connector jobs decide when to retry. Explicit measurement reads use half-open
+`[from, to)` windows. Truncated responses are split into smaller intervals;
+only complete leaf responses are returned. A failed child request or an
+indivisible truncated interval fails the entire read rather than returning
+partial data.
+
 A role-bearing token is necessary but not sufficient for connector access.
 Measurement clients need `pegelhub_actor_type: CLIENT` and a client ID in `azp`
 or `client_id`. Core measurement policies also require that client ID to match
