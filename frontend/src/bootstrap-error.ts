@@ -12,7 +12,7 @@ export function renderBootstrapError(error: unknown): void {
     'padding:2rem',
     'background:#f7f8f8',
     'color:#182421',
-    'font-family:"Source Sans 3",system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif',
+    'font-family:var(--font-sans,"Source Sans 3 Variable",system-ui,sans-serif)',
   ].join(';');
 
   const panel = document.createElement('section');
