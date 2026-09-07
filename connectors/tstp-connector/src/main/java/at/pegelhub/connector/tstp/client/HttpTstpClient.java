@@ -95,7 +95,7 @@ public final class HttpTstpClient implements TstpClient {
         XmlTsResponse response = xmlCodec.parseWriteResponse(send(request, "PUT"));
 
         if (response == null || response.getMessage() == null
-                || !response.getMessage().toLowerCase().contains("confirm")) {
+                || !response.getMessage().trim().equalsIgnoreCase("confirm")) {
             throw new TstpClientException("TSTP PUT was not confirmed for ZRID " + zrid);
         }
     }

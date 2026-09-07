@@ -56,7 +56,8 @@ mappings in that polling cycle from running.
 
 For every station, the connector queries the TSTP catalog with
 `Parameter=Wasserstand` and `Hauptreihe=true`, then uses the first returned
-ZRID. Catalog responses are cached in memory for 24 hours.
+ZRID. Valid catalog entries are cached in memory for 24 hours. Empty responses
+or missing ZRIDs fail the mapping and are queried again on the next poll.
 
 Configure the Keycloak client for the `pegelhub-core-api` audience and only the
 direction-appropriate lowercase Core roles, such as `measurement:read` and
@@ -66,10 +67,9 @@ The client also needs the registration and read-access relations described in th
 
 ## Synchronization behavior
 
-Successful mapping runs advance a per-mapping synchronization boundary. After
-the initial inclusive window, each logical window is
-`(previous boundary, current cycle boundary]`. Core lookbacks request one extra
-second and are filtered back to that logical window. Polling uses fixed delay,
+Successful mapping runs advance a per-mapping synchronization boundary. Each
+logical window is half-open `[previous boundary, current cycle boundary)`;
+clock rollback never rewinds progress. Polling uses fixed delay,
 so the next cycle begins after the prior cycle has completed and the configured
 interval has elapsed.
 
@@ -78,6 +78,10 @@ After restart, each mapping starts again with a window equal to one polling
 interval, which can replay values that were already transferred. Failed
 mappings keep their previous boundary for the next cycle. There is no durable
 checkpoint or exactly-once guarantee.
+
+Writes succeed only when the response message is exactly `confirm`
+(case-insensitive, ignoring surrounding whitespace). A negative or ambiguous
+confirmation leaves the mapping's earlier boundary intact for retry.
 
 ## Run the image
 
