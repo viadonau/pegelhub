@@ -73,7 +73,8 @@ writes update the same Core measurement identity, including its receipt time.
 
 Mapping failures are logged independently so later mappings still run. A
 failed mapping keeps its previous start boundary and retries the enlarged
-window on the next cycle. Boundaries exist only in process memory: restarting
+window on the next cycle. An interrupted worker stops before starting another
+mapping. Boundaries exist only in process memory: restarting
 reads one polling interval plus overlap, not the previous process's checkpoint.
 Late readings older than the overlap can still be missed after successful
 polls. Size overlap for observation-to-source-visibility delay at each hop,
@@ -82,6 +83,12 @@ normal 5-15-minute polling along the planned route; hourly upstream polling
 requires a larger downstream overlap (for example, `2h`).
 There is no historical-backfill service, durable checkpoint, or exactly-once
 guarantee.
+
+Internally, mapping directions are resolved once into one-way transfers. Each
+transfer owns its source, target, and retry boundary; all transfers use the same
+cycle end time. The shared runtime invokes one serial polling job and owns both
+Core clients. No additional scheduler, retry framework, or persistent queue is
+involved.
 
 ## Run the image
 

@@ -26,19 +26,17 @@ public final class IccConnectorModule implements ConnectorModule {
             PegelHubClientFactory coreClients) throws Exception {
         IccConnectorConfig config = configLoader.load(configDirectory);
 
-        LOG.info("CoreUrl: {}", config.localCore().baseUrl());
-        LOG.info("ExternalCoreUrl: {}", config.remoteCore().baseUrl());
-        LOG.info("Mappings: {}", config.mappings());
-        LOG.info("Interval: {}", config.pollInterval());
-        LOG.info("Overlap: {}", config.overlap());
+        LOG.info("ICC local Core: {}; remote Core: {}", config.localCore().baseUrl(), config.remoteCore().baseUrl());
+        LOG.info("ICC mappings: {}; poll interval: {}; replay overlap: {}",
+                config.mappings().size(), config.pollInterval(), config.overlap());
 
         try (ConnectorRuntimeAssembly runtime = ConnectorRuntimeAssembly.begin(name())) {
-            PegelHubClient coreClient = runtime.own(coreClients.create(config.localCore()));
-            PegelHubClient externalClient = runtime.own(coreClients.create(config.remoteCore()));
+            PegelHubClient localCore = runtime.own(coreClients.create(config.localCore()));
+            PegelHubClient remoteCore = runtime.own(coreClients.create(config.remoteCore()));
 
             runtime.fixedDelayTask(
                     "icc-sync",
-                    new IccSynchronizer(coreClient, externalClient, config.mappings(),
+                    new IccSynchronizer(localCore, remoteCore, config.mappings(),
                             config.pollInterval(), config.overlap()),
                     config.pollInterval());
             return runtime.complete();

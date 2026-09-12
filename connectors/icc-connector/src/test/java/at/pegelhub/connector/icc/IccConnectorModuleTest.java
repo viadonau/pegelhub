@@ -35,17 +35,6 @@ class IccConnectorModuleTest {
     }
 
     @Test
-    void shouldResolveAllConfigFilesFromExplicitConfigDir() throws Exception {
-        String configDir = "/tmp/icc-config";
-        ConnectorConfigDirectory configDirectory = ConnectorConfigDirectory.at(Path.of(configDir));
-
-        assertEquals(Path.of(configDir, "connector.yaml").toString(),
-                configDirectory.resolve("connector.yaml").toString());
-        assertEquals(Path.of(configDir, "mappings").toString(),
-                configDirectory.resolve("mappings").toString());
-    }
-
-    @Test
     void shouldLoadConfigFromConnectorYamlAndMappings() throws Exception {
         UUID first = UUID.fromString("11111111-1111-1111-1111-111111111111");
         UUID second = UUID.fromString("22222222-2222-2222-2222-222222222222");

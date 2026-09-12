@@ -1,9 +1,6 @@
 package at.pegelhub.connector.icc;
 
 import at.pegelhub.lib.PegelHubClient;
-import at.pegelhub.lib.config.MappingDirection;
-import at.pegelhub.lib.config.WindowedPollingConfig;
-import at.pegelhub.lib.exception.NotFoundException;
 import at.pegelhub.lib.model.Measurement;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -11,123 +8,106 @@ import org.slf4j.LoggerFactory;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 
-/** Copies recent time-series measurements between the local and remote Core instances. */
-public class IccSynchronizer implements Runnable {
-
+/** Serial polling job; each directed transfer owns its in-memory retry boundary. */
+final class IccSynchronizer implements Runnable {
     private static final Logger LOG = LoggerFactory.getLogger(IccSynchronizer.class);
-    private final PegelHubClient coreClient;
-    private final PegelHubClient externalClient;
-    private final List<IccMapping> mappings;
-    private final Duration initialLookback;
+
+    private final List<Transfer> transfers;
+    private final Duration initialWindow;
     private final Duration overlap;
     private final Clock clock;
-    private final Map<IccMapping, Instant> nextSyncFrom = new HashMap<>();
 
-    /** Uses a one-hour replay overlap in addition to the initial lookback. */
-    public IccSynchronizer(
-            PegelHubClient coreClient,
-            PegelHubClient externalClient,
+    IccSynchronizer(
+            PegelHubClient localCore,
+            PegelHubClient remoteCore,
             List<IccMapping> mappings,
-            Duration initialLookback) {
-        this(coreClient, externalClient, mappings, initialLookback,
-                WindowedPollingConfig.DEFAULT_OVERLAP, Clock.systemUTC());
-    }
-
-    public IccSynchronizer(
-            PegelHubClient coreClient,
-            PegelHubClient externalClient,
-            List<IccMapping> mappings,
-            Duration initialLookback,
+            Duration pollInterval,
             Duration overlap) {
-        this(coreClient, externalClient, mappings, initialLookback, overlap, Clock.systemUTC());
+        this(localCore, remoteCore, mappings, pollInterval, overlap, Clock.systemUTC());
     }
 
     IccSynchronizer(
-            PegelHubClient coreClient,
-            PegelHubClient externalClient,
+            PegelHubClient localCore,
+            PegelHubClient remoteCore,
             List<IccMapping> mappings,
-            Duration initialLookback,
-            Clock clock) {
-        this(coreClient, externalClient, mappings, initialLookback,
-                WindowedPollingConfig.DEFAULT_OVERLAP, clock);
-    }
-
-    IccSynchronizer(
-            PegelHubClient coreClient,
-            PegelHubClient externalClient,
-            List<IccMapping> mappings,
-            Duration initialLookback,
+            Duration pollInterval,
             Duration overlap,
             Clock clock) {
-        if (overlap.isNegative() || overlap.isZero()) {
+        Objects.requireNonNull(localCore, "localCore");
+        Objects.requireNonNull(remoteCore, "remoteCore");
+        if (pollInterval.isZero() || pollInterval.isNegative()) {
+            throw new IllegalArgumentException("pollInterval must be positive");
+        }
+        if (overlap.isZero() || overlap.isNegative()) {
             throw new IllegalArgumentException("overlap must be positive");
         }
-        this.coreClient = coreClient;
-        this.externalClient = externalClient;
-        this.mappings = List.copyOf(mappings);
-        this.initialLookback = initialLookback;
+        this.initialWindow = pollInterval.plus(overlap);
         this.overlap = overlap;
-        this.clock = clock;
+        this.clock = Objects.requireNonNull(clock, "clock");
+        this.transfers = mappings.stream().map(mapping -> switch (mapping.direction()) {
+            case CORE_TO_EXTERNAL -> new Transfer(
+                    localCore, mapping.timeSeriesId(), remoteCore, mapping.externalTimeSeriesId());
+            case EXTERNAL_TO_CORE -> new Transfer(
+                    remoteCore, mapping.externalTimeSeriesId(), localCore, mapping.timeSeriesId());
+        }).toList();
     }
 
-    /** Copies each mapping's next explicit measurement window. */
     @Override
     public void run() {
-        Instant cycleUntil = clock.instant();
-        for (IccMapping mapping : mappings) {
-            Instant from = nextSyncFrom.computeIfAbsent(
-                    mapping,
-                    ignored -> cycleUntil.minus(initialLookback).minus(overlap));
-            if (!cycleUntil.isAfter(from)) {
-                continue;
+        Instant until = clock.instant();
+        for (Transfer transfer : transfers) {
+            if (Thread.currentThread().isInterrupted()) {
+                return;
             }
-            boolean coreToExternal = mapping.direction() == MappingDirection.CORE_TO_EXTERNAL;
-            PegelHubClient source = coreToExternal ? coreClient : externalClient;
-            PegelHubClient target = coreToExternal ? externalClient : coreClient;
-            UUID sourceTimeSeriesId = coreToExternal
-                    ? mapping.timeSeriesId()
-                    : mapping.externalTimeSeriesId();
-            UUID targetTimeSeriesId = coreToExternal
-                    ? mapping.externalTimeSeriesId()
-                    : mapping.timeSeriesId();
             try {
-                sync(source, target, sourceTimeSeriesId, targetTimeSeriesId, from, cycleUntil);
-                Instant nextFrom = cycleUntil.minus(overlap);
-                if (nextFrom.isAfter(from)) {
-                    nextSyncFrom.put(mapping, nextFrom);
-                }
-            } catch (NotFoundException nfe) {
-                LOG.error("Source TimeSeries {} was not found", sourceTimeSeriesId, nfe);
-            } catch (Exception ex) {
-                LOG.error("Error when syncing source TimeSeries {}", sourceTimeSeriesId, ex);
+                transfer.copyUntil(until);
+            } catch (Exception e) {
+                LOG.error("ICC transfer {} -> {} failed for [{}, {}); retaining retry window",
+                        transfer.sourceTimeSeriesId, transfer.targetTimeSeriesId, transfer.nextFrom, until, e);
             }
         }
     }
 
-    private void sync(
-            PegelHubClient source,
-            PegelHubClient target,
-            UUID sourceTimeSeriesId,
-            UUID targetTimeSeriesId,
-            Instant from,
-            Instant to) {
-        if (!to.isAfter(from)) {
-            return;
+    private final class Transfer {
+        private final PegelHubClient source;
+        private final UUID sourceTimeSeriesId;
+        private final PegelHubClient target;
+        private final UUID targetTimeSeriesId;
+        private Instant nextFrom;
+
+        private Transfer(PegelHubClient source, UUID sourceTimeSeriesId, PegelHubClient target, UUID targetTimeSeriesId) {
+            this.source = source;
+            this.sourceTimeSeriesId = sourceTimeSeriesId;
+            this.target = target;
+            this.targetTimeSeriesId = targetTimeSeriesId;
         }
 
-        List<Measurement> measurements = source.getMeasurementsOfTimeSeries(sourceTimeSeriesId, from, to).stream()
-                .map(measurement -> new Measurement(
-                        targetTimeSeriesId,
-                        measurement.getObservedAt(),
-                        measurement.getValue()))
-                .toList();
-        if (!measurements.isEmpty()) {
-            target.sendMeasurements(measurements);
+        private void copyUntil(Instant until) {
+            if (nextFrom == null) {
+                nextFrom = until.minus(initialWindow);
+            }
+            if (!until.isAfter(nextFrom)) {
+                return;
+            }
+
+            List<Measurement> measurements = source.getMeasurementsOfTimeSeries(sourceTimeSeriesId, nextFrom, until)
+                    .stream()
+                    .map(measurement -> new Measurement(
+                            targetTimeSeriesId, measurement.getObservedAt(), measurement.getValue()))
+                    .toList();
+            if (!measurements.isEmpty()) {
+                target.sendMeasurements(measurements);
+            }
+
+            // A failed read or write never reaches this checkpoint, including during replay.
+            Instant replayFrom = until.minus(overlap);
+            if (replayFrom.isAfter(nextFrom)) {
+                nextFrom = replayFrom;
+            }
         }
     }
 }
