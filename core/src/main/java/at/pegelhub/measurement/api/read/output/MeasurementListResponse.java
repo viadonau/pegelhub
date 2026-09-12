@@ -1,6 +1,7 @@
 package at.pegelhub.measurement.api.read.output;
 
 import io.swagger.v3.oas.annotations.media.Schema;
+import at.pegelhub.timeseries.domain.MeasurementRepresentation;
 
 import java.util.List;
 import java.util.UUID;
@@ -18,5 +19,9 @@ public record MeasurementListResponse(
         @Schema(description = "openapi.measurement.measurement-list-response.whether-more-points-exist-in-the-requested", example = "false")
         boolean truncated,
         @Schema(description = "openapi.measurement.measurement-list-response.raw-measurement-points")
-        List<MeasurementPointResponse> measurements) {
+        List<MeasurementPointResponse> measurements,
+        @Schema(description = "openapi.measurement.read.representation")
+        MeasurementRepresentation representation,
+        @Schema(description = "openapi.measurement.read.unit")
+        String unit) {
 }

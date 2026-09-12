@@ -5,7 +5,7 @@ import at.pegelhub.measuringpoint.domain.MeasuringPointId;
 import at.pegelhub.station.domain.StationId;
 import at.pegelhub.timeseries.domain.ObservedPropertyCode;
 import at.pegelhub.timeseries.domain.SourceAssignment;
-import at.pegelhub.timeseries.domain.SourceRepresentation;
+import at.pegelhub.timeseries.domain.MeasurementRepresentation;
 import at.pegelhub.timeseries.domain.TimeSeries;
 import at.pegelhub.timeseries.domain.TimeSeriesId;
 import at.pegelhub.shared.metadata.MetadataStatus;
@@ -27,7 +27,7 @@ class TimeSeriesRepositoryAdapter implements TimeSeriesRepository {
     @Override public List<TimeSeries> findAll() { return timeSeries.findAll().stream().map(this::toDomain).toList(); }
     @Override public List<TimeSeries> findByMeasuringPointId(MeasuringPointId id) { return timeSeries.findByMeasuringPointId(id.value()).stream().map(this::toDomain).toList(); }
     @Override public List<TimeSeries> findByStationId(StationId id) { return timeSeries.findByStationId(id.value()).stream().map(this::toDomain).toList(); }
-    @Override public boolean hasAbsoluteSourceFor(MeasuringPointId id) { return timeSeries.existsByMeasuringPointIdAndSourceRepresentation(id.value(), SourceRepresentation.METRES_ABOVE_ADRIA.value()); }
+    @Override public boolean hasAbsoluteSourceFor(MeasuringPointId id) { return timeSeries.existsByMeasuringPointIdAndSourceRepresentation(id.value(), MeasurementRepresentation.METRES_ABOVE_ADRIA.value()); }
 
     private TimeSeriesEntity toEntity(TimeSeries series) {
         SourceAssignment assignment = series.sourceAssignment();
@@ -39,7 +39,7 @@ class TimeSeriesRepositoryAdapter implements TimeSeriesRepository {
 
     private TimeSeries toDomain(TimeSeriesEntity series) {
         SourceAssignment assignment = series.sourceConnectorId() == null ? null : new SourceAssignment(
-                new ConnectorId(series.sourceConnectorId()), SourceRepresentation.from(series.sourceRepresentation()));
+                new ConnectorId(series.sourceConnectorId()), MeasurementRepresentation.from(series.sourceRepresentation()));
         return new TimeSeries(
                 new TimeSeriesId(series.id()), new MeasuringPointId(series.measuringPointId()),
                 new ObservedPropertyCode(series.observedProperty()), MetadataStatus.from(series.status()), assignment);

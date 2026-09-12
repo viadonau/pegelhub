@@ -7,9 +7,9 @@ public final class ObservedPropertyCatalog {
 
     private static final List<ObservedPropertyDefinition> DEFINITIONS = List.of(
             new ObservedPropertyDefinition(
-                    "water-level", "cm", List.of(SourceRepresentation.CANONICAL, SourceRepresentation.METRES_ABOVE_ADRIA)),
-            new ObservedPropertyDefinition("water-temperature", "Cel", List.of(SourceRepresentation.CANONICAL)),
-            new ObservedPropertyDefinition("discharge", "m3/s", List.of(SourceRepresentation.CANONICAL)));
+                    "water-level", "cm", List.of(MeasurementRepresentation.CANONICAL, MeasurementRepresentation.METRES_ABOVE_ADRIA)),
+            new ObservedPropertyDefinition("water-temperature", "Cel", List.of(MeasurementRepresentation.CANONICAL)),
+            new ObservedPropertyDefinition("discharge", "m3/s", List.of(MeasurementRepresentation.CANONICAL, MeasurementRepresentation.LITRES_PER_SECOND)));
 
     private ObservedPropertyCatalog() {
     }
@@ -22,7 +22,7 @@ public final class ObservedPropertyCatalog {
         return DEFINITIONS.stream().filter(definition -> definition.code().equals(code)).findFirst();
     }
 
-    public static boolean allows(String code, SourceRepresentation representation) {
+    public static boolean allows(String code, MeasurementRepresentation representation) {
         return find(code).map(definition -> definition.sourceRepresentations().contains(representation)).orElse(false);
     }
 }

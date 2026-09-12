@@ -55,7 +55,7 @@ public record TimeSeries(
         return sourceAssignment == null ? null : sourceAssignment.connectorId();
     }
 
-    public SourceRepresentation sourceRepresentation() {
+    public MeasurementRepresentation sourceRepresentation() {
         return sourceAssignment == null ? null : sourceAssignment.representation();
     }
 }

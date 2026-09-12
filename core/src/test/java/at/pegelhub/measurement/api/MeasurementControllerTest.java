@@ -82,7 +82,7 @@ class MeasurementControllerTest {
     @Test
     void listMeasurementsReturnsLeanEnvelope() throws Exception {
         when(measurementService.listMeasurements(any())).thenAnswer(invocation ->
-                new MeasurementList(invocation.getArgument(0), false, MEASUREMENT_READ_ROWS));
+                new MeasurementList(invocation.getArgument(0), false, MEASUREMENT_READ_ROWS, "cm"));
 
         mockMvc.perform(get("/api/v1/time-series/{timeSeriesId}/measurements", TIME_SERIES_ID.value())
                         .param("from", "2010-10-12T08:00:00Z")
@@ -96,6 +96,8 @@ class MeasurementControllerTest {
                 .andExpect(jsonPath("$.order").value("asc"))
                 .andExpect(jsonPath("$.limit").value(100))
                 .andExpect(jsonPath("$.truncated").value(false))
+                .andExpect(jsonPath("$.unit").value("cm"))
+                .andExpect(jsonPath("$.representation").value("canonical"))
                 .andExpect(jsonPath("$.measurements[0].observedAt").value(MEASUREMENT_READ_ROW.observedAt().toString()))
                 .andExpect(jsonPath("$.measurements[0].value").value(MEASUREMENT_READ_ROW.value()))
                 .andExpect(jsonPath("$.measurements[0].receivedAt").doesNotExist())
@@ -111,7 +113,7 @@ class MeasurementControllerTest {
     @Test
     void listMeasurementsSupportsRelativeWindow() throws Exception {
         when(measurementService.listMeasurements(any())).thenAnswer(invocation ->
-                new MeasurementList(invocation.getArgument(0), false, List.of()));
+                new MeasurementList(invocation.getArgument(0), false, List.of(), "cm"));
 
         mockMvc.perform(get("/api/v1/time-series/{timeSeriesId}/measurements", TIME_SERIES_ID.value())
                         .param("last", "24h"))
@@ -124,7 +126,7 @@ class MeasurementControllerTest {
     @Test
     void listMeasurementsReportsTruncation() throws Exception {
         when(measurementService.listMeasurements(any())).thenAnswer(invocation ->
-                new MeasurementList(invocation.getArgument(0), true, List.of(MEASUREMENT_READ_ROW)));
+                new MeasurementList(invocation.getArgument(0), true, List.of(MEASUREMENT_READ_ROW), "cm"));
 
         mockMvc.perform(get("/api/v1/time-series/{timeSeriesId}/measurements", TIME_SERIES_ID.value())
                         .param("last", "24h")
@@ -148,7 +150,7 @@ class MeasurementControllerTest {
                         Instant.parse("2010-10-12T08:00:00Z"),
                         Instant.parse("2010-10-12T08:05:00Z"),
                         1.0,
-                        3))));
+                        3)), "cm"));
 
         mockMvc.perform(get("/api/v1/time-series/{timeSeriesId}/measurements/buckets", TIME_SERIES_ID.value())
                         .param("last", "24h")
@@ -168,7 +170,7 @@ class MeasurementControllerTest {
     @Test
     void listMeasurementBucketsDerivesBucketFromMaxPoints() throws Exception {
         when(measurementService.listMeasurementBuckets(any())).thenAnswer(invocation ->
-                new MeasurementBucketList(invocation.getArgument(0), List.of()));
+                new MeasurementBucketList(invocation.getArgument(0), List.of(), "cm"));
 
         mockMvc.perform(get("/api/v1/time-series/{timeSeriesId}/measurements/buckets", TIME_SERIES_ID.value())
                         .param("last", "24h")
@@ -216,6 +218,36 @@ class MeasurementControllerTest {
                         .param("last", "24h")
                         .param("limit", "10001"))
                 .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void readsBindAndDescribeExplicitRepresentations() throws Exception {
+        when(measurementService.listMeasurements(any())).thenAnswer(invocation ->
+                new MeasurementList(invocation.getArgument(0), false, List.of(), "l/s"));
+        when(measurementService.listMeasurementBuckets(any())).thenAnswer(invocation ->
+                new MeasurementBucketList(invocation.getArgument(0), List.of(), "m"));
+
+        mockMvc.perform(get("/api/v1/time-series/{timeSeriesId}/measurements", TIME_SERIES_ID.value())
+                        .param("last", "24h").param("representation", "litres-per-second"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.representation").value("litres-per-second"))
+                .andExpect(jsonPath("$.unit").value("l/s"));
+        mockMvc.perform(get("/api/v1/time-series/{timeSeriesId}/measurements/buckets", TIME_SERIES_ID.value())
+                        .param("last", "24h").param("representation", "metres-above-adria"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.representation").value("metres-above-adria"))
+                .andExpect(jsonPath("$.unit").value("m"));
+    }
+
+    @Test
+    void unknownAndBlankRepresentationsAreNotSilentlyTreatedAsCanonical() throws Exception {
+        for (String suffix : new String[]{"", "/buckets"}) {
+            for (String value : new String[]{"l/s", "unknown", ""}) {
+                mockMvc.perform(get("/api/v1/time-series/" + TIME_SERIES_ID.value() + "/measurements" + suffix)
+                                .param("last", "24h").param("representation", value))
+                        .andExpect(status().isBadRequest());
+            }
+        }
     }
 
     @Test

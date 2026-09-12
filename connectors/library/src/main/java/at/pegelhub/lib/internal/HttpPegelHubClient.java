@@ -6,6 +6,7 @@ import at.pegelhub.lib.exception.NotFoundException;
 import at.pegelhub.lib.internal.dto.*;
 import at.pegelhub.lib.internal.gsonconverters.InstantConverter;
 import at.pegelhub.lib.model.Measurement;
+import at.pegelhub.lib.model.MeasurementRepresentation;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonObject;
@@ -106,6 +107,13 @@ public class HttpPegelHubClient implements PegelHubClient {
 
     @Override
     public Collection<Measurement> getMeasurementsOfTimeSeries(UUID timeSeriesId, Instant from, Instant to) {
+        return getMeasurementsOfTimeSeries(timeSeriesId, from, to, MeasurementRepresentation.CANONICAL);
+    }
+
+    @Override
+    public Collection<Measurement> getMeasurementsOfTimeSeries(
+            UUID timeSeriesId, Instant from, Instant to, MeasurementRepresentation representation) {
+        Objects.requireNonNull(representation, "representation");
         Objects.requireNonNull(from, "from");
         Objects.requireNonNull(to, "to");
         if (!to.isAfter(from)) {
@@ -114,7 +122,7 @@ public class HttpPegelHubClient implements PegelHubClient {
 
         try {
             List<Measurement> measurements = new ArrayList<>();
-            readMeasurementWindow(timeSeriesId, from, to, measurements);
+            readMeasurementWindow(timeSeriesId, from, to, representation, measurements);
             return measurements;
         } catch (NotFoundException nfe) {
             throw nfe;
@@ -123,9 +131,10 @@ public class HttpPegelHubClient implements PegelHubClient {
         }
     }
 
-    private void readMeasurementWindow(UUID timeSeriesId, Instant from, Instant to, List<Measurement> measurements)
+    private void readMeasurementWindow(UUID timeSeriesId, Instant from, Instant to,
+                                       MeasurementRepresentation representation, List<Measurement> measurements)
             throws IOException, URISyntaxException {
-        MeasurementListReceiveDto page = readMeasurementPage(timeSeriesId, from, to);
+        MeasurementListReceiveDto page = readMeasurementPage(timeSeriesId, from, to, representation);
         if (!page.truncated()) {
             measurements.addAll(page.toMeasurements(timeSeriesId));
             return;
@@ -137,17 +146,18 @@ public class HttpPegelHubClient implements PegelHubClient {
                     "Core truncated an indivisible synchronization window for time series " + timeSeriesId);
         }
 
-        readMeasurementWindow(timeSeriesId, from, middle, measurements);
-        readMeasurementWindow(timeSeriesId, middle, to, measurements);
+        readMeasurementWindow(timeSeriesId, from, middle, representation, measurements);
+        readMeasurementWindow(timeSeriesId, middle, to, representation, measurements);
     }
 
     private MeasurementListReceiveDto readMeasurementPage(
             UUID timeSeriesId,
             Instant from,
-            Instant to) throws IOException, URISyntaxException {
+            Instant to,
+            MeasurementRepresentation representation) throws IOException, URISyntaxException {
         String query = "from=" + urlEncode(from.toString())
                 + "&to=" + urlEncode(to.toString())
-                + "&order=asc&limit=" + SYNCHRONIZATION_READ_LIMIT;
+                + "&order=asc&limit=" + SYNCHRONIZATION_READ_LIMIT + representationQuery(representation);
         HttpGet http = new HttpGet(measurementsUri(timeSeriesId, query));
         authorize(http);
 
@@ -158,14 +168,23 @@ public class HttpPegelHubClient implements PegelHubClient {
             }
             requireOk(response.getCode(), response.getEntity());
             String json = EntityUtils.toString(response.getEntity());
-            return gsonWithInstantSupport().fromJson(json, MeasurementListReceiveDto.class);
+            var page = gsonWithInstantSupport().fromJson(json, MeasurementListReceiveDto.class);
+            page.requireRepresentation(representation);
+            return page;
         });
     }
 
     @Override
     public Optional<Measurement> getLatestMeasurementOfTimeSeries(UUID timeSeriesId) {
+        return getLatestMeasurementOfTimeSeries(timeSeriesId, MeasurementRepresentation.CANONICAL);
+    }
+
+    @Override
+    public Optional<Measurement> getLatestMeasurementOfTimeSeries(UUID timeSeriesId, MeasurementRepresentation representation) {
+        Objects.requireNonNull(representation, "representation");
         try {
-            final URI uri = measurementsUri(timeSeriesId, "last=" + LATEST_MEASUREMENT_WINDOW + "&order=desc&limit=1");
+            final URI uri = measurementsUri(timeSeriesId, "last=" + LATEST_MEASUREMENT_WINDOW + "&order=desc&limit=1"
+                    + representationQuery(representation));
             final var http = new HttpGet(uri);
             authorize(http);
 
@@ -178,7 +197,9 @@ public class HttpPegelHubClient implements PegelHubClient {
 
                 var json = EntityUtils.toString(response.getEntity());
                 var gson = gsonWithInstantSupport();
-                return gson.fromJson(json, MeasurementListReceiveDto.class).toMeasurements(timeSeriesId).stream()
+                var page = gson.fromJson(json, MeasurementListReceiveDto.class);
+                page.requireRepresentation(representation);
+                return page.toMeasurements(timeSeriesId).stream()
                         .findFirst()
                         .orElse(null);
             }));
@@ -216,6 +237,10 @@ public class HttpPegelHubClient implements PegelHubClient {
 
     private URI measurementsUri(UUID timeSeriesId, String query) throws URISyntaxException {
         return baseUrl.toURI().resolve("api/v1/time-series/" + timeSeriesId + "/measurements?" + query);
+    }
+
+    private static String representationQuery(MeasurementRepresentation representation) {
+        return representation == MeasurementRepresentation.CANONICAL ? "" : "&representation=" + representation.value();
     }
 
     private static String urlEncode(String value) {

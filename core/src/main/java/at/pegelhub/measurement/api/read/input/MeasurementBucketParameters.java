@@ -19,5 +19,11 @@ public record MeasurementBucketParameters(
         @Schema(description = "openapi.measurement.measurement-bucket-parameters.explicit-fixed-aggregation-width-mutually-exclusive-with", example = "5m")
         String bucket,
         @Schema(description = "openapi.measurement.measurement-bucket-parameters.target-maximum-points-for-automatic-bucket-resolution", minimum = "1", maximum = "10000", defaultValue = "500")
-        @Min(1) @Max(10_000) Integer maxPoints) {
+        @Min(1) @Max(10_000) Integer maxPoints,
+        @Schema(description = "openapi.measurement.read.representation", allowableValues = {"canonical", "metres-above-adria", "litres-per-second"}, defaultValue = "canonical")
+        String representation) {
+
+    public MeasurementBucketParameters(String last, Instant from, Instant to, String bucket, Integer maxPoints) {
+        this(last, from, to, bucket, maxPoints, null);
+    }
 }

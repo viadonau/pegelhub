@@ -19,5 +19,11 @@ public record MeasurementReadParameters(
         @Schema(description = "openapi.measurement.measurement-read-parameters.sort-order-by-observed-time", allowableValues = {"asc", "desc"}, defaultValue = "asc")
         String order,
         @Schema(description = "openapi.measurement.measurement-read-parameters.maximum-raw-points-to-return", minimum = "1", maximum = "10000", defaultValue = "1000")
-        @Min(1) @Max(10_000) Integer limit) {
+        @Min(1) @Max(10_000) Integer limit,
+        @Schema(description = "openapi.measurement.read.representation", allowableValues = {"canonical", "metres-above-adria", "litres-per-second"}, defaultValue = "canonical")
+        String representation) {
+
+    public MeasurementReadParameters(String last, Instant from, Instant to, String order, Integer limit) {
+        this(last, from, to, order, limit, null);
+    }
 }

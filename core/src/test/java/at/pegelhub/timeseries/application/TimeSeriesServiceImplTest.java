@@ -14,7 +14,7 @@ import at.pegelhub.station.application.StationService;
 import at.pegelhub.station.domain.StationId;
 import at.pegelhub.timeseries.domain.ObservedPropertyCode;
 import at.pegelhub.timeseries.domain.SourceAssignment;
-import at.pegelhub.timeseries.domain.SourceRepresentation;
+import at.pegelhub.timeseries.domain.MeasurementRepresentation;
 import at.pegelhub.timeseries.persistence.TimeSeriesRepository;
 import org.junit.jupiter.api.Test;
 
@@ -52,7 +52,7 @@ class TimeSeriesServiceImplTest {
                 POINT_ID,
                 new ObservedPropertyCode("water-level"),
                 MetadataStatus.ACTIVE,
-                new SourceAssignment(CONNECTOR_ID, SourceRepresentation.METRES_ABOVE_ADRIA))))
+                new SourceAssignment(CONNECTOR_ID, MeasurementRepresentation.METRES_ABOVE_ADRIA))))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("gauge zero elevation");
         verify(timeSeries, never()).save(org.mockito.ArgumentMatchers.any());
@@ -73,7 +73,7 @@ class TimeSeriesServiceImplTest {
                 POINT_ID,
                 new ObservedPropertyCode("water-level"),
                 MetadataStatus.ACTIVE,
-                new SourceAssignment(CONNECTOR_ID, SourceRepresentation.METRES_ABOVE_ADRIA))))
+                new SourceAssignment(CONNECTOR_ID, MeasurementRepresentation.METRES_ABOVE_ADRIA))))
                 .isInstanceOf(MetadataConflictException.class);
     }
 }

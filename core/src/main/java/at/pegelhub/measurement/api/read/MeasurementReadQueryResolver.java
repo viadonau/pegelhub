@@ -11,6 +11,7 @@ import at.pegelhub.measurement.api.read.input.MeasurementBucketParameters;
 import at.pegelhub.measurement.api.read.input.MeasurementReadParameters;
 import at.pegelhub.shared.duration.PegelhubDurationLiteral;
 import at.pegelhub.timeseries.domain.TimeSeriesId;
+import at.pegelhub.timeseries.domain.MeasurementRepresentation;
 import org.springframework.stereotype.Component;
 
 import java.time.Clock;
@@ -43,7 +44,8 @@ public class MeasurementReadQueryResolver {
                 new TimeSeriesId(timeSeriesId),
                 window(parameters.last(), parameters.from(), parameters.to()),
                 order(parameters.order()),
-                parameters.limit() == null ? DEFAULT_LIMIT : parameters.limit());
+                parameters.limit() == null ? DEFAULT_LIMIT : parameters.limit(),
+                representation(parameters.representation()));
     }
 
     public MeasurementBucketQuery resolveBuckets(UUID timeSeriesId, MeasurementBucketParameters parameters) {
@@ -57,7 +59,11 @@ public class MeasurementReadQueryResolver {
         MeasurementBucketResolution resolution = bucket == null
                 ? bucketResolutionPolicy.automatic(window, parameters.maxPoints() == null ? DEFAULT_MAX_POINTS : parameters.maxPoints())
                 : MeasurementBucketResolution.explicit(new MeasurementBucketWidth(new PegelhubDurationLiteral(bucket).toDuration()));
-        return new MeasurementBucketQuery(new TimeSeriesId(timeSeriesId), window, resolution);
+        return new MeasurementBucketQuery(new TimeSeriesId(timeSeriesId), window, resolution, representation(parameters.representation()));
+    }
+
+    private static MeasurementRepresentation representation(String value) {
+        return value == null ? MeasurementRepresentation.CANONICAL : MeasurementRepresentation.from(value);
     }
 
     private MeasurementWindow window(String last, Instant from, Instant to) {

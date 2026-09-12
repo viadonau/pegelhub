@@ -3,6 +3,10 @@ package at.pegelhub.lib.test;
 import at.pegelhub.lib.config.CoreAuthentication;
 import at.pegelhub.lib.internal.HttpPegelHubClient;
 import at.pegelhub.lib.model.Measurement;
+import at.pegelhub.lib.model.MeasurementRepresentation;
+import com.google.gson.JsonParser;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.core5.http.ClassicHttpResponse;
 import org.apache.hc.core5.http.HttpEntity;
@@ -127,6 +131,45 @@ public class HttpPegelHubClientTest {
     @Nested
     @DisplayName("Measurement API Tests")
     class MeasurementClientTest {
+        @ParameterizedTest
+        @EnumSource(value = MeasurementRepresentation.class, names = {"LITRES_PER_SECOND", "METRES_ABOVE_ADRIA"})
+        void readsRequestedValuesOnlyAfterCoreConfirmsRepresentationAndUnit(MeasurementRepresentation representation) throws IOException {
+            var requests = mockSuccessfulResponse(representedResponse(
+                    measurementListResponse(uuid, false, READ_FROM, 155.56), representation));
+            var latest = phc.getLatestMeasurementOfTimeSeries(uuid, representation).orElseThrow();
+            var range = phc.getMeasurementsOfTimeSeries(uuid, READ_FROM, READ_TO, representation);
+            assertEquals(155.56, latest.getValue());
+            assertEquals(155.56, range.iterator().next().getValue());
+            assertTrue(requests.get(1).endsWith("&representation=" + representation.value()));
+            assertTrue(requests.get(2).endsWith("&representation=" + representation.value()));
+        }
+
+        @Test
+        void representedReadsRejectOldCoreAndIncorrectConfirmationEvenForEmptyResults() throws IOException {
+            String empty = "{\"timeSeriesId\":\"" + uuid + "\",\"measurements\":[],\"truncated\":false}";
+            List<String> responses = new ArrayList<>();
+            responses.add(empty);
+            var wrongRepresentation = JsonParser.parseString(empty).getAsJsonObject();
+            wrongRepresentation.addProperty("representation", "canonical");
+            wrongRepresentation.addProperty("unit", "m3/s");
+            responses.add(wrongRepresentation.toString());
+            var wrongUnit = JsonParser.parseString(empty).getAsJsonObject();
+            wrongUnit.addProperty("representation", "litres-per-second");
+            wrongUnit.addProperty("unit", "m3/s");
+            responses.add(wrongUnit.toString());
+            wrongUnit.remove("unit");
+            responses.add(wrongUnit.toString());
+            for (String response : responses) {
+                mockSuccessfulResponse(response);
+                var latestError = assertThrows(RuntimeException.class,
+                        () -> phc.getLatestMeasurementOfTimeSeries(uuid, MeasurementRepresentation.LITRES_PER_SECOND));
+                var rangeError = assertThrows(RuntimeException.class,
+                        () -> phc.getMeasurementsOfTimeSeries(uuid, READ_FROM, READ_TO, MeasurementRepresentation.LITRES_PER_SECOND));
+                assertInstanceOf(IllegalStateException.class, latestError.getCause());
+                assertInstanceOf(IllegalStateException.class, rangeError.getCause());
+            }
+        }
+
         @Test
         public void getMeasurementsOfTimeSeries_UsesTimeSeriesRoute() throws IOException {
             List<String> requestUris = new ArrayList<>();
@@ -171,8 +214,9 @@ public class HttpPegelHubClientTest {
             assertEquals(2.73, measurement.getValue());
         }
 
-        @Test
-        void getMeasurementsBisectsTruncatedWindows() throws IOException {
+        @ParameterizedTest
+        @EnumSource(value = MeasurementRepresentation.class, names = {"CANONICAL", "LITRES_PER_SECOND"})
+        void getMeasurementsBisectsTruncatedWindows(MeasurementRepresentation representation) throws IOException {
             Instant middle = READ_FROM.plus(Duration.between(READ_FROM, READ_TO).dividedBy(2));
             Instant firstObservedAt = middle.minusSeconds(1);
             Instant secondObservedAt = middle.plusSeconds(1);
@@ -190,7 +234,7 @@ public class HttpPegelHubClientTest {
                 HttpEntity entity = mock(HttpEntity.class);
                 String body = tokenRequest
                         ? "{\"access_token\":\"local-access-token\",\"expires_in\":300}"
-                        : pages.removeFirst();
+                        : representedResponse(pages.removeFirst(), representation);
                 if (!tokenRequest) {
                     requestUris.add(request.getUri().toString());
                 }
@@ -201,13 +245,16 @@ public class HttpPegelHubClientTest {
             });
 
             Collection<Measurement> measurements =
-                    phc.getMeasurementsOfTimeSeries(uuid, READ_FROM, READ_TO);
+                    phc.getMeasurementsOfTimeSeries(uuid, READ_FROM, READ_TO, representation);
 
             assertEquals(List.of(firstObservedAt, secondObservedAt), measurements.stream()
                     .map(Measurement::getObservedAt)
                     .toList());
             assertTrue(pages.isEmpty());
             assertEquals(3, requestUris.size());
+            if (representation != MeasurementRepresentation.CANONICAL) {
+                assertTrue(requestUris.stream().allMatch(uri -> uri.contains("representation=" + representation.value())));
+            }
             assertTrue(requestUris.get(1).contains("to=2026-06-16T12%3A00%3A00Z"));
             assertTrue(requestUris.get(2).contains("from=2026-06-16T12%3A00%3A00Z"));
         }
@@ -504,6 +551,17 @@ public class HttpPegelHubClientTest {
                 timeSeriesId,
                 truncated,
                 List.of(new Measurement(timeSeriesId, observedAt, value)));
+    }
+
+    private String representedResponse(String response, MeasurementRepresentation representation) {
+        var json = JsonParser.parseString(response).getAsJsonObject();
+        json.addProperty("representation", representation.value());
+        json.addProperty("unit", switch (representation) {
+            case CANONICAL -> "m3/s";
+            case LITRES_PER_SECOND -> "l/s";
+            case METRES_ABOVE_ADRIA -> "m";
+        });
+        return json.toString();
     }
 
     private String measurementListResponse(

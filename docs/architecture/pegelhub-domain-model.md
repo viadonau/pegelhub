@@ -45,7 +45,10 @@ erDiagram
 
 The observed-property catalog currently contains `water-level` (`cm`),
 `water-temperature` (`Cel`), and `discharge` (`m3/s`). Only water level accepts
-`metres-above-adria`; Core converts it at ingestion using the current PNP.
+`metres-above-adria`; discharge additionally accepts `litres-per-second`. Core
+converts both at ingestion and on explicitly represented raw/bucket reads. Water
+level conversion uses the current PNP. Default and monitoring reads stay canonical.
+See [ADR 0011](../adr/0011-core-measurement-representations.md).
 
 ## Authorization
 

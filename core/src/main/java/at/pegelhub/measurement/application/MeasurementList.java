@@ -7,10 +7,12 @@ import static java.util.Objects.requireNonNull;
 public record MeasurementList(
         MeasurementListQuery query,
         boolean truncated,
-        List<MeasurementReadRow> measurements) {
+        List<MeasurementReadRow> measurements,
+        String unit) {
 
     public MeasurementList {
         requireNonNull(query);
+        requireNonNull(unit);
         measurements = List.copyOf(requireNonNull(measurements));
     }
 }

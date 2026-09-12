@@ -11,7 +11,7 @@ import at.pegelhub.shared.metadata.MetadataStatus;
 import at.pegelhub.station.application.StationService;
 import at.pegelhub.station.domain.StationId;
 import at.pegelhub.timeseries.domain.SourceAssignment;
-import at.pegelhub.timeseries.domain.SourceRepresentation;
+import at.pegelhub.timeseries.domain.MeasurementRepresentation;
 import at.pegelhub.timeseries.domain.TimeSeries;
 import at.pegelhub.timeseries.domain.TimeSeriesId;
 import at.pegelhub.timeseries.persistence.TimeSeriesRepository;
@@ -79,7 +79,7 @@ class TimeSeriesServiceImpl implements TimeSeriesService {
 
     private void validateSource(MeasuringPointId measuringPointId, SourceAssignment assignment) {
         if (assignment == null) return;
-        if (assignment.representation() == SourceRepresentation.METRES_ABOVE_ADRIA) {
+        if (assignment.representation() == MeasurementRepresentation.METRES_ABOVE_ADRIA) {
             var point = measuringPoints.get(measuringPointId);
             if (point.gaugeZeroElevationMAboveAdria() == null) {
                 throw new IllegalArgumentException("Absolute water-level source requires gauge zero elevation");

@@ -14,8 +14,6 @@ import at.pegelhub.measurement.application.MeasurementOrder;
 import at.pegelhub.measurement.application.MeasurementReadRow;
 import at.pegelhub.measurement.domain.MeasurementBucket;
 
-import java.time.Instant;
-
 public final class MeasurementReadResponseMapper {
 
     private MeasurementReadResponseMapper() {
@@ -30,7 +28,7 @@ public final class MeasurementReadResponseMapper {
                 list.truncated(),
                 list.measurements().stream()
                         .map(MeasurementReadResponseMapper::toPointResponse)
-                        .toList());
+                        .toList(), list.query().representation(), list.unit());
     }
 
     public static MeasurementBucketListResponse toResponse(MeasurementBucketList list) {
@@ -43,7 +41,7 @@ public final class MeasurementReadResponseMapper {
                         list.query().resolution().targetPointCount()),
                 list.buckets().stream()
                         .map(MeasurementReadResponseMapper::toBucketPointResponse)
-                        .toList());
+                        .toList(), list.query().representation(), list.unit());
     }
 
     private static MeasurementWindowResponse toWindowResponse(at.pegelhub.measurement.application.MeasurementWindow window) {
