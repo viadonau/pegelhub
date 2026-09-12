@@ -2,9 +2,7 @@ package at.pegelhub.measurement.persistence;
 
 import com.influxdb.client.write.Point;
 import com.influxdb.query.FluxTable;
-import at.pegelhub.measurement.application.MeasurementBucketList;
 import at.pegelhub.measurement.application.MeasurementBucketQuery;
-import at.pegelhub.measurement.application.MeasurementList;
 import at.pegelhub.measurement.application.MeasurementListQuery;
 import at.pegelhub.measurement.application.MeasurementReadRow;
 import at.pegelhub.measurement.application.LatestMeasurement;
@@ -56,18 +54,19 @@ public class InfluxMeasurementRepository implements MeasurementRepository {
     }
 
     @Override
-    public MeasurementList listMeasurements(MeasurementListQuery measurementQuery) {
-        String query = queryBuilder.rawMeasurements(measurementQuery, measurementQuery.limit() + 1);
+    public MeasurementPage listMeasurements(MeasurementListQuery measurementQuery) {
+        String query = queryBuilder.rawMeasurements(
+                measurementQuery, measurementQuery.limit() + 1);
         List<MeasurementReadRow> rows = rowMapper.rawMeasurementRows(influx.query(query));
         boolean truncated = rows.size() > measurementQuery.limit();
         List<MeasurementReadRow> visible = truncated
                 ? rows.subList(0, measurementQuery.limit())
                 : rows;
-        return new MeasurementList(measurementQuery, truncated, visible);
+        return new MeasurementPage(truncated, visible);
     }
 
     @Override
-    public MeasurementBucketList listMeasurementBuckets(MeasurementBucketQuery bucketQuery) {
+    public List<MeasurementBucket> listMeasurementBuckets(MeasurementBucketQuery bucketQuery) {
         Duration bucketDuration = bucketQuery.resolution().bucketWidth().duration();
         String meanBucketsQuery = queryBuilder.meanBuckets(bucketQuery);
         String countBucketsQuery = queryBuilder.countBuckets(bucketQuery);
@@ -78,7 +77,7 @@ public class InfluxMeasurementRepository implements MeasurementRepository {
         Map<MeasurementBucketKey, Double> means = rowMapper.meanRows(meanTables, bucketDuration);
         Map<MeasurementBucketKey, Long> counts = rowMapper.countRows(countTables, bucketDuration);
 
-        List<MeasurementBucket> buckets = means.entrySet().stream()
+        return means.entrySet().stream()
                 .filter(entry -> counts.containsKey(entry.getKey()))
                 .sorted(Map.Entry.comparingByKey())
                 .map(entry -> new MeasurementBucket(
@@ -88,7 +87,6 @@ public class InfluxMeasurementRepository implements MeasurementRepository {
                         entry.getValue(),
                         counts.get(entry.getKey())))
                 .toList();
-        return new MeasurementBucketList(bucketQuery, buckets);
     }
 
     @Override

@@ -51,4 +51,7 @@ Canonical observed-property values are `water-level`, `water-temperature`, and
 `discharge`; unknown values are rejected. Measuring-point bank values are
 `left`, `right`, or null. API input and the database schema use only those
 canonical values. Source representations are `canonical` and, for water level,
-`metres-above-adria`.
+`metres-above-adria`, plus `litres-per-second` for discharge. Core owns input and
+requested output conversions; default reads and stored units remain canonical.
+IEC requests output representations instead of maintaining a local gauge zero.
+See `docs/adr/0011-core-measurement-representations.md`.

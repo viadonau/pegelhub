@@ -1,6 +1,7 @@
 package at.pegelhub.connector.icc;
 
 import at.pegelhub.lib.PegelHubClient;
+import at.pegelhub.lib.config.ConfigValidation;
 import at.pegelhub.lib.model.Measurement;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -39,12 +40,8 @@ final class IccSynchronizer implements Runnable {
             Clock clock) {
         Objects.requireNonNull(localCore, "localCore");
         Objects.requireNonNull(remoteCore, "remoteCore");
-        if (pollInterval.isZero() || pollInterval.isNegative()) {
-            throw new IllegalArgumentException("pollInterval must be positive");
-        }
-        if (overlap.isZero() || overlap.isNegative()) {
-            throw new IllegalArgumentException("overlap must be positive");
-        }
+        pollInterval = ConfigValidation.requirePositive(pollInterval, "pollInterval");
+        overlap = ConfigValidation.requirePositive(overlap, "overlap");
         this.initialWindow = pollInterval.plus(overlap);
         this.overlap = overlap;
         this.clock = Objects.requireNonNull(clock, "clock");

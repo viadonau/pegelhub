@@ -1,30 +1,46 @@
 package at.pegelhub.connector.iec.datapoints;
 
-import at.pegelhub.lib.PegelHubClient;
 import at.pegelhub.lib.config.MappingDirection;
+import at.pegelhub.lib.model.MeasurementRepresentation;
 import org.junit.jupiter.api.Test;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
 
 class IecMappingIndexTest {
 
     @Test
-    void shouldLoadProtocolToCoreAndCoreToProtocolMappings() throws Exception {
-        IecMappingIndex reg = new IecMappingIndex(List.of(
-                mapping(1001, MappingDirection.EXTERNAL_TO_CORE),
-                mapping(2002, MappingDirection.CORE_TO_EXTERNAL)));
+    void shouldLoadProtocolToCoreAndCoreToProtocolMappings() {
+        var inbound = mapping(1001, MappingDirection.EXTERNAL_TO_CORE);
+        var outbound = new DataPointMapping(
+                2002, UUID.randomUUID(), MappingDirection.CORE_TO_EXTERNAL,
+                MeasurementRepresentation.METRES_ABOVE_ADRIA);
+        var index = new IecMappingIndex(List.of(inbound, outbound));
 
-        assertThat(reg.protocolToCoreIoas()).containsExactly(1001);
-        assertThat(reg.coreToProtocolIoas()).containsExactly(2002);
-        assertThat(reg.getTimeSeriesId(1001)).contains(UUID.fromString("395c0232-d110-40fd-bd7f-2bb4a0f2009d"));
-        assertThat(reg.getTimeSeriesId(9999)).isEmpty();
+        assertThat(index.protocolToCoreIoas()).containsExactly(1001);
+        assertThat(index.coreToProtocolMappings()).containsExactly(outbound);
+        assertThat(index.getTimeSeriesId(1001)).contains(inbound.timeSeriesId());
+        assertThat(index.getTimeSeriesId(2002)).contains(outbound.timeSeriesId());
+        assertThat(index.getTimeSeriesId(9999)).isEmpty();
+    }
+
+    @Test
+    void keepsAnImmutableSnapshotInConfiguredOutputOrder() {
+        var first = mapping(2002, MappingDirection.CORE_TO_EXTERNAL);
+        var second = mapping(1001, MappingDirection.CORE_TO_EXTERNAL);
+        var configuration = new ArrayList<>(List.of(first, second));
+        var index = new IecMappingIndex(configuration);
+        configuration.clear();
+
+        assertThat(index.coreToProtocolMappings()).containsExactly(first, second);
+        assertThatThrownBy(() -> index.coreToProtocolMappings().clear())
+                .isInstanceOf(UnsupportedOperationException.class);
+        assertThatThrownBy(() -> index.protocolToCoreIoas().add(9999))
+                .isInstanceOf(UnsupportedOperationException.class);
     }
 
     @Test

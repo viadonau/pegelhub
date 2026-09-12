@@ -32,6 +32,17 @@ import static org.mockito.Mockito.when;
 
 class HttpTstpClientTest {
     @Test
+    void rejectsMissingOrNonPositiveRequestTimeout() {
+        var httpClient = mock(HttpClient.class);
+        var codec = mock(TstpXmlCodec.class);
+
+        for (Duration timeout : new Duration[]{null, Duration.ZERO, Duration.ofNanos(-1)}) {
+            assertThrows(IllegalArgumentException.class, () ->
+                    new HttpTstpClient("localhost", 8030, httpClient, codec, timeout));
+        }
+    }
+
+    @Test
     void transmitsCompleteRawIntervalOverHttp() throws Exception {
         AtomicReference<String> query = new AtomicReference<>();
         AtomicReference<String> body = new AtomicReference<>();

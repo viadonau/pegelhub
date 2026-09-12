@@ -16,11 +16,13 @@ final class TimeSeriesValueObjectsTest {
 
     @Test
     void sourceRepresentationsUseStableWireValues() {
-        assertThat(SourceRepresentation.CANONICAL.value()).isEqualTo("canonical");
-        assertThat(SourceRepresentation.METRES_ABOVE_ADRIA.value()).isEqualTo("metres-above-adria");
-        assertThat(SourceRepresentation.from(" METRES-ABOVE-ADRIA "))
-                .isEqualTo(SourceRepresentation.METRES_ABOVE_ADRIA);
-        assertThrows(IllegalArgumentException.class, () -> SourceRepresentation.from("absolute"));
+        assertThat(MeasurementRepresentation.CANONICAL.value()).isEqualTo("canonical");
+        assertThat(MeasurementRepresentation.METRES_ABOVE_ADRIA.value()).isEqualTo("metres-above-adria");
+        assertThat(MeasurementRepresentation.LITRES_PER_SECOND.value()).isEqualTo("litres-per-second");
+        assertThat(MeasurementRepresentation.from("litres-per-second")).isEqualTo(MeasurementRepresentation.LITRES_PER_SECOND);
+        assertThat(MeasurementRepresentation.from(" METRES-ABOVE-ADRIA "))
+                .isEqualTo(MeasurementRepresentation.METRES_ABOVE_ADRIA);
+        assertThrows(IllegalArgumentException.class, () -> MeasurementRepresentation.from("absolute"));
     }
 
     @Test

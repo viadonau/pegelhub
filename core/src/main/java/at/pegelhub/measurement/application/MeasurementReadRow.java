@@ -4,6 +4,7 @@ import at.pegelhub.connector.domain.ConnectorId;
 
 import java.time.Instant;
 
+import static at.pegelhub.measurement.domain.MeasurementValues.requireFinite;
 import static java.util.Objects.requireNonNull;
 
 public record MeasurementReadRow(
@@ -14,8 +15,6 @@ public record MeasurementReadRow(
     public MeasurementReadRow {
         requireNonNull(observedAt);
         requireNonNull(submittedByConnectorId);
-        if (!Double.isFinite(value)) {
-            throw new IllegalArgumentException("value must be finite");
-        }
+        value = requireFinite(value);
     }
 }

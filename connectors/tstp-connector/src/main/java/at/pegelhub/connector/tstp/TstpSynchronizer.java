@@ -3,6 +3,7 @@ package at.pegelhub.connector.tstp;
 import at.pegelhub.connector.tstp.catalog.TstpCatalogResolver;
 import at.pegelhub.connector.tstp.client.TstpClient;
 import at.pegelhub.lib.PegelHubClient;
+import at.pegelhub.lib.config.ConfigValidation;
 import at.pegelhub.lib.config.MappingDirection;
 import at.pegelhub.lib.config.WindowedPollingConfig;
 import at.pegelhub.lib.model.Measurement;
@@ -59,9 +60,7 @@ final class TstpSynchronizer implements Runnable {
             Duration initialLookback,
             Duration overlap,
             Clock clock) {
-        if (overlap.isNegative() || overlap.isZero()) {
-            throw new IllegalArgumentException("overlap must be positive");
-        }
+        overlap = ConfigValidation.requirePositive(overlap, "overlap");
         this.coreClient = coreClient;
         this.tstpClient = tstpClient;
         this.catalogResolver = catalogResolver;

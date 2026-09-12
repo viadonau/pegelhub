@@ -4,6 +4,7 @@ import at.pegelhub.timeseries.domain.TimeSeriesId;
 
 import java.time.Instant;
 
+import static at.pegelhub.measurement.domain.MeasurementValues.requireFinite;
 import static java.util.Objects.requireNonNull;
 
 public record LatestMeasurement(
@@ -14,8 +15,6 @@ public record LatestMeasurement(
     public LatestMeasurement {
         requireNonNull(timeSeriesId);
         requireNonNull(observedAt);
-        if (!Double.isFinite(value)) {
-            throw new IllegalArgumentException("value must be finite");
-        }
+        value = requireFinite(value);
     }
 }

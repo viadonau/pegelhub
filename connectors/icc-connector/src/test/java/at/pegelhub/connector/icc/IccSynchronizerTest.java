@@ -4,6 +4,7 @@ import at.pegelhub.lib.PegelHubClient;
 import at.pegelhub.lib.config.MappingDirection;
 import at.pegelhub.lib.exception.NotFoundException;
 import at.pegelhub.lib.model.Measurement;
+import at.pegelhub.lib.model.MeasurementRepresentation;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
@@ -21,6 +22,7 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -33,6 +35,17 @@ class IccSynchronizerTest {
     private static final UUID TIME_SERIES_ID = UUID.fromString("11111111-1111-1111-1111-111111111111");
     private static final UUID EXTERNAL_TIME_SERIES_ID = UUID.fromString("22222222-2222-2222-2222-222222222222");
     private static final Instant SYNC_AT = Instant.parse("2026-06-07T11:00:00Z");
+
+    @Test
+    void rejectsMissingOrNonPositivePollingDurations() {
+        PegelHubClient core = mock(PegelHubClient.class);
+        for (Duration duration : new Duration[]{null, Duration.ZERO, Duration.ofNanos(-1)}) {
+            assertThrows(IllegalArgumentException.class, () ->
+                    new IccSynchronizer(core, core, List.of(), duration, Duration.ofSeconds(1)));
+            assertThrows(IllegalArgumentException.class, () ->
+                    new IccSynchronizer(core, core, List.of(), Duration.ofSeconds(1), duration));
+        }
+    }
 
     @Test
     void deliversReadingInsertedAfterAnEmptySuccessfulPoll() {
@@ -312,7 +325,9 @@ class IccSynchronizerTest {
         }
 
         @Override
-        public Collection<Measurement> getMeasurementsOfTimeSeries(UUID timeSeriesId, Instant from, Instant to) {
+        public Collection<Measurement> getMeasurementsOfTimeSeries(
+                UUID timeSeriesId, Instant from, Instant to, MeasurementRepresentation representation) {
+            assertEquals(MeasurementRepresentation.CANONICAL, representation);
             this.requestedTimeSeriesId = timeSeriesId;
             this.requestedWindows.add(new ReadWindow(from, to));
             if (failNextRead) {
@@ -336,7 +351,9 @@ class IccSynchronizerTest {
         }
 
         @Override
-        public Optional<Measurement> getLatestMeasurementOfTimeSeries(UUID timeSeriesId) {
+        public Optional<Measurement> getLatestMeasurementOfTimeSeries(
+                UUID timeSeriesId, MeasurementRepresentation representation) {
+            assertEquals(MeasurementRepresentation.CANONICAL, representation);
             return Optional.empty();
         }
 

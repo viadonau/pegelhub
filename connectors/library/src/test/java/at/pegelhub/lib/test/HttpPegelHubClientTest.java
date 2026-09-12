@@ -3,6 +3,12 @@ package at.pegelhub.lib.test;
 import at.pegelhub.lib.config.CoreAuthentication;
 import at.pegelhub.lib.internal.HttpPegelHubClient;
 import at.pegelhub.lib.model.Measurement;
+import at.pegelhub.lib.model.MeasurementRepresentation;
+import com.google.gson.JsonParser;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.core5.http.ClassicHttpResponse;
 import org.apache.hc.core5.http.HttpEntity;
@@ -127,6 +133,78 @@ public class HttpPegelHubClientTest {
     @Nested
     @DisplayName("Measurement API Tests")
     class MeasurementClientTest {
+        @ParameterizedTest
+        @EnumSource(MeasurementRepresentation.class)
+        void readsRequestedValuesOnlyAfterCoreConfirmsRepresentationAndUnit(MeasurementRepresentation representation) throws IOException {
+            var requests = mockSuccessfulResponse(representedResponse(
+                    measurementListResponse(uuid, false, READ_FROM, 155.56), representation));
+            var latest = phc.getLatestMeasurementOfTimeSeries(uuid, representation).orElseThrow();
+            var range = phc.getMeasurementsOfTimeSeries(uuid, READ_FROM, READ_TO, representation);
+            assertEquals(155.56, latest.getValue());
+            assertEquals(155.56, range.iterator().next().getValue());
+            assertTrue(requests.get(1).endsWith("&representation=" + representation.value()));
+            assertTrue(requests.get(2).endsWith("&representation=" + representation.value()));
+        }
+
+        @ParameterizedTest
+        @EnumSource(MeasurementRepresentation.class)
+        void readsRejectMissingOrIncorrectMetadataEvenForEmptyResults(MeasurementRepresentation representation)
+                throws IOException {
+            var empty = JsonParser.parseString(representedResponse(
+                    measurementListResponse(uuid, false, List.of()), representation)).getAsJsonObject();
+            List<String> responses = new ArrayList<>();
+
+            empty.remove("representation");
+            responses.add(empty.toString());
+            empty.addProperty("representation", representation == MeasurementRepresentation.CANONICAL
+                    ? "litres-per-second" : "canonical");
+            responses.add(empty.toString());
+            empty.addProperty("representation", "unknown");
+            responses.add(empty.toString());
+
+            empty.addProperty("representation", representation.value());
+            empty.remove("unit");
+            responses.add(empty.toString());
+            empty.addProperty("unit", "");
+            responses.add(empty.toString());
+            empty.addProperty("unit", " ");
+            responses.add(empty.toString());
+            if (representation != MeasurementRepresentation.CANONICAL) {
+                empty.addProperty("unit", "m3/s");
+                responses.add(empty.toString());
+            }
+
+            for (String response : responses) {
+                mockSuccessfulResponse(response);
+                var latestError = assertThrows(RuntimeException.class,
+                        () -> phc.getLatestMeasurementOfTimeSeries(uuid, representation));
+                var rangeError = assertThrows(RuntimeException.class,
+                        () -> phc.getMeasurementsOfTimeSeries(uuid, READ_FROM, READ_TO, representation));
+                assertInstanceOf(IllegalStateException.class, latestError.getCause());
+                assertInstanceOf(IllegalStateException.class, rangeError.getCause());
+            }
+        }
+
+        @ParameterizedTest
+        @CsvSource({"false, representation", "true, representation", "false, unit", "true, unit"})
+        void canonicalReadsRejectMissingMetadataBeforeReturningRowsOrFollowingTruncation(
+                boolean truncated, String missingField) throws IOException {
+            var page = JsonParser.parseString(
+                    measurementListResponse(uuid, truncated, READ_FROM, 1)).getAsJsonObject();
+            page.remove(missingField);
+            var requests = mockSuccessfulResponse(page.toString());
+
+            var rangeError = assertThrows(RuntimeException.class,
+                    () -> phc.getMeasurementsOfTimeSeries(uuid, READ_FROM, READ_TO));
+            assertInstanceOf(IllegalStateException.class, rangeError.getCause());
+            assertEquals(2, requests.size());
+
+            var latestError = assertThrows(RuntimeException.class,
+                    () -> phc.getLatestMeasurementOfTimeSeries(uuid));
+            assertInstanceOf(IllegalStateException.class, latestError.getCause());
+            assertEquals(3, requests.size());
+        }
+
         @Test
         public void getMeasurementsOfTimeSeries_UsesTimeSeriesRoute() throws IOException {
             List<String> requestUris = new ArrayList<>();
@@ -152,7 +230,8 @@ public class HttpPegelHubClientTest {
             assertFalse(measurements.isEmpty());
             assertEquals(
                     "http://localhost:1111/api/v1/time-series/395c0232-d110-40fd-bd7f-2bb4a0f2009d/measurements"
-                            + "?from=2026-06-16T00%3A00%3A00Z&to=2026-06-17T00%3A00%3A00Z&order=asc&limit=10000",
+                            + "?from=2026-06-16T00%3A00%3A00Z&to=2026-06-17T00%3A00%3A00Z&order=asc&limit=10000"
+                            + "&representation=canonical",
                     requestUris.get(1));
         }
 
@@ -171,8 +250,9 @@ public class HttpPegelHubClientTest {
             assertEquals(2.73, measurement.getValue());
         }
 
-        @Test
-        void getMeasurementsBisectsTruncatedWindows() throws IOException {
+        @ParameterizedTest
+        @EnumSource(value = MeasurementRepresentation.class, names = {"CANONICAL", "LITRES_PER_SECOND"})
+        void getMeasurementsBisectsTruncatedWindows(MeasurementRepresentation representation) throws IOException {
             Instant middle = READ_FROM.plus(Duration.between(READ_FROM, READ_TO).dividedBy(2));
             Instant firstObservedAt = middle.minusSeconds(1);
             Instant secondObservedAt = middle.plusSeconds(1);
@@ -190,7 +270,7 @@ public class HttpPegelHubClientTest {
                 HttpEntity entity = mock(HttpEntity.class);
                 String body = tokenRequest
                         ? "{\"access_token\":\"local-access-token\",\"expires_in\":300}"
-                        : pages.removeFirst();
+                        : representedResponse(pages.removeFirst(), representation);
                 if (!tokenRequest) {
                     requestUris.add(request.getUri().toString());
                 }
@@ -201,13 +281,14 @@ public class HttpPegelHubClientTest {
             });
 
             Collection<Measurement> measurements =
-                    phc.getMeasurementsOfTimeSeries(uuid, READ_FROM, READ_TO);
+                    phc.getMeasurementsOfTimeSeries(uuid, READ_FROM, READ_TO, representation);
 
             assertEquals(List.of(firstObservedAt, secondObservedAt), measurements.stream()
                     .map(Measurement::getObservedAt)
                     .toList());
             assertTrue(pages.isEmpty());
             assertEquals(3, requestUris.size());
+            assertTrue(requestUris.stream().allMatch(uri -> uri.contains("representation=" + representation.value())));
             assertTrue(requestUris.get(1).contains("to=2026-06-16T12%3A00%3A00Z"));
             assertTrue(requestUris.get(2).contains("from=2026-06-16T12%3A00%3A00Z"));
         }
@@ -300,15 +381,47 @@ public class HttpPegelHubClientTest {
             assertTrue(error.getCause().getMessage().contains("indivisible"));
         }
 
-        @Test
-        void getMeasurementsRejectsMismatchedTimeSeries() throws IOException {
-            mockSuccessfulResponse(getResource("CoreMeasurementListResponse.json"));
+        @ParameterizedTest
+        @ValueSource(booleans = {false, true})
+        void getMeasurementsRejectsMismatchedTimeSeriesBeforeFollowingTruncation(boolean truncated)
+                throws IOException {
+            var requests = mockSuccessfulResponse(
+                    measurementListResponse(UUID.randomUUID(), truncated, READ_FROM, 1));
 
             RuntimeException error = assertThrows(RuntimeException.class,
-                    () -> phc.getMeasurementsOfTimeSeries(uuid, READ_FROM, READ_TO));
+                    () -> phc.getMeasurementsOfTimeSeries(uuid, READ_FROM, READ_FROM.plusNanos(1)));
 
             assertInstanceOf(IllegalStateException.class, error.getCause());
             assertTrue(error.getCause().getMessage().contains(uuid.toString()));
+            assertTrue(error.getCause().getMessage().contains("instead of"));
+            assertEquals(2, requests.size());
+        }
+
+        @Test
+        void getLatestMeasurementRejectsMismatchedTimeSeries() throws IOException {
+            mockSuccessfulResponse(measurementListResponse(UUID.randomUUID(), false, READ_FROM, 1));
+
+            RuntimeException error = assertThrows(RuntimeException.class,
+                    () -> phc.getLatestMeasurementOfTimeSeries(uuid));
+
+            assertInstanceOf(IllegalStateException.class, error.getCause());
+            assertTrue(error.getCause().getMessage().contains("instead of " + uuid));
+        }
+
+        @ParameterizedTest
+        @ValueSource(strings = {"", "null"})
+        void rejectsMissingResponseEnvelopesForBothReadModes(String body) throws IOException {
+            mockSuccessfulResponse(body);
+
+            RuntimeException rangeError = assertThrows(RuntimeException.class,
+                    () -> phc.getMeasurementsOfTimeSeries(uuid, READ_FROM, READ_TO));
+            RuntimeException latestError = assertThrows(RuntimeException.class,
+                    () -> phc.getLatestMeasurementOfTimeSeries(uuid));
+
+            assertInstanceOf(IllegalStateException.class, rangeError.getCause());
+            assertInstanceOf(IllegalStateException.class, latestError.getCause());
+            assertEquals("Core returned an empty measurement response", rangeError.getCause().getMessage());
+            assertEquals("Core returned an empty measurement response", latestError.getCause().getMessage());
         }
 
         @Test
@@ -345,7 +458,8 @@ public class HttpPegelHubClientTest {
 
             assertTrue(measurement.isPresent());
             assertEquals(
-                    "http://localhost:1111/api/v1/time-series/395c0232-d110-40fd-bd7f-2bb4a0f2009d/measurements?last=365d&order=desc&limit=1",
+                    "http://localhost:1111/api/v1/time-series/395c0232-d110-40fd-bd7f-2bb4a0f2009d/measurements"
+                            + "?last=365d&order=desc&limit=1&representation=canonical",
                     requestUris.get(1));
         }
 
@@ -506,6 +620,17 @@ public class HttpPegelHubClientTest {
                 List.of(new Measurement(timeSeriesId, observedAt, value)));
     }
 
+    private String representedResponse(String response, MeasurementRepresentation representation) {
+        var json = JsonParser.parseString(response).getAsJsonObject();
+        json.addProperty("representation", representation.value());
+        json.addProperty("unit", switch (representation) {
+            case CANONICAL -> "m3/s";
+            case LITRES_PER_SECOND -> "l/s";
+            case METRES_ABOVE_ADRIA -> "m";
+        });
+        return json.toString();
+    }
+
     private String measurementListResponse(
             UUID timeSeriesId,
             boolean truncated,
@@ -518,6 +643,8 @@ public class HttpPegelHubClientTest {
         return """
                 {
                   "timeSeriesId": "%s",
+                  "representation": "canonical",
+                  "unit": "m3/s",
                   "truncated": %s,
                   "measurements": [
                     %s

@@ -5,6 +5,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
+import static at.pegelhub.lib.config.ConfigValidation.requirePositive;
+import static at.pegelhub.lib.config.ConfigValidation.requireText;
+
 public final class ConnectorRuntimeAssembly implements AutoCloseable {
     private static final Duration DEFAULT_SHUTDOWN_TIMEOUT = Duration.ofSeconds(15);
 
@@ -32,10 +35,7 @@ public final class ConnectorRuntimeAssembly implements AutoCloseable {
 
     public ConnectorRuntimeAssembly threadCount(int threadCount) {
         ensureOpen();
-        if (threadCount < 1) {
-            throw new IllegalArgumentException("threadCount must be at least 1");
-        }
-        this.threadCount = threadCount;
+        this.threadCount = requirePositive(threadCount, "threadCount");
         return this;
     }
 
@@ -94,20 +94,6 @@ public final class ConnectorRuntimeAssembly implements AutoCloseable {
         if (completed) {
             throw new IllegalStateException(name + " runtime assembly is already complete");
         }
-    }
-
-    private static String requireText(String value, String name) {
-        if (value == null || value.isBlank()) {
-            throw new IllegalArgumentException(name + " must not be blank");
-        }
-        return value;
-    }
-
-    private static Duration requirePositive(Duration value, String name) {
-        if (value == null || value.isZero() || value.isNegative()) {
-            throw new IllegalArgumentException(name + " must be positive");
-        }
-        return value;
     }
 
     private static Duration requireNonNegative(Duration value, String name) {

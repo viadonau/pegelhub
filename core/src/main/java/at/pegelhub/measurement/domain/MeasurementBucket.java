@@ -4,6 +4,7 @@ import at.pegelhub.timeseries.domain.TimeSeriesId;
 
 import java.time.Instant;
 
+import static at.pegelhub.measurement.domain.MeasurementValues.requireFinite;
 import static java.util.Objects.requireNonNull;
 
 public record MeasurementBucket(
@@ -20,9 +21,7 @@ public record MeasurementBucket(
         if (!to.isAfter(from)) {
             throw new IllegalArgumentException("to must be after from");
         }
-        if (!Double.isFinite(value)) {
-            throw new IllegalArgumentException("value must be finite");
-        }
+        value = requireFinite(value);
         if (sampleCount < 1) {
             throw new IllegalArgumentException("sampleCount must be positive");
         }
