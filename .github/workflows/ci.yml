@@ -49,6 +49,9 @@ jobs:
       - name: Validate staging frontend deployment
         run: deploy/single-host/tests/frontend-deployment-test.sh
 
+      - name: Validate staging backend deployment
+        run: deploy/single-host/tests/backend-deployment-test.sh
+
       - name: Validate provided certificate installation
         run: deploy/single-host/tests/certificate-installer-test.sh
 
