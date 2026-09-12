@@ -1,7 +1,7 @@
 package at.pegelhub.measurement.application;
 
-import at.pegelhub.timeseries.domain.TimeSeriesId;
 import at.pegelhub.timeseries.domain.MeasurementRepresentation;
+import at.pegelhub.timeseries.domain.TimeSeriesId;
 
 import static java.util.Objects.requireNonNull;
 
@@ -11,7 +11,10 @@ public record MeasurementBucketQuery(
         MeasurementBucketResolution resolution,
         MeasurementRepresentation representation) {
 
-    public MeasurementBucketQuery(TimeSeriesId timeSeriesId, MeasurementWindow window, MeasurementBucketResolution resolution) {
+    public MeasurementBucketQuery(
+            TimeSeriesId timeSeriesId,
+            MeasurementWindow window,
+            MeasurementBucketResolution resolution) {
         this(timeSeriesId, window, resolution, MeasurementRepresentation.CANONICAL);
     }
 

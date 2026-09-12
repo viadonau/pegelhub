@@ -10,8 +10,8 @@ import at.pegelhub.shared.error.MetadataConflictException;
 import at.pegelhub.shared.metadata.MetadataStatus;
 import at.pegelhub.station.application.StationService;
 import at.pegelhub.station.domain.StationId;
-import at.pegelhub.timeseries.domain.SourceAssignment;
 import at.pegelhub.timeseries.domain.MeasurementRepresentation;
+import at.pegelhub.timeseries.domain.SourceAssignment;
 import at.pegelhub.timeseries.domain.TimeSeries;
 import at.pegelhub.timeseries.domain.TimeSeriesId;
 import at.pegelhub.timeseries.persistence.TimeSeriesRepository;
@@ -29,8 +29,11 @@ class TimeSeriesServiceImpl implements TimeSeriesService {
     private final StationService stations;
     private final ConnectorRepository connectors;
 
-    TimeSeriesServiceImpl(TimeSeriesRepository timeSeries, MeasuringPointService measuringPoints,
-                          StationService stations, ConnectorRepository connectors) {
+    TimeSeriesServiceImpl(
+            TimeSeriesRepository timeSeries,
+            MeasuringPointService measuringPoints,
+            StationService stations,
+            ConnectorRepository connectors) {
         this.timeSeries = requireNonNull(timeSeries);
         this.measuringPoints = requireNonNull(measuringPoints);
         this.stations = requireNonNull(stations);
@@ -44,7 +47,10 @@ class TimeSeriesServiceImpl implements TimeSeriesService {
         measuringPoints.getForUpdate(command.measuringPointId());
         validateSource(command.measuringPointId(), command.sourceAssignment());
         return timeSeries.save(TimeSeries.create(
-                command.measuringPointId(), command.observedProperty(), command.status(), command.sourceAssignment()));
+                command.measuringPointId(),
+                command.observedProperty(),
+                command.status(),
+                command.sourceAssignment()));
     }
 
     @Override
@@ -60,10 +66,14 @@ class TimeSeriesServiceImpl implements TimeSeriesService {
     @Override
     public TimeSeries get(TimeSeriesId id) {
         requireNonNull(id);
-        return timeSeries.findById(id).orElseThrow(() -> new NotFoundException("Time series not found: " + id.value()));
+        return timeSeries.findById(id)
+                .orElseThrow(() -> new NotFoundException("Time series not found: " + id.value()));
     }
 
-    @Override public List<TimeSeries> list() { return timeSeries.findAll(); }
+    @Override
+    public List<TimeSeries> list() {
+        return timeSeries.findAll();
+    }
 
     @Override
     public List<TimeSeries> listForMeasuringPoint(MeasuringPointId id) {
@@ -78,15 +88,20 @@ class TimeSeriesServiceImpl implements TimeSeriesService {
     }
 
     private void validateSource(MeasuringPointId measuringPointId, SourceAssignment assignment) {
-        if (assignment == null) return;
+        if (assignment == null) {
+            return;
+        }
+
         if (assignment.representation() == MeasurementRepresentation.METRES_ABOVE_ADRIA) {
             var point = measuringPoints.get(measuringPointId);
             if (point.gaugeZeroElevationMAboveAdria() == null) {
                 throw new IllegalArgumentException("Absolute water-level source requires gauge zero elevation");
             }
         }
+
         Connector connector = connectors.findById(assignment.connectorId())
-                .orElseThrow(() -> new NotFoundException("Connector not found: " + assignment.connectorId().value()));
+                .orElseThrow(() -> new NotFoundException(
+                        "Connector not found: " + assignment.connectorId().value()));
         if (connector.status() != MetadataStatus.ACTIVE) {
             throw new MetadataConflictException("Source connector must be active");
         }

@@ -8,7 +8,9 @@ import java.math.BigDecimal;
 
 import static java.util.Objects.requireNonNull;
 
-/** One metadata snapshot for converting between a wire representation and canonical storage. */
+/**
+ * One metadata snapshot for converting between a wire representation and canonical storage.
+ */
 public record MeasurementConversion(
         ObservedPropertyCode observedProperty,
         MeasurementRepresentation representation,
@@ -18,12 +20,14 @@ public record MeasurementConversion(
         requireNonNull(observedProperty);
         requireNonNull(representation);
         if (!ObservedPropertyCatalog.allows(observedProperty.value(), representation)) {
-            throw new IllegalArgumentException("Representation " + representation.value()
-                    + " is not supported for " + observedProperty.value());
+            throw new IllegalArgumentException(
+                    "Representation " + representation.value()
+                            + " is not supported for " + observedProperty.value());
         }
         if (representation == MeasurementRepresentation.METRES_ABOVE_ADRIA
                 && gaugeZeroElevationMAboveAdria == null) {
-            throw new IllegalArgumentException("Metres above Adria requires a measuring point gauge zero elevation");
+            throw new IllegalArgumentException(
+                    "Metres above Adria requires a measuring point gauge zero elevation");
         }
     }
 
@@ -37,20 +41,28 @@ public record MeasurementConversion(
 
     public double toCanonical(double value) {
         BigDecimal input = BigDecimal.valueOf(finite(value));
-        return finite(switch (representation) {
-            case CANONICAL -> value;
-            case METRES_ABOVE_ADRIA -> input.subtract(gaugeZeroElevationMAboveAdria).movePointRight(2).doubleValue();
-            case LITRES_PER_SECOND -> input.movePointLeft(3).doubleValue();
-        });
+        return finite(
+                switch (representation) {
+                    case CANONICAL -> value;
+                    case METRES_ABOVE_ADRIA -> input
+                            .subtract(gaugeZeroElevationMAboveAdria)
+                            .movePointRight(2)
+                            .doubleValue();
+                    case LITRES_PER_SECOND -> input.movePointLeft(3).doubleValue();
+                });
     }
 
     public double fromCanonical(double value) {
         BigDecimal input = BigDecimal.valueOf(finite(value));
-        return finite(switch (representation) {
-            case CANONICAL -> value;
-            case METRES_ABOVE_ADRIA -> input.movePointLeft(2).add(gaugeZeroElevationMAboveAdria).doubleValue();
-            case LITRES_PER_SECOND -> input.movePointRight(3).doubleValue();
-        });
+        return finite(
+                switch (representation) {
+                    case CANONICAL -> value;
+                    case METRES_ABOVE_ADRIA -> input
+                            .movePointLeft(2)
+                            .add(gaugeZeroElevationMAboveAdria)
+                            .doubleValue();
+                    case LITRES_PER_SECOND -> input.movePointRight(3).doubleValue();
+                });
     }
 
     private static double finite(double value) {

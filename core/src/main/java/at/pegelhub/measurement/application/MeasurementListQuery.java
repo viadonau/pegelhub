@@ -1,7 +1,7 @@
 package at.pegelhub.measurement.application;
 
-import at.pegelhub.timeseries.domain.TimeSeriesId;
 import at.pegelhub.timeseries.domain.MeasurementRepresentation;
+import at.pegelhub.timeseries.domain.TimeSeriesId;
 
 import static java.util.Objects.requireNonNull;
 
@@ -12,7 +12,11 @@ public record MeasurementListQuery(
         int limit,
         MeasurementRepresentation representation) {
 
-    public MeasurementListQuery(TimeSeriesId timeSeriesId, MeasurementWindow window, MeasurementOrder order, int limit) {
+    public MeasurementListQuery(
+            TimeSeriesId timeSeriesId,
+            MeasurementWindow window,
+            MeasurementOrder order,
+            int limit) {
         this(timeSeriesId, window, order, limit, MeasurementRepresentation.CANONICAL);
     }
 

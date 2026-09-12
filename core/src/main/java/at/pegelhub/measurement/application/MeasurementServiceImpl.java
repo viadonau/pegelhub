@@ -21,6 +21,7 @@ import org.springframework.stereotype.Service;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -57,22 +58,54 @@ public class MeasurementServiceImpl implements MeasurementService {
     }
 
     /**
-     * processes the measurements to be saved to the time series database
-     * @param writeMeasurements to save.
+     * Processes the measurements to be saved to the time series database.
+     *
+     * @param writeMeasurements measurements to save
      */
     @Override
     public void writeMeasurements(WriteMeasurements writeMeasurements) {
+        requireNonNull(writeMeasurements);
+
         Instant receivedAt = Instant.now(clock);
         ConnectorId writer = authorizationPolicy.requireWriter();
-        var targets = loadWriteTargets(writeMeasurements);
-        targets.values().forEach(target -> authorizationPolicy.requireWrite(writer, target));
-        var conversions = new HashMap<TimeSeriesId, MeasurementConversion>();
-        targets.forEach((id, target) -> conversions.put(id, new MeasurementConversion(
-                target.timeSeries().observedProperty(), target.timeSeries().sourceRepresentation(),
-                target.measuringPoint().gaugeZeroElevationMAboveAdria())));
+        Map<TimeSeriesId, MeasurementWriteTarget> targets = loadWriteTargets(writeMeasurements);
+        authorizeWriteTargets(writer, targets.values());
+
+        Map<TimeSeriesId, MeasurementConversion> conversions = createConversions(targets);
+        List<Measurement> measurements = convertMeasurements(
+                writeMeasurements, receivedAt, writer, conversions);
+
+        measurementRepository.storeMeasurements(measurements);
+    }
+
+    private void authorizeWriteTargets(
+            ConnectorId writer, Collection<MeasurementWriteTarget> targets) {
+        for (MeasurementWriteTarget target : targets) {
+            authorizationPolicy.requireWrite(writer, target);
+        }
+    }
+
+    private Map<TimeSeriesId, MeasurementConversion> createConversions(
+            Map<TimeSeriesId, MeasurementWriteTarget> targets) {
+        Map<TimeSeriesId, MeasurementConversion> conversions = new HashMap<>();
+        for (Map.Entry<TimeSeriesId, MeasurementWriteTarget> entry : targets.entrySet()) {
+            MeasurementWriteTarget target = entry.getValue();
+            conversions.put(entry.getKey(), new MeasurementConversion(
+                    target.timeSeries().observedProperty(),
+                    target.timeSeries().sourceRepresentation(),
+                    target.measuringPoint().gaugeZeroElevationMAboveAdria()));
+        }
+        return conversions;
+    }
+
+    private List<Measurement> convertMeasurements(
+            WriteMeasurements writeMeasurements,
+            Instant receivedAt,
+            ConnectorId writer,
+            Map<TimeSeriesId, MeasurementConversion> conversions) {
         List<Measurement> measurements = new ArrayList<>(writeMeasurements.measurements().size());
         for (WriteMeasurement measurement : writeMeasurements.measurements()) {
-            var conversion = conversions.get(measurement.timeSeriesId());
+            MeasurementConversion conversion = conversions.get(measurement.timeSeriesId());
             measurements.add(new Measurement(
                     measurement.timeSeriesId(),
                     measurement.observedAt(),
@@ -80,14 +113,18 @@ public class MeasurementServiceImpl implements MeasurementService {
                     conversion.toCanonical(measurement.value()),
                     writer));
         }
-        measurementRepository.storeMeasurements(measurements);
+        return measurements;
     }
 
     private Map<TimeSeriesId, MeasurementWriteTarget> loadWriteTargets(WriteMeasurements write) {
         var targets = new LinkedHashMap<TimeSeriesId, MeasurementWriteTarget>();
         var points = new HashMap<MeasuringPointId, MeasuringPoint>();
         var stationMetadata = new HashMap<StationId, Station>();
-        for (TimeSeriesId id : write.measurements().stream().map(WriteMeasurement::timeSeriesId).distinct().toList()) {
+        List<TimeSeriesId> ids = write.measurements().stream()
+                .map(WriteMeasurement::timeSeriesId)
+                .distinct()
+                .toList();
+        for (TimeSeriesId id : ids) {
             var series = timeSeries.get(id);
             var point = points.computeIfAbsent(series.measuringPointId(), measuringPoints::get);
             var station = stationMetadata.computeIfAbsent(point.stationId(), stations::get);
@@ -102,10 +139,10 @@ public class MeasurementServiceImpl implements MeasurementService {
         authorizationPolicy.requireRead(query.timeSeriesId());
         var conversion = outputConversion(query.timeSeriesId(), query.representation());
         var page = measurementRepository.listMeasurements(query);
-        return new MeasurementList(query, page.truncated(), page.measurements().stream()
-                .map(row -> new MeasurementReadRow(row.observedAt(),
-                        conversion.fromCanonical(row.value()), row.submittedByConnectorId()))
-                .toList(), conversion.unit());
+        List<MeasurementReadRow> measurements = page.measurements().stream()
+                .map(row -> toReadRow(row, conversion))
+                .toList();
+        return new MeasurementList(query, page.truncated(), measurements, conversion.unit());
     }
 
     @Override
@@ -113,16 +150,36 @@ public class MeasurementServiceImpl implements MeasurementService {
         requireNonNull(query);
         authorizationPolicy.requireRead(query.timeSeriesId());
         var conversion = outputConversion(query.timeSeriesId(), query.representation());
-        return new MeasurementBucketList(query, measurementRepository.listMeasurementBuckets(query).stream()
-                .map(bucket -> new MeasurementBucket(bucket.timeSeriesId(), bucket.from(), bucket.to(),
-                        conversion.fromCanonical(bucket.value()), bucket.sampleCount()))
-                .toList(), conversion.unit());
+        List<MeasurementBucket> buckets = measurementRepository.listMeasurementBuckets(query).stream()
+                .map(bucket -> toBucket(bucket, conversion))
+                .toList();
+        return new MeasurementBucketList(query, buckets, conversion.unit());
     }
 
-    private MeasurementConversion outputConversion(TimeSeriesId id, MeasurementRepresentation representation) {
+    private MeasurementReadRow toReadRow(
+            MeasurementReadRow row, MeasurementConversion conversion) {
+        return new MeasurementReadRow(
+                row.observedAt(),
+                conversion.fromCanonical(row.value()),
+                row.submittedByConnectorId());
+    }
+
+    private MeasurementBucket toBucket(
+            MeasurementBucket bucket, MeasurementConversion conversion) {
+        return new MeasurementBucket(
+                bucket.timeSeriesId(),
+                bucket.from(),
+                bucket.to(),
+                conversion.fromCanonical(bucket.value()),
+                bucket.sampleCount());
+    }
+
+    private MeasurementConversion outputConversion(
+            TimeSeriesId id, MeasurementRepresentation representation) {
         var series = timeSeries.get(id);
         var gaugeZero = representation == MeasurementRepresentation.METRES_ABOVE_ADRIA
-                ? measuringPoints.get(series.measuringPointId()).gaugeZeroElevationMAboveAdria() : null;
+                ? measuringPoints.get(series.measuringPointId()).gaugeZeroElevationMAboveAdria()
+                : null;
         return new MeasurementConversion(series.observedProperty(), representation, gaugeZero);
     }
 

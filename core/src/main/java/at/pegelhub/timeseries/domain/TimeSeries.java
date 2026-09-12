@@ -20,9 +20,11 @@ public record TimeSeries(
         requireNonNull(measuringPointId);
         requireNonNull(observedProperty);
         status = status == null ? MetadataStatus.ACTIVE : status;
+
         if (ObservedPropertyCatalog.find(observedProperty.value()).isEmpty()) {
             throw new IllegalArgumentException("Unknown observed property: " + observedProperty.value());
         }
+
         if (sourceAssignment != null
                 && !ObservedPropertyCatalog.allows(observedProperty.value(), sourceAssignment.representation())) {
             throw new IllegalArgumentException(

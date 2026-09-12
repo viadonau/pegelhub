@@ -12,5 +12,8 @@ public record TimeSeriesResponse(
         String unit,
         MetadataStatus status,
         SourceAssignmentResponse sourceAssignment) {
-    public record SourceAssignmentResponse(UUID connectorId, MeasurementRepresentation representation) { }
+
+    public record SourceAssignmentResponse(
+            UUID connectorId,
+            MeasurementRepresentation representation) { }
 }

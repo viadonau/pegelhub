@@ -43,7 +43,7 @@ class MeasurementAuthorizationPolicyImpl implements MeasurementAuthorizationPoli
 
     @Override
     public ConnectorId requireWriter() {
-        PegelHubActor actor = currentActor.get();
+        var actor = currentActor.get();
         if (!actor.hasAuthority(MEASUREMENT_WRITE)) {
             throw new AccessDeniedException("Actor is not allowed to write measurements");
         }
@@ -58,8 +58,19 @@ class MeasurementAuthorizationPolicyImpl implements MeasurementAuthorizationPoli
     public void requireWrite(ConnectorId connectorId, MeasurementWriteTarget target) {
         requireNonNull(connectorId);
         requireNonNull(target);
+        requireActiveTarget(target);
+
         var series = target.timeSeries();
-        if (series.status() != MetadataStatus.ACTIVE) {
+        if (!connectorId.equals(series.sourceConnectorId())) {
+            throw new AccessDeniedException(
+                    "Connector is not allowed to write measurements for TimeSeries "
+                            + series.id().value()
+                            + ": connector is not the source connector");
+        }
+    }
+
+    private void requireActiveTarget(MeasurementWriteTarget target) {
+        if (target.timeSeries().status() != MetadataStatus.ACTIVE) {
             throw new AccessDeniedException("TimeSeries is not active");
         }
         if (target.measuringPoint().status() != MetadataStatus.ACTIVE) {
@@ -67,11 +78,6 @@ class MeasurementAuthorizationPolicyImpl implements MeasurementAuthorizationPoli
         }
         if (target.station().status() != MetadataStatus.ACTIVE) {
             throw new AccessDeniedException("Station is not active");
-        }
-        if (!connectorId.equals(series.sourceConnectorId())) {
-            throw new AccessDeniedException(
-                    "Connector is not allowed to write measurements for TimeSeries " + series.id().value()
-                            + ": connector is not the source connector");
         }
     }
 
@@ -121,7 +127,8 @@ class MeasurementAuthorizationPolicyImpl implements MeasurementAuthorizationPoli
         if (actor.clientId() == null || actor.clientId().isBlank()) {
             throw new NotFoundException("Connector not registered");
         }
-        Connector connector = connectorRepository.findByKeycloakClientId(actor.clientId())
+        Connector connector = connectorRepository
+                .findByKeycloakClientId(actor.clientId())
                 .orElseThrow(() -> new NotFoundException("Connector not registered"));
         if (connector.status() != MetadataStatus.ACTIVE) {
             throw new AccessDeniedException("Connector is not active");

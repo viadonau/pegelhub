@@ -22,21 +22,34 @@ public class CoreToIecJob implements Runnable {
     public void run() {
         for (int ioa : mappingIndex.coreToProtocolIoas()) {
             try {
-                mappingIndex.getTimeSeriesId(ioa).ifPresentOrElse(
-                        timeSeriesId -> latestMeasurement(ioa, timeSeriesId).ifPresentOrElse(
-                                latest -> iecClient.sendMeasurement(ioa, latest),
-                                () -> log.info("No measurement found for TimeSeries of IOA: {}.", ioa)),
-                        () -> log.info("No TimeSeries ID configured for IOA: {}.", ioa));
+                sendLatestMeasurement(ioa);
             } catch (Exception e) {
                 log.warn("Error sending measurement for IOA {}", ioa, e);
             }
         }
     }
 
+    private void sendLatestMeasurement(int ioa) {
+        Optional<UUID> timeSeriesId = mappingIndex.getTimeSeriesId(ioa);
+        if (timeSeriesId.isEmpty()) {
+            log.info("No TimeSeries ID configured for IOA: {}.", ioa);
+            return;
+        }
+
+        Optional<Measurement> latest = latestMeasurement(ioa, timeSeriesId.get());
+        if (latest.isEmpty()) {
+            log.info("No measurement found for TimeSeries of IOA: {}.", ioa);
+            return;
+        }
+
+        iecClient.sendMeasurement(ioa, latest.get());
+    }
+
     private Optional<Measurement> latestMeasurement(int ioa, UUID timeSeriesId) {
         var representation = mappingIndex.getOutputRepresentation(ioa);
-        return representation == MeasurementRepresentation.CANONICAL
-                ? coreClient.getLatestMeasurementOfTimeSeries(timeSeriesId)
-                : coreClient.getLatestMeasurementOfTimeSeries(timeSeriesId, representation);
+        if (representation == MeasurementRepresentation.CANONICAL) {
+            return coreClient.getLatestMeasurementOfTimeSeries(timeSeriesId);
+        }
+        return coreClient.getLatestMeasurementOfTimeSeries(timeSeriesId, representation);
     }
 }

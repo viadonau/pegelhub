@@ -4,7 +4,15 @@ import at.pegelhub.lib.config.MappingDirection;
 import at.pegelhub.lib.model.MeasurementRepresentation;
 import lombok.extern.slf4j.Slf4j;
 
-import java.util.*;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
+import java.util.UUID;
 
 @Slf4j
 public final class IecMappingIndex {
@@ -17,8 +25,10 @@ public final class IecMappingIndex {
     public IecMappingIndex(List<DataPointMapping> mappings) {
         Objects.requireNonNull(mappings, "mappings");
         loadDataPoints(mappings);
-        log.info("Loaded datapoints -> protocolToCore={}, coreToProtocol={}",
-                protocolToCore.size(), coreToProtocol.size());
+        log.info(
+                "Loaded datapoints -> protocolToCore={}, coreToProtocol={}",
+                protocolToCore.size(),
+                coreToProtocol.size());
     }
 
     public Optional<UUID> getTimeSeriesId(int ioa) {
@@ -50,11 +60,15 @@ public final class IecMappingIndex {
             } else {
                 coreToProtocol.add(ioa);
             }
+
             timeSeriesIds.put(ioa, mapping.timeSeriesId());
             outputRepresentations.put(ioa, mapping.outputRepresentation());
 
-            log.debug("Loaded datapoint: IOA={}, timeSeriesId={}, direction={}",
-                    ioa, mapping.timeSeriesId(), mapping.direction());
+            log.debug(
+                    "Loaded datapoint: IOA={}, timeSeriesId={}, direction={}",
+                    ioa,
+                    mapping.timeSeriesId(),
+                    mapping.direction());
         }
     }
 

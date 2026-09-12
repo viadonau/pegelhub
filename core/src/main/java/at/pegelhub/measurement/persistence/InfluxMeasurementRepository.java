@@ -55,7 +55,8 @@ public class InfluxMeasurementRepository implements MeasurementRepository {
 
     @Override
     public MeasurementPage listMeasurements(MeasurementListQuery measurementQuery) {
-        String query = queryBuilder.rawMeasurements(measurementQuery, measurementQuery.limit() + 1);
+        String query = queryBuilder.rawMeasurements(
+                measurementQuery, measurementQuery.limit() + 1);
         List<MeasurementReadRow> rows = rowMapper.rawMeasurementRows(influx.query(query));
         boolean truncated = rows.size() > measurementQuery.limit();
         List<MeasurementReadRow> visible = truncated

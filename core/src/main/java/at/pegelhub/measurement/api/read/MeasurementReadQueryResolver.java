@@ -15,6 +15,7 @@ import at.pegelhub.timeseries.domain.MeasurementRepresentation;
 import org.springframework.stereotype.Component;
 
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.UUID;
 
@@ -32,7 +33,9 @@ public class MeasurementReadQueryResolver {
     private final Clock clock;
     private final MeasurementBucketResolutionPolicy bucketResolutionPolicy;
 
-    public MeasurementReadQueryResolver(Clock clock, MeasurementBucketResolutionPolicy bucketResolutionPolicy) {
+    public MeasurementReadQueryResolver(
+            Clock clock,
+            MeasurementBucketResolutionPolicy bucketResolutionPolicy) {
         this.clock = requireNonNull(clock);
         this.bucketResolutionPolicy = requireNonNull(bucketResolutionPolicy);
     }
@@ -56,10 +59,23 @@ public class MeasurementReadQueryResolver {
         if (bucket != null && parameters.maxPoints() != null) {
             throw new IllegalArgumentException("Provide either bucket or maxPoints");
         }
-        MeasurementBucketResolution resolution = bucket == null
-                ? bucketResolutionPolicy.automatic(window, parameters.maxPoints() == null ? DEFAULT_MAX_POINTS : parameters.maxPoints())
-                : MeasurementBucketResolution.explicit(new MeasurementBucketWidth(new PegelhubDurationLiteral(bucket).toDuration()));
-        return new MeasurementBucketQuery(new TimeSeriesId(timeSeriesId), window, resolution, representation(parameters.representation()));
+        MeasurementBucketResolution resolution = resolveBucketResolution(
+                bucket, parameters.maxPoints(), window);
+        return new MeasurementBucketQuery(
+                new TimeSeriesId(timeSeriesId),
+                window,
+                resolution,
+                representation(parameters.representation()));
+    }
+
+    private MeasurementBucketResolution resolveBucketResolution(
+            String bucket, Integer maxPoints, MeasurementWindow window) {
+        if (bucket != null) {
+            Duration duration = new PegelhubDurationLiteral(bucket).toDuration();
+            return MeasurementBucketResolution.explicit(new MeasurementBucketWidth(duration));
+        }
+        int targetPoints = maxPoints == null ? DEFAULT_MAX_POINTS : maxPoints;
+        return bucketResolutionPolicy.automatic(window, targetPoints);
     }
 
     private static MeasurementRepresentation representation(String value) {
@@ -76,7 +92,10 @@ public class MeasurementReadQueryResolver {
         if (hasLast) {
             PegelhubDurationLiteral duration = new PegelhubDurationLiteral(relativeWindow);
             Instant resolvedTo = Instant.now(clock);
-            return new MeasurementWindow(resolvedTo.minus(duration.toDuration()), resolvedTo, duration.toString());
+            return new MeasurementWindow(
+                    resolvedTo.minus(duration.toDuration()),
+                    resolvedTo,
+                    duration.toString());
         }
         if (from == null || to == null) {
             throw new IllegalArgumentException("Both from and to are required");

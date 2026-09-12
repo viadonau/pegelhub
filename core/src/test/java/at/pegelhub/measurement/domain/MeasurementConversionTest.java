@@ -6,8 +6,11 @@ import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
 
-import static at.pegelhub.timeseries.domain.MeasurementRepresentation.*;
-import static org.assertj.core.api.Assertions.*;
+import static at.pegelhub.timeseries.domain.MeasurementRepresentation.CANONICAL;
+import static at.pegelhub.timeseries.domain.MeasurementRepresentation.LITRES_PER_SECOND;
+import static at.pegelhub.timeseries.domain.MeasurementRepresentation.METRES_ABOVE_ADRIA;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
 
 class MeasurementConversionTest {
     @Test
@@ -22,7 +25,8 @@ class MeasurementConversionTest {
 
     @Test
     void absoluteWaterLevelUsesOneGaugeZeroInBothDirections() {
-        var conversion = conversion("water-level", METRES_ABOVE_ADRIA, new BigDecimal("152.68"));
+        var conversion = conversion(
+                "water-level", METRES_ABOVE_ADRIA, new BigDecimal("152.68"));
         assertThat(conversion.toCanonical(155.56)).isEqualTo(288);
         assertThat(conversion.fromCanonical(288)).isEqualTo(155.56);
         assertThat(conversion.fromCanonical(-12.5)).isEqualTo(152.555);
@@ -35,27 +39,38 @@ class MeasurementConversionTest {
             var conversion = conversion(property, CANONICAL, null);
             assertThat(conversion.toCanonical(12.5)).isEqualTo(12.5);
             assertThat(conversion.fromCanonical(12.5)).isEqualTo(12.5);
-            assertThat(conversion.unit()).isEqualTo(new ObservedPropertyCode(property).definition().canonicalUnit());
+            assertThat(conversion.unit()).isEqualTo(
+                    new ObservedPropertyCode(property).definition().canonicalUnit());
         }
     }
 
     @Test
     void incompatibleRepresentationsAndMissingGaugeZeroAreRejected() {
-        assertThatIllegalArgumentException().isThrownBy(() -> conversion("water-level", LITRES_PER_SECOND, null));
-        assertThatIllegalArgumentException().isThrownBy(() -> conversion("discharge", METRES_ABOVE_ADRIA, BigDecimal.ZERO));
-        assertThatIllegalArgumentException().isThrownBy(() -> conversion("water-temperature", LITRES_PER_SECOND, null));
-        assertThatIllegalArgumentException().isThrownBy(() -> conversion("water-level", METRES_ABOVE_ADRIA, null));
+        assertThatIllegalArgumentException().isThrownBy(
+                () -> conversion("water-level", LITRES_PER_SECOND, null));
+        assertThatIllegalArgumentException().isThrownBy(
+                () -> conversion("discharge", METRES_ABOVE_ADRIA, BigDecimal.ZERO));
+        assertThatIllegalArgumentException().isThrownBy(
+                () -> conversion("water-temperature", LITRES_PER_SECOND, null));
+        assertThatIllegalArgumentException().isThrownBy(
+                () -> conversion("water-level", METRES_ABOVE_ADRIA, null));
     }
 
     @Test
     void nonFiniteInputsAndConversionOverflowAreRejected() {
         var conversion = conversion("discharge", LITRES_PER_SECOND, null);
         assertThatIllegalArgumentException().isThrownBy(() -> conversion.toCanonical(Double.NaN));
-        assertThatIllegalArgumentException().isThrownBy(() -> conversion.fromCanonical(Double.POSITIVE_INFINITY));
-        assertThatIllegalArgumentException().isThrownBy(() -> conversion.fromCanonical(Double.MAX_VALUE));
+        assertThatIllegalArgumentException().isThrownBy(
+                () -> conversion.fromCanonical(Double.POSITIVE_INFINITY));
+        assertThatIllegalArgumentException().isThrownBy(
+                () -> conversion.fromCanonical(Double.MAX_VALUE));
     }
 
-    private static MeasurementConversion conversion(String property, MeasurementRepresentation representation, BigDecimal gaugeZero) {
-        return new MeasurementConversion(new ObservedPropertyCode(property), representation, gaugeZero);
+    private static MeasurementConversion conversion(
+            String property,
+            MeasurementRepresentation representation,
+            BigDecimal gaugeZero) {
+        return new MeasurementConversion(
+                new ObservedPropertyCode(property), representation, gaugeZero);
     }
 }

@@ -25,7 +25,7 @@ public record MeasurementListReceiveDto(
         return measurements == null
                 ? List.of()
                 : measurements.stream()
-                .map(measurement -> measurement.toMeasurement(timeSeriesId))
-                .toList();
+                        .map(measurement -> measurement.toMeasurement(timeSeriesId))
+                        .toList();
     }
 }

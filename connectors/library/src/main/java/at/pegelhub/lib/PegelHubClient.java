@@ -20,14 +20,19 @@ public interface PegelHubClient extends AutoCloseable {
 
     /** Values use the requested representation, which Core must explicitly confirm. */
     default Collection<Measurement> getMeasurementsOfTimeSeries(
-            UUID timeSeriesId, Instant from, Instant to, MeasurementRepresentation representation) {
+            UUID timeSeriesId,
+            Instant from,
+            Instant to,
+            MeasurementRepresentation representation) {
         if (representation != MeasurementRepresentation.CANONICAL) {
             throw new UnsupportedOperationException("This Core client does not support represented reads");
         }
         return getMeasurementsOfTimeSeries(timeSeriesId, from, to);
     }
 
-    default Optional<Measurement> getLatestMeasurementOfTimeSeries(UUID timeSeriesId, MeasurementRepresentation representation) {
+    default Optional<Measurement> getLatestMeasurementOfTimeSeries(
+            UUID timeSeriesId,
+            MeasurementRepresentation representation) {
         if (representation != MeasurementRepresentation.CANONICAL) {
             throw new UnsupportedOperationException("This Core client does not support represented reads");
         }

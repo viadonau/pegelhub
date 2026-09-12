@@ -11,8 +11,7 @@ public record DataPointMapping(
         Integer iecIoa,
         UUID timeSeriesId,
         MappingDirection direction,
-        MeasurementRepresentation outputRepresentation
-) implements DirectedMapping {
+        MeasurementRepresentation outputRepresentation) implements DirectedMapping {
     public DataPointMapping(Integer iecIoa, UUID timeSeriesId, MappingDirection direction) {
         this(iecIoa, timeSeriesId, direction, MeasurementRepresentation.CANONICAL);
     }
@@ -21,10 +20,14 @@ public record DataPointMapping(
         Objects.requireNonNull(iecIoa, "iecIoa");
         Objects.requireNonNull(timeSeriesId, "timeSeriesId");
         Objects.requireNonNull(direction, "direction");
-        outputRepresentation = outputRepresentation == null ? MeasurementRepresentation.CANONICAL : outputRepresentation;
-        if (outputRepresentation != MeasurementRepresentation.CANONICAL && direction != MappingDirection.CORE_TO_EXTERNAL) {
+        outputRepresentation = outputRepresentation == null
+                ? MeasurementRepresentation.CANONICAL
+                : outputRepresentation;
+        if (outputRepresentation != MeasurementRepresentation.CANONICAL
+                && direction != MappingDirection.CORE_TO_EXTERNAL) {
             throw new IllegalArgumentException(
-                    "outputRepresentation is only supported for core-to-external mappings; configure inbound representation in Core");
+                    "outputRepresentation is only supported for core-to-external mappings; "
+                            + "configure inbound representation in Core");
         }
     }
 }

@@ -27,8 +27,11 @@ public enum MeasurementRepresentation {
         if (this == CANONICAL && representation == null) {
             return;
         }
-        if (!value.equals(representation) || (this.unit != null && !this.unit.equals(unit))) {
-            throw new IllegalStateException("Core did not confirm requested measurement representation " + value);
+        boolean representationMatches = value.equals(representation);
+        boolean unitMatches = this.unit == null || this.unit.equals(unit);
+        if (!representationMatches || !unitMatches) {
+            throw new IllegalStateException(
+                    "Core did not confirm requested measurement representation " + value);
         }
     }
 
