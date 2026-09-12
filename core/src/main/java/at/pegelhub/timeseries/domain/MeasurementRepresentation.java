@@ -7,13 +7,14 @@ import java.util.Locale;
 
 import static java.util.Objects.requireNonNull;
 
-public enum SourceRepresentation {
+public enum MeasurementRepresentation {
     CANONICAL("canonical"),
-    METRES_ABOVE_ADRIA("metres-above-adria");
+    METRES_ABOVE_ADRIA("metres-above-adria"),
+    LITRES_PER_SECOND("litres-per-second");
 
     private final String value;
 
-    SourceRepresentation(String value) {
+    MeasurementRepresentation(String value) {
         this.value = value;
     }
 
@@ -23,13 +24,13 @@ public enum SourceRepresentation {
     }
 
     @JsonCreator
-    public static SourceRepresentation from(String value) {
+    public static MeasurementRepresentation from(String value) {
         requireNonNull(value, "representation must not be null");
-        for (SourceRepresentation representation : values()) {
+        for (MeasurementRepresentation representation : values()) {
             if (representation.value.equals(value.trim().toLowerCase(Locale.ROOT))) {
                 return representation;
             }
         }
-        throw new IllegalArgumentException("Unknown source representation: " + value);
+        throw new IllegalArgumentException("Unknown measurement representation: " + value);
     }
 }

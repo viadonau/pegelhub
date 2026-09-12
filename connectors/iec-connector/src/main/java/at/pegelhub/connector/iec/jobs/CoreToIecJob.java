@@ -4,10 +4,12 @@ import at.pegelhub.connector.iec.datapoints.IecMappingIndex;
 import at.pegelhub.connector.iec.iec.IecClient;
 import at.pegelhub.lib.PegelHubClient;
 import at.pegelhub.lib.model.Measurement;
+import at.pegelhub.lib.model.MeasurementRepresentation;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
-import java.math.BigDecimal;
+import java.util.Optional;
+import java.util.UUID;
 
 @Slf4j
 @AllArgsConstructor
@@ -20,24 +22,34 @@ public class CoreToIecJob implements Runnable {
     public void run() {
         for (int ioa : mappingIndex.coreToProtocolIoas()) {
             try {
-                    mappingIndex.getTimeSeriesId(ioa).ifPresentOrElse(
-                            timeSeriesId -> coreClient.getLatestMeasurementOfTimeSeries(timeSeriesId)
-                                    .ifPresentOrElse(
-                                            latest -> iecClient.sendMeasurement(ioa, toIecMeasurement(ioa, latest)),
-                                            () -> log.info("No measurement found for TimeSeries of IOA: {}.", ioa)),
-                            () -> log.info("No TimeSeries ID configured for IOA: {}.", ioa));
+                sendLatestMeasurement(ioa);
             } catch (Exception e) {
                 log.warn("Error sending measurement for IOA {}", ioa, e);
             }
         }
     }
 
-    private Measurement toIecMeasurement(int ioa, Measurement measurement) {
-        return mappingIndex.getGaugeZeroElevationMAboveAdria(ioa)
-                .map(gaugeZero -> new Measurement(
-                        measurement.getTimeSeriesId(),
-                        measurement.getObservedAt(),
-                        BigDecimal.valueOf(measurement.getValue()).movePointLeft(2).add(gaugeZero).doubleValue()))
-                .orElse(measurement);
+    private void sendLatestMeasurement(int ioa) {
+        Optional<UUID> timeSeriesId = mappingIndex.getTimeSeriesId(ioa);
+        if (timeSeriesId.isEmpty()) {
+            log.info("No TimeSeries ID configured for IOA: {}.", ioa);
+            return;
+        }
+
+        Optional<Measurement> latest = latestMeasurement(ioa, timeSeriesId.get());
+        if (latest.isEmpty()) {
+            log.info("No measurement found for TimeSeries of IOA: {}.", ioa);
+            return;
+        }
+
+        iecClient.sendMeasurement(ioa, latest.get());
+    }
+
+    private Optional<Measurement> latestMeasurement(int ioa, UUID timeSeriesId) {
+        var representation = mappingIndex.getOutputRepresentation(ioa);
+        if (representation == MeasurementRepresentation.CANONICAL) {
+            return coreClient.getLatestMeasurementOfTimeSeries(timeSeriesId);
+        }
+        return coreClient.getLatestMeasurementOfTimeSeries(timeSeriesId, representation);
     }
 }

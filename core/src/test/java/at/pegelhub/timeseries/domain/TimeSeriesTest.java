@@ -19,8 +19,16 @@ final class TimeSeriesTest {
             UUID.fromString("0cdb4ae9-20c4-4d47-bff2-cd7f03885201"));
 
     @Test
+    void dischargeAcceptsLitresAsSourceButRetainsCanonicalUnit() {
+        var source = new SourceAssignment(CONNECTOR_ID, MeasurementRepresentation.LITRES_PER_SECOND);
+        var series = TimeSeries.create(POINT_ID, new ObservedPropertyCode("discharge"), MetadataStatus.ACTIVE, source);
+        assertThat(series.unit()).isEqualTo("m3/s");
+        assertThat(series.sourceRepresentation()).isEqualTo(MeasurementRepresentation.LITRES_PER_SECOND);
+    }
+
+    @Test
     void createsCanonicalSeriesWithDerivedUnit() {
-        SourceAssignment source = new SourceAssignment(CONNECTOR_ID, SourceRepresentation.CANONICAL);
+        SourceAssignment source = new SourceAssignment(CONNECTOR_ID, MeasurementRepresentation.CANONICAL);
         TimeSeries series = TimeSeries.create(
                 POINT_ID, new ObservedPropertyCode("water-level"), MetadataStatus.ACTIVE, source);
 
@@ -28,7 +36,7 @@ final class TimeSeriesTest {
         assertThat(series.measuringPointId()).isEqualTo(POINT_ID);
         assertThat(series.unit()).isEqualTo("cm");
         assertThat(series.sourceConnectorId()).isEqualTo(CONNECTOR_ID);
-        assertThat(series.sourceRepresentation()).isEqualTo(SourceRepresentation.CANONICAL);
+        assertThat(series.sourceRepresentation()).isEqualTo(MeasurementRepresentation.CANONICAL);
     }
 
     @Test
@@ -46,7 +54,7 @@ final class TimeSeriesTest {
 
     @Test
     void sourceAssignmentRequiresBothValues() {
-        assertThrows(NullPointerException.class, () -> new SourceAssignment(null, SourceRepresentation.CANONICAL));
+        assertThrows(NullPointerException.class, () -> new SourceAssignment(null, MeasurementRepresentation.CANONICAL));
         assertThrows(NullPointerException.class, () -> new SourceAssignment(CONNECTOR_ID, null));
     }
 
@@ -57,6 +65,6 @@ final class TimeSeriesTest {
                 POINT_ID,
                 new ObservedPropertyCode("water-temperature"),
                 MetadataStatus.ACTIVE,
-                new SourceAssignment(CONNECTOR_ID, SourceRepresentation.METRES_ABOVE_ADRIA)));
+                new SourceAssignment(CONNECTOR_ID, MeasurementRepresentation.METRES_ABOVE_ADRIA)));
     }
 }

@@ -1,12 +1,11 @@
 package at.pegelhub.measurement.persistence;
 
-import at.pegelhub.measurement.application.MeasurementBucketList;
 import at.pegelhub.measurement.application.MeasurementBucketQuery;
-import at.pegelhub.measurement.application.MeasurementList;
 import at.pegelhub.measurement.application.MeasurementListQuery;
 import at.pegelhub.measurement.application.LatestMeasurement;
 import at.pegelhub.measurement.application.MeasurementLatestQuery;
 import at.pegelhub.measurement.domain.Measurement;
+import at.pegelhub.measurement.domain.MeasurementBucket;
 
 import java.time.Instant;
 import java.util.List;
@@ -23,9 +22,10 @@ public interface MeasurementRepository {
      */
     void storeMeasurements(List<Measurement> measurements);
 
-    MeasurementList listMeasurements(MeasurementListQuery query);
+    MeasurementPage listMeasurements(MeasurementListQuery query);
 
-    MeasurementBucketList listMeasurementBuckets(MeasurementBucketQuery query);
+    /** Returns averages in canonical units, independent of the requested output representation. */
+    List<MeasurementBucket> listMeasurementBuckets(MeasurementBucketQuery query);
 
     List<LatestMeasurement> listLatestMeasurements(MeasurementLatestQuery query);
 

@@ -1,6 +1,7 @@
 package at.pegelhub.lib.internal.dto;
 
 import at.pegelhub.lib.model.Measurement;
+import at.pegelhub.lib.model.MeasurementRepresentation;
 
 import java.util.List;
 import java.util.UUID;
@@ -8,7 +9,13 @@ import java.util.UUID;
 public record MeasurementListReceiveDto(
         UUID timeSeriesId,
         boolean truncated,
-        List<MeasurementReceiveDto> measurements) {
+        List<MeasurementReceiveDto> measurements,
+        String representation,
+        String unit) {
+
+    public void requireRepresentation(MeasurementRepresentation requested) {
+        requested.requireResponse(representation, unit);
+    }
 
     public List<Measurement> toMeasurements(UUID expectedTimeSeriesId) {
         if (!expectedTimeSeriesId.equals(timeSeriesId)) {
@@ -18,7 +25,7 @@ public record MeasurementListReceiveDto(
         return measurements == null
                 ? List.of()
                 : measurements.stream()
-                .map(measurement -> measurement.toMeasurement(timeSeriesId))
-                .toList();
+                        .map(measurement -> measurement.toMeasurement(timeSeriesId))
+                        .toList();
     }
 }

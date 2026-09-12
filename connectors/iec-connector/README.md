@@ -51,6 +51,18 @@ for Core measurements written to IEC. Mapping files are loaded in sorted
 filename order. Each IOA may appear only once across all mappings; duplicate
 IOAs fail startup.
 
+Outbound mappings may set `outputRepresentation: metres-above-adria` for water
+level or `outputRepresentation: litres-per-second` for discharge. The default is
+`canonical`. Core performs the conversion and must confirm the representation
+and unit in its response; IEC forwards the result without further conversion.
+Inbound units are declared on the Core source assignment, not on this mapping.
+
+The former `gaugeZeroElevationMAboveAdria` mapping field is no longer accepted.
+Set the gauge zero on the Core measuring point and replace that mapping field
+with `outputRepresentation: metres-above-adria` before upgrading the connector.
+Deploy the compatible Core first. See the
+[representation upgrade guide](../../docs/guides/measurement-representations.md).
+
 Core authentication must produce a token for the `pegelhub-core-api` audience
 with the direction-appropriate lowercase role, such as `measurement:write` for
 inbound values or `measurement:read` for outbound values.

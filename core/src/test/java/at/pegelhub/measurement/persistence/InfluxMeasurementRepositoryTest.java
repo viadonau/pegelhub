@@ -175,7 +175,7 @@ final class InfluxMeasurementRepositoryTest extends InfluxIntegrationTestBase {
                         null),
                 MeasurementBucketResolution.explicit(new MeasurementBucketWidth(Duration.ofHours(1)))));
 
-        assertThat(result.buckets())
+        assertThat(result)
                 .singleElement()
                 .satisfies(bucket -> {
                     assertThat(bucket.timeSeriesId()).isEqualTo(timeSeriesId);
@@ -216,7 +216,7 @@ final class InfluxMeasurementRepositoryTest extends InfluxIntegrationTestBase {
         var buckets = repository.listMeasurementBuckets(new MeasurementBucketQuery(
                 timeSeriesId,
                 new MeasurementWindow(baseTimestamp.minus(1, ChronoUnit.MINUTES), baseTimestamp.plus(40, ChronoUnit.MINUTES), null),
-                MeasurementBucketResolution.explicit(new MeasurementBucketWidth(Duration.ofMinutes(15))))).buckets();
+                MeasurementBucketResolution.explicit(new MeasurementBucketWidth(Duration.ofMinutes(15)))));
 
         assertThat(buckets)
                 .hasSize(2)

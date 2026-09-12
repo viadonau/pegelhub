@@ -42,6 +42,49 @@ class IecConnectorModuleTest {
     }
 
     @Test
+    void loadsExplicitOutputRepresentationWithoutGaugeZeroCopy() throws Exception {
+        writeConnectorYaml("15s", "mappings");
+        Files.createDirectories(tmp.resolve("mappings"));
+        Files.writeString(tmp.resolve("mappings/out.yaml"), """
+                iecIoa: 123
+                timeSeriesId: "11111111-1111-1111-1111-111111111111"
+                direction: core-to-external
+                outputRepresentation: metres-above-adria
+                """);
+        assertEquals(at.pegelhub.lib.model.MeasurementRepresentation.METRES_ABOVE_ADRIA,
+                loadConfig().mappings().getFirst().outputRepresentation());
+    }
+
+    @Test
+    void rejectsLegacyGaugeZeroInsteadOfSilentlyChangingWireValues() throws Exception {
+        writeConnectorYaml("15s", "mappings");
+        Files.createDirectories(tmp.resolve("mappings"));
+        Files.writeString(tmp.resolve("mappings/out.yaml"), """
+                iecIoa: 123
+                timeSeriesId: "11111111-1111-1111-1111-111111111111"
+                direction: core-to-external
+                gaugeZeroElevationMAboveAdria: 152.68
+                """);
+        var error = assertThrows(IllegalArgumentException.class, this::loadConfig);
+        assertTrue(error.getMessage().contains("gaugeZeroElevationMAboveAdria"));
+    }
+
+    @Test
+    void rejectsUnknownOrInboundOutputRepresentations() throws Exception {
+        writeConnectorYaml("15s", "mappings");
+        Files.createDirectories(tmp.resolve("mappings"));
+        for (String representation : new String[]{"unknown", "litres-per-second", "metres-above-adria"}) {
+            Files.writeString(tmp.resolve("mappings/in.yaml"), """
+                    iecIoa: 123
+                    timeSeriesId: "11111111-1111-1111-1111-111111111111"
+                    direction: external-to-core
+                    outputRepresentation: %s
+                    """.formatted(representation));
+            assertThrows(IllegalArgumentException.class, this::loadConfig);
+        }
+    }
+
+    @Test
     void shouldLoadCheckedInExampleConfiguration() throws Exception {
         IecConnectorConfig config = new IecConnectorConfigLoader().load(
                 ConnectorConfigDirectory.at(Path.of("examples/config")));
