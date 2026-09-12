@@ -1,0 +1,337 @@
+<ph-page>
+  <ph-page-header title="Benachrichtigungen" />
+  <div class="operations-toolbar">
+    <h2>Ziele</h2>
+    <div class="operations-actions">
+      <p-button
+        icon="pi pi-refresh"
+        [text]="true"
+        ariaLabel="Benachrichtigungen aktualisieren"
+        pTooltip="Aktualisieren"
+        [disabled]="busy()"
+        (onClick)="reload()"
+      />
+      <input
+        #importInput
+        hidden
+        type="file"
+        accept=".yaml,.yml"
+        (change)="importFile(importInput)"
+      />
+      <p-button
+        icon="pi pi-upload"
+        [text]="true"
+        ariaLabel="Ziel importieren"
+        pTooltip="Ziel importieren"
+        [disabled]="!ready() || busy()"
+        (onClick)="importInput.click()"
+      />
+      <p-button
+        icon="pi pi-plus"
+        label="Neues Ziel"
+        [disabled]="!ready() || busy()"
+        (onClick)="edit()"
+      />
+    </div>
+  </div>
+  @if (ready() && !executionEnabled()) {
+    <p class="operations-note" role="status">Nachrichtenversand ist im Server deaktiviert.</p>
+  }
+  @if (message()) {
+    <p class="operations-message" role="status">{{ message() }}</p>
+  }
+  @if (error()) {
+    <p class="operations-error" role="alert">{{ error() }}</p>
+  }
+  @if (editorOpen()) {
+    <form
+      class="operations-editor"
+      [formGroup]="form"
+      (ngSubmit)="save()"
+      aria-label="Benachrichtigungsziel bearbeiten"
+    >
+      <h2>{{ editing() ? 'Ziel bearbeiten' : 'Neues Ziel' }}</h2>
+      <div class="operations-fields">
+        <div class="operations-field">
+          <label for="destination-name">Name</label
+          ><input
+            pInputText
+            id="destination-name"
+            formControlName="name"
+            maxlength="200"
+            required
+          />
+        </div>
+        <div class="operations-check">
+          <p-checkbox
+            inputId="destination-enabled"
+            formControlName="enabled"
+            [binary]="true"
+          /><label for="destination-enabled">Aktiv</label>
+        </div>
+        <div class="operations-field">
+          <label for="destination-transport">Transport</label
+          ><p-selectbutton
+            id="destination-transport"
+            formControlName="transport"
+            [options]="transports"
+            [allowEmpty]="false"
+            ariaLabel="Transport"
+          />
+        </div>
+        @if (form.controls.transport.value === 'SNMP') {
+          <div class="operations-field">
+            <label for="destination-version">SNMP-Version</label
+            ><p-select
+              inputId="destination-version"
+              formControlName="version"
+              [options]="versions"
+              appendTo="body"
+            />
+          </div>
+        }
+        <div class="operations-field operations-wide">
+          <label for="destination-credential">Konfigurierter Zugang</label
+          ><p-select
+            inputId="destination-credential"
+            formControlName="credentialRef"
+            [options]="credentialOptions()"
+            optionLabel="label"
+            optionValue="name"
+            appendTo="body"
+            placeholder="Zugang auswählen"
+          />
+        </div>
+        @if (credentialOptions().length === 0) {
+          <p class="operations-note operations-wide">
+            Kein passender Zugang im Server konfiguriert.
+          </p>
+        }
+        @if (form.controls.transport.value === 'SMTP') {
+          <div class="operations-field">
+            <label for="destination-from">Absender</label
+            ><input pInputText id="destination-from" formControlName="from" type="email" />
+          </div>
+          <div class="operations-field">
+            <label for="destination-recipients">Empfänger</label
+            ><textarea
+              pInputText
+              id="destination-recipients"
+              formControlName="recipients"
+              rows="4"
+            ></textarea>
+          </div>
+          <div class="operations-field operations-wide">
+            <label for="destination-signature">Signatur (optional)</label
+            ><textarea
+              pInputText
+              id="destination-signature"
+              formControlName="signature"
+              rows="3"
+              maxlength="1024"
+            ></textarea>
+          </div>
+        } @else {
+          <div class="operations-field">
+            <label for="destination-host">SNMP-Host</label
+            ><input pInputText id="destination-host" formControlName="host" />
+          </div>
+          <div class="operations-field">
+            <label for="destination-port">UDP-Port</label
+            ><input
+              pInputText
+              id="destination-port"
+              formControlName="port"
+              type="number"
+              min="1"
+              max="65535"
+              step="1"
+            />
+          </div>
+          <div class="operations-field">
+            <label for="destination-trap">Trap-OID</label
+            ><input pInputText id="destination-trap" formControlName="trapOid" />
+          </div>
+          <div class="operations-field">
+            <label for="destination-message">Nachrichten-OID</label
+            ><input pInputText id="destination-message" formControlName="messageOid" />
+          </div>
+          <div class="operations-field operations-wide">
+            <label for="destination-enterprise">Enterprise-OID (optional)</label
+            ><input pInputText id="destination-enterprise" formControlName="enterpriseOid" />
+          </div>
+        }
+      </div>
+      <div class="operations-actions">
+        <p-button
+          type="submit"
+          icon="pi pi-save"
+          label="Speichern"
+          ariaLabel="Speichern"
+          [loading]="busy()"
+          [disabled]="!ready()"
+        /><p-button
+          type="button"
+          label="Abbrechen"
+          severity="secondary"
+          [text]="true"
+          [disabled]="busy()"
+          (onClick)="editorOpen.set(false)"
+        />
+      </div>
+    </form>
+  }
+  <ph-page-section ariaLabel="Benachrichtigungsziele" [loading]="loading()" [error]="loadError()">
+    @if (rows().length === 0) {
+      <p class="operations-empty">Noch keine Benachrichtigungsziele vorhanden.</p>
+    } @else {
+      <div class="operations-table-scroll">
+        <table class="operations-table">
+          <thead>
+            <tr>
+              <th>Ziel</th>
+              <th>Transport</th>
+              <th>Status</th>
+              <th>Zugang</th>
+              <th>Aktionen</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (destination of rows(); track destination.id) {
+              <tr>
+                <td>{{ destination.configuration.name }}</td>
+                <td>{{ destination.configuration.transport }}</td>
+                <td>
+                  <p-tag
+                    [value]="destination.configuration.enabled ? 'Aktiv' : 'Inaktiv'"
+                    [severity]="destination.configuration.enabled ? 'success' : 'secondary'"
+                  />
+                </td>
+                <td>{{ destination.configuration.credentialRef }}</td>
+                <td class="actions">
+                  <p-button
+                    icon="pi pi-pencil"
+                    [text]="true"
+                    ariaLabel="Ziel bearbeiten"
+                    pTooltip="Ziel bearbeiten"
+                    [disabled]="busy()"
+                    (onClick)="edit(destination)"
+                  />
+                  <p-button
+                    icon="pi pi-send"
+                    [text]="true"
+                    ariaLabel="Testnachricht senden"
+                    pTooltip="Testnachricht senden"
+                    [disabled]="busy() || !executionEnabled() || !destination.configuration.enabled"
+                    (onClick)="test(destination.id)"
+                  />
+                  <p-button
+                    icon="pi pi-download"
+                    [text]="true"
+                    ariaLabel="Ziel exportieren"
+                    pTooltip="Ziel exportieren"
+                    (onClick)="export(destination.id)"
+                  />
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  </ph-page-section>
+  <div class="operations-toolbar"><h2>Versandverlauf</h2></div>
+  <ph-page-section
+    ariaLabel="Versandverlauf"
+    [loading]="deliveries.isLoading()"
+    [error]="deliveries.error() ? 'Versandverlauf konnte nicht geladen werden.' : null"
+  >
+    @if (deliveryRows().length === 0) {
+      <p class="operations-empty">Noch keine Nachrichten eingereiht.</p>
+    } @else {
+      <div class="operations-table-scroll">
+        <table class="operations-table">
+          <thead>
+            <tr>
+              <th>Zeitpunkt</th>
+              <th>Ziel</th>
+              <th>Betreff</th>
+              <th>Status</th>
+              <th>Versuche</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (delivery of deliveryRows(); track delivery.id) {
+              <tr>
+                <td>{{ delivery.createdAt | date: 'dd.MM.yyyy HH:mm:ss' }}</td>
+                <td>{{ delivery.route.name }}</td>
+                <td>{{ delivery.subject }}</td>
+                <td>
+                  <p-tag [value]="label(delivery.state)" [severity]="severity(delivery.state)" />
+                </td>
+                <td>{{ delivery.attempts }} / 5</td>
+                <td>
+                  <p-button
+                    icon="pi pi-chevron-right"
+                    [text]="true"
+                    ariaLabel="Nachricht öffnen"
+                    pTooltip="Nachricht öffnen"
+                    (onClick)="selected.set(delivery)"
+                  />
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+    <div class="operations-pages">
+      <span>{{ deliveryTotal() }} Nachrichten</span
+      ><p-button
+        icon="pi pi-chevron-left"
+        [text]="true"
+        ariaLabel="Vorherige Nachrichten"
+        [disabled]="offset() === 0 || deliveries.isLoading()"
+        (onClick)="offset.set(offset() - 25); selected.set(null)"
+      /><p-button
+        icon="pi pi-chevron-right"
+        [text]="true"
+        ariaLabel="Weitere Nachrichten"
+        [disabled]="offset() + 25 >= deliveryTotal() || deliveries.isLoading()"
+        (onClick)="offset.set(offset() + 25); selected.set(null)"
+      />
+    </div>
+  </ph-page-section>
+  @if (selected(); as delivery) {
+    <section class="operations-detail" aria-label="Nachrichtendetails">
+      <div class="operations-toolbar">
+        <h2>{{ delivery.subject }}</h2>
+        <p-button
+          icon="pi pi-times"
+          [text]="true"
+          ariaLabel="Nachricht schließen"
+          (onClick)="selected.set(null)"
+        />
+      </div>
+      <dl>
+        <dt>Nachricht</dt>
+        <dd>{{ delivery.id }}</dd>
+        <dt>Status</dt>
+        <dd>{{ label(delivery.state) }}</dd>
+        <dt>Ziel</dt>
+        <dd>{{ delivery.route.name }}</dd>
+        <dt>Versuche</dt>
+        <dd>{{ delivery.attempts }} / 5</dd>
+        @if (delivery.state === 'PENDING') {
+          <dt>Nächster Versuch</dt>
+          <dd>{{ delivery.nextAttemptAt | date: 'dd.MM.yyyy HH:mm:ss' }}</dd>
+        }
+      </dl>
+      @if (delivery.lastError) {
+        <p class="operations-error">{{ delivery.lastError }}</p>
+      }
+      <p class="operations-message">{{ delivery.body }}</p>
+    </section>
+  }
+</ph-page>

@@ -3,6 +3,7 @@ package at.pegelhub.measurement;
 import at.pegelhub.connector.domain.ConnectorId;
 import at.pegelhub.measurement.application.LatestMeasurement;
 import at.pegelhub.measurement.application.MeasurementReadRow;
+import at.pegelhub.measurement.domain.InternalProducerId;
 import at.pegelhub.measurement.domain.Measurement;
 import at.pegelhub.measurement.domain.MeasurementBucket;
 import at.pegelhub.measurement.domain.MeasurementValues;
@@ -21,6 +22,7 @@ class MeasurementValuesTest {
 
     private static final TimeSeriesId SERIES_ID = new TimeSeriesId(UUID.randomUUID());
     private static final ConnectorId CONNECTOR_ID = new ConnectorId(UUID.randomUUID());
+    private static final InternalProducerId PRODUCER_ID = new InternalProducerId(UUID.randomUUID());
     private static final Instant OBSERVED_AT = Instant.parse("2026-09-13T10:00:00Z");
     private static final Instant RECEIVED_AT = OBSERVED_AT.plusSeconds(1);
 
@@ -37,6 +39,10 @@ class MeasurementValuesTest {
         assertThrows(IllegalArgumentException.class, () ->
                 new MeasurementReadRow(OBSERVED_AT, value, CONNECTOR_ID));
         assertThrows(IllegalArgumentException.class, () ->
+                new Measurement(SERIES_ID, OBSERVED_AT, RECEIVED_AT, value, null, PRODUCER_ID));
+        assertThrows(IllegalArgumentException.class, () ->
+                new MeasurementReadRow(OBSERVED_AT, value, null, PRODUCER_ID));
+        assertThrows(IllegalArgumentException.class, () ->
                 new LatestMeasurement(SERIES_ID, OBSERVED_AT, value));
     }
 
@@ -49,6 +55,8 @@ class MeasurementValuesTest {
                 new WriteMeasurement(SERIES_ID, OBSERVED_AT, value).value(),
                 new MeasurementBucket(SERIES_ID, OBSERVED_AT, RECEIVED_AT, value, 1).value(),
                 new MeasurementReadRow(OBSERVED_AT, value, CONNECTOR_ID).value(),
+                new Measurement(SERIES_ID, OBSERVED_AT, RECEIVED_AT, value, null, PRODUCER_ID).value(),
+                new MeasurementReadRow(OBSERVED_AT, value, null, PRODUCER_ID).value(),
                 new LatestMeasurement(SERIES_ID, OBSERVED_AT, value).value()
         };
 

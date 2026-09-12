@@ -23,10 +23,19 @@ final class TimeSeriesMapper {
 
     static TimeSeriesResponse toResponse(TimeSeries series) {
         var assignment = series.sourceAssignment();
+
         return new TimeSeriesResponse(
-                series.id().value(), series.measuringPointId().value(), series.observedProperty().value(),
-                series.unit(), series.status(), assignment == null ? null
-                        : new TimeSeriesResponse.SourceAssignmentResponse(assignment.connectorId().value(), assignment.representation()));
+                series.id().value(),
+                series.measuringPointId().value(),
+                series.observedProperty().value(),
+                series.unit(),
+                series.status(),
+                assignment == null ? null
+                        : new TimeSeriesResponse.SourceAssignmentResponse(
+                                assignment.connectorId() == null ? null : assignment.connectorId().value(),
+                                assignment.representation(),
+                                assignment.internalProducerId() == null ? null
+                                        : assignment.internalProducerId().value()));
     }
 
     private static SourceAssignment assignment(SourceAssignmentRequest request) {

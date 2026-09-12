@@ -7,6 +7,7 @@ import at.pegelhub.measurement.application.MeasurementLatestQuery;
 import at.pegelhub.measurement.domain.Measurement;
 import at.pegelhub.measurement.domain.MeasurementBucket;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 
@@ -21,7 +22,13 @@ public interface MeasurementRepository {
      */
     void storeMeasurements(List<Measurement> measurements);
 
+    /** Limits this Influx call without changing ingestion's shared client; timeout does not prove rejection. */
+    void storeMeasurements(List<Measurement> measurements, Duration timeout);
+
     MeasurementPage listMeasurements(MeasurementListQuery query);
+
+    /** Limits this call, not an entire multi-query window. Callers must still inspect the result's truncation flag. */
+    MeasurementPage listMeasurements(MeasurementListQuery query, Duration timeout);
 
     /** Returns averages in storage units, even if the query asks for a different representation. */
     List<MeasurementBucket> listMeasurementBuckets(MeasurementBucketQuery query);

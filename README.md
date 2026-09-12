@@ -117,8 +117,10 @@ that metadata, while InfluxDB stores measurements and technical telemetry in
 separate buckets. The frontend consumes Core only through the HTTP API and does
 not own or persist domain data.
 
-The root Maven reactor intentionally builds Core and the connectors only. The
-frontend keeps its native npm toolchain and container image under `frontend/`.
+The root Maven reactor builds Core and the connectors. Quality checks and
+SMTP/SNMP notifications are optional, internally modular Core capabilities.
+The Angular application under `frontend/` includes their operator interfaces
+and keeps its native npm toolchain and independent deployment.
 CI verifies both sides together, while delivery workflows publish and deploy
 them independently.
 
@@ -235,6 +237,7 @@ The principal roles are:
 - `measurement:read` and `measurement:write`
 - `telemetry:read` and `telemetry:write`
 - `system:admin`
+- `messaging:send` (authorized service submissions to Core notifications)
 
 Measurement writes have an additional application policy: the caller must be
 an active registered connector, every target time series must identify that
@@ -246,10 +249,12 @@ contains the endpoint matrix and actor model.
 
 ## Delivery model
 
-Core and connector images are published through the
+Core, connector and function-module images are published through the
 [Images workflow](.github/workflows/images.yml). The frontend image uses the
 [Frontend Delivery workflow](.github/workflows/frontend-delivery.yml). Each path
 activates the relevant component through the shared staging deployment action.
+Function-module images are publish-only; their activation is explicit and is
+not added to the existing staging topology automatically.
 
 The supported remote platform topology is a single Docker Compose host behind
 Caddy. Connector instances run as separate Compose projects and may live on
@@ -265,6 +270,7 @@ and no automatic rollback. Operational procedures live in the
 
 - [Core development and API guide](core/README.md)
 - [Frontend development and monitoring guide](frontend/README.md)
+- [Quality and notifications runbook](core/docs/quality-notifications.md)
 - [Domain model and HTTP surface](docs/architecture/pegelhub-domain-model.md)
 - [Architecture decision records](docs/adr/)
 - [Local Keycloak realm and OAuth clients](core/docs/keycloak-local-dev.md)

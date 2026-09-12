@@ -63,6 +63,10 @@
         {
           "name": "system:admin",
           "description": "Operate privileged system administration endpoints."
+        },
+        {
+          "name": "messaging:send",
+          "description": "Submit SMTP notifications and SNMP traps."
         }
       ]
     }
@@ -223,7 +227,8 @@
         "client": "pegelhub-frontend",
         "roles": [
           "metadata:read",
-          "measurement:read"
+          "measurement:read",
+          "system:admin"
         ]
       }
     ]

@@ -155,6 +155,9 @@ inspect_state() {
   configure_kcadm
   core_id=$(single_id clients clientId=pegelhub-core-api)
   frontend_id=$(single_id clients clientId=pegelhub-frontend)
+  kcadm get "clients/$frontend_id/scope-mappings/clients/$core_id" -r pegelhub \
+    | jq -e 'any(.[]; .name == "system:admin")' >/dev/null \
+    || fail "Frontend scope cannot carry an already assigned administrator role."
   monitoring_group_id=$(single_id groups search=monitoring-users)
 
   kcadm get realms/pegelhub \
@@ -271,6 +274,7 @@ assert_seed_state() {
     map({name, composite}) | sort_by(.name) == [
       {"name":"measurement:read","composite":false},
       {"name":"measurement:write","composite":false},
+      {"name":"messaging:send","composite":false},
       {"name":"metadata:read","composite":false},
       {"name":"metadata:write","composite":false},
       {"name":"system:admin","composite":false},

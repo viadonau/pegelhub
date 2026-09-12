@@ -1,6 +1,6 @@
 # Java container trust
 
-Core and connector images share `java-entrypoint.sh`. By default,
+Core, connector and function-module images share `java-entrypoint.sh`. By default,
 `PEGELHUB_TRUST_MODE=system` starts Java with the image's standard CA roots.
 
 To add private roots without replacing public trust, mount individual PEM or

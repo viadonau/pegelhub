@@ -1,0 +1,327 @@
+<ph-page>
+  <ph-page-header title="Qualität" />
+  <nav class="operations-tabs" aria-label="Qualität">
+    <a routerLink="/quality">Prüfläufe</a
+    ><a class="active" routerLink="/quality/profiles" aria-current="page">Profile</a>
+  </nav>
+  <div class="operations-toolbar">
+    <h2>QA-Profile</h2>
+    <div class="operations-actions">
+      <p-button
+        icon="pi pi-refresh"
+        [text]="true"
+        ariaLabel="Aktualisieren"
+        pTooltip="Aktualisieren"
+        [disabled]="busy()"
+        (onClick)="reload()"
+      />
+      <input
+        #importInput
+        hidden
+        type="file"
+        accept=".yaml,.yml"
+        (change)="importFile(importInput)"
+      />
+      <p-button
+        icon="pi pi-upload"
+        [text]="true"
+        ariaLabel="Profil importieren"
+        pTooltip="Profil importieren"
+        [disabled]="!ready() || busy()"
+        (onClick)="importInput.click()"
+      />
+      <p-button
+        icon="pi pi-plus"
+        label="Neues Profil"
+        [disabled]="!ready() || busy()"
+        (onClick)="edit()"
+      />
+    </div>
+  </div>
+  @if (ready() && !executionEnabled()) {
+    <p class="operations-note" role="status">QA-Ausführung ist im Server deaktiviert.</p>
+  }
+  @if (message()) {
+    <p role="status">{{ message() }}</p>
+  }
+  @if (error()) {
+    <p class="operations-error" role="alert">{{ error() }}</p>
+  }
+  @if (editorOpen()) {
+    <form
+      class="operations-editor"
+      [formGroup]="form"
+      (ngSubmit)="save()"
+      aria-label="QA-Profil bearbeiten"
+    >
+      <h2>{{ editing() ? 'Profil bearbeiten' : 'Neues Profil' }}</h2>
+      <div class="operations-fields">
+        <div class="operations-field">
+          <label for="qa-name">Name</label
+          ><input pInputText id="qa-name" formControlName="name" maxlength="200" required />
+        </div>
+        <div class="operations-check">
+          <p-checkbox inputId="qa-enabled" formControlName="enabled" [binary]="true" /><label
+            for="qa-enabled"
+            >Aktiv</label
+          >
+        </div>
+        <div class="operations-field operations-wide">
+          <label for="qa-sources">Quellzeitreihen</label
+          ><p-multiselect
+            inputId="qa-sources"
+            formControlName="sources"
+            [options]="sourceOptions()"
+            optionLabel="label"
+            optionValue="id"
+            [filter]="true"
+            appendTo="body"
+            placeholder="Quellen auswählen"
+          />
+        </div>
+        <div class="operations-field">
+          <label for="qa-window">Zeitfenster (Sekunden)</label
+          ><input
+            pInputText
+            id="qa-window"
+            type="number"
+            min="1"
+            max="604800"
+            step="1"
+            formControlName="lookbackSeconds"
+          />
+        </div>
+        <div class="operations-field">
+          <label for="qa-interval">Prüfintervall (Sekunden)</label
+          ><input
+            pInputText
+            id="qa-interval"
+            type="number"
+            min="1"
+            max="86400"
+            step="1"
+            formControlName="intervalSeconds"
+          />
+        </div>
+        <div class="operations-field operations-wide">
+          <label for="qa-output">Abgeleitete Zielzeitreihe (optional)</label
+          ><p-select
+            inputId="qa-output"
+            formControlName="output"
+            [options]="outputOptions()"
+            optionLabel="label"
+            optionValue="id"
+            [filter]="true"
+            [showClear]="true"
+            appendTo="body"
+            placeholder="Keine Ausgabe"
+          />
+        </div>
+        <div class="operations-field operations-wide">
+          <label for="qa-destinations">Benachrichtigungsziele</label
+          ><p-multiselect
+            inputId="qa-destinations"
+            formControlName="destinations"
+            [options]="destinationOptions()"
+            optionLabel="label"
+            optionValue="id"
+            appendTo="body"
+            placeholder="Keine Benachrichtigungen"
+          />
+        </div>
+      </div>
+      <fieldset class="operations-rule">
+        <legend>Wertebereich</legend>
+        <div class="operations-check">
+          <p-checkbox
+            inputId="range-enabled"
+            formControlName="rangeEnabled"
+            [binary]="true"
+          /><label for="range-enabled">Prüfen</label>
+        </div>
+        @if (form.controls.rangeEnabled.value) {
+          <div class="operations-fields">
+            <div class="operations-field">
+              <label for="qa-min">Minimum</label
+              ><input pInputText id="qa-min" type="number" step="any" formControlName="min" />
+            </div>
+            <div class="operations-field">
+              <label for="qa-max">Maximum</label
+              ><input pInputText id="qa-max" type="number" step="any" formControlName="max" />
+            </div>
+          </div>
+        }
+      </fieldset>
+      <fieldset class="operations-rule">
+        <legend>Sprung</legend>
+        <div class="operations-check">
+          <p-checkbox inputId="jump-enabled" formControlName="jumpEnabled" [binary]="true" /><label
+            for="jump-enabled"
+            >Prüfen</label
+          >
+        </div>
+        @if (form.controls.jumpEnabled.value) {
+          <div class="operations-fields">
+            <div class="operations-field">
+              <label for="qa-jump">Maximale Änderung</label
+              ><input
+                pInputText
+                id="qa-jump"
+                type="number"
+                min="0"
+                step="any"
+                formControlName="jump"
+              />
+            </div>
+          </div>
+        }
+      </fieldset>
+      <fieldset class="operations-rule">
+        <legend>Stillstand</legend>
+        <div class="operations-check">
+          <p-checkbox
+            inputId="frozen-enabled"
+            formControlName="frozenEnabled"
+            [binary]="true"
+          /><label for="frozen-enabled">Prüfen</label>
+        </div>
+        @if (form.controls.frozenEnabled.value) {
+          <div class="operations-fields">
+            <div class="operations-field">
+              <label for="qa-frozen">Unveränderte Dauer (Sekunden)</label
+              ><input
+                pInputText
+                id="qa-frozen"
+                type="number"
+                min="1"
+                step="1"
+                formControlName="frozen"
+              />
+            </div>
+          </div>
+        }
+      </fieldset>
+      <fieldset class="operations-rule">
+        <legend>Abweichung zwischen Quellen</legend>
+        <div class="operations-check">
+          <p-checkbox
+            inputId="deviation-enabled"
+            formControlName="deviationEnabled"
+            [binary]="true"
+          /><label for="deviation-enabled">Prüfen</label>
+        </div>
+        @if (form.controls.deviationEnabled.value) {
+          <div class="operations-fields">
+            <div class="operations-field">
+              <label for="qa-deviation">Maximale Abweichung</label
+              ><input
+                pInputText
+                id="qa-deviation"
+                type="number"
+                min="0"
+                step="any"
+                formControlName="deviation"
+              />
+            </div>
+          </div>
+        }
+      </fieldset>
+      <div class="operations-actions">
+        <p-button
+          type="submit"
+          icon="pi pi-save"
+          label="Speichern"
+          ariaLabel="Speichern"
+          [loading]="busy()"
+          [disabled]="!ready()"
+        /><p-button
+          type="button"
+          label="Abbrechen"
+          severity="secondary"
+          [text]="true"
+          [disabled]="busy()"
+          (onClick)="editorOpen.set(false)"
+        />
+      </div>
+    </form>
+  }
+  <ph-page-section ariaLabel="QA-Profile" [loading]="loading()" [error]="loadError()">
+    @if (rows().length === 0) {
+      <p class="operations-empty">Noch keine QA-Profile vorhanden.</p>
+    } @else {
+      <div class="operations-table-scroll">
+        <table class="operations-table">
+          <thead>
+            <tr>
+              <th>Profil</th>
+              <th>Status</th>
+              <th>Quellen</th>
+              <th>Nächster Lauf</th>
+              <th>Aktionen</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (profile of rows(); track profile.id) {
+              <tr>
+                <td>{{ profile.configuration.name }}</td>
+                <td>
+                  <p-tag
+                    [value]="
+                      profile.currentRunId
+                        ? 'Läuft'
+                        : profile.runRequested
+                          ? 'Angefordert'
+                          : profile.configuration.enabled
+                            ? 'Aktiv'
+                            : 'Inaktiv'
+                    "
+                    [severity]="profile.configuration.enabled ? 'success' : 'secondary'"
+                  />
+                </td>
+                <td>{{ profile.configuration.sources.length }}</td>
+                <td>
+                  {{
+                    profile.configuration.enabled && executionEnabled()
+                      ? (profile.nextRunAt | date: 'dd.MM.yyyy HH:mm:ss')
+                      : '–'
+                  }}
+                </td>
+                <td class="actions">
+                  <p-button
+                    icon="pi pi-pencil"
+                    [text]="true"
+                    ariaLabel="Profil bearbeiten"
+                    pTooltip="Profil bearbeiten"
+                    [disabled]="busy() || !!profile.currentRunId"
+                    (onClick)="edit(profile)"
+                  />
+                  <p-button
+                    icon="pi pi-play"
+                    [text]="true"
+                    ariaLabel="Jetzt prüfen"
+                    pTooltip="Jetzt prüfen"
+                    [disabled]="
+                      busy() ||
+                      !executionEnabled() ||
+                      !profile.configuration.enabled ||
+                      !!profile.currentRunId ||
+                      profile.runRequested
+                    "
+                    (onClick)="run(profile.id)"
+                  />
+                  <p-button
+                    icon="pi pi-download"
+                    [text]="true"
+                    ariaLabel="Profil exportieren"
+                    pTooltip="Profil exportieren"
+                    (onClick)="export(profile.id)"
+                  />
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  </ph-page-section>
+</ph-page>

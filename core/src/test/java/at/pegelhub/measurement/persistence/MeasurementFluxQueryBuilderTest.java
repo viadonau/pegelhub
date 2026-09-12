@@ -45,7 +45,8 @@ final class MeasurementFluxQueryBuilderTest {
         assertThat(query)
                 .contains("from(bucket: \"data\\\"bucket\")")
                 .contains("|> filter(fn: (r) => r._measurement == \"e27efad9-b947-48b1-928e-c25663597f1c\")")
-                .contains("|> sort(columns: [\"_time\", \"submittedByConnectorId\"], desc: false)")
+                .contains("|> sort(columns: [\"_time\", \"submittedByConnectorId\", \"submittedByInternalProducerId\"], desc: false)")
+                .contains("if exists r.submittedByInternalProducerId")
                 .contains("|> limit(n: 501)")
                 .doesNotContain("receivedAtRows")
                 .doesNotContain("_field == \"receivedAt\"")
@@ -94,9 +95,9 @@ final class MeasurementFluxQueryBuilderTest {
         assertThat(queryBuilder.latestMeasurements(query))
                 .contains("contains(value: r._measurement, set: [\"e27efad9-b947-48b1-928e-c25663597f1c\", \"2e27efad-b947-48b1-928e-c25663597f1c\"])")
                 .contains("|> group(columns: [\"_measurement\"])")
-                .contains("|> sort(columns: [\"_time\", \"submittedByConnectorId\"], desc: true)")
+                .contains("|> sort(columns: [\"_time\", \"submittedByConnectorId\", \"submittedByInternalProducerId\"], desc: true)")
                 .contains("|> limit(n: 1)")
-                .contains("|> keep(columns: [\"_measurement\", \"_time\", \"submittedByConnectorId\", \"value\"])")
+                .contains("|> keep(columns: [\"_measurement\", \"_time\", \"submittedByConnectorId\", \"submittedByInternalProducerId\", \"value\"])")
                 .containsSubsequence("contains(", "|> group(", "|> sort(", "|> limit(");
     }
 }

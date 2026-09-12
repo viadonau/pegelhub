@@ -1,6 +1,7 @@
 package at.pegelhub.measurement.application;
 
 import at.pegelhub.connector.domain.ConnectorId;
+import at.pegelhub.measurement.domain.InternalProducerId;
 import at.pegelhub.measurement.domain.Measurement;
 import at.pegelhub.measurement.domain.MeasurementBucket;
 import at.pegelhub.measurement.domain.WriteMeasurement;
@@ -240,6 +241,29 @@ final class MeasurementServiceImplTest {
         assertThat(result.unit()).isEqualTo("l/s");
         assertThat(result.measurements()).containsExactly(
                 new MeasurementReadRow(OBSERVED_AT, 1250, CONNECTOR_ID));
+        verifyNoInteractions(points);
+    }
+
+    @ParameterizedTest
+    @CsvSource({"CANONICAL, 1.25, m3/s", "LITRES_PER_SECOND, 1250, l/s"})
+    void representedReadsPreserveConnectorAndInternalOrigins(
+            MeasurementRepresentation representation, double expectedValue, String unit) {
+        var producer = new InternalProducerId(UUID.randomUUID());
+        when(timeSeries.get(SERIES_ID)).thenReturn(new TimeSeries(
+                SERIES_ID, POINT_ID, new ObservedPropertyCode("discharge"), ACTIVE,
+                SourceAssignment.internal(producer)));
+        var query = new MeasurementListQuery(SERIES_ID, window(), MeasurementOrder.ASC, 100, representation);
+        when(repository.listMeasurements(query)).thenReturn(new MeasurementPage(true, List.of(
+                new MeasurementReadRow(OBSERVED_AT, 1.25, CONNECTOR_ID),
+                new MeasurementReadRow(OBSERVED_AT.plusSeconds(1), 1.25, null, producer))));
+
+        var result = service.listMeasurements(query);
+
+        assertThat(result.unit()).isEqualTo(unit);
+        assertThat(result.truncated()).isTrue();
+        assertThat(result.measurements()).containsExactly(
+                new MeasurementReadRow(OBSERVED_AT, expectedValue, CONNECTOR_ID),
+                new MeasurementReadRow(OBSERVED_AT.plusSeconds(1), expectedValue, null, producer));
         verifyNoInteractions(points);
     }
 

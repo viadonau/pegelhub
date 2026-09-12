@@ -14,6 +14,8 @@ public interface TimeSeriesRepository {
 
     Optional<TimeSeries> findById(TimeSeriesId id);
 
+    Optional<TimeSeries> refreshForUpdate(TimeSeriesId id);
+
     List<TimeSeries> findAll();
 
     List<TimeSeries> findByMeasuringPointId(MeasuringPointId measuringPointId);

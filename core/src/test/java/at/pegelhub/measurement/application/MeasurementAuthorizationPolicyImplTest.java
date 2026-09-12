@@ -5,6 +5,7 @@ import at.pegelhub.connector.domain.Connector;
 import at.pegelhub.connector.domain.ConnectorId;
 import at.pegelhub.connector.domain.ConnectorType;
 import at.pegelhub.connector.persistence.ConnectorRepository;
+import at.pegelhub.measurement.domain.InternalProducerId;
 import at.pegelhub.measuringpoint.domain.MeasuringPoint;
 import at.pegelhub.measuringpoint.domain.MeasuringPointId;
 import at.pegelhub.security.CurrentActor;
@@ -109,6 +110,18 @@ class MeasurementAuthorizationPolicyImplTest {
                         series.update(ACTIVE, null),
                         point(ACTIVE, null),
                         station(ACTIVE))))
+                .isInstanceOf(AccessDeniedException.class)
+                .hasMessageContaining("not the source connector");
+    }
+
+    @Test
+    void connectorCannotWriteAnInternallyOwnedSeries() {
+        var producer = new InternalProducerId(CONNECTOR_ID.value());
+        var series = series(MeasurementRepresentation.CANONICAL)
+                .update(ACTIVE, SourceAssignment.internal(producer));
+        var target = new MeasurementWriteTarget(series, point(ACTIVE, null), station(ACTIVE));
+
+        assertThatThrownBy(() -> policy.requireWrite(CONNECTOR_ID, target))
                 .isInstanceOf(AccessDeniedException.class)
                 .hasMessageContaining("not the source connector");
     }
