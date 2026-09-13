@@ -65,6 +65,14 @@ class MaInputMappingIndexTest {
     }
 
     @Test
+    void shouldRejectMissingInputNames() {
+        assertThrows(IllegalArgumentException.class, () -> mapping(null, TIME_SERIES_A));
+        assertThrows(IllegalArgumentException.class, () -> mapping("", TIME_SERIES_A));
+        assertThrows(IllegalArgumentException.class, () -> mapping(" ", TIME_SERIES_A));
+        assertEquals(" A ", mapping(" A ", TIME_SERIES_A).revInput());
+    }
+
+    @Test
     void shouldFailOnMissingDirection() {
         assertThrows(NullPointerException.class, () ->
                 new InputMapping("A", TIME_SERIES_A, null));

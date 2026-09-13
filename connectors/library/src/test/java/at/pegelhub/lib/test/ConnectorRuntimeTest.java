@@ -16,6 +16,22 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ConnectorRuntimeTest {
     @Test
+    void rejectsInvalidConfigurationBeforeStartingAnyTasks() {
+        assertThrows(IllegalArgumentException.class, () -> ConnectorRuntimeAssembly.begin(" "));
+
+        try (var assembly = ConnectorRuntimeAssembly.begin("validation")) {
+            assertThrows(IllegalArgumentException.class, () -> assembly.threadCount(0));
+            assertThrows(IllegalArgumentException.class, () -> assembly.shutdownTimeout(Duration.ZERO));
+            assertThrows(IllegalArgumentException.class, () ->
+                    assembly.fixedDelayTask(" ", () -> {}, Duration.ofSeconds(1)));
+            assertThrows(IllegalArgumentException.class, () ->
+                    assembly.fixedDelayTask("poll", () -> {}, Duration.ZERO));
+            assertThrows(IllegalArgumentException.class, () ->
+                    assembly.fixedDelayTask("poll", () -> {}, Duration.ofNanos(-1), Duration.ofSeconds(1)));
+        }
+    }
+
+    @Test
     void startsRealSchedulerAndRunsRegisteredTask() throws Exception {
         CountDownLatch ran = new CountDownLatch(1);
         AtomicInteger runs = new AtomicInteger();

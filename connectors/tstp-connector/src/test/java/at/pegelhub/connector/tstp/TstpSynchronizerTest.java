@@ -7,6 +7,7 @@ import at.pegelhub.connector.tstp.service.model.XmlQueryTsAttribut;
 import at.pegelhub.lib.PegelHubClient;
 import at.pegelhub.lib.config.MappingDirection;
 import at.pegelhub.lib.model.Measurement;
+import at.pegelhub.lib.model.MeasurementRepresentation;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
@@ -27,6 +28,18 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class TstpSynchronizerTest {
+    @Test
+    void rejectsMissingOrNonPositiveOverlap() {
+        var core = new FakeCoreClient(List.of());
+        var tstp = new FakeTstpClient();
+        var catalog = new TstpCatalogResolver(tstp);
+
+        for (Duration overlap : new Duration[]{null, Duration.ZERO, Duration.ofNanos(-1)}) {
+            assertThrows(IllegalArgumentException.class, () ->
+                    new TstpSynchronizer(core, tstp, catalog, List.of(), Duration.ofHours(1), overlap));
+        }
+    }
+
     @Test
     void deliversUpstreamReadingAfterEmptySuccessfulPolls() {
         Instant start = Instant.parse("2026-06-07T10:00:00Z");
@@ -306,7 +319,9 @@ class TstpSynchronizerTest {
         }
 
         @Override
-        public Collection<Measurement> getMeasurementsOfTimeSeries(UUID timeSeriesId, Instant from, Instant to) {
+        public Collection<Measurement> getMeasurementsOfTimeSeries(
+                UUID timeSeriesId, Instant from, Instant to, MeasurementRepresentation representation) {
+            assertEquals(MeasurementRepresentation.CANONICAL, representation);
             readWindows.add(new ReadWindow(from, to));
             if (failNextRead) {
                 failNextRead = false;
@@ -318,7 +333,9 @@ class TstpSynchronizerTest {
         }
 
         @Override
-        public Optional<Measurement> getLatestMeasurementOfTimeSeries(UUID timeSeriesId) {
+        public Optional<Measurement> getLatestMeasurementOfTimeSeries(
+                UUID timeSeriesId, MeasurementRepresentation representation) {
+            assertEquals(MeasurementRepresentation.CANONICAL, representation);
             return Optional.empty();
         }
 

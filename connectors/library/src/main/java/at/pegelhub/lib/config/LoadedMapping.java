@@ -7,9 +7,7 @@ public record LoadedMapping<T>(
         T value
 ) {
     public LoadedMapping {
-        if (fileName == null || fileName.isBlank()) {
-            throw new IllegalArgumentException("fileName must not be blank");
-        }
+        fileName = ConfigValidation.requireText(fileName, "fileName");
         Objects.requireNonNull(value, "value");
     }
 }

@@ -3,6 +3,7 @@ package at.pegelhub.connector.tstp.client;
 import at.pegelhub.connector.tstp.codec.TstpXmlCodec;
 import at.pegelhub.connector.tstp.service.model.XmlQueryResponse;
 import at.pegelhub.connector.tstp.service.model.XmlTsResponse;
+import at.pegelhub.lib.config.ConfigValidation;
 import at.pegelhub.lib.model.Measurement;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -55,11 +56,7 @@ public final class HttpTstpClient implements TstpClient {
         this.httpClient = httpClient;
         this.xmlCodec = xmlCodec;
 
-        if (requestTimeout == null || requestTimeout.isZero() || requestTimeout.isNegative()) {
-            throw new IllegalArgumentException("requestTimeout must be positive");
-        }
-
-        this.requestTimeout = requestTimeout;
+        this.requestTimeout = ConfigValidation.requirePositive(requestTimeout, "requestTimeout");
     }
 
     @Override
