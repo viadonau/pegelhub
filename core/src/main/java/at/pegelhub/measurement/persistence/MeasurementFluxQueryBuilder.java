@@ -40,9 +40,10 @@ final class MeasurementFluxQueryBuilder {
 
         return measurementRows
                 + valueFieldFilter()
+                + originColumns()
                 + boundedReadOperations
                 + " |> rename(columns: {_value: \"value\"})"
-                + " |> keep(columns: [\"_time\", \"submittedByConnectorId\", \"value\"])";
+                + " |> keep(columns: [\"_time\", \"submittedByConnectorId\", \"submittedByInternalProducerId\", \"value\"])";
     }
 
     String meanBuckets(MeasurementBucketQuery query) {
@@ -66,11 +67,12 @@ final class MeasurementFluxQueryBuilder {
                 + "), stop: time(v: " + stringLiteral(query.window().to().toString()) + "))"
                 + " |> filter(fn: (r) => r._field == \"value\")"
                 + " |> filter(fn: (r) => contains(value: r._measurement, set: [" + ids + "]))"
+                + originColumns()
                 + " |> group(columns: [\"_measurement\"])"
-                + " |> sort(columns: [\"_time\", \"submittedByConnectorId\"], desc: true)"
+                + sortByMeasurementPosition(MeasurementOrder.DESC)
                 + " |> limit(n: 1)"
                 + " |> rename(columns: {_value: \"value\"})"
-                + " |> keep(columns: [\"_measurement\", \"_time\", \"submittedByConnectorId\", \"value\"])";
+                + " |> keep(columns: [\"_measurement\", \"_time\", \"submittedByConnectorId\", \"submittedByInternalProducerId\", \"value\"])";
     }
 
     String systemTime() {
@@ -116,12 +118,19 @@ final class MeasurementFluxQueryBuilder {
     }
 
     private String measurementGroup() {
+        // Aggregate across both historical connector and internal-producer tag sets, not once per origin.
         return " |> group(columns: [\"_measurement\"])";
     }
 
     private String sortByMeasurementPosition(MeasurementOrder order) {
         requireNonNull(order);
-        return " |> sort(columns: [\"_time\", \"submittedByConnectorId\"], desc: " + (order == MeasurementOrder.DESC) + ")";
+        return " |> sort(columns: [\"_time\", \"submittedByConnectorId\", \"submittedByInternalProducerId\"], desc: " + (order == MeasurementOrder.DESC) + ")";
+    }
+
+    private String originColumns() {
+        // Normalize only query rows so mixed-origin sorting has both columns without rewriting legacy points.
+        return " |> map(fn: (r) => ({r with submittedByConnectorId: if exists r.submittedByConnectorId then r.submittedByConnectorId else \"\","
+                + " submittedByInternalProducerId: if exists r.submittedByInternalProducerId then r.submittedByInternalProducerId else \"\"}))";
     }
 
     private String aggregateWindow(PegelhubDurationLiteral bucket, String function) {

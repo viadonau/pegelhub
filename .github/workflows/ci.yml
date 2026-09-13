@@ -46,6 +46,12 @@ jobs:
       - name: Validate staging Keycloak policy
         run: deploy/single-host/tests/keycloak-static-test.sh
 
+      - name: Verify additive operational scope migration
+        run: deploy/single-host/tests/operational-scope-migration-test.sh
+
+      - name: Verify operational deployment configuration
+        run: deploy/single-host/tests/operational-compose-test.sh
+
       - name: Validate staging frontend deployment
         run: deploy/single-host/tests/frontend-deployment-test.sh
 

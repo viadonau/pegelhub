@@ -156,7 +156,12 @@ describe('monitoring routes in Chromium', () => {
         { provide: RUNTIME_CONFIG, useValue: TEST_RUNTIME_CONFIG },
         {
           provide: AuthStateService,
-          useValue: { userName: signal('Test Operator'), logout: vi.fn() },
+          useValue: {
+            userName: signal('Test Operator'),
+            logout: vi.fn(),
+            isAdmin: signal(false),
+            canMonitor: signal(true),
+          },
         },
         {
           provide: ThemeService,

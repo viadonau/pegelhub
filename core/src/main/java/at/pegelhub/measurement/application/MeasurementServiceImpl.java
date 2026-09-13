@@ -109,7 +109,8 @@ public class MeasurementServiceImpl implements MeasurementService {
                 .map(row -> new MeasurementReadRow(
                         row.observedAt(),
                         conversion.fromCanonical(row.value()),
-                        row.submittedByConnectorId()))
+                        row.submittedByConnectorId(),
+                        row.submittedByInternalProducerId()))
                 .toList();
         return new MeasurementList(query, page.truncated(), measurements, conversion.unit());
     }

@@ -15,5 +15,6 @@ public record TimeSeriesResponse(
 
     public record SourceAssignmentResponse(
             UUID connectorId,
-            MeasurementRepresentation representation) { }
+            MeasurementRepresentation representation,
+            UUID internalProducerId) { }
 }

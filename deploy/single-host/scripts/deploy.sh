@@ -96,6 +96,16 @@ while [ "$#" -gt 0 ]; do
 done
 
 compose() {
+  operational_config=$(env_value PEGELHUB_OPERATIONAL_CONFIG_FILE)
+  if [ -n "$operational_config" ]; then
+    case "$operational_config" in
+      /*) ;;
+      *) fail "PEGELHUB_OPERATIONAL_CONFIG_FILE must be absolute." ;;
+    esac
+    [ -f "$operational_config" ] || fail "Missing operational credential configuration."
+    set -- -f "$DEPLOY_DIR/operational.compose.yaml" "$@"
+  fi
+
   COMPOSE_PROJECT_NAME="$compose_project_name" \
   COMPOSE_IGNORE_ORPHANS=true \
   COMPOSE_REMOVE_ORPHANS=false \
@@ -124,6 +134,7 @@ compose() {
   CORE_JAVA_TOOL_OPTIONS="$compose_core_java_tool_options" \
   INFLUX_LATEST_RANGE="$compose_influx_latest_range" \
   PEGELHUB_IMAGE_TAG="$PEGELHUB_IMAGE_TAG" \
+  PEGELHUB_OPERATIONAL_CONFIG_FILE="$operational_config" \
     docker compose \
       -p "$compose_project_name" \
       --env-file "$ENV_FILE" \

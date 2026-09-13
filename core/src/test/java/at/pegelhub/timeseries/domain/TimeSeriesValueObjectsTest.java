@@ -1,5 +1,6 @@
 package at.pegelhub.timeseries.domain;
 
+import at.pegelhub.measurement.domain.InternalProducerId;
 import org.junit.jupiter.api.Test;
 
 import java.util.UUID;
@@ -29,5 +30,17 @@ final class TimeSeriesValueObjectsTest {
     void keepsTimeSeriesIdValue() {
         UUID id = UUID.fromString("75ad6d22-f98f-47bd-8238-1c308c4cfda8");
         assertThat(new TimeSeriesId(id).value()).isEqualTo(id);
+    }
+
+    @Test
+    void internalAssignmentsOnlyAllowCanonicalValues() {
+        var producer = new InternalProducerId(UUID.randomUUID());
+
+        assertThat(SourceAssignment.internal(producer).representation())
+                .isEqualTo(MeasurementRepresentation.CANONICAL);
+        assertThrows(IllegalArgumentException.class, () ->
+                new SourceAssignment(null, MeasurementRepresentation.LITRES_PER_SECOND, producer));
+        assertThrows(IllegalArgumentException.class, () ->
+                new SourceAssignment(null, MeasurementRepresentation.METRES_ABOVE_ADRIA, producer));
     }
 }

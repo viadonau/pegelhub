@@ -1,0 +1,168 @@
+<ph-page>
+  <ph-page-header title="Qualität" />
+  <nav class="operations-tabs" aria-label="Qualität">
+    <a class="active" routerLink="/quality" aria-current="page">Prüfläufe</a>
+    @if (auth.isAdmin()) {
+      <a routerLink="/quality/profiles">Profile</a>
+    }
+  </nav>
+  <div class="operations-toolbar">
+    <h2>Prüfläufe</h2>
+    <p-button
+      icon="pi pi-refresh"
+      [text]="true"
+      ariaLabel="Prüfläufe aktualisieren"
+      pTooltip="Aktualisieren"
+      (onClick)="reload()"
+    />
+  </div>
+  <ph-page-section
+    ariaLabel="Prüfläufe"
+    [loading]="runs.isLoading()"
+    [error]="runs.error() ? 'Prüfläufe konnten nicht geladen werden.' : null"
+  >
+    @if (rows().length === 0) {
+      <p class="operations-empty">Noch keine Prüfläufe vorhanden.</p>
+    } @else {
+      <div class="operations-table-scroll">
+        <table class="operations-table">
+          <thead>
+            <tr>
+              <th>Profil</th>
+              <th>Start</th>
+              <th>Ergebnis</th>
+              <th>Befunde</th>
+              <th>Ausgabe</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (run of rows(); track run.id) {
+              <tr>
+                <td>{{ run.configuration.name }}</td>
+                <td>{{ run.startedAt | date: 'dd.MM.yyyy HH:mm:ss' }}</td>
+                <td><p-tag [value]="label(run.state)" [severity]="severity(run.state)" /></td>
+                <td>{{ run.findingCount }}</td>
+                <td>{{ label(run.outputState) }}</td>
+                <td>
+                  <p-button
+                    icon="pi pi-chevron-right"
+                    [text]="true"
+                    ariaLabel="Prüflauf öffnen"
+                    pTooltip="Prüflauf öffnen"
+                    (onClick)="select(run)"
+                  />
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+    <div class="operations-pages">
+      <span>{{ total() }} Läufe</span
+      ><p-button
+        icon="pi pi-chevron-left"
+        [text]="true"
+        ariaLabel="Vorherige Läufe"
+        [disabled]="offset() === 0 || runs.isLoading()"
+        (onClick)="page(offset() - 25)"
+      /><p-button
+        icon="pi pi-chevron-right"
+        [text]="true"
+        ariaLabel="Weitere Läufe"
+        [disabled]="offset() + 25 >= total() || runs.isLoading()"
+        (onClick)="page(offset() + 25)"
+      />
+    </div>
+  </ph-page-section>
+  @if (selected(); as run) {
+    <section class="operations-detail" aria-label="Prüflaufdetails">
+      <div class="operations-toolbar">
+        <h2>{{ run.configuration.name }}</h2>
+        <p-button
+          icon="pi pi-times"
+          [text]="true"
+          ariaLabel="Prüflauf schließen"
+          (onClick)="selected.set(null)"
+        />
+      </div>
+      <dl>
+        <dt>Lauf</dt>
+        <dd>{{ run.id }}</dd>
+        <dt>Ergebnis</dt>
+        <dd>{{ label(run.state) }}</dd>
+        <dt>Ausgabe</dt>
+        <dd>{{ label(run.outputState) }}</dd>
+        <dt>Zeitfenster</dt>
+        <dd>{{ run.configuration.lookbackSeconds }} Sekunden</dd>
+        <dt>Abgeschlossen</dt>
+        <dd>{{ (run.completedAt | date: 'dd.MM.yyyy HH:mm:ss') || '–' }}</dd>
+      </dl>
+      @if (run.error) {
+        <p class="operations-error" role="alert">{{ run.error }}</p>
+      }
+      <ph-page-section
+        ariaLabel="Befunde"
+        [loading]="findings.isLoading()"
+        [error]="findings.error() ? 'Befunde konnten nicht geladen werden.' : null"
+      >
+        @if (findingRows().length === 0) {
+          <p class="operations-empty">Keine Befunde für diesen Lauf gespeichert.</p>
+        } @else {
+          <div class="operations-table-scroll">
+            <table class="operations-table">
+              <thead>
+                <tr>
+                  <th>Prüfung</th>
+                  <th>Zeitpunkt</th>
+                  <th>Befund</th>
+                  <th>Messreihen</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (finding of findingRows(); track $index) {
+                  <tr>
+                    <td>
+                      <p-tag
+                        [value]="label(finding.rule)"
+                        [severity]="severity(finding.severity)"
+                      />
+                    </td>
+                    <td>{{ (finding.observedAt | date: 'dd.MM.yyyy HH:mm:ss') || '–' }}</td>
+                    <td>
+                      {{ finding.message }}
+                      <div>{{ evidence(finding.evidence) }}</div>
+                    </td>
+                    <td>
+                      @for (id of finding.timeSeriesIds; track id) {
+                        <a [routerLink]="['/overview', id]">{{ id }}</a
+                        ><br />
+                      }
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        }
+        <div class="operations-pages">
+          <span>{{ findingTotal() }} Befunde</span
+          ><p-button
+            icon="pi pi-chevron-left"
+            [text]="true"
+            ariaLabel="Vorherige Befunde"
+            [disabled]="findingOffset() === 0 || findings.isLoading()"
+            (onClick)="findingOffset.set(findingOffset() - 25)"
+          /><p-button
+            icon="pi pi-chevron-right"
+            [text]="true"
+            ariaLabel="Weitere Befunde"
+            [disabled]="findingOffset() + 25 >= findingTotal() || findings.isLoading()"
+            (onClick)="findingOffset.set(findingOffset() + 25)"
+          />
+        </div>
+      </ph-page-section>
+    </section>
+  }
+</ph-page>

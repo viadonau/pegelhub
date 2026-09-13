@@ -63,6 +63,7 @@ jq -e '
     == [
       "measurement:read",
       "measurement:write",
+      "messaging:send",
       "metadata:read",
       "metadata:write",
       "system:admin",
@@ -99,7 +100,7 @@ jq -e '
   and .clientScopeMappings["pegelhub-core-api"] == [
     {
       "client": "pegelhub-frontend",
-      "roles": ["metadata:read", "measurement:read"]
+      "roles": ["metadata:read", "measurement:read", "system:admin"]
     }
   ]
   and ([.. | objects | select(has("secret") or has("credentials"))] | length) == 0

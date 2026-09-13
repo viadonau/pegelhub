@@ -229,6 +229,30 @@ final class InfluxMeasurementRepositoryTest extends InfluxIntegrationTestBase {
     }
 
     @Test
+    void mixedOriginsSupportRawLatestAndBucketsWithoutDuplicatingRepeatedWrites() {
+        var series = new TimeSeriesId(UUID.randomUUID());
+        var connector = new ConnectorId(UUID.randomUUID());
+        var producer = new at.pegelhub.measurement.domain.InternalProducerId(UUID.randomUUID());
+        var time = Instant.now().minus(2, ChronoUnit.HOURS).truncatedTo(ChronoUnit.HOURS);
+        repository.storeMeasurements(List.of(
+                new Measurement(series, time, time, 10, connector),
+                new Measurement(series, time.plusSeconds(60), time, 20, null, producer)));
+        repository.storeMeasurements(List.of(new Measurement(series, time.plusSeconds(60), time.plusSeconds(1), 30, null, producer)));
+        var window = new MeasurementWindow(time, time.plusSeconds(3600), null);
+
+        assertThat(repository.listMeasurements(new MeasurementListQuery(series, window, MeasurementOrder.ASC, 100)).measurements())
+                .extracting(MeasurementReadRow::value).containsExactly(10.0, 30.0);
+        assertThat(repository.listLatestMeasurements(new MeasurementLatestQuery(List.of(series), window)))
+                .singleElement().satisfies(latest -> assertThat(latest.value()).isEqualTo(30));
+        assertThat(repository.listMeasurementBuckets(new MeasurementBucketQuery(series, window,
+                MeasurementBucketResolution.explicit(new MeasurementBucketWidth(Duration.ofHours(1))))))
+                .singleElement().satisfies(bucket -> {
+                    assertThat(bucket.sampleCount()).isEqualTo(2);
+                    assertThat(bucket.value()).isEqualTo(20);
+                });
+    }
+
+    @Test
     void returnsInfluxSystemTime() {
         Instant before = Instant.now().minus(5, ChronoUnit.SECONDS);
 

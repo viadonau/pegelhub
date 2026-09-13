@@ -3,6 +3,7 @@ package at.pegelhub.timeseries.application;
 import at.pegelhub.connector.domain.Connector;
 import at.pegelhub.connector.domain.ConnectorId;
 import at.pegelhub.connector.persistence.ConnectorRepository;
+import at.pegelhub.measurement.domain.InternalProducerId;
 import at.pegelhub.measuringpoint.application.MeasuringPointService;
 import at.pegelhub.measuringpoint.domain.MeasuringPointId;
 import at.pegelhub.shared.error.NotFoundException;
@@ -59,8 +60,34 @@ class TimeSeriesServiceImpl implements TimeSeriesService {
         requireNonNull(command);
         TimeSeries existing = get(id);
         measuringPoints.getForUpdate(existing.measuringPointId());
+        existing = timeSeries.refreshForUpdate(id).orElseThrow(() -> new NotFoundException("Time series not found"));
+
+        if (existing.sourceAssignment() != null && existing.sourceAssignment().internalProducerId() != null) {
+            if (command.sourceAssignment() != null) {
+                throw new MetadataConflictException("Internal source assignment is managed by its producer");
+            }
+
+            // Metadata clients may change status, but omitting the source must not release producer ownership.
+            return timeSeries.save(existing.update(command.status(), existing.sourceAssignment()));
+        }
+
         validateSource(existing.measuringPointId(), command.sourceAssignment());
         return timeSeries.save(existing.update(command.status(), command.sourceAssignment()));
+    }
+
+    @Override
+    @Transactional
+    public void assignInternalProducer(TimeSeriesId id, InternalProducerId producerId, boolean assign) {
+        var existing = get(id);
+        measuringPoints.getForUpdate(existing.measuringPointId());
+        existing = timeSeries.refreshForUpdate(id).orElseThrow(() -> new NotFoundException("Time series not found"));
+
+        var source = existing.sourceAssignment();
+        if (source != null && !producerId.equals(source.internalProducerId())) {
+            throw new MetadataConflictException("Destination already belongs to another source");
+        }
+
+        timeSeries.save(existing.update(existing.status(), assign ? SourceAssignment.internal(producerId) : null));
     }
 
     @Override
@@ -90,6 +117,9 @@ class TimeSeriesServiceImpl implements TimeSeriesService {
     private void validateSource(MeasuringPointId measuringPointId, SourceAssignment assignment) {
         if (assignment == null) {
             return;
+        }
+        if (assignment.internalProducerId() != null) {
+            throw new MetadataConflictException("Internal source assignment is managed by its producer");
         }
 
         if (assignment.representation() == MeasurementRepresentation.METRES_ABOVE_ADRIA) {

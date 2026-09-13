@@ -64,6 +64,22 @@
     </ng-template>
   </p-toolbar>
 
+  <nav class="ph-main-nav" aria-label="Hauptnavigation">
+    <a routerLink="/overview" routerLinkActive="is-active" ariaCurrentWhenActive="page"
+      ><i class="pi pi-chart-line" aria-hidden="true"></i> Messreihen</a
+    >
+    @if (auth.canMonitor()) {
+      <a routerLink="/quality" routerLinkActive="is-active" ariaCurrentWhenActive="page"
+        ><i class="pi pi-check-circle" aria-hidden="true"></i> Qualität</a
+      >
+    }
+    @if (auth.isAdmin()) {
+      <a routerLink="/notifications" routerLinkActive="is-active" ariaCurrentWhenActive="page"
+        ><i class="pi pi-bell" aria-hidden="true"></i> Benachrichtigungen</a
+      >
+    }
+  </nav>
+
   <main id="ph-main-content" class="ph-shell-main" tabindex="-1">
     <router-outlet />
   </main>

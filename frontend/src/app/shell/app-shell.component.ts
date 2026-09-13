@@ -1,5 +1,5 @@
 import { Component, computed, inject } from '@angular/core';
-import { RouterLink, RouterOutlet } from '@angular/router';
+import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { ButtonModule } from 'primeng/button';
 import { ToolbarModule } from 'primeng/toolbar';
 import { TooltipModule } from 'primeng/tooltip';
@@ -9,7 +9,7 @@ import { ThemeService } from '../core/theme/theme.service';
 
 @Component({
   selector: 'app-shell',
-  imports: [ButtonModule, RouterLink, RouterOutlet, ToolbarModule, TooltipModule],
+  imports: [ButtonModule, RouterLink, RouterLinkActive, RouterOutlet, ToolbarModule, TooltipModule],
   templateUrl: './app-shell.component.html',
   styleUrl: './app-shell.component.scss',
 })

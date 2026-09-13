@@ -50,6 +50,20 @@ public class SecurityConfiguration {
                                 "/v3/api-docs.yaml").permitAll()
                         .requestMatchers("/api/v1/measurements/system-time").permitAll()
                         .requestMatchers("/actuator/health", "/actuator/health/**", "/actuator/info").permitAll()
+
+                        .requestMatchers(HttpMethod.GET, "/api/v1/quality/runs", "/api/v1/quality/runs/**")
+                        .access(AuthorizationManagers.anyOf(userWithAnyAuthority(SYSTEM_ADMIN.value()),
+                                AuthorizationManagers.allOf(userWithAnyAuthority(METADATA_READ.value()),
+                                        userWithAnyAuthority(MEASUREMENT_READ.value()))))
+                        .requestMatchers("/api/v1/quality/**")
+                        .access(userWithAnyAuthority(SYSTEM_ADMIN.value()))
+
+                        .requestMatchers(HttpMethod.POST, "/api/v1/notifications")
+                        .access(AuthorizationManagers.anyOf(userWithAnyAuthority(SYSTEM_ADMIN.value()),
+                                actorWithAnyAuthority("CLIENT", PegelHubAuthority.MESSAGING_SEND.value())))
+                        .requestMatchers("/api/v1/notifications/**")
+                        .access(userWithAnyAuthority(SYSTEM_ADMIN.value()))
+
                         .requestMatchers(HttpMethod.POST, "/api/v1/admin/connectors")
                         .access(userWithAnyAuthority(SYSTEM_ADMIN.value()))
                         .requestMatchers(HttpMethod.POST, "/api/v1/measurements").hasAuthority(MEASUREMENT_WRITE.value())
@@ -82,13 +96,21 @@ public class SecurityConfiguration {
     }
 
     private static AuthorizationManager<RequestAuthorizationContext> userWithAnyAuthority(String... requiredAuthorities) {
+        return actorWithAnyAuthority("USER", requiredAuthorities);
+    }
+
+    private static AuthorizationManager<RequestAuthorizationContext> actorWithAnyAuthority(
+            String expectedActorType, String... requiredAuthorities) {
         return (authentication, context) -> {
             Authentication actor = authentication.get();
-            boolean user = actor instanceof JwtAuthenticationToken jwt
-                    && "USER".equals(jwt.getToken().getClaimAsString(CurrentActor.ACTOR_TYPE_CLAIM));
-            boolean authority = actor.getAuthorities().stream()
+
+            // Authority alone is insufficient: service tokens must not inherit user-only administrator access.
+            boolean matchesActorType = actor instanceof JwtAuthenticationToken jwt
+                    && expectedActorType.equals(jwt.getToken().getClaimAsString(CurrentActor.ACTOR_TYPE_CLAIM));
+            boolean hasRequiredAuthority = actor.getAuthorities().stream()
                     .anyMatch(granted -> Arrays.asList(requiredAuthorities).contains(granted.getAuthority()));
-            return new AuthorizationDecision(user && authority);
+
+            return new AuthorizationDecision(matchesActorType && hasRequiredAuthority);
         };
     }
 

@@ -1,0 +1,9 @@
+services:
+  core-app:
+    environment:
+      SPRING_CONFIG_ADDITIONAL_LOCATION: file:/run/pegelhub/operations.yaml
+    volumes:
+      - type: bind
+        source: ${PEGELHUB_OPERATIONAL_CONFIG_FILE:?Set an absolute path to deployment-managed operations.yaml}
+        target: /run/pegelhub/operations.yaml
+        read_only: true

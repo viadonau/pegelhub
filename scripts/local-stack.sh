@@ -60,7 +60,20 @@ docker_compose() {
 run_compose() {
   require_core_dir
   require_env_file
-  (cd "$CORE_DIR" && docker_compose --env-file .env "$@")
+
+  local ENV_FILE="$CORE_DIR/.env"
+  source "$REPO_ROOT/deploy/lib/env-file.sh"
+
+  local operational_config
+  operational_config=$(env_value PEGELHUB_OPERATIONAL_CONFIG_FILE)
+  local files=(-f "$CORE_DIR/docker-compose.yaml")
+  if [[ -n "$operational_config" ]]; then
+    [[ "$operational_config" = /* && -f "$operational_config" ]] \
+      || fail "Operational configuration must name an existing absolute file."
+    files+=(-f "$REPO_ROOT/deploy/single-host/operational.compose.yaml")
+  fi
+
+  (cd "$CORE_DIR" && PEGELHUB_OPERATIONAL_CONFIG_FILE="$operational_config" docker_compose --env-file .env "${files[@]}" "$@")
 }
 
 wait_for_http() {

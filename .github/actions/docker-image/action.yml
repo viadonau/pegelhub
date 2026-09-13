@@ -14,6 +14,10 @@ inputs:
   platforms:
     description: Target platform list for Buildx.
     required: true
+  build-args:
+    description: Optional build arguments, one per line.
+    required: false
+    default: ''
 
 runs:
   using: composite
@@ -36,6 +40,7 @@ runs:
         context: ${{ inputs.context }}
         file: ${{ inputs.file }}
         platforms: ${{ inputs.platforms }}
+        build-args: ${{ inputs.build-args }}
         push: true
         tags: ${{ steps.meta.outputs.tags }}
         labels: ${{ steps.meta.outputs.labels }}

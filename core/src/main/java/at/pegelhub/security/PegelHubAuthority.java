@@ -10,6 +10,7 @@ public enum PegelHubAuthority {
     TELEMETRY_READ("telemetry:read"),
     METADATA_WRITE("metadata:write"),
     METADATA_READ("metadata:read"),
+    MESSAGING_SEND("messaging:send"),
     SYSTEM_ADMIN("system:admin");
 
     private final String value;

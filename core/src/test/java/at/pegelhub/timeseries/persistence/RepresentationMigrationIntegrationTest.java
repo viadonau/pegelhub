@@ -37,10 +37,27 @@ class RepresentationMigrationIntegrationTest {
             var before = jdbc.queryForList("select * from time_series order by observed_property");
 
             Flyway.configure().dataSource(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword())
-                    .schemas(schema).load().migrate();
+                    .schemas(schema).target("2").load().migrate();
 
             assertThat(jdbc.queryForList("select * from time_series order by observed_property")).isEqualTo(before);
             assertThat(jdbc.update("update time_series set source_connector_id = ?, source_representation = 'litres-per-second' where observed_property = 'discharge'", connector)).isOne();
+
+            String catalogQuery = """
+                    select id, measuring_point_id, observed_property, status, source_connector_id, source_representation
+                    from time_series order by observed_property
+                    """;
+            var beforeOperations = jdbc.queryForList(catalogQuery);
+
+            Flyway.configure().dataSource(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword())
+                    .schemas(schema).load().migrate();
+
+            assertThat(jdbc.queryForList(catalogQuery)).isEqualTo(beforeOperations);
+            assertThat(jdbc.queryForObject(
+                    "select count(*) from time_series where source_internal_producer_id is not null", Long.class))
+                    .isZero();
+            assertThat(jdbc.queryForList(
+                    "select version from flyway_schema_history where version is not null order by installed_rank",
+                    String.class)).containsExactly("1", "2", "3", "4", "5");
             assertThat(jdbc.queryForObject("select source_representation from time_series where observed_property = 'discharge'", String.class))
                     .isEqualTo("litres-per-second");
             assertThatThrownBy(() -> jdbc.update("update time_series set source_representation = 'litres-per-second' where observed_property = 'water-temperature'"))

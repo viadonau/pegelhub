@@ -54,14 +54,29 @@ public class InfluxMeasurementRepository implements MeasurementRepository {
     }
 
     @Override
+    public void storeMeasurements(List<Measurement> measurements, Duration timeout) {
+        influx.writePoints(pointMapper.toPoints(measurements), timeout);
+    }
+
+    @Override
     public MeasurementPage listMeasurements(MeasurementListQuery measurementQuery) {
-        String query = queryBuilder.rawMeasurements(
-                measurementQuery, measurementQuery.limit() + 1);
-        List<MeasurementReadRow> rows = rowMapper.rawMeasurementRows(influx.query(query));
+        String query = queryBuilder.rawMeasurements(measurementQuery, measurementQuery.limit() + 1);
+        return measurementPage(measurementQuery, influx.query(query));
+    }
+
+    @Override
+    public MeasurementPage listMeasurements(MeasurementListQuery measurementQuery, Duration timeout) {
+        String query = queryBuilder.rawMeasurements(measurementQuery, measurementQuery.limit() + 1);
+        return measurementPage(measurementQuery, influx.query(query, timeout));
+    }
+
+    private MeasurementPage measurementPage(MeasurementListQuery measurementQuery, List<FluxTable> tables) {
+        List<MeasurementReadRow> rows = rowMapper.rawMeasurementRows(tables);
         boolean truncated = rows.size() > measurementQuery.limit();
         List<MeasurementReadRow> visible = truncated
                 ? rows.subList(0, measurementQuery.limit())
                 : rows;
+
         return new MeasurementPage(truncated, visible);
     }
 

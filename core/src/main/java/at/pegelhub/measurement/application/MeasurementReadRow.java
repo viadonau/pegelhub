@@ -1,6 +1,7 @@
 package at.pegelhub.measurement.application;
 
 import at.pegelhub.connector.domain.ConnectorId;
+import at.pegelhub.measurement.domain.InternalProducerId;
 
 import java.time.Instant;
 
@@ -10,11 +11,20 @@ import static java.util.Objects.requireNonNull;
 public record MeasurementReadRow(
         Instant observedAt,
         double value,
-        ConnectorId submittedByConnectorId) {
+        ConnectorId submittedByConnectorId,
+        InternalProducerId submittedByInternalProducerId) {
+
+    public MeasurementReadRow(Instant observedAt, double value, ConnectorId submittedByConnectorId) {
+        this(observedAt, value, requireNonNull(submittedByConnectorId), null);
+    }
 
     public MeasurementReadRow {
         requireNonNull(observedAt);
-        requireNonNull(submittedByConnectorId);
+
+        if ((submittedByConnectorId == null) == (submittedByInternalProducerId == null)) {
+            throw new IllegalArgumentException("Exactly one measurement origin is required");
+        }
+
         value = requireFinite(value);
     }
 }

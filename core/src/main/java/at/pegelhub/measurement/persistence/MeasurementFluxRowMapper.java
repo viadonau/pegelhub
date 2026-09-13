@@ -1,6 +1,7 @@
 package at.pegelhub.measurement.persistence;
 
 import at.pegelhub.connector.domain.ConnectorId;
+import at.pegelhub.measurement.domain.InternalProducerId;
 import at.pegelhub.measurement.application.MeasurementReadRow;
 import at.pegelhub.measurement.application.LatestMeasurement;
 import com.influxdb.exceptions.InfluxException;
@@ -21,17 +22,21 @@ final class MeasurementFluxRowMapper {
 
     List<MeasurementReadRow> rawMeasurementRows(List<FluxTable> tables) {
         List<MeasurementReadRow> measurements = new ArrayList<>();
+
         for (FluxTable table : tables) {
             for (FluxRecord record : table.getRecords()) {
                 measurements.add(new MeasurementReadRow(
                         requiredInstant(record, "_time"),
                         requiredNumber(record, InfluxMeasurementSchema.VALUE_FIELD).doubleValue(),
-                        new ConnectorId(UUID.fromString(requiredString(
-                                record,
-                                InfluxMeasurementSchema.SUBMITTED_BY_CONNECTOR_ID_TAG))))
-                );
+                        optionalId(record, InfluxMeasurementSchema.SUBMITTED_BY_CONNECTOR_ID_TAG) == null ? null
+                                : new ConnectorId(optionalId(
+                                        record, InfluxMeasurementSchema.SUBMITTED_BY_CONNECTOR_ID_TAG)),
+                        optionalId(record, InfluxMeasurementSchema.SUBMITTED_BY_INTERNAL_PRODUCER_ID_TAG) == null ? null
+                                : new InternalProducerId(optionalId(
+                                        record, InfluxMeasurementSchema.SUBMITTED_BY_INTERNAL_PRODUCER_ID_TAG))));
             }
         }
+
         return measurements;
     }
 
@@ -113,6 +118,11 @@ final class MeasurementFluxRowMapper {
             return text;
         }
         throw new InfluxException("Measurement read row is missing string column " + column);
+    }
+
+    private UUID optionalId(FluxRecord record, String column) {
+        Object value = record.getValueByKey(column);
+        return value == null || value.equals("") ? null : UUID.fromString(value.toString());
     }
 
     private Number requiredNumber(FluxRecord record, String column) {

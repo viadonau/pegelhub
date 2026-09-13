@@ -52,6 +52,33 @@ describe('AuthStateService', () => {
     expect(auth.userName()).toBe('operator@example.test');
   });
 
+  it('requires user actor roles and reacts to refreshed permissions', () => {
+    const auth = TestBed.inject(AuthStateService);
+    expect(auth.isAdmin()).toBe(false);
+    expect(auth.canMonitor()).toBe(false);
+    keycloak.tokenParsed = {
+      pegelhub_actor_type: 'USER',
+      resource_access: { 'pegelhub-core-api': { roles: ['metadata:read', 'measurement:read'] } },
+    };
+    keycloakEvent.set({ type: KeycloakEventType.AuthSuccess });
+    expect(auth.canMonitor()).toBe(true);
+    expect(auth.isAdmin()).toBe(false);
+    keycloak.tokenParsed = {
+      pegelhub_actor_type: 'CLIENT',
+      resource_access: { 'pegelhub-core-api': { roles: ['system:admin'] } },
+    };
+    keycloakEvent.set({ type: KeycloakEventType.AuthRefreshSuccess });
+    expect(auth.isAdmin()).toBe(false);
+    expect(auth.canMonitor()).toBe(false);
+    keycloak.tokenParsed = {
+      pegelhub_actor_type: 'USER',
+      resource_access: { 'pegelhub-core-api': { roles: ['system:admin'] } },
+    };
+    keycloakEvent.set({ type: KeycloakEventType.AuthRefreshSuccess });
+    expect(auth.isAdmin()).toBe(true);
+    expect(auth.canMonitor()).toBe(true);
+  });
+
   it('uses application URLs for login and logout redirects', async () => {
     const auth = TestBed.inject(AuthStateService);
 

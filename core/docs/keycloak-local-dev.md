@@ -205,3 +205,10 @@ on every request. Disabling a Keycloak client or rotating its secret stops
 future token issuance, but already issued access tokens remain usable until
 they expire. The imported local realm sets the access-token lifetime to 600
 seconds.
+# Core quality and notifications
+
+The main frontend can carry an already-assigned `system:admin` client role.
+Monitoring users remain read-only. Existing realms must use the additive
+`deploy/single-host/scripts/migrate-operational-scopes.sh` helper after a kcadm
+administrator login, not a replacement realm import. See
+[the operations runbook](quality-notifications.md) for cutover and legacy-client retirement.

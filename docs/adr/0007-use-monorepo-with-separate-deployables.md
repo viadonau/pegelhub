@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted
+Accepted; QA/Messaging deployment decision superseded by ADR 0012.
 
 ## Context
 
@@ -28,8 +28,8 @@ pegelhub/
 
 The Java and Angular applications remain separate deployables:
 
-- Maven continues to build only `core` and `connectors` through the root
-  aggregator POM.
+- Maven builds the Java applications in `core` and `connectors`
+  through the root aggregator POM.
 - Angular continues to use its own `package.json`, npm lockfile, Dockerfile,
   tests, and Node toolchain under `frontend/`.
 - Core and frontend keep separate container images, health checks, releases,
@@ -46,6 +46,10 @@ Changes to API contracts, authentication, runtime configuration, and staging
 can be reviewed atomically. Local development and documentation have one
 canonical checkout, and deployment configuration no longer needs a
 cross-repository dispatch token.
+
+Quality and notifications now live inside Core, with operator screens in the
+main Angular application. They have logical module boundaries, not separate
+runtime images. See ADR 0012 for the rationale and cutover constraints.
 
 The frontend source is imported as a snapshot under the `frontend/` path. Its
 earlier history remains available in the archived frontend repository and the
