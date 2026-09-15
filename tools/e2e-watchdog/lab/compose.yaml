@@ -1,0 +1,159 @@
+name: ph-return-watchdog-lab
+
+x-postgres: &postgres
+  image: postgres:14-alpine
+  environment:
+    POSTGRES_PASSWORD: lab-password
+    POSTGRES_DB: pegelhub
+  healthcheck:
+    test: [CMD-SHELL, 'pg_isready -U postgres -d pegelhub']
+    interval: 5s
+    retries: 30
+
+x-influx: &influx
+  image: influxdb:2.2-alpine
+  environment:
+    DOCKER_INFLUXDB_INIT_MODE: setup
+    DOCKER_INFLUXDB_INIT_USERNAME: lab
+    DOCKER_INFLUXDB_INIT_PASSWORD: lab-password
+    DOCKER_INFLUXDB_INIT_ORG: pegelhub
+    DOCKER_INFLUXDB_INIT_BUCKET: measurements
+    DOCKER_INFLUXDB_INIT_ADMIN_TOKEN: lab-influx-token
+  healthcheck:
+    test: [CMD, influx, ping]
+    interval: 5s
+    retries: 30
+
+x-keycloak: &keycloak
+  image: quay.io/keycloak/keycloak:26.2
+  command: [start-dev]
+  environment:
+    KC_BOOTSTRAP_ADMIN_USERNAME: admin
+    KC_BOOTSTRAP_ADMIN_PASSWORD: lab-password
+    KC_HOSTNAME_STRICT: 'false'
+    KC_HEALTH_ENABLED: 'true'
+  healthcheck:
+    test: [CMD-SHELL, "{ printf 'HEAD /health/ready HTTP/1.0\r\n\r\n' >&0; grep -q '200'; } 0<>/dev/tcp/127.0.0.1/9000"]
+    interval: 5s
+    timeout: 5s
+    retries: 60
+
+x-core-env: &core-env
+  DB_USER: postgres
+  DB_PASSWORD: lab-password
+  INFLUX_ORG: pegelhub
+  INFLUX_TOKEN: lab-influx-token
+  INFLUX_DATA_BUCKET: measurements
+  INFLUX_TELEMETRY_BUCKET: measurements
+  JAVA_TOOL_OPTIONS: -Xmx384m
+
+services:
+  postgres-a:
+    <<: *postgres
+    volumes: [postgres-a:/var/lib/postgresql/data]
+  postgres-b:
+    <<: *postgres
+    volumes: [postgres-b:/var/lib/postgresql/data]
+  influx-a:
+    <<: *influx
+    volumes: [influx-a:/var/lib/influxdb2]
+  influx-b:
+    <<: *influx
+    volumes: [influx-b:/var/lib/influxdb2]
+  keycloak-a:
+    <<: *keycloak
+    ports: ['127.0.0.1:18082:8080']
+    volumes: [keycloak-a:/opt/keycloak/data]
+  keycloak-b:
+    <<: *keycloak
+    ports: ['127.0.0.1:28082:8080']
+    volumes: [keycloak-b:/opt/keycloak/data]
+  realm-init:
+    image: python:3.13-alpine
+    command: [python, /bootstrap.py, realms]
+    volumes: ['./bootstrap.py:/bootstrap.py:ro']
+    depends_on:
+      keycloak-a: {condition: service_healthy}
+      keycloak-b: {condition: service_healthy}
+  core-a:
+    image: ph-watchdog-lab-core:local
+    build: {context: ../../.., dockerfile: core/Dockerfile}
+    environment:
+      <<: *core-env
+      DB_URI: postgres-a:5432/pegelhub
+      INFLUX_URL: http://influx-a:8086/
+      KEYCLOAK_ISSUER_URI: http://keycloak-a:8080/realms/pegelhub
+    ports: ['127.0.0.1:18080:8080']
+    depends_on:
+      postgres-a: {condition: service_healthy}
+      influx-a: {condition: service_healthy}
+      realm-init: {condition: service_completed_successfully}
+  core-b:
+    image: ph-watchdog-lab-core:local
+    build: {context: ../../.., dockerfile: core/Dockerfile}
+    environment:
+      <<: *core-env
+      DB_URI: postgres-b:5432/pegelhub
+      INFLUX_URL: http://influx-b:8086/
+      KEYCLOAK_ISSUER_URI: http://keycloak-b:8080/realms/pegelhub
+    ports: ['127.0.0.1:28080:8080']
+    depends_on:
+      postgres-b: {condition: service_healthy}
+      influx-b: {condition: service_healthy}
+      realm-init: {condition: service_completed_successfully}
+  bootstrap:
+    image: python:3.13-alpine
+    command: [python, /bootstrap.py, configure]
+    volumes: ['./bootstrap.py:/bootstrap.py:ro', 'config:/config']
+    depends_on:
+      core-a: {condition: service_healthy}
+      core-b: {condition: service_healthy}
+  fixtures:
+    image: ph-watchdog-lab-fixtures:local
+    build: {context: ../../.., dockerfile: tools/e2e-watchdog/Dockerfile, target: lab}
+    ports: ['127.0.0.1:18030:8030']
+  icc:
+    image: ph-watchdog-lab-icc:local
+    build: {context: ../../.., dockerfile: connectors/icc-connector/Dockerfile}
+    command: [java, '-cp', '/app/connector.jar:/app/lib/*', at.pegelhub.connector.icc.IccConnectorApplication, /lab/icc]
+    volumes: [config:/lab:ro]
+    depends_on:
+      bootstrap: {condition: service_completed_successfully}
+  tstp:
+    image: ph-watchdog-lab-tstp:local
+    build: {context: ../../.., dockerfile: connectors/tstp-connector/Dockerfile}
+    command: [java, '-cp', '/app/connector.jar:/app/lib/*', at.pegelhub.connector.tstp.TstpConnectorApplication, /lab/tstp]
+    volumes: [config:/lab:ro]
+    depends_on:
+      bootstrap: {condition: service_completed_successfully}
+      fixtures: {condition: service_started}
+  iec:
+    image: ph-watchdog-lab-iec:local
+    build: {context: ../../.., dockerfile: connectors/iec-connector/Dockerfile}
+    command: [java, '-cp', '/app/connector.jar:/app/lib/*', at.pegelhub.connector.iec.app.IecConnectorApplication, /lab/iec]
+    volumes: [config:/lab:ro]
+    depends_on:
+      bootstrap: {condition: service_completed_successfully}
+      fixtures: {condition: service_started}
+  watchdog:
+    stop_grace_period: 45s
+    image: ph-watchdog-lab-watchdog:local
+    build: {context: ../../.., dockerfile: tools/e2e-watchdog/Dockerfile, target: runtime}
+    command: [run, /lab/watchdog/watchdog.yaml]
+    volumes: [config:/lab:ro, watchdog-state:/var/lib/pegelhub-watchdog]
+    read_only: true
+    # SQLite JDBC extracts its native library here; an ordinary noexec tmpfs cannot load it.
+    tmpfs: ['/tmp:exec,size=32m']
+    depends_on:
+      bootstrap: {condition: service_completed_successfully}
+      fixtures: {condition: service_started}
+
+volumes:
+  postgres-a:
+  postgres-b:
+  influx-a:
+  influx-b:
+  keycloak-a:
+  keycloak-b:
+  config:
+  watchdog-state:

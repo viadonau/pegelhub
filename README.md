@@ -18,6 +18,9 @@ topology.
 
 ## Capabilities
 
+Optional transmission supervision is provided by the independently deployed
+[E2E watchdog](tools/e2e-watchdog/README.md), with a [two-Core fault lab](tools/e2e-watchdog/lab/README.md).
+
 - Model station owners, stations, measuring points, and time series with
   explicit connector read access and source assignments.
 - Integrate FTP, PegelHub Core, IEC 60870-5-104, Revolution Pi, and TSTP systems

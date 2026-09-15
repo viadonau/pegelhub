@@ -16,5 +16,6 @@
     <modules>
         <module>connectors</module>
         <module>core</module>
+        <module>tools/e2e-watchdog</module>
     </modules>
 </project>

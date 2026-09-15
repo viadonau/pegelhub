@@ -1,6 +1,7 @@
 package at.pegelhub.lib.internal;
 
 import at.pegelhub.lib.PegelHubClient;
+import at.pegelhub.lib.CoreClientOptions;
 import at.pegelhub.lib.config.CoreAuthentication;
 import at.pegelhub.lib.exception.NotFoundException;
 import at.pegelhub.lib.internal.dto.MeasurementListReceiveDto;
@@ -47,6 +48,7 @@ public class HttpPegelHubClient implements PegelHubClient {
     private final URL baseUrl;
     private final CloseableHttpClient client;
     private final CoreAuthentication authentication;
+    private final CoreClientOptions options;
     private String accessToken;
     private Instant accessTokenExpiresAt;
 
@@ -107,10 +109,16 @@ public class HttpPegelHubClient implements PegelHubClient {
             CloseableHttpClient client,
             URL baseUrl,
             CoreAuthentication authentication) {
+        this(client, baseUrl, authentication, CoreClientOptions.connectorDefaults());
+    }
+
+    public HttpPegelHubClient(CloseableHttpClient client, URL baseUrl, CoreAuthentication authentication,
+            CoreClientOptions options) {
         this.client = client;
         this.baseUrl = baseUrl;
         this.measurementRoute = "api/v1/measurements";
         this.authentication = Objects.requireNonNull(authentication, "authentication");
+        this.options = Objects.requireNonNull(options, "options");
     }
 
     @Override
@@ -147,7 +155,7 @@ public class HttpPegelHubClient implements PegelHubClient {
         String query = "from=" + urlEncode(from.toString())
                 + "&to=" + urlEncode(to.toString())
                 + "&order=asc&limit=" + SYNCHRONIZATION_READ_LIMIT;
-        MeasurementListReceiveDto page = readMeasurementPage(timeSeriesId, query, representation);
+        MeasurementListReceiveDto page = readMeasurementPage(timeSeriesId, query, representation, false);
         if (!page.truncated()) {
             measurements.addAll(page.toMeasurements());
             return;
@@ -176,7 +184,7 @@ public class HttpPegelHubClient implements PegelHubClient {
         Objects.requireNonNull(representation, "representation");
         try {
             String query = "last=" + LATEST_MEASUREMENT_WINDOW + "&order=desc&limit=1";
-            var page = readMeasurementPage(timeSeriesId, query, representation);
+            var page = readMeasurementPage(timeSeriesId, query, representation, options.strictLatestResponse());
             // We only asked for the newest value, so a truncated response is fine here.
             return page.toMeasurements().stream().findFirst();
         } catch (NotFoundException nfe) {
@@ -189,7 +197,8 @@ public class HttpPegelHubClient implements PegelHubClient {
     private MeasurementListReceiveDto readMeasurementPage(
             UUID timeSeriesId,
             String query,
-            MeasurementRepresentation representation) throws IOException, URISyntaxException {
+            MeasurementRepresentation representation,
+            boolean strictLatestResponse) throws IOException, URISyntaxException {
         String representedQuery = query + "&representation=" + representation.value();
         HttpGet http = new HttpGet(measurementsUri(timeSeriesId, representedQuery));
         authorize(http);
@@ -201,14 +210,40 @@ public class HttpPegelHubClient implements PegelHubClient {
             }
             requireOk(response.getCode(), response.getEntity());
 
-            String json = EntityUtils.toString(response.getEntity());
-            var page = gsonWithInstantSupport().fromJson(json, MeasurementListReceiveDto.class);
-            if (page == null) {
-                throw new IllegalStateException("Core returned an empty measurement response");
-            }
-            page.requireMatches(timeSeriesId, representation);
-            return page;
+            return decodeMeasurementPage(EntityUtils.toString(response.getEntity()), timeSeriesId, representation, strictLatestResponse);
         });
+    }
+
+    private MeasurementListReceiveDto decodeMeasurementPage(
+            String json, UUID timeSeriesId, MeasurementRepresentation representation, boolean strictLatestResponse) {
+        if (strictLatestResponse) requireExplicitCompleteness(json);
+        var page = gsonWithInstantSupport().fromJson(json, MeasurementListReceiveDto.class);
+        if (page == null) {
+            throw new IllegalStateException("Core returned an empty measurement response");
+        }
+        page.requireMatches(timeSeriesId, representation);
+        if (strictLatestResponse) requireValidLatestPoint(page);
+        return page;
+    }
+
+    private static void requireExplicitCompleteness(String json) {
+        // Gson accepts missing or string-valued booleans; monitoring must reject malformed evidence.
+        var object = JsonParser.parseString(json).getAsJsonObject();
+        var truncated = object.get("truncated");
+        if (truncated == null || !truncated.isJsonPrimitive() || !truncated.getAsJsonPrimitive().isBoolean()) {
+            throw new IllegalStateException("Core did not declare response completeness");
+        }
+    }
+
+    private static void requireValidLatestPoint(MeasurementListReceiveDto page) {
+        if (page.measurements() == null || page.measurements().size() > 1) {
+            throw new IllegalStateException("Core returned an invalid measurement list");
+        }
+        for (var point : page.toMeasurements()) {
+            if (point.getObservedAt() == null || point.getValue() == null || !Double.isFinite(point.getValue())) {
+                throw new IllegalStateException("Core returned an invalid measurement point");
+            }
+        }
     }
 
     @Override
