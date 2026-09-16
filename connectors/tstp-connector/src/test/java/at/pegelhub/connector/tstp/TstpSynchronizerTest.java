@@ -1,18 +1,25 @@
 package at.pegelhub.connector.tstp;
 
 import at.pegelhub.connector.tstp.catalog.TstpCatalogResolver;
+import at.pegelhub.connector.tstp.client.HttpTstpClient;
 import at.pegelhub.connector.tstp.client.TstpClient;
+import at.pegelhub.connector.tstp.codec.TstpBinaryCodec;
+import at.pegelhub.connector.tstp.codec.TstpXmlCodec;
+import at.pegelhub.connector.tstp.config.TstpServer;
 import at.pegelhub.connector.tstp.service.model.XmlQueryResponse;
 import at.pegelhub.connector.tstp.service.model.XmlQueryTsAttribut;
 import at.pegelhub.lib.PegelHubClient;
 import at.pegelhub.lib.config.MappingDirection;
 import at.pegelhub.lib.model.Measurement;
 import at.pegelhub.lib.model.MeasurementRepresentation;
+import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.EnumSource;
 
+import java.net.InetSocketAddress;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Clock;
 import java.time.Instant;
@@ -23,11 +30,73 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class TstpSynchronizerTest {
+    @Test
+    void importsOnlyRecordedUtcReadingsAndDoesNotSendGapOnlyPollsToCore() throws Exception {
+        FakeCoreClient core = new FakeCoreClient(List.of());
+        MutableClock clock = new MutableClock(Instant.parse("2026-09-16T12:00:00Z"));
+        TstpXmlCodec wireCodec = new TstpXmlCodec(new TstpBinaryCodec());
+        Instant wireStart = Instant.parse("2026-09-16T11:45:00Z");
+        AtomicReference<String> payload = new AtomicReference<>(wireCodec.writeRequest(List.of(
+                new Measurement(null, wireStart.minusSeconds(1), 41.99),
+                new Measurement(null, wireStart, 42),
+                new Measurement(null, wireStart.plusSeconds(300), 4e37),
+                new Measurement(null, wireStart.plusSeconds(900), 43),
+                new Measurement(null, wireStart.plusSeconds(4500), 44),
+                new Measurement(null, wireStart.plusSeconds(4501), 44.01))));
+        List<String> queries = new ArrayList<>();
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/", exchange -> {
+            String query = exchange.getRequestURI().getQuery();
+            byte[] response;
+            if (query.startsWith("Cmd=Query&")) {
+                response = "<TSQ><TSATTR><ZRID>test-series</ZRID></TSATTR></TSQ>"
+                        .getBytes(StandardCharsets.UTF_8);
+            } else {
+                queries.add(query);
+                response = payload.get().getBytes(StandardCharsets.UTF_8);
+            }
+            exchange.sendResponseHeaders(200, response.length);
+            exchange.getResponseBody().write(response);
+            exchange.close();
+        });
+        server.start();
+
+        try (TstpClient client = HttpTstpClient.open(new TstpServer("127.0.0.1", server.getAddress().getPort(), "+01:00"))) {
+            TstpSynchronizer sync = new TstpSynchronizer(core, client, new TstpCatalogResolver(client),
+                    List.of(mapping(INBOUND_SERIES, 11, MappingDirection.EXTERNAL_TO_CORE)),
+                    Duration.ofMinutes(15), clock);
+            sync.run();
+
+            assertEquals(List.of(Instant.parse("2026-09-16T10:45:00Z"), Instant.parse("2026-09-16T11:00:00Z")),
+                    core.sent.stream().map(Measurement::getObservedAt).toList());
+            assertEquals(List.of(42.0, 43.0), core.sent.stream().map(Measurement::getValue).toList());
+            assertEquals(List.of(INBOUND_SERIES, INBOUND_SERIES),
+                    core.sent.stream().map(Measurement::getTimeSeriesId).toList());
+            List<Measurement> lastSend = core.sent;
+
+            payload.set(wireCodec.writeRequest(List.of(new Measurement(null, wireStart.plusSeconds(3000), 4e37))));
+            clock.advance(Duration.ofMinutes(15));
+            sync.run();
+            clock.advance(Duration.ofMinutes(15));
+            sync.run();
+
+            assertSame(lastSend, core.sent);
+            assertEquals(List.of(
+                    "Cmd=Get&ZRID=test-series&Von=2026-09-16T11:44:59Z&Bis=2026-09-16T13:00:01Z&WERTE=True",
+                    "Cmd=Get&ZRID=test-series&Von=2026-09-16T11:59:59Z&Bis=2026-09-16T13:15:01Z&WERTE=True",
+                    "Cmd=Get&ZRID=test-series&Von=2026-09-16T12:14:59Z&Bis=2026-09-16T13:30:01Z&WERTE=True"), queries);
+        } finally {
+            server.stop(0);
+        }
+    }
+
     @Test
     void rejectsMissingOrNonPositiveOverlap() {
         var core = new FakeCoreClient(List.of());

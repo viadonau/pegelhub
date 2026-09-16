@@ -1,6 +1,8 @@
 package at.pegelhub.connector.tstp.client;
 
+import at.pegelhub.connector.tstp.codec.TstpBinaryCodec;
 import at.pegelhub.connector.tstp.codec.TstpXmlCodec;
+import at.pegelhub.connector.tstp.config.TstpServer;
 import at.pegelhub.connector.tstp.service.model.XmlQueryResponse;
 import at.pegelhub.connector.tstp.service.model.XmlTsResponse;
 import at.pegelhub.lib.config.ConfigValidation;
@@ -26,24 +28,22 @@ public final class HttpTstpClient implements TstpClient {
     private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(30);
     private static final Logger LOG = LoggerFactory.getLogger(HttpTstpClient.class);
     private static final DateTimeFormatter TSTP_TIME = DateTimeFormatter
-            .ofPattern("uuuu-MM-dd'T'HH:mm:ss'Z'")
-            .withZone(ZoneOffset.UTC);
+            .ofPattern("uuuu-MM-dd'T'HH:mm:ss'Z'");
 
     private final URI endpoint;
     private final HttpClient httpClient;
     private final TstpXmlCodec xmlCodec;
     private final Duration requestTimeout;
+    private final DateTimeFormatter timeFormat;
 
-    public static HttpTstpClient open(String address, int port, TstpXmlCodec xmlCodec) {
+    public static HttpTstpClient open(TstpServer server) {
         HttpClient httpClient = HttpClient.newBuilder()
                 .connectTimeout(CONNECT_TIMEOUT)
                 .build();
 
-        return new HttpTstpClient(address, port, httpClient, xmlCodec, REQUEST_TIMEOUT);
-    }
-
-    HttpTstpClient(String address, int port, HttpClient httpClient, TstpXmlCodec xmlCodec) {
-        this(address, port, httpClient, xmlCodec, REQUEST_TIMEOUT);
+        ZoneOffset offset = ZoneOffset.of(server.timeOffset());
+        return new HttpTstpClient(server.host(), server.port(), httpClient,
+                new TstpXmlCodec(new TstpBinaryCodec(offset)), REQUEST_TIMEOUT, offset);
     }
 
     HttpTstpClient(
@@ -51,24 +51,30 @@ public final class HttpTstpClient implements TstpClient {
             int port,
             HttpClient httpClient,
             TstpXmlCodec xmlCodec,
-            Duration requestTimeout) {
+            Duration requestTimeout,
+            ZoneOffset timeOffset) {
         this.endpoint = URI.create("http://" + address + ":" + port + "/");
         this.httpClient = httpClient;
         this.xmlCodec = xmlCodec;
 
         this.requestTimeout = ConfigValidation.requirePositive(requestTimeout, "requestTimeout");
+        this.timeFormat = TSTP_TIME.withZone(timeOffset);
     }
 
     @Override
     public List<Measurement> readMeasurements(String zrid, Instant readFrom, Instant readUntil) {
+        // Some servers interpolate both edges even with WERTE=True. Move them outside our logical window.
         URI uri = commandUri("Get&ZRID=" + zrid
-                + "&Von=" + TSTP_TIME.format(readFrom)
-                + "&Bis=" + TSTP_TIME.format(readUntil)
+                + "&Von=" + timeFormat.format(readFrom.minusSeconds(1))
+                + "&Bis=" + timeFormat.format(readUntil.plusSeconds(1))
                 + "&WERTE=True");
 
         LOG.debug("TSTP GET {}", uri);
 
-        return xmlCodec.parseMeasurements(send(request(uri).GET().build(), "GET"));
+        return xmlCodec.parseMeasurements(send(request(uri).GET().build(), "GET")).stream()
+                .filter(measurement -> !measurement.getObservedAt().isBefore(readFrom)
+                        && measurement.getObservedAt().isBefore(readUntil))
+                .toList();
     }
 
     @Override

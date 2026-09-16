@@ -3,8 +3,6 @@ package at.pegelhub.connector.tstp;
 import at.pegelhub.connector.tstp.catalog.TstpCatalogResolver;
 import at.pegelhub.connector.tstp.client.HttpTstpClient;
 import at.pegelhub.connector.tstp.client.TstpClient;
-import at.pegelhub.connector.tstp.codec.TstpBinaryCodec;
-import at.pegelhub.connector.tstp.codec.TstpXmlCodec;
 import at.pegelhub.connector.tstp.config.TstpConnectorConfig;
 import at.pegelhub.connector.tstp.config.TstpConnectorConfigLoader;
 import at.pegelhub.lib.PegelHubClient;
@@ -30,10 +28,7 @@ public final class TstpConnectorModule implements ConnectorModule {
 
         try (ConnectorRuntimeAssembly runtime = ConnectorRuntimeAssembly.begin(name())) {
             PegelHubClient coreClient = runtime.own(coreClients.create(config.coreConnection()));
-            TstpClient tstpClient = runtime.own(HttpTstpClient.open(
-                    config.server().host(),
-                    config.server().port(),
-                    new TstpXmlCodec(new TstpBinaryCodec())));
+            TstpClient tstpClient = runtime.own(HttpTstpClient.open(config.server()));
 
             TstpSynchronizer synchronizer = new TstpSynchronizer(
                     coreClient,

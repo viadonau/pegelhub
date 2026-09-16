@@ -29,6 +29,7 @@ class TstpConnectorModuleTest {
                 ConnectorConfigDirectory.at(Path.of("examples/config")));
 
         assertEquals("127.0.0.1", config.server().host());
+        assertEquals("Z", config.server().timeOffset());
         assertEquals(123, config.mappings().getFirst().stationId());
         assertEquals(Duration.ofHours(1), config.overlap());
     }
@@ -43,6 +44,7 @@ class TstpConnectorModuleTest {
 
         assertEquals("127.0.0.2", config.server().host());
         assertEquals(8030, config.server().port());
+        assertEquals("Z", config.server().timeOffset());
         assertEquals(Duration.ofSeconds(10), config.pollInterval());
         assertEquals(Duration.ofHours(2), config.overlap());
         assertEquals(2, config.mappings().size());
@@ -91,6 +93,22 @@ class TstpConnectorModuleTest {
         Exception error = assertThrows(Exception.class, this::loadConfig);
 
         assertTrue(error.getMessage().contains("tstp.server.port"));
+    }
+
+    @Test
+    void loadsExplicitFixedTimeOffsetAndRejectsAmbiguousOrInvalidValues() throws Exception {
+        writeConnectorYaml(8030);
+        writeMapping("one.yaml", FIRST_SERIES, 77, "external-to-core");
+        Path file = configDirectory.resolve("connector.yaml");
+        String yaml = Files.readString(file);
+        Files.writeString(file, yaml + "    timeOffset: \"+01:00\"\n");
+        assertEquals("+01:00", loadConfig().server().timeOffset());
+
+        for (String offset : new String[]{"", "Europe/Vienna", "+19:00", "invalid"}) {
+            Files.writeString(file, yaml + "    timeOffset: \"" + offset + "\"\n");
+            Exception error = assertThrows(Exception.class, this::loadConfig);
+            assertTrue(error.getMessage().contains("tstp.server.timeOffset"));
+        }
     }
 
     @Test

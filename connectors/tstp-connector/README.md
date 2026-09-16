@@ -38,6 +38,16 @@ positive polling interval ending in `s`, `m`, or `h`, and the TSTP server host
 and port. The implementation constructs a plain HTTP endpoint; it does not
 support an HTTPS scheme setting. `mappings.directory` defaults to `mappings`.
 
+`tstp.server.timeOffset` is the fixed offset of the server's wire clock from
+UTC, default `Z` (also used when omitted). For a server whose `12:00:00` means
+`11:00:00Z`, set `timeOffset: "+01:00"`. The same offset is used for query
+windows, decoded timestamps, and outbound timestamps; Core always uses UTC
+instants. TSTP query strings retain their literal `Z` suffix even when the
+server uses an offset clock. This setting does not change polling overlap or
+the container timezone. Regional zones such as `Europe/Vienna` are rejected:
+do not infer daylight-saving rules from a single observed offset. Confirm the
+server's year-round time convention before activation, especially for writes.
+
 Example mapping:
 
 ```yaml
@@ -78,8 +88,21 @@ After success, including an empty result, the next start is the cycle time
 minus overlap, never moving backwards. Both sources are filtered to half-open
 boundaries, and cycle times remain truncated to whole seconds. Fixed-delay
 polling includes processing time in the next window without adding a delivery
-delay. TSTP reads request recorded points (`WERTE=True`), not interpolated
-window-boundary values; the existing highest-available-quality selection remains.
+delay. TSTP reads request recorded points (`WERTE=True`). Some servers still
+interpolate the requested boundaries, so each HTTP read expands the wire window
+by one second on both sides and filters decoded UTC readings back to the exact
+logical `[from, until)` window. This removes synthetic query edges without
+discarding a real reading at `from`; it does not drop the first/last record or
+assume a sampling grid. The existing highest-available-quality selection remains.
+This preserves stored series points, not necessarily original sensor samples:
+any server-side processing already present inside the series is unchanged.
+
+The exact single-precision TSTP gap marker (`4E+37`, bits `0x7df0bdc2`) is
+skipped before conversion to a measurement. Valid neighboring readings and
+real zeroes are preserved. No replacement values are generated and no existing
+Core data is deleted. A gap-only result is a successful empty poll, not a Core
+write or evidence of fresh measurements. Other malformed/non-finite values
+still fail the mapping instead of being silently treated as gaps.
 
 The catalog cache and synchronization boundaries exist only in process memory.
 After restart, each mapping reads one polling interval plus overlap, which can
