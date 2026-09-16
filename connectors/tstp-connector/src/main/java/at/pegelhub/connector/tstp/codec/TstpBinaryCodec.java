@@ -11,8 +11,21 @@ import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 
 public final class TstpBinaryCodec {
+    // TSTP 7.1: the single-precision 4E+37 value denotes a gap, not a measurement.
+    private static final int GAP_BITS = 0x7df0bdc2;
+    private final ZoneOffset timeOffset;
+
+    public TstpBinaryCodec() {
+        this(ZoneOffset.UTC);
+    }
+
+    public TstpBinaryCodec(ZoneOffset timeOffset) {
+        this.timeOffset = Objects.requireNonNull(timeOffset, "timeOffset");
+    }
+
     public List<Measurement> decode(byte[] toDecode) {
         List<Measurement> measurementList = new ArrayList<>();
 
@@ -83,9 +96,12 @@ public final class TstpBinaryCodec {
             int bits = ByteBuffer.wrap(Arrays.copyOfRange(toDecode, j + 8, j + 12))
                     .order(java.nio.ByteOrder.BIG_ENDIAN)
                     .getInt();
+            if (bits == GAP_BITS) {
+                continue;
+            }
             double ieeeFloat = Float.intBitsToFloat(bits);
             double roundedFloat = BigDecimal.valueOf(ieeeFloat).setScale(2, RoundingMode.HALF_UP).doubleValue();
-            Instant timestamp = LocalDateTime.of(year, month, day, hours, minutes, seconds).toInstant(ZoneOffset.UTC);
+            Instant timestamp = LocalDateTime.of(year, month, day, hours, minutes, seconds).toInstant(timeOffset);
 
             measurementList.add(new Measurement(null, timestamp, roundedFloat));
         }
@@ -98,7 +114,7 @@ public final class TstpBinaryCodec {
 
         for (int i = 0; i < toEncode.size(); i++) {
             Measurement currentMeasurement = toEncode.get(i);
-            LocalDateTime timestamp = LocalDateTime.ofInstant(currentMeasurement.getObservedAt(), ZoneOffset.UTC);
+            LocalDateTime timestamp = LocalDateTime.ofInstant(currentMeasurement.getObservedAt(), timeOffset);
             float measurementValue = currentMeasurement.getValue().floatValue();
 
             byte[] dateBytes = new byte[8];
