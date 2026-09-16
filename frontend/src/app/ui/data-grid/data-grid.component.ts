@@ -1,7 +1,9 @@
+import { DOCUMENT } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   Component,
   computed,
+  inject,
   input,
   output,
   signal,
@@ -53,6 +55,7 @@ export class PhDataGridComponent<T extends PhDataGridRow = PhDataGridRow> {
   protected readonly modules = PH_DATA_GRID_MODULES;
   protected readonly theme = PH_DATA_GRID_THEME;
   protected readonly localeText = PH_DATA_GRID_LOCALE;
+  protected readonly popupParent = inject(DOCUMENT).body;
   protected readonly rowHeight = DEFAULT_ROW_HEIGHT;
   protected readonly suppressedOverlays: OverlayType[] = ['noRows', 'noMatchingRows'];
   protected readonly gridRows = computed(() => [...this.rows()]);

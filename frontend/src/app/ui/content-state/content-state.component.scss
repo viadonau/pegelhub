@@ -5,11 +5,14 @@
 
 .ph-content-loading {
   display: flex;
+  flex-direction: column;
   min-height: 7rem;
   align-items: center;
+  justify-content: center;
   gap: 0.875rem;
   color: var(--ph-text-secondary);
   font-size: 0.9375rem;
+  text-align: center;
 }
 
 .ph-content-loading-spinner {
