@@ -1,6 +1,7 @@
 package at.pegelhub.connector.tstp.config;
 
 import at.pegelhub.connector.tstp.TstpMapping;
+import at.pegelhub.connector.tstp.TstpParameter;
 import at.pegelhub.lib.config.ConnectorConfigDirectory;
 import at.pegelhub.lib.config.ConnectorMappingLoader;
 import at.pegelhub.lib.config.CoreConnection;
@@ -51,22 +52,24 @@ public final class TstpConnectorConfigLoader {
     }
 
     private static void validateMappings(List<LoadedMapping<TstpMapping>> mappings) {
-        Set<Integer> outboundTargets = new HashSet<>();
+        Set<TstpNode> outboundTargets = new HashSet<>();
         Set<UUID> inboundTargets = new HashSet<>();
         Set<MappingKey> seen = new HashSet<>();
         Map<MappingNode, Set<MappingNode>> graph = new HashMap<>();
 
         for (LoadedMapping<TstpMapping> loaded : mappings) {
             TstpMapping mapping = loaded.value();
-            MappingKey key = new MappingKey(mapping.timeSeriesId(), mapping.stationId(), mapping.direction());
+            TstpNode tstpTarget = new TstpNode(mapping.stationId(), mapping.parameter());
+            MappingKey key = new MappingKey(mapping.timeSeriesId(), tstpTarget, mapping.direction());
 
             if (!seen.add(key)) {
                 throw invalid(loaded, "duplicates another mapping");
             }
 
             if (mapping.direction() == MappingDirection.CORE_TO_EXTERNAL) {
-                if (!outboundTargets.add(mapping.stationId())) {
-                    throw invalid(loaded, "duplicates outbound TSTP target station " + mapping.stationId());
+                if (!outboundTargets.add(tstpTarget)) {
+                    throw invalid(loaded, "duplicates outbound TSTP target station " + mapping.stationId()
+                            + " parameter " + mapping.parameter().value());
                 }
             } else if (!inboundTargets.add(mapping.timeSeriesId())) {
                 throw invalid(loaded, "duplicates inbound Core target " + mapping.timeSeriesId());
@@ -74,9 +77,9 @@ public final class TstpConnectorConfigLoader {
 
             MappingNode source = mapping.direction() == MappingDirection.CORE_TO_EXTERNAL
                     ? new CoreNode(mapping.timeSeriesId())
-                    : new TstpNode(mapping.stationId());
+                    : tstpTarget;
             MappingNode target = mapping.direction() == MappingDirection.CORE_TO_EXTERNAL
-                    ? new TstpNode(mapping.stationId())
+                    ? tstpTarget
                     : new CoreNode(mapping.timeSeriesId());
 
             if (hasPath(graph, target, source, new HashSet<>())) {
@@ -132,7 +135,7 @@ public final class TstpConnectorConfigLoader {
 
     private record MappingKey(
             UUID timeSeriesId,
-            int stationId,
+            TstpNode target,
             MappingDirection direction
     ) {}
 
@@ -143,6 +146,7 @@ public final class TstpConnectorConfigLoader {
     ) implements MappingNode {}
 
     private record TstpNode(
-            int stationId
+            int stationId,
+            TstpParameter parameter
     ) implements MappingNode {}
 }

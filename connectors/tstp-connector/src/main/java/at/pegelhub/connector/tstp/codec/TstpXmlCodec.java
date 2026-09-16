@@ -13,7 +13,7 @@ import jakarta.xml.bind.JAXBContext;
 import jakarta.xml.bind.JAXBException;
 import jakarta.xml.bind.Marshaller;
 import jakarta.xml.bind.Unmarshaller;
-import java.io.StringReader;
+import java.io.ByteArrayInputStream;
 import java.io.StringWriter;
 import java.util.Base64;
 import java.util.List;
@@ -27,22 +27,25 @@ public final class TstpXmlCodec {
         this.binaryCodec = binaryCodec;
     }
 
-    public List<Measurement> parseMeasurements(String responseBody) {
+    public List<Measurement> parseMeasurements(byte[] responseBody, String unit) {
         XmlTsData responseObject = unmarshalXmlTsData(responseBody);
+        if (responseObject.getDef() == null || !unit.equals(responseObject.getDef().getEinheit())) {
+            throw new IllegalArgumentException("TSTP measurement response did not confirm unit " + unit);
+        }
         LOG.debug("unmarshalled get response");
 
         return parseXmlTsDataToMeasurementList(responseObject);
     }
 
-    public XmlQueryResponse parseCatalog(String xmlCatalog) {
+    public XmlQueryResponse parseCatalog(byte[] xmlCatalog) {
         return unmarshalXmlCatalog(xmlCatalog);
     }
 
-    public XmlTsResponse parseWriteResponse(String xml) {
+    public XmlTsResponse parseWriteResponse(byte[] xml) {
         return unmarshalXmlTsResponse(xml);
     }
 
-    public String writeRequest(List<Measurement> measurements) {
+    public String writeRequest(List<Measurement> measurements, String unit) {
         byte[] binaryBlock = binaryCodec.encode(measurements);
         String binaryEncoded = insertNewlines(Base64.getEncoder().encodeToString(binaryBlock));
 
@@ -50,7 +53,7 @@ public final class TstpXmlCodec {
                 "Z",
                 "Nein",
                 "K",
-                "cm",
+                unit,
                 String.valueOf(measurements.size() * 12),
                 String.valueOf(measurements.size())
         );
@@ -77,11 +80,11 @@ public final class TstpXmlCodec {
         }
     }
 
-    private XmlTsResponse unmarshalXmlTsResponse(String xml) {
+    private XmlTsResponse unmarshalXmlTsResponse(byte[] xml) {
         try {
             JAXBContext jaxbContext = JAXBContext.newInstance(XmlTsResponse.class);
             Unmarshaller unmarshaller = jaxbContext.createUnmarshaller();
-            StringReader reader = new StringReader(xml);
+            ByteArrayInputStream reader = new ByteArrayInputStream(xml);
 
             return (XmlTsResponse) unmarshaller.unmarshal(reader);
         } catch (JAXBException e) {
@@ -89,11 +92,11 @@ public final class TstpXmlCodec {
         }
     }
 
-    private XmlQueryResponse unmarshalXmlCatalog(String xmlCatalog) {
+    private XmlQueryResponse unmarshalXmlCatalog(byte[] xmlCatalog) {
         try {
             JAXBContext jaxbContext = JAXBContext.newInstance(XmlQueryResponse.class);
             Unmarshaller unmarshaller = jaxbContext.createUnmarshaller();
-            StringReader reader = new StringReader(xmlCatalog);
+            ByteArrayInputStream reader = new ByteArrayInputStream(xmlCatalog);
 
             return (XmlQueryResponse) unmarshaller.unmarshal(reader);
         } catch (JAXBException e) {
@@ -108,11 +111,11 @@ public final class TstpXmlCodec {
         return binaryCodec.decode(decoded);
     }
 
-    private XmlTsData unmarshalXmlTsData(String xml) {
+    private XmlTsData unmarshalXmlTsData(byte[] xml) {
         try {
             JAXBContext jaxbContext = JAXBContext.newInstance(XmlTsData.class);
             Unmarshaller unmarshaller = jaxbContext.createUnmarshaller();
-            StringReader reader = new StringReader(xml);
+            ByteArrayInputStream reader = new ByteArrayInputStream(xml);
 
             return (XmlTsData) unmarshaller.unmarshal(reader);
         } catch (JAXBException e) {

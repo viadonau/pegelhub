@@ -6,9 +6,12 @@ import at.pegelhub.lib.config.ConnectorConfigDirectory;
 import at.pegelhub.lib.config.MappingDirection;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.time.Duration;
 import java.util.UUID;
 
@@ -31,6 +34,8 @@ class TstpConnectorModuleTest {
         assertEquals("127.0.0.1", config.server().host());
         assertEquals("Z", config.server().timeOffset());
         assertEquals(123, config.mappings().getFirst().stationId());
+        assertEquals(TstpParameter.WATER_LEVEL, config.mappings().getFirst().parameter());
+        assertEquals("cm", config.mappings().getFirst().unit());
         assertEquals(Duration.ofHours(1), config.overlap());
     }
 
@@ -70,6 +75,68 @@ class TstpConnectorModuleTest {
 
         assertTrue(error.getMessage().contains("two.yaml"));
         assertTrue(error.getMessage().contains("target station 77"));
+    }
+
+    @Test
+    void loadsThreeParametersAtOneStationAsSeparateOutboundTargets() throws Exception {
+        writeConnectorYaml(8032);
+        writeMapping("01-level.yaml", FIRST_SERIES, 77, "core-to-external");
+        writeMapping("02-temperature.yaml", SECOND_SERIES, 77, "core-to-external");
+        addParameter("02-temperature.yaml", "WTemperatur", "\u00b0C");
+        writeMapping("03-discharge.yaml", UUID.fromString("33333333-3333-3333-3333-333333333333"), 77,
+                "core-to-external");
+        addParameter("03-discharge.yaml", "Abfluss", "l/s");
+
+        var mappings = loadConfig().mappings();
+
+        assertEquals(java.util.List.of(TstpParameter.WATER_LEVEL, TstpParameter.WATER_TEMPERATURE,
+                TstpParameter.DISCHARGE), mappings.stream().map(TstpMapping::parameter).toList());
+        assertEquals(java.util.List.of("cm", "\u00b0C", "l/s"), mappings.stream().map(TstpMapping::unit).toList());
+    }
+
+    @ParameterizedTest
+    @CsvSource({"Wassertemperatur,\u00b0C", "unknown,cm", "WTemperatur,cm", "Abfluss,cm", "Wasserstand,l/s"})
+    void rejectsUnknownParametersAndIncompatibleUnits(String parameter, String unit) throws Exception {
+        writeConnectorYaml(8032);
+        writeMapping("invalid.yaml", FIRST_SERIES, 77, "core-to-external");
+        addParameter("invalid.yaml", parameter, unit);
+
+        assertThrows(Exception.class, this::loadConfig);
+    }
+
+    @Test
+    void stillRejectsDuplicateTemperatureTargetsAndInboundCoreTargets() throws Exception {
+        writeConnectorYaml(8032);
+        writeMapping("one.yaml", FIRST_SERIES, 77, "core-to-external");
+        addParameter("one.yaml", "WTemperatur", "\u00b0C");
+        writeMapping("two.yaml", SECOND_SERIES, 77, "core-to-external");
+        addParameter("two.yaml", "WTemperatur", "\u00b0C");
+        assertTrue(assertThrows(IllegalArgumentException.class, this::loadConfig).getMessage()
+                .contains("duplicates outbound TSTP target station 77 parameter WTemperatur"));
+
+        writeMapping("one.yaml", FIRST_SERIES, 77, "external-to-core");
+        writeMapping("two.yaml", FIRST_SERIES, 77, "external-to-core");
+        addParameter("two.yaml", "WTemperatur", "\u00b0C");
+        assertTrue(assertThrows(IllegalArgumentException.class, this::loadConfig).getMessage()
+                .contains("duplicates inbound Core target"));
+    }
+
+    @Test
+    void distinguishesParametersWhenCheckingFeedbackCycles() throws Exception {
+        writeConnectorYaml(8032);
+        writeMapping("01-a-to-station.yaml", FIRST_SERIES, 77, "core-to-external");
+        writeMapping("02-station-to-b.yaml", SECOND_SERIES, 77, "external-to-core");
+        addParameter("02-station-to-b.yaml", "WTemperatur", "\u00b0C");
+        writeMapping("03-b-to-station.yaml", SECOND_SERIES, 78, "core-to-external");
+        addParameter("03-b-to-station.yaml", "WTemperatur", "\u00b0C");
+        writeMapping("04-station-to-a.yaml", FIRST_SERIES, 78, "external-to-core");
+
+        assertEquals(4, loadConfig().mappings().size());
+
+        writeMapping("02-station-to-b.yaml", SECOND_SERIES, 77, "external-to-core");
+        writeMapping("03-b-to-station.yaml", SECOND_SERIES, 78, "core-to-external");
+        assertTrue(assertThrows(IllegalArgumentException.class, this::loadConfig).getMessage()
+                .contains("feedback cycle"));
     }
 
     @Test
@@ -125,6 +192,11 @@ class TstpConnectorModuleTest {
 
     private TstpConnectorConfig loadConfig() throws Exception {
         return new TstpConnectorConfigLoader().load(ConnectorConfigDirectory.at(configDirectory));
+    }
+
+    private void addParameter(String fileName, String parameter, String unit) throws Exception {
+        Files.writeString(configDirectory.resolve("mappings").resolve(fileName),
+                "parameter: \"" + parameter + "\"\nunit: \"" + unit + "\"\n", StandardOpenOption.APPEND);
     }
 
     private void writeConnectorYaml(int port) throws Exception {

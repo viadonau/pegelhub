@@ -7,6 +7,7 @@ import org.junit.jupiter.params.provider.CsvSource;
 
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.nio.charset.StandardCharsets;
 import java.util.HexFormat;
 import java.util.List;
 
@@ -27,7 +28,7 @@ class TstpCodecTest {
 
         assertEquals(1, decoded.size());
         assertEquals(input.getObservedAt(), decoded.getFirst().getObservedAt());
-        assertEquals(42.13, decoded.getFirst().getValue());
+        assertEquals(42.125, decoded.getFirst().getValue());
     }
 
     @Test
@@ -82,8 +83,8 @@ class TstpCodecTest {
     void writesAndReadsMeasurementXml() {
         Measurement input = new Measurement(null, Instant.parse("2026-06-07T10:15:30Z"), 7.5);
 
-        String request = xml.writeRequest(List.of(input));
-        List<Measurement> decoded = xml.parseMeasurements(request);
+        String request = xml.writeRequest(List.of(input), "cm");
+        List<Measurement> decoded = xml.parseMeasurements(request.getBytes(StandardCharsets.ISO_8859_1), "cm");
 
         assertTrue(request.contains("ANZ=\"1\""));
         assertEquals(7.5, decoded.getFirst().getValue());

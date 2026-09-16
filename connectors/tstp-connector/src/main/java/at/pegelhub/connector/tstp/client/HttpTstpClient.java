@@ -1,5 +1,6 @@
 package at.pegelhub.connector.tstp.client;
 
+import at.pegelhub.connector.tstp.TstpParameter;
 import at.pegelhub.connector.tstp.codec.TstpBinaryCodec;
 import at.pegelhub.connector.tstp.codec.TstpXmlCodec;
 import at.pegelhub.connector.tstp.config.TstpServer;
@@ -15,6 +16,7 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
@@ -62,7 +64,7 @@ public final class HttpTstpClient implements TstpClient {
     }
 
     @Override
-    public List<Measurement> readMeasurements(String zrid, Instant readFrom, Instant readUntil) {
+    public List<Measurement> readMeasurements(String zrid, Instant readFrom, Instant readUntil, String unit) {
         // Some servers interpolate both edges even with WERTE=True. Move them outside our logical window.
         URI uri = commandUri("Get&ZRID=" + zrid
                 + "&Von=" + timeFormat.format(readFrom.minusSeconds(1))
@@ -71,15 +73,15 @@ public final class HttpTstpClient implements TstpClient {
 
         LOG.debug("TSTP GET {}", uri);
 
-        return xmlCodec.parseMeasurements(send(request(uri).GET().build(), "GET")).stream()
+        return xmlCodec.parseMeasurements(send(request(uri).GET().build(), "GET"), unit).stream()
                 .filter(measurement -> !measurement.getObservedAt().isBefore(readFrom)
                         && measurement.getObservedAt().isBefore(readUntil))
                 .toList();
     }
 
     @Override
-    public XmlQueryResponse readCatalog(int stationId) {
-        URI uri = commandUri("Query&ORT=" + stationId + "&Parameter=Wasserstand&Hauptreihe=true");
+    public XmlQueryResponse readCatalog(int stationId, TstpParameter parameter) {
+        URI uri = commandUri("Query&ORT=" + stationId + "&Parameter=" + parameter.value() + "&Hauptreihe=true");
 
         LOG.debug("TSTP Query {}", uri);
 
@@ -87,13 +89,14 @@ public final class HttpTstpClient implements TstpClient {
     }
 
     @Override
-    public void writeMeasurements(String zrid, List<Measurement> measurements) {
+    public void writeMeasurements(String zrid, List<Measurement> measurements, String unit) {
         List<Measurement> sorted = new ArrayList<>(measurements);
         sorted.sort(Comparator.comparing(Measurement::getObservedAt));
 
         URI uri = commandUri("PUT&ZRID=" + zrid + "&QUAL=0");
         HttpRequest request = request(uri)
-                .POST(HttpRequest.BodyPublishers.ofString(xmlCodec.writeRequest(sorted)))
+                .header("Content-Type", "text/xml; charset=ISO-8859-1")
+                .POST(HttpRequest.BodyPublishers.ofString(xmlCodec.writeRequest(sorted, unit), StandardCharsets.ISO_8859_1))
                 .build();
 
         XmlTsResponse response = xmlCodec.parseWriteResponse(send(request, "PUT"));
@@ -109,9 +112,9 @@ public final class HttpTstpClient implements TstpClient {
         httpClient.close();
     }
 
-    private String send(HttpRequest request, String command) {
+    private byte[] send(HttpRequest request, String command) {
         try {
-            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            HttpResponse<byte[]> response = httpClient.send(request, HttpResponse.BodyHandlers.ofByteArray());
 
             if (response.statusCode() < 200 || response.statusCode() >= 300) {
                 throw new TstpClientException(

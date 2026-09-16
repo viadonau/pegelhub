@@ -2,8 +2,6 @@ package at.pegelhub.connector.tstp.codec;
 
 import at.pegelhub.lib.model.Measurement;
 
-import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.nio.ByteBuffer;
 import java.time.Instant;
 import java.time.LocalDateTime;
@@ -100,10 +98,12 @@ public final class TstpBinaryCodec {
                 continue;
             }
             double ieeeFloat = Float.intBitsToFloat(bits);
-            double roundedFloat = BigDecimal.valueOf(ieeeFloat).setScale(2, RoundingMode.HALF_UP).doubleValue();
+            if (!Double.isFinite(ieeeFloat)) {
+                throw new IllegalArgumentException("TSTP measurement must be finite");
+            }
             Instant timestamp = LocalDateTime.of(year, month, day, hours, minutes, seconds).toInstant(timeOffset);
 
-            measurementList.add(new Measurement(null, timestamp, roundedFloat));
+            measurementList.add(new Measurement(null, timestamp, ieeeFloat));
         }
         return measurementList;
     }

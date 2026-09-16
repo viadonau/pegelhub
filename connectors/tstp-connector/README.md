@@ -59,15 +59,71 @@ direction: "external-to-core"
 - `external-to-core` reads the TSTP station and writes the Core time series.
 - `core-to-external` reads the Core time series and writes the TSTP station.
 
-Mapping files are loaded in sorted filename order. Startup rejects exact
-duplicates, duplicate outbound station targets, duplicate inbound Core targets,
-and directed feedback cycles. A failed mapping does not prevent the remaining
-mappings in that polling cycle from running.
+### Parameters and units
 
-For every station, the connector queries the TSTP catalog with
-`Parameter=Wasserstand` and `Hauptreihe=true`, then uses the first returned
-ZRID. Valid catalog entries are cached in memory for 24 hours. Empty responses
-or missing ZRIDs fail the mapping and are queried again on the next poll.
+Each mapping selects one `parameter` and its wire `unit`. Omitted parameters
+default to `Wasserstand`; an omitted unit uses the parameter's default below.
+Existing water-level mappings therefore remain `Wasserstand` in `cm`.
+
+| TSTP parameter | Supported wire units (default first) | Core property | Core output representation |
+| --- | --- | --- | --- |
+| `Wasserstand` | `cm` | `water-level` | `canonical` |
+| `WTemperatur` | degrees Celsius (`"\u00b0C"` in YAML) | `water-temperature` | `canonical` |
+| `Abfluss` | `m3/s`, `m^3/s`, `"m\u00b3/s"`, `l/s` | `discharge` | `litres-per-second` for `l/s`; otherwise `canonical` |
+
+Use the exact parameter name and unit reported by the server, not a translated
+label such as `Wassertemperatur`. Unsupported combinations fail at startup.
+For example, these are two separate mapping files for one station:
+
+```yaml
+# temperature.yaml
+timeSeriesId: "22222222-2222-2222-2222-222222222222"
+stationId: 123
+direction: "core-to-external"
+parameter: "WTemperatur"
+unit: "\u00b0C"
+```
+
+```yaml
+# discharge.yaml
+timeSeriesId: "33333333-3333-3333-3333-333333333333"
+stationId: 123
+direction: "core-to-external"
+parameter: "Abfluss"
+unit: "l/s"
+```
+
+Core owns all conversions. For outbound `l/s`, the connector requests
+`litres-per-second` from Core and sends the returned values unchanged. It does
+not multiply or divide locally. Temperature uses Core's canonical `Cel` values
+with the TSTP degrees-Celsius label, without changing the number.
+
+For inbound mappings, Core's source assignment must use the matching input
+representation: `litres-per-second` for `l/s`, otherwise `canonical`. Select
+the matching Core property in the table above. Neither the mapping nor the
+TSTP catalog changes or validates that Core source assignment automatically;
+review it before activation. See [measurement representations](../../docs/guides/measurement-representations.md).
+
+Mapping files are loaded in sorted filename order. Startup rejects exact
+duplicates, duplicate outbound `(stationId, parameter)` targets, duplicate
+inbound Core targets, and directed feedback cycles. Different parameters at
+the same station are independent targets. A failed mapping does not prevent
+the remaining mappings in that polling cycle from running.
+
+The connector queries the TSTP catalog using the mapping's station and
+parameter with `Hauptreihe=true`. Exactly one confirmed main-series entry with
+a ZRID and matching station, parameter and unit is required; it never chooses the first of several
+matches. Valid entries are cached independently per station and parameter for
+24 hours. Unit checks also apply to cache hits and to each measurement
+response's `DEF EINHEIT`. Invalid catalogs are not cached and are retried on
+the next poll. Existing mappings whose catalogs are ambiguous or omit these
+fields now fail explicitly instead of transferring unverified data.
+
+TSTP XML responses are decoded using their XML encoding declaration. Outbound
+XML declares and uses ISO-8859-1, including the degrees-Celsius unit. Values
+retain the precision of the protocol's 32-bit float; the old blanket rounding
+to two decimal places has been removed, including for water levels. Small
+discharge values are not rounded to zero.
 
 Configure the Keycloak client for the `pegelhub-core-api` audience and only the
 direction-appropriate lowercase Core roles, such as `measurement:read` and
