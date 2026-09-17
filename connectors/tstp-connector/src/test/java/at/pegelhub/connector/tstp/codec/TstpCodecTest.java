@@ -1,6 +1,7 @@
 package at.pegelhub.connector.tstp.codec;
 
 import at.pegelhub.lib.model.Measurement;
+import at.pegelhub.connector.tstp.config.TstpWriteFormat;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
@@ -18,7 +19,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class TstpCodecTest {
     private final TstpBinaryCodec binary = new TstpBinaryCodec();
-    private final TstpXmlCodec xml = new TstpXmlCodec(binary);
+    private final TstpXmlCodec xml = new TstpXmlCodec(binary, TstpWriteFormat.ASCII);
 
     @Test
     void binaryRoundTripPreservesTimestampAndFloatValue() {
@@ -80,13 +81,54 @@ class TstpCodecTest {
     }
 
     @Test
-    void writesAndReadsMeasurementXml() {
+    void readsBinaryResponsesIndependentlyOfTheWriteFormat() {
         Measurement input = new Measurement(null, Instant.parse("2026-06-07T10:15:30Z"), 7.5);
-
-        String request = xml.writeRequest(List.of(input), "cm");
+        String request = at.pegelhub.connector.tstp.BinaryResponseFixture.response(List.of(input), "cm");
         List<Measurement> decoded = xml.parseMeasurements(request.getBytes(StandardCharsets.ISO_8859_1), "cm");
 
         assertTrue(request.contains("ANZ=\"1\""));
         assertEquals(7.5, decoded.getFirst().getValue());
+    }
+
+    @ParameterizedTest
+    @CsvSource({"cm,283.42364501953", "m^3/s,12.75", "\u00b0C,-2.5"})
+    void writesDocumentedAsciiPayloadWithoutRoundingSeconds(String unit, double value) throws Exception {
+        var codec = new TstpXmlCodec(new TstpBinaryCodec(ZoneOffset.ofHours(1)), TstpWriteFormat.ASCII);
+        String request = codec.writeRequest(List.of(new Measurement(null,
+                Instant.parse("2026-09-17T23:59:22.161Z"), value)), unit);
+        var document = javax.xml.parsers.DocumentBuilderFactory.newInstance().newDocumentBuilder()
+                .parse(new java.io.ByteArrayInputStream(request.getBytes(StandardCharsets.ISO_8859_1)));
+        var definition = (org.w3c.dom.Element) document.getElementsByTagName("DEF").item(0);
+        assertEquals("0", definition.getAttribute("LEN"));
+        assertEquals("1", definition.getAttribute("ANZ"));
+        assertEquals(unit, definition.getAttribute("EINHEIT"));
+        assertEquals("2026-09-18T00:59:22Z " + Double.toString(value),
+                document.getElementsByTagName("DATA").item(0).getTextContent());
+    }
+
+    @Test
+    void binaryWritesRetainTheOriginalEncoding() throws Exception {
+        var encoder = new TstpBinaryCodec(ZoneOffset.ofHours(1));
+        var codec = new TstpXmlCodec(encoder, TstpWriteFormat.BINARY);
+        var points = List.of(new Measurement(null, Instant.parse("2026-09-17T23:59:22Z"), 12.5));
+        String request = codec.writeRequest(points, "cm");
+        var document = javax.xml.parsers.DocumentBuilderFactory.newInstance().newDocumentBuilder()
+                .parse(new java.io.ByteArrayInputStream(request.getBytes(StandardCharsets.ISO_8859_1)));
+        var definition = (org.w3c.dom.Element) document.getElementsByTagName("DEF").item(0);
+        assertEquals("12", definition.getAttribute("LEN"));
+        assertEquals("1", definition.getAttribute("ANZ"));
+        assertArrayEquals(encoder.encode(points), java.util.Base64.getMimeDecoder().decode(
+                document.getElementsByTagName("DATA").item(0).getTextContent()));
+    }
+
+    @ParameterizedTest
+    @org.junit.jupiter.params.provider.EnumSource(TstpWriteFormat.class)
+    void rejectsInvalidOutboundNumbersAndEmptyBatches(TstpWriteFormat format) {
+        var xml = new TstpXmlCodec(binary, format);
+        assertThrows(IllegalArgumentException.class, () -> xml.writeRequest(List.of(), "cm"));
+        for (double value : new double[]{Double.NaN, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY, 4e37}) {
+            assertThrows(IllegalArgumentException.class, () -> xml.writeRequest(
+                    List.of(new Measurement(null, Instant.parse("2026-09-17T12:00:00Z"), value)), "cm"));
+        }
     }
 }

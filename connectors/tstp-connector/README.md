@@ -171,6 +171,48 @@ delay, including IEC and ICC upstream. One hour allows margin for normal
 upstream polling (for example, `2h` with hourly ICC). This is bounded recent
 replay, not historical backfill or a durable checkpoint.
 
+### Wire formats
+
+Inbound GET responses remain Base64-encoded binary. Outbound PUT requests default
+to binary for backward compatibility. Set `tstp.server.writeFormat` explicitly
+to `ascii` to use text writes, or `binary` to retain binary writes. Other values
+are rejected during configuration loading. For example:
+
+```yaml
+tstp:
+  server:
+    host: tstp.example.org
+    port: 8032
+    timeOffset: "+01:00"
+    writeFormat: ascii
+```
+
+Text writes use time/value pairs inside the same TSTP XML envelope: `LEN="0"`, `ANZ` equal
+to the number of measurements, and one `YYYY-MM-DDThh:mm:ssZ value` pair per
+line. Values use a decimal point independent of the process locale. The unit
+and configured server time offset are unchanged; milliseconds are omitted,
+not rounded into the next second. This is a wire-format change, not a change
+to sampling, measurement units, quality layers or polling windows.
+
+The reason is a reproducible interoperability issue on the tested Callisto
+deployment: ten binary PUT samples returned timestamps floored to a five-second
+grid (for example, second 24 became 20). Four text PUT samples preserved their
+seconds when read back through both server endpoints, including binary GET.
+A subsequent container-to-server round trip also preserved second 21 instead
+of returning 20. This isolates the observed difference to the binary write
+path, but does not establish the server's internal cause or implicate all
+Callisto/TSTP versions.
+
+The [TSTP specification](https://www.toposoft.de/formate_protokolle/tstp_protokoll.pdf)
+describes the text data format in section 6.2 and ASCII GET in section 4.2;
+the PUT example in section 4.3 uses binary. Text PUT acceptance is therefore
+an explicit compatibility gate to verify on each target server, not a claim
+of universal server support. Text payloads are larger than binary payloads.
+There is no automatic format fallback: it could silently reintroduce timestamp
+changes. An unconfirmed PUT fails the mapping and retains its retry window.
+Empty batches, non-finite values and the reserved gap marker are rejected
+rather than written as measurements in either format.
+
 ### Raw-data ownership and rollout gate
 
 Outbound writes explicitly select raw quality layer `0` (`QUAL=0`).
@@ -184,14 +226,17 @@ See the [TSTP specification, sections 4.2-4.4](https://www.toposoft.de/formate_p
 Before enabling this in production, use an approved test series on the deployed
 TSTP version/configuration:
 
-1. Write raw readings with an intermediate reading initially absent, and put a
+1. Confirm text PUT acceptance and read back timestamps with seconds not on a
+   five-second grid, values and units. Include the configured time offset and
+   a date boundary in codec tests.
+2. Write raw readings with an intermediate reading initially absent, and put a
    correction in a higher layer.
-2. Deliver the missing raw reading through a complete overlapping interval,
+3. Deliver the missing raw reading through a complete overlapping interval,
    then replay that interval again.
-3. Read back raw and corrected layers. Verify the late reading, its neighbors,
+4. Read back raw and corrected layers. Verify the late reading, its neighbors,
    surrounding data, and the higher-layer correction. Also verify recorded-point
    reads do not synthesize boundary values.
-4. Check configured post-PUT actions tolerate repeated writes.
+5. Check configured post-PUT actions tolerate repeated writes.
 
 Unit tests verify connector behavior, not the actual server's layer isolation
 or post-write actions. Treat an unperformed server check as an open rollout

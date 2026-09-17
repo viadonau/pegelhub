@@ -20,6 +20,23 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class TstpConnectorModuleTest {
+    @Test
+    void writeFormatDefaultsToBinaryAndAcceptsOnlySupportedFormats() throws Exception {
+        writeConnectorYaml(8032);
+        writeMapping("one.yaml", FIRST_SERIES, 77, "core-to-external");
+        Path file = configDirectory.resolve("connector.yaml");
+        String yaml = Files.readString(file);
+        assertEquals(at.pegelhub.connector.tstp.config.TstpWriteFormat.BINARY, loadConfig().server().writeFormat());
+        for (String format : new String[]{"binary", "ascii"}) {
+            Files.writeString(file, yaml + "    writeFormat: " + format + "\n");
+            assertEquals(format.toUpperCase(java.util.Locale.ROOT), loadConfig().server().writeFormat().name());
+        }
+        for (String format : new String[]{"unknown", "0", "\"\""}) {
+            Files.writeString(file, yaml + "    writeFormat: " + format + "\n");
+            assertThrows(Exception.class, this::loadConfig);
+        }
+    }
+
     private static final UUID FIRST_SERIES = UUID.fromString("11111111-1111-1111-1111-111111111111");
     private static final UUID SECOND_SERIES = UUID.fromString("22222222-2222-2222-2222-222222222222");
 

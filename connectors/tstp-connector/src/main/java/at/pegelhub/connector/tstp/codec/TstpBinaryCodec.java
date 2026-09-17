@@ -24,6 +24,10 @@ public final class TstpBinaryCodec {
         this.timeOffset = Objects.requireNonNull(timeOffset, "timeOffset");
     }
 
+    ZoneOffset timeOffset() {
+        return timeOffset;
+    }
+
     public List<Measurement> decode(byte[] toDecode) {
         List<Measurement> measurementList = new ArrayList<>();
 
