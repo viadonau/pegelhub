@@ -1,5 +1,6 @@
 package at.pegelhub.connector.tstp.client;
 
+import at.pegelhub.connector.tstp.TstpParameter;
 import at.pegelhub.connector.tstp.codec.TstpXmlCodec;
 import at.pegelhub.connector.tstp.codec.TstpBinaryCodec;
 import at.pegelhub.connector.tstp.config.TstpServer;
@@ -30,6 +31,7 @@ import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -67,9 +69,9 @@ class HttpTstpClientTest {
             client.writeMeasurements("raw-series", List.of(
                     new Measurement(null, first.plusSeconds(600), 3),
                     new Measurement(null, first, 1),
-                    new Measurement(null, first.plusSeconds(300), 2)));
+                    new Measurement(null, first.plusSeconds(300), 2)), "cm");
             assertEquals("Cmd=PUT&ZRID=raw-series&QUAL=0", query.get());
-            List<Measurement> decoded = codec.parseMeasurements(body.get());
+            List<Measurement> decoded = codec.parseMeasurements(body.get().getBytes(StandardCharsets.ISO_8859_1), "cm");
             Instant wireStart = first.plusSeconds(seconds);
             assertEquals(List.of(wireStart, wireStart.plusSeconds(300), wireStart.plusSeconds(600)),
                     decoded.stream().map(Measurement::getObservedAt).toList());
@@ -84,19 +86,20 @@ class HttpTstpClientTest {
     void readMeasurementsPadsWireBoundariesWhilePreservingTstpQueryFormat() throws Exception {
         HttpClient httpClient = mock(HttpClient.class);
         TstpXmlCodec codec = mock(TstpXmlCodec.class);
-        HttpResponse<String> httpResponse = mock(HttpResponse.class);
+        HttpResponse<byte[]> httpResponse = mock(HttpResponse.class);
+        byte[] response = "response".getBytes(StandardCharsets.UTF_8);
 
         when(httpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class))).thenReturn(httpResponse);
         when(httpResponse.statusCode()).thenReturn(200);
-        when(httpResponse.body()).thenReturn("response");
-        when(codec.parseMeasurements("response")).thenReturn(List.of());
+        when(httpResponse.body()).thenReturn(response);
+        when(codec.parseMeasurements(response, "cm")).thenReturn(List.of());
         HttpTstpClient client = new HttpTstpClient("localhost", 8030, httpClient, codec,
                 Duration.ofSeconds(30), ZoneOffset.UTC);
 
         client.readMeasurements(
                 "PK8n4XrPPUfYpndH6GLH6A",
                 Instant.parse("2026-07-19T10:15:30Z"),
-                Instant.parse("2026-07-19T11:45:00Z"));
+                Instant.parse("2026-07-19T11:45:00Z"), "cm");
 
         verify(httpClient).send(
                 argThat(request -> request.uri().toString().equals(
@@ -117,7 +120,7 @@ class HttpTstpClientTest {
                 new Measurement(null, start, 42),
                 new Measurement(null, start.plusSeconds(900), 43),
                 new Measurement(null, end, 44),
-                new Measurement(null, end.plusSeconds(1), 44.01)))
+                new Measurement(null, end.plusSeconds(1), 44.01)), "cm")
                 .getBytes(StandardCharsets.UTF_8);
         HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         server.createContext("/", exchange -> {
@@ -130,7 +133,7 @@ class HttpTstpClientTest {
 
         try (HttpTstpClient client = HttpTstpClient.open(new TstpServer("127.0.0.1", server.getAddress().getPort(), offset))) {
             Instant logicalStart = start.minusSeconds(seconds);
-            List<Measurement> points = client.readMeasurements("series", logicalStart, end.minusSeconds(seconds));
+            List<Measurement> points = client.readMeasurements("series", logicalStart, end.minusSeconds(seconds), "cm");
 
             assertEquals(List.of(logicalStart, logicalStart.plusSeconds(900)),
                     points.stream().map(Measurement::getObservedAt).toList());
@@ -147,25 +150,26 @@ class HttpTstpClientTest {
     void writeMeasurementsSortsACopyOfImmutableInput() throws Exception {
         HttpClient httpClient = mock(HttpClient.class);
         TstpXmlCodec codec = mock(TstpXmlCodec.class);
-        HttpResponse<String> httpResponse = mock(HttpResponse.class);
+        HttpResponse<byte[]> httpResponse = mock(HttpResponse.class);
+        byte[] response = "response".getBytes(StandardCharsets.UTF_8);
         Measurement later = new Measurement(null, Instant.parse("2026-06-07T11:00:00Z"), 2.0);
         Measurement earlier = new Measurement(null, Instant.parse("2026-06-07T10:00:00Z"), 1.0);
         List<Measurement> immutable = List.of(later, earlier);
         XmlTsResponse confirmation = new XmlTsResponse();
         confirmation.setMessage("confirm");
 
-        when(codec.writeRequest(List.of(earlier, later))).thenReturn("request");
+        when(codec.writeRequest(List.of(earlier, later), "cm")).thenReturn("request");
         when(httpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class))).thenReturn(httpResponse);
         when(httpResponse.statusCode()).thenReturn(200);
-        when(httpResponse.body()).thenReturn("response");
-        when(codec.parseWriteResponse("response")).thenReturn(confirmation);
+        when(httpResponse.body()).thenReturn(response);
+        when(codec.parseWriteResponse(response)).thenReturn(confirmation);
         HttpTstpClient client = new HttpTstpClient("localhost", 8030, httpClient, codec,
                 Duration.ofSeconds(30), ZoneOffset.UTC);
 
-        assertDoesNotThrow(() -> client.writeMeasurements("zrid", immutable));
+        assertDoesNotThrow(() -> client.writeMeasurements("zrid", immutable, "cm"));
 
         assertEquals(List.of(later, earlier), immutable);
-        verify(codec).writeRequest(List.of(earlier, later));
+        verify(codec).writeRequest(List.of(earlier, later), "cm");
         verify(httpClient).send(
                 argThat(request -> request.uri().toString().equals(
                         "http://localhost:8030/?Cmd=PUT&ZRID=zrid&QUAL=0")),
@@ -177,21 +181,22 @@ class HttpTstpClientTest {
     void writeMeasurementsRejectsNegativeConfirmationText() throws Exception {
         HttpClient httpClient = mock(HttpClient.class);
         TstpXmlCodec codec = mock(TstpXmlCodec.class);
-        HttpResponse<String> httpResponse = mock(HttpResponse.class);
+        HttpResponse<byte[]> httpResponse = mock(HttpResponse.class);
+        byte[] response = "response".getBytes(StandardCharsets.UTF_8);
         XmlTsResponse rejection = new XmlTsResponse();
         rejection.setMessage("not confirmed");
 
-        when(codec.writeRequest(any())).thenReturn("request");
+        when(codec.writeRequest(any(), eq("cm"))).thenReturn("request");
         when(httpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class))).thenReturn(httpResponse);
         when(httpResponse.statusCode()).thenReturn(200);
-        when(httpResponse.body()).thenReturn("response");
-        when(codec.parseWriteResponse("response")).thenReturn(rejection);
+        when(httpResponse.body()).thenReturn(response);
+        when(codec.parseWriteResponse(response)).thenReturn(rejection);
         HttpTstpClient client = new HttpTstpClient("localhost", 8030, httpClient, codec,
                 Duration.ofSeconds(30), ZoneOffset.UTC);
 
         assertThrows(TstpClientException.class, () -> client.writeMeasurements(
                 "zrid",
-                List.of(new Measurement(null, Instant.parse("2026-06-07T10:00:00Z"), 1.0))));
+                List.of(new Measurement(null, Instant.parse("2026-06-07T10:00:00Z"), 1.0)), "cm"));
     }
 
     @Test
@@ -221,7 +226,7 @@ class HttpTstpClientTest {
         try {
             TstpClientException error = assertTimeoutPreemptively(
                     Duration.ofSeconds(2),
-                    () -> assertThrows(TstpClientException.class, () -> client.readCatalog(1)));
+                    () -> assertThrows(TstpClientException.class, () -> client.readCatalog(1, TstpParameter.WATER_LEVEL)));
 
             assertTrue(accepted.await(1, TimeUnit.SECONDS));
             assertTrue(error.getMessage().contains("Query failed"));

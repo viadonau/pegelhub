@@ -49,14 +49,16 @@ class TstpSynchronizerTest {
                 new Measurement(null, wireStart.plusSeconds(300), 4e37),
                 new Measurement(null, wireStart.plusSeconds(900), 43),
                 new Measurement(null, wireStart.plusSeconds(4500), 44),
-                new Measurement(null, wireStart.plusSeconds(4501), 44.01))));
+                new Measurement(null, wireStart.plusSeconds(4501), 44.01)), "cm"));
         List<String> queries = new ArrayList<>();
         HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         server.createContext("/", exchange -> {
             String query = exchange.getRequestURI().getQuery();
             byte[] response;
             if (query.startsWith("Cmd=Query&")) {
-                response = "<TSQ><TSATTR><ZRID>test-series</ZRID></TSATTR></TSQ>"
+                response = ("<TSQ><TSATTR><ZRID>test-series</ZRID><ORT>11</ORT>"
+                        + "<PARAMETER>Wasserstand</PARAMETER><EINHEIT>cm</EINHEIT>"
+                        + "<HAUPTREIHE>T</HAUPTREIHE></TSATTR></TSQ>")
                         .getBytes(StandardCharsets.UTF_8);
             } else {
                 queries.add(query);
@@ -81,7 +83,7 @@ class TstpSynchronizerTest {
                     core.sent.stream().map(Measurement::getTimeSeriesId).toList());
             List<Measurement> lastSend = core.sent;
 
-            payload.set(wireCodec.writeRequest(List.of(new Measurement(null, wireStart.plusSeconds(3000), 4e37))));
+            payload.set(wireCodec.writeRequest(List.of(new Measurement(null, wireStart.plusSeconds(3000), 4e37)), "cm"));
             clock.advance(Duration.ofMinutes(15));
             sync.run();
             clock.advance(Duration.ofMinutes(15));
@@ -178,10 +180,10 @@ class TstpSynchronizerTest {
         TstpCatalogResolver resolver = new TstpCatalogResolver(tstp);
 
         assertThrows(IllegalStateException.class,
-                () -> resolver.resolveZrid(11));
+                () -> resolver.resolveZrid(11, TstpParameter.WATER_LEVEL, "cm"));
 
         tstp.stationsWithoutZrid.clear();
-        assertEquals("zrid-11", resolver.resolveZrid(11));
+        assertEquals("zrid-11", resolver.resolveZrid(11, TstpParameter.WATER_LEVEL, "cm"));
         assertEquals(List.of(11, 11), tstp.catalogRequests);
     }
 
@@ -373,7 +375,7 @@ class TstpSynchronizerTest {
             UUID timeSeriesId,
             int stationId,
             MappingDirection direction) {
-        return new TstpMapping(timeSeriesId, stationId, direction);
+        return new TstpMapping(timeSeriesId, stationId, direction, TstpParameter.WATER_LEVEL, "cm");
     }
 
     private static final class FakeCoreClient implements PegelHubClient {
@@ -434,7 +436,7 @@ class TstpSynchronizerTest {
         private boolean failNextWrite;
 
         @Override
-        public List<Measurement> readMeasurements(String zrid, Instant readFrom, Instant readUntil) {
+        public List<Measurement> readMeasurements(String zrid, Instant readFrom, Instant readUntil, String unit) {
             operations.add("read:" + zrid);
             readWindows.add(new ReadWindow(readFrom, readUntil));
             if (failNextRead) {
@@ -447,12 +449,16 @@ class TstpSynchronizerTest {
         }
 
         @Override
-        public XmlQueryResponse readCatalog(int stationId) {
+        public XmlQueryResponse readCatalog(int stationId, TstpParameter parameter) {
             catalogRequests.add(stationId);
             if (failingStations.contains(stationId)) {
                 throw new IllegalStateException("catalog unavailable");
             }
             XmlQueryTsAttribut attribute = new XmlQueryTsAttribut();
+            attribute.setOrt(Integer.toString(stationId));
+            attribute.setParameter(parameter.value());
+            attribute.setEinheit(parameter.defaultUnit());
+            attribute.setHauptReihe("T");
             if (!stationsWithoutZrid.contains(stationId)) {
                 attribute.setZrid("zrid-" + stationId);
             }
@@ -462,7 +468,7 @@ class TstpSynchronizerTest {
         }
 
         @Override
-        public void writeMeasurements(String zrid, List<Measurement> measurements) {
+        public void writeMeasurements(String zrid, List<Measurement> measurements, String unit) {
             operations.add("write:" + zrid);
             if (failNextWrite) {
                 failNextWrite = false;

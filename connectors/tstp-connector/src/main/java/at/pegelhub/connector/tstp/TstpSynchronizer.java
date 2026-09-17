@@ -88,9 +88,10 @@ final class TstpSynchronizer implements Runnable {
                     nextSyncFrom.put(mapping, nextFrom);
                 }
             } catch (Exception e) {
-                LOG.error("TSTP mapping failed: timeSeriesId={}, stationId={}, direction={}",
+                LOG.error("TSTP mapping failed: timeSeriesId={}, stationId={}, parameter={}, direction={}",
                         mapping.timeSeriesId(),
                         mapping.stationId(),
+                        mapping.parameter().value(),
                         mapping.direction(),
                         e);
             }
@@ -102,10 +103,10 @@ final class TstpSynchronizer implements Runnable {
             return;
         }
 
-        String zrid = catalogResolver.resolveZrid(mapping.stationId());
+        String zrid = catalogResolver.resolveZrid(mapping.stationId(), mapping.parameter(), mapping.unit());
 
         if (mapping.direction() == MappingDirection.EXTERNAL_TO_CORE) {
-            List<Measurement> measurements = tstpClient.readMeasurements(zrid, from, until).stream()
+            List<Measurement> measurements = tstpClient.readMeasurements(zrid, from, until, mapping.unit()).stream()
                     .filter(measurement -> isInsideWindow(measurement, from, until))
                     .toList();
 
@@ -121,7 +122,8 @@ final class TstpSynchronizer implements Runnable {
         }
 
         List<Measurement> measurements = coreClient
-                .getMeasurementsOfTimeSeries(mapping.timeSeriesId(), from, until)
+                .getMeasurementsOfTimeSeries(mapping.timeSeriesId(), from, until,
+                        mapping.parameter().representation(mapping.unit()))
                 .stream()
                 .filter(measurement -> isInsideWindow(measurement, from, until))
                 .sorted(Comparator.comparing(Measurement::getObservedAt))
@@ -132,7 +134,7 @@ final class TstpSynchronizer implements Runnable {
         }
 
         // PUT replaces the covered span, so replay neighbors as well as late arrivals.
-        tstpClient.writeMeasurements(zrid, measurements);
+        tstpClient.writeMeasurements(zrid, measurements, mapping.unit());
     }
 
     private boolean isInsideWindow(
