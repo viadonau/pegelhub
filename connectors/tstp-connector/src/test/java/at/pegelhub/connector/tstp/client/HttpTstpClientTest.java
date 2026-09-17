@@ -1,8 +1,8 @@
 package at.pegelhub.connector.tstp.client;
 
 import at.pegelhub.connector.tstp.TstpParameter;
+import at.pegelhub.connector.tstp.BinaryResponseFixture;
 import at.pegelhub.connector.tstp.codec.TstpXmlCodec;
-import at.pegelhub.connector.tstp.codec.TstpBinaryCodec;
 import at.pegelhub.connector.tstp.config.TstpServer;
 import at.pegelhub.connector.tstp.service.model.XmlTsResponse;
 import at.pegelhub.lib.model.Measurement;
@@ -49,8 +49,8 @@ class HttpTstpClientTest {
     }
 
     @ParameterizedTest
-    @CsvSource({"Z,0", "+01:00,3600", "-03:30,-12600"})
-    void transmitsCompleteRawIntervalOverHttpInServerTime(String offset, int seconds) throws Exception {
+    @CsvSource({"Z,ascii", "+01:00,ascii", "-03:30,ascii", "Z,binary", "+01:00,binary", "-03:30,binary"})
+    void transmitsCompleteRawIntervalOverHttpInServerTime(String offset, String format) throws Exception {
         AtomicReference<String> query = new AtomicReference<>();
         AtomicReference<String> body = new AtomicReference<>();
         HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
@@ -63,19 +63,37 @@ class HttpTstpClientTest {
             exchange.close();
         });
         server.start();
-        TstpXmlCodec codec = new TstpXmlCodec(new TstpBinaryCodec());
-        Instant first = Instant.parse("2026-06-07T10:00:00Z");
-        try (HttpTstpClient client = HttpTstpClient.open(new TstpServer("127.0.0.1", server.getAddress().getPort(), offset))) {
+        Instant first = Instant.parse("2026-06-07T23:45:22.161Z");
+        var config = format.equals("binary")
+                ? new TstpServer("127.0.0.1", server.getAddress().getPort(), offset)
+                : new TstpServer("127.0.0.1", server.getAddress().getPort(), offset,
+                        at.pegelhub.connector.tstp.config.TstpWriteFormat.ASCII);
+        try (HttpTstpClient client = HttpTstpClient.open(config)) {
             client.writeMeasurements("raw-series", List.of(
                     new Measurement(null, first.plusSeconds(600), 3),
                     new Measurement(null, first, 1),
                     new Measurement(null, first.plusSeconds(300), 2)), "cm");
             assertEquals("Cmd=PUT&ZRID=raw-series&QUAL=0", query.get());
-            List<Measurement> decoded = codec.parseMeasurements(body.get().getBytes(StandardCharsets.ISO_8859_1), "cm");
-            Instant wireStart = first.plusSeconds(seconds);
-            assertEquals(List.of(wireStart, wireStart.plusSeconds(300), wireStart.plusSeconds(600)),
-                    decoded.stream().map(Measurement::getObservedAt).toList());
-            assertEquals(List.of(1.0, 2.0, 3.0), decoded.stream().map(Measurement::getValue).toList());
+            var document = javax.xml.parsers.DocumentBuilderFactory.newInstance().newDocumentBuilder()
+                    .parse(new java.io.ByteArrayInputStream(body.get().getBytes(StandardCharsets.ISO_8859_1)));
+            var definition = (org.w3c.dom.Element) document.getElementsByTagName("DEF").item(0);
+            assertEquals(format.equals("ascii") ? "0" : "36", definition.getAttribute("LEN"));
+            assertEquals("3", definition.getAttribute("ANZ"));
+            if (format.equals("binary")) {
+                var decoded = new at.pegelhub.connector.tstp.codec.TstpBinaryCodec(ZoneOffset.of(offset)).decode(
+                        java.util.Base64.getMimeDecoder().decode(document.getElementsByTagName("DATA").item(0).getTextContent()));
+                assertEquals(List.of(first.truncatedTo(java.time.temporal.ChronoUnit.SECONDS),
+                                first.plusSeconds(300).truncatedTo(java.time.temporal.ChronoUnit.SECONDS),
+                                first.plusSeconds(600).truncatedTo(java.time.temporal.ChronoUnit.SECONDS)),
+                        decoded.stream().map(Measurement::getObservedAt).toList());
+                assertEquals(List.of(1.0, 2.0, 3.0), decoded.stream().map(Measurement::getValue).toList());
+                return;
+            }
+            var formatter = java.time.format.DateTimeFormatter.ofPattern("uuuu-MM-dd'T'HH:mm:ss'Z'")
+                    .withZone(ZoneOffset.of(offset));
+            assertEquals(List.of(formatter.format(first) + " 1.0", formatter.format(first.plusSeconds(300)) + " 2.0",
+                            formatter.format(first.plusSeconds(600)) + " 3.0"),
+                    document.getElementsByTagName("DATA").item(0).getTextContent().lines().toList());
         } finally {
             server.stop(0);
         }
@@ -112,10 +130,9 @@ class HttpTstpClientTest {
     @CsvSource({"Z,0", "+01:00,3600", "-03:30,-12600"})
     void filtersInterpolatedEdgesButKeepsARealReadingAtTheLogicalStart(String offset, int seconds) throws Exception {
         AtomicReference<String> query = new AtomicReference<>();
-        TstpXmlCodec codec = new TstpXmlCodec(new TstpBinaryCodec());
         Instant start = Instant.parse("2026-09-16T12:00:00Z");
         Instant end = start.plusSeconds(3600);
-        byte[] response = codec.writeRequest(List.of(
+        byte[] response = BinaryResponseFixture.response(List.of(
                 new Measurement(null, start.minusSeconds(1), 41.99),
                 new Measurement(null, start, 42),
                 new Measurement(null, start.plusSeconds(900), 43),

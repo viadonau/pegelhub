@@ -2,7 +2,6 @@ package at.pegelhub.connector.tstp;
 
 import at.pegelhub.connector.tstp.catalog.TstpCatalogResolver;
 import at.pegelhub.connector.tstp.client.HttpTstpClient;
-import at.pegelhub.connector.tstp.codec.TstpBinaryCodec;
 import at.pegelhub.connector.tstp.config.TstpServer;
 import at.pegelhub.lib.PegelHubClient;
 import at.pegelhub.lib.config.MappingDirection;
@@ -82,7 +81,8 @@ class TstpParameterTransferTest {
             exchange.close();
         });
         server.start();
-        client = HttpTstpClient.open(new TstpServer("127.0.0.1", server.getAddress().getPort(), "Z"));
+        client = HttpTstpClient.open(new TstpServer("127.0.0.1", server.getAddress().getPort(), "Z",
+                at.pegelhub.connector.tstp.config.TstpWriteFormat.ASCII));
     }
 
     @AfterEach
@@ -126,9 +126,10 @@ class TstpParameterTransferTest {
         var xml = DocumentBuilderFactory.newInstance().newDocumentBuilder()
                 .parse(new ByteArrayInputStream(writes.get(parameter)));
         assertEquals(unit, xml.getElementsByTagName("DEF").item(0).getAttributes().getNamedItem("EINHEIT").getNodeValue());
-        byte[] binary = Base64.getMimeDecoder().decode(xml.getElementsByTagName("DATA").item(0).getTextContent());
-        assertEquals(value, (double) ByteBuffer.wrap(binary, 8, 4).getFloat());
-        assertEquals(OBSERVED_AT, new TstpBinaryCodec().decode(binary).getFirst().getObservedAt());
+        assertEquals("0", xml.getElementsByTagName("DEF").item(0).getAttributes().getNamedItem("LEN").getNodeValue());
+        String[] pair = xml.getElementsByTagName("DATA").item(0).getTextContent().split(" ");
+        assertEquals(value, Double.parseDouble(pair[1]));
+        assertEquals(OBSERVED_AT, Instant.parse(pair[0]));
     }
 
     @Test

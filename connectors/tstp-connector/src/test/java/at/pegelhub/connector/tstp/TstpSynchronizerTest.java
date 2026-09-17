@@ -3,8 +3,6 @@ package at.pegelhub.connector.tstp;
 import at.pegelhub.connector.tstp.catalog.TstpCatalogResolver;
 import at.pegelhub.connector.tstp.client.HttpTstpClient;
 import at.pegelhub.connector.tstp.client.TstpClient;
-import at.pegelhub.connector.tstp.codec.TstpBinaryCodec;
-import at.pegelhub.connector.tstp.codec.TstpXmlCodec;
 import at.pegelhub.connector.tstp.config.TstpServer;
 import at.pegelhub.connector.tstp.service.model.XmlQueryResponse;
 import at.pegelhub.connector.tstp.service.model.XmlQueryTsAttribut;
@@ -41,9 +39,8 @@ class TstpSynchronizerTest {
     void importsOnlyRecordedUtcReadingsAndDoesNotSendGapOnlyPollsToCore() throws Exception {
         FakeCoreClient core = new FakeCoreClient(List.of());
         MutableClock clock = new MutableClock(Instant.parse("2026-09-16T12:00:00Z"));
-        TstpXmlCodec wireCodec = new TstpXmlCodec(new TstpBinaryCodec());
         Instant wireStart = Instant.parse("2026-09-16T11:45:00Z");
-        AtomicReference<String> payload = new AtomicReference<>(wireCodec.writeRequest(List.of(
+        AtomicReference<String> payload = new AtomicReference<>(BinaryResponseFixture.response(List.of(
                 new Measurement(null, wireStart.minusSeconds(1), 41.99),
                 new Measurement(null, wireStart, 42),
                 new Measurement(null, wireStart.plusSeconds(300), 4e37),
@@ -83,7 +80,7 @@ class TstpSynchronizerTest {
                     core.sent.stream().map(Measurement::getTimeSeriesId).toList());
             List<Measurement> lastSend = core.sent;
 
-            payload.set(wireCodec.writeRequest(List.of(new Measurement(null, wireStart.plusSeconds(3000), 4e37)), "cm"));
+            payload.set(BinaryResponseFixture.response(List.of(new Measurement(null, wireStart.plusSeconds(3000), 4e37)), "cm"));
             clock.advance(Duration.ofMinutes(15));
             sync.run();
             clock.advance(Duration.ofMinutes(15));

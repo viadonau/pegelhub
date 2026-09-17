@@ -45,7 +45,7 @@ public final class HttpTstpClient implements TstpClient {
 
         ZoneOffset offset = ZoneOffset.of(server.timeOffset());
         return new HttpTstpClient(server.host(), server.port(), httpClient,
-                new TstpXmlCodec(new TstpBinaryCodec(offset)), REQUEST_TIMEOUT, offset);
+                new TstpXmlCodec(new TstpBinaryCodec(offset), server.writeFormat()), REQUEST_TIMEOUT, offset);
     }
 
     HttpTstpClient(

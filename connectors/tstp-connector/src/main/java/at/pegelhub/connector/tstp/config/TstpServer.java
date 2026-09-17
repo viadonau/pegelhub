@@ -8,9 +8,15 @@ import java.time.ZoneOffset;
 public record TstpServer(
         String host,
         int port,
-        String timeOffset
+        String timeOffset,
+        TstpWriteFormat writeFormat
 ) {
+    public TstpServer(String host, int port, String timeOffset) {
+        this(host, port, timeOffset, TstpWriteFormat.BINARY);
+    }
+
     public TstpServer {
+        writeFormat = writeFormat == null ? TstpWriteFormat.BINARY : writeFormat;
         host = ConfigValidation.requireText(host, "tstp.server.host");
         port = ConfigValidation.requireTcpPort(port, "tstp.server.port");
         try {

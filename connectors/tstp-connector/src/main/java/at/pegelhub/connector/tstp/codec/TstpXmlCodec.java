@@ -5,6 +5,7 @@ import at.pegelhub.connector.tstp.service.model.XmlTsData;
 import at.pegelhub.connector.tstp.service.model.XmlTsDefinition;
 import at.pegelhub.connector.tstp.service.model.XmlTsResponse;
 import at.pegelhub.lib.model.Measurement;
+import at.pegelhub.connector.tstp.config.TstpWriteFormat;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.glassfish.jaxb.core.marshaller.CharacterEscapeHandler;
@@ -17,14 +18,22 @@ import java.io.ByteArrayInputStream;
 import java.io.StringWriter;
 import java.util.Base64;
 import java.util.List;
+import java.time.format.DateTimeFormatter;
+import java.util.Locale;
+import java.util.stream.Collectors;
 
 public final class TstpXmlCodec {
     private static final Logger LOG = LoggerFactory.getLogger(TstpXmlCodec.class);
 
     private final TstpBinaryCodec binaryCodec;
+    private final DateTimeFormatter timeFormat;
+    private final TstpWriteFormat writeFormat;
 
-    public TstpXmlCodec(TstpBinaryCodec binaryCodec) {
+    public TstpXmlCodec(TstpBinaryCodec binaryCodec, TstpWriteFormat writeFormat) {
         this.binaryCodec = binaryCodec;
+        this.writeFormat = java.util.Objects.requireNonNull(writeFormat, "writeFormat");
+        this.timeFormat = DateTimeFormatter.ofPattern("uuuu-MM-dd'T'HH:mm:ss'Z'", Locale.ROOT)
+                .withZone(binaryCodec.timeOffset());
     }
 
     public List<Measurement> parseMeasurements(byte[] responseBody, String unit) {
@@ -46,18 +55,38 @@ public final class TstpXmlCodec {
     }
 
     public String writeRequest(List<Measurement> measurements, String unit) {
-        byte[] binaryBlock = binaryCodec.encode(measurements);
-        String binaryEncoded = insertNewlines(Base64.getEncoder().encodeToString(binaryBlock));
+        if (measurements.isEmpty()) {
+            throw new IllegalArgumentException("TSTP write requires at least one measurement");
+        }
+        for (Measurement measurement : measurements) {
+            Double value = measurement.getValue();
+            if (measurement.getObservedAt() == null || value == null || !Double.isFinite(value)
+                    || !Float.isFinite(value.floatValue()) || Float.floatToIntBits(value.floatValue()) == 0x7df0bdc2) {
+                throw new IllegalArgumentException("TSTP write requires finite measurements, not gap markers");
+            }
+        }
+        String data;
+        String length;
+        if (writeFormat == TstpWriteFormat.BINARY) {
+            byte[] bytes = binaryCodec.encode(measurements);
+            data = Base64.getMimeEncoder(60, new byte[]{'\n'}).encodeToString(bytes);
+            length = String.valueOf(bytes.length);
+        } else {
+            // TSTP section 6.2: LEN=0 selects text pairs; avoids observed binary PUT quantization.
+            data = measurements.stream().map(measurement -> timeFormat.format(measurement.getObservedAt())
+                    + " " + Double.toString(measurement.getValue())).collect(Collectors.joining("\n"));
+            length = "0";
+        }
 
         XmlTsDefinition xmlTsDef = new XmlTsDefinition(
                 "Z",
                 "Nein",
                 "K",
                 unit,
-                String.valueOf(measurements.size() * 12),
+                length,
                 String.valueOf(measurements.size())
         );
-        XmlTsData xmlTsData = new XmlTsData("1", xmlTsDef, binaryEncoded);
+        XmlTsData xmlTsData = new XmlTsData("1", xmlTsDef, data);
 
         return marshallXmlTsData(xmlTsData);
     }
@@ -123,15 +152,4 @@ public final class TstpXmlCodec {
         }
     }
 
-    private String insertNewlines(String inputString) {
-        StringBuilder sb = new StringBuilder(inputString);
-        int i = 60;
-
-        while (i < sb.length()) {
-            sb.insert(i, "\n");
-            i += 60 + 1; // +1 to account for new \n
-        }
-
-        return sb.toString();
-    }
 }
