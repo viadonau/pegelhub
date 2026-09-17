@@ -132,8 +132,6 @@ export class PhLineChartComponent {
           display: false,
         },
         tooltip: {
-          mode: 'index',
-          intersect: false,
           backgroundColor: tokens.tooltipBackground,
           titleColor: tokens.tooltipText,
           bodyColor: tokens.tooltipText,
@@ -162,7 +160,7 @@ export class PhLineChartComponent {
         },
       },
       interaction: {
-        mode: 'nearest',
+        mode: 'index',
         intersect: false,
       },
       scales: {
