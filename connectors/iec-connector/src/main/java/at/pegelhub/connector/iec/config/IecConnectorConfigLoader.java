@@ -35,6 +35,9 @@ public final class IecConnectorConfigLoader {
                 configFile.core(),
                 configFile.iec().server(),
                 pollInterval,
+                configFile.ingestion() == null
+                        ? new IecIngestionConfig(IecIngestionConfig.Mode.ALL)
+                        : configFile.ingestion(),
                 loadedMappings.stream().map(LoadedMapping::value).toList()
         );
     }
@@ -42,6 +45,7 @@ public final class IecConnectorConfigLoader {
     private record IecConfigFile(
             CoreConnection core,
             PollingConfig polling,
+            IecIngestionConfig ingestion,
             MappingFilesConfig mappings,
             IecSection iec
     ) {

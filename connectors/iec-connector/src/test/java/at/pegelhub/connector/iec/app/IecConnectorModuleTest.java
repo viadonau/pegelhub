@@ -2,17 +2,21 @@ package at.pegelhub.connector.iec.app;
 
 import at.pegelhub.connector.iec.config.IecConnectorConfig;
 import at.pegelhub.connector.iec.config.IecConnectorConfigLoader;
+import at.pegelhub.connector.iec.config.IecIngestionConfig;
 import at.pegelhub.connector.iec.datapoints.DataPointMapping;
 import at.pegelhub.lib.config.ConnectorConfigDirectory;
 import at.pegelhub.lib.config.MappingDirection;
 import at.pegelhub.lib.PegelHubClient;
 import at.pegelhub.lib.PegelHubClientFactory;
+import com.fasterxml.jackson.databind.exc.ValueInstantiationException;
+import com.fasterxml.jackson.databind.exc.UnrecognizedPropertyException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.nio.file.Files;
 import java.net.InetAddress;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.time.Duration;
 import java.util.List;
 import java.util.UUID;
@@ -106,7 +110,55 @@ class IecConnectorModuleTest {
         assertEquals(2404, config.server().port());
         assertEquals(1, config.server().commonAddress());
         assertEquals(Duration.ofSeconds(15), config.pollInterval());
+        assertEquals(IecIngestionConfig.Mode.ALL, config.ingestion().mode());
         assertEquals(1, config.mappings().size());
+    }
+
+    @Test
+    void latestIngestionUsesSharedPollingInterval() throws Exception {
+        writeConnectorYaml("5m", "mappings");
+        writeDefaultMapping();
+        Files.writeString(tmp.resolve("connector.yaml"), """
+                ingestion:
+                  mode: latest
+                """, StandardOpenOption.APPEND);
+        var config = loadConfig();
+        assertEquals(IecIngestionConfig.Mode.LATEST, config.ingestion().mode());
+        assertEquals(Duration.ofMinutes(5), config.pollInterval());
+    }
+
+    @Test
+    void rejectsInvalidOrIncompleteIngestionPolicy() throws Exception {
+        writeDefaultMapping();
+        for (String policy : List.of("mode: mean", "mode: median", "mode: average",
+                "mode: unknown", "mode: ''", "mode: null", "{}")) {
+            writeConnectorYaml("30s", "mappings");
+            Files.writeString(tmp.resolve("connector.yaml"), "ingestion:\n  " + policy + "\n",
+                    StandardOpenOption.APPEND);
+            var error = assertThrows(ValueInstantiationException.class, this::loadConfig, policy);
+            assertTrue(error.getMessage().contains("ingestion."));
+        }
+    }
+
+    @Test
+    void rejectsSeparateIngestionInterval() throws Exception {
+        writeConnectorYaml("30s", "mappings");
+        writeDefaultMapping();
+        Files.writeString(tmp.resolve("connector.yaml"), """
+                ingestion:
+                  mode: latest
+                  interval: 5m
+                """, StandardOpenOption.APPEND);
+        var error = assertThrows(UnrecognizedPropertyException.class, this::loadConfig);
+        assertEquals("interval", error.getPropertyName());
+    }
+
+    @Test
+    void acceptsExplicitAllMode() throws Exception {
+        writeConnectorYaml("30s", "mappings");
+        writeDefaultMapping();
+        Files.writeString(tmp.resolve("connector.yaml"), "ingestion:\n  mode: all\n", StandardOpenOption.APPEND);
+        assertEquals(IecIngestionConfig.Mode.ALL, loadConfig().ingestion().mode());
     }
 
     @Test

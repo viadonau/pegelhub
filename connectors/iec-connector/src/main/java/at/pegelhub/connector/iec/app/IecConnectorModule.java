@@ -44,7 +44,7 @@ public final class IecConnectorModule implements ConnectorModule {
             runtime
                     .threadCount(3)
                     .fixedDelayTask("iec-reconnect", iecClient::connect, Duration.ofSeconds(10))
-                    .fixedDelayTask("iec-to-core", new IecToCoreJob(iecClient, mappingIndex, client),
+                    .fixedDelayTask("iec-to-core", new IecToCoreJob(iecClient, mappingIndex, client, config.ingestion().mode()),
                             Duration.ofSeconds(1), config.pollInterval())
                     .fixedDelayTask("core-to-iec", new CoreToIecJob(iecClient, mappingIndex, client),
                             Duration.ofSeconds(1), config.pollInterval());

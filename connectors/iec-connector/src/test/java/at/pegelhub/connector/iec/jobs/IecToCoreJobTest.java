@@ -1,5 +1,6 @@
 package at.pegelhub.connector.iec.jobs;
 
+import at.pegelhub.connector.iec.config.IecIngestionConfig.Mode;
 import at.pegelhub.connector.iec.datapoints.IecMappingIndex;
 import at.pegelhub.connector.iec.iec.IecClient;
 import at.pegelhub.lib.PegelHubClient;
@@ -38,7 +39,7 @@ class IecToCoreJobTest {
         when(registry.getTimeSeriesId(42)).thenReturn(Optional.of(UUID.fromString("395c0232-d110-40fd-bd7f-2bb4a0f2009d")));
         when(registry.getTimeSeriesId(314)).thenReturn(Optional.empty());
 
-        IecToCoreJob job = new IecToCoreJob(client, registry, comm);
+        IecToCoreJob job = new IecToCoreJob(client, registry, comm, Mode.ALL);
 
         // When / Then
         assertThatCode(job::run).doesNotThrowAnyException();
@@ -67,7 +68,7 @@ class IecToCoreJobTest {
 
         doThrow(new RuntimeException("exception")).doNothing().when(comm).sendMeasurements(anyList());
 
-        IecToCoreJob job = new IecToCoreJob(client, registry, comm);
+        IecToCoreJob job = new IecToCoreJob(client, registry, comm, Mode.ALL);
 
         // When
         job.run();
@@ -91,11 +92,75 @@ class IecToCoreJobTest {
                 .doNothing()
                 .when(comm).sendMeasurements(anyList());
 
-        IecToCoreJob job = new IecToCoreJob(client, registry, comm);
+        IecToCoreJob job = new IecToCoreJob(client, registry, comm, Mode.ALL);
         job.run();
         job.run();
 
         verify(comm, times(2)).sendMeasurements(argThat(measurements ->
                 measurements.size() == 1 && timeSeriesId.equals(measurements.getFirst().getTimeSeriesId())));
+    }
+
+    @Test
+    void latestSelectsOneReceivedValuePerIoaPreservingTimestampAndSkipsEmptyIntervals() throws Exception {
+        var client = mock(IecClient.class);
+        var registry = mock(IecMappingIndex.class);
+        var core = mock(PegelHubClient.class);
+        var firstId = UUID.randomUUID();
+        var secondId = UUID.randomUUID();
+        var at = Instant.parse("2026-09-20T10:04:59.123Z");
+        when(registry.getTimeSeriesId(10)).thenReturn(Optional.of(firstId));
+        when(registry.getTimeSeriesId(20)).thenReturn(Optional.of(secondId));
+        when(client.drainGroupedMeasurements()).thenReturn(Map.of(
+                10, List.of(new Measurement(null, at.minusSeconds(2), 10.0),
+                        new Measurement(null, at, 11.0)),
+                20, List.of(new Measurement(null, at, 20.0)),
+                30, List.of())).thenReturn(Map.of());
+        var job = new IecToCoreJob(client, registry, core, Mode.LATEST);
+
+        job.run();
+        job.run();
+
+        verify(core).sendMeasurements(argThat(values -> values.size() == 1
+                && values.getFirst().getTimeSeriesId().equals(firstId)
+                && values.getFirst().getObservedAt().equals(at)
+                && values.getFirst().getValue().equals(11.0)));
+        verify(core).sendMeasurements(argThat(values -> values.size() == 1
+                && values.getFirst().getTimeSeriesId().equals(secondId)
+                && values.getFirst().getObservedAt().equals(at)
+                && values.getFirst().getValue().equals(20.0)));
+        verifyNoMoreInteractions(core);
+        verify(registry, never()).getTimeSeriesId(30);
+    }
+
+    @Test
+    void latestRetainsFailedSnapshotsAcrossIntervalsIncludingUnchangedValues() throws Exception {
+        var client = mock(IecClient.class);
+        var registry = mock(IecMappingIndex.class);
+        var core = mock(PegelHubClient.class);
+        var id = UUID.randomUUID();
+        var at = Instant.parse("2026-09-20T10:04:59Z");
+        when(registry.getTimeSeriesId(10)).thenReturn(Optional.of(id));
+        when(client.drainGroupedMeasurements())
+                .thenReturn(Map.of(10, List.of(new Measurement(null, at.minusSeconds(1), 9.0),
+                        new Measurement(null, at, 10.0))))
+                .thenReturn(Map.of(10, List.of(new Measurement(null, at.plusSeconds(299), 11.0),
+                        new Measurement(null, at.plusSeconds(300), 10.0))))
+                .thenReturn(Map.of());
+        doThrow(new RuntimeException("Core unavailable")).doNothing().when(core).sendMeasurements(anyList());
+        var job = new IecToCoreJob(client, registry, core, Mode.LATEST);
+
+        job.run();
+        job.run();
+        job.run();
+
+        var calls = inOrder(core);
+        calls.verify(core).sendMeasurements(argThat(values -> values.size() == 1
+                && values.getFirst().getObservedAt().equals(at)));
+        calls.verify(core).sendMeasurements(argThat(values -> values.size() == 2
+                && values.getFirst().getObservedAt().equals(at)
+                && values.getLast().getObservedAt().equals(at.plusSeconds(300))
+                && values.stream().allMatch(value -> value.getValue().equals(10.0)
+                    && value.getTimeSeriesId().equals(id))));
+        calls.verifyNoMoreInteractions();
     }
 }

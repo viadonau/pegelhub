@@ -42,7 +42,8 @@ class IecRecoveryIntegrationTest {
         var mappings = mock(IecMappingIndex.class);
         UUID timeSeriesId = UUID.randomUUID();
         when(mappings.getTimeSeriesId(100)).thenReturn(Optional.of(timeSeriesId));
-        var job = new IecToCoreJob(client, mappings, core);
+        var job = new IecToCoreJob(client, mappings, core,
+                at.pegelhub.connector.iec.config.IecIngestionConfig.Mode.ALL);
         var accepted = new CopyOnWriteArrayList<Connection>();
         var server = Server.builder().setBindAddr(loopback).setPort(port).build();
         var listener = mock(ServerEventListener.class);
