@@ -13,15 +13,19 @@ public interface PegelHubClientFactory {
     PegelHubClient create(CoreConnection connection);
 
     static PegelHubClientFactory http() {
+        return http(CoreClientOptions.connectorDefaults());
+    }
+
+    static PegelHubClientFactory http(CoreClientOptions options) {
         return connection -> {
             var connectionManager = PoolingHttpClientConnectionManagerBuilder.create()
                     .setDefaultConnectionConfig(ConnectionConfig.custom()
-                            .setConnectTimeout(Timeout.ofSeconds(10))
+                            .setConnectTimeout(Timeout.ofMilliseconds(options.connectTimeout().toMillis()))
                             .build())
                     .build();
             var requestConfig = RequestConfig.custom()
-                    .setConnectionRequestTimeout(Timeout.ofSeconds(10))
-                    .setResponseTimeout(Timeout.ofSeconds(30))
+                    .setConnectionRequestTimeout(Timeout.ofMilliseconds(options.connectTimeout().toMillis()))
+                    .setResponseTimeout(Timeout.ofMilliseconds(options.responseTimeout().toMillis()))
                     .build();
             return new HttpPegelHubClient(
                     HttpClients.custom()
@@ -30,7 +34,7 @@ public interface PegelHubClientFactory {
                             .setDefaultRequestConfig(requestConfig)
                             .build(),
                     connection.baseUrl(),
-                    connection.authentication());
+                    connection.authentication(), options);
         };
     }
 }

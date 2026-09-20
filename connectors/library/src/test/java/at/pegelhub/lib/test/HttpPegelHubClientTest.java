@@ -1,5 +1,6 @@
 package at.pegelhub.lib.test;
 
+import at.pegelhub.lib.CoreClientOptions;
 import at.pegelhub.lib.config.CoreAuthentication;
 import at.pegelhub.lib.internal.HttpPegelHubClient;
 import at.pegelhub.lib.model.Measurement;
@@ -122,6 +123,45 @@ public class HttpPegelHubClientTest {
         new HttpPegelHubClient(httpClient, baseUrl(), startupAuthentication);
 
         verifyNoMoreInteractions(httpClient);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"missing", "\"false\""})
+    void strictLatestValidationDoesNotChangeWindowOrDefaultConnectorReads(String completeness) throws IOException {
+        var defaults = phc;
+        phc = new HttpPegelHubClient(httpClient, baseUrl(), authentication,
+                new CoreClientOptions(Duration.ofSeconds(5), Duration.ofSeconds(10), true));
+        var json = JsonParser.parseString(measurementListResponse(uuid, false, READ_FROM, 1.0)).getAsJsonObject();
+        if (completeness.equals("missing")) json.remove("truncated");
+        else json.add("truncated", JsonParser.parseString(completeness));
+        mockSuccessfulResponse(json.toString());
+        assertThrows(RuntimeException.class, () -> phc.getLatestMeasurementOfTimeSeries(uuid));
+        assertEquals(1, phc.getMeasurementsOfTimeSeries(uuid, READ_FROM, READ_TO).size());
+        assertEquals(READ_FROM, defaults.getLatestMeasurementOfTimeSeries(uuid).orElseThrow().getObservedAt());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"null", "[null]", "[{}]", "[{\"observedAt\":\"2026-06-16T00:00:00Z\"}]",
+            "[{\"value\":1}]", "[{\"observedAt\":\"2026-06-16T00:00:00Z\",\"value\":\"NaN\"}]",
+            "[{\"observedAt\":\"2026-06-16T00:00:00Z\",\"value\":1e309}]"})
+    void strictLatestReadsRejectMissingOrInvalidPoints(String points) throws IOException {
+        phc = new HttpPegelHubClient(httpClient, baseUrl(), authentication,
+                new CoreClientOptions(Duration.ofSeconds(5), Duration.ofSeconds(10), true));
+        var json = JsonParser.parseString(measurementListResponse(uuid, false, List.of())).getAsJsonObject();
+        json.add("measurements", JsonParser.parseString(points));
+        mockSuccessfulResponse(json.toString());
+        assertThrows(RuntimeException.class, () -> phc.getLatestMeasurementOfTimeSeries(uuid));
+    }
+
+    @Test
+    void strictLatestReadsAcceptAnEmptyListButRejectMoreThanOnePoint() throws IOException {
+        phc = new HttpPegelHubClient(httpClient, baseUrl(), authentication,
+                new CoreClientOptions(Duration.ofSeconds(5), Duration.ofSeconds(10), true));
+        mockSuccessfulResponse(measurementListResponse(uuid, false, List.of()));
+        assertTrue(phc.getLatestMeasurementOfTimeSeries(uuid).isEmpty());
+        mockSuccessfulResponse(measurementListResponse(uuid, false, List.of(
+                new Measurement(uuid, READ_FROM, 1.0), new Measurement(uuid, READ_FROM.plusSeconds(1), 2.0))));
+        assertThrows(RuntimeException.class, () -> phc.getLatestMeasurementOfTimeSeries(uuid));
     }
 
     @Test
@@ -293,8 +333,11 @@ public class HttpPegelHubClientTest {
             assertTrue(requestUris.get(2).contains("from=2026-06-16T12%3A00%3A00Z"));
         }
 
-        @Test
-        void getMeasurementsPreservesMidpointAndSharedTimestampsWhenBisecting() throws IOException {
+        @ParameterizedTest
+        @ValueSource(booleans = {false, true})
+        void getMeasurementsPreservesMidpointAndSharedTimestampsWhenBisecting(boolean strictLatestResponse) throws IOException {
+            phc = new HttpPegelHubClient(httpClient, baseUrl(), authentication,
+                    new CoreClientOptions(Duration.ofSeconds(5), Duration.ofSeconds(10), strictLatestResponse));
             Instant middle = READ_FROM.plus(Duration.between(READ_FROM, READ_TO).dividedBy(2));
             Instant beforeMiddle = middle.minusNanos(1);
             Instant afterMiddle = middle.plusNanos(1);
@@ -424,8 +467,11 @@ public class HttpPegelHubClientTest {
             assertEquals("Core returned an empty measurement response", latestError.getCause().getMessage());
         }
 
-        @Test
-        void getLatestMeasurementAcceptsTruncationBecauseItRequestsOnlyOneValue() throws IOException {
+        @ParameterizedTest
+        @ValueSource(booleans = {false, true})
+        void getLatestMeasurementAcceptsTruncationBecauseItRequestsOnlyOneValue(boolean strictLatestResponse) throws IOException {
+            phc = new HttpPegelHubClient(httpClient, baseUrl(), authentication,
+                    new CoreClientOptions(Duration.ofSeconds(5), Duration.ofSeconds(10), strictLatestResponse));
             mockSuccessfulResponse(getResource("CoreMeasurementListTruncatedResponse.json"));
 
             Optional<Measurement> measurement = phc.getLatestMeasurementOfTimeSeries(uuid);
