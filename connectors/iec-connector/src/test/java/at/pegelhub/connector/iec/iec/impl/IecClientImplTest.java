@@ -102,7 +102,8 @@ class IecClientImplTest {
         when(mappings.getTimeSeriesId(100)).thenReturn(Optional.of(timeSeriesId));
         var core = mock(PegelHubClient.class);
         doThrow(new RuntimeException("Core unavailable")).doNothing().when(core).sendMeasurements(anyList());
-        var job = new IecToCoreJob(client, mappings, core);
+        var job = new IecToCoreJob(client, mappings, core,
+                at.pegelhub.connector.iec.config.IecIngestionConfig.Mode.ALL);
         Method enqueue = IecClientImpl.class.getDeclaredMethod("enqueueMeasurements", ASdu.class);
         enqueue.setAccessible(true);
 

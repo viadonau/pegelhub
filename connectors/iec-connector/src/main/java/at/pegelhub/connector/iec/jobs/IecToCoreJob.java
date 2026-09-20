@@ -1,5 +1,6 @@
 package at.pegelhub.connector.iec.jobs;
 
+import at.pegelhub.connector.iec.config.IecIngestionConfig.Mode;
 import at.pegelhub.connector.iec.datapoints.IecMappingIndex;
 import at.pegelhub.connector.iec.iec.IecClient;
 import at.pegelhub.lib.PegelHubClient;
@@ -20,13 +21,22 @@ public class IecToCoreJob implements Runnable {
     private final IecClient iecClient;
     private final IecMappingIndex mappingIndex;
     private final PegelHubClient coreClient;
+    private final Mode ingestionMode;
     private final Map<Integer, List<Measurement>> pendingMeasurements = new LinkedHashMap<>();
 
     @Override
     public void run() {
         try {
-            iecClient.drainGroupedMeasurements().forEach((ioa, measurements) ->
-                    pendingMeasurements.computeIfAbsent(ioa, ignored -> new ArrayList<>()).addAll(measurements));
+            iecClient.drainGroupedMeasurements().forEach((ioa, measurements) -> {
+                if (measurements.isEmpty()) {
+                    return;
+                }
+
+                // Select only from this interval, never discard snapshots waiting for a retry.
+                List<Measurement> selected = ingestionMode == Mode.LATEST
+                        ? List.of(measurements.getLast()) : measurements;
+                pendingMeasurements.computeIfAbsent(ioa, ignored -> new ArrayList<>()).addAll(selected);
+            });
 
             Iterator<Map.Entry<Integer, List<Measurement>>> pending = pendingMeasurements.entrySet().iterator();
             while (pending.hasNext()) {

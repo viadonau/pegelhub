@@ -6,6 +6,9 @@ core:
     clientSecret: "secret"
 polling:
   interval: "30s"
+# Optional: forward only the last received reading per IOA at each poll.
+# ingestion:
+#   mode: latest
 mappings:
   directory: "mappings"
 iec:

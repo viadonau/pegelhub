@@ -38,6 +38,41 @@ positive polling interval ending in `s`, `m`, or `h`, and the IEC server
 `host`, `port`, and `commonAddress`. `mappings.directory` defaults to
 `mappings`.
 
+### Optional latest-value ingestion
+
+By default, every received inbound measurement is forwarded at `polling.interval`.
+To store only the last received value per IOA at each poll, set `ingestion.mode`
+to `latest`. For a five-minute polling interval:
+
+```yaml
+polling:
+  interval: 5m
+ingestion:
+  mode: latest
+```
+
+`ingestion` requires only `mode` (`all` or `latest`). Omitting the section
+preserves the existing behavior: `all` at `polling.interval`. There is no separate
+ingestion interval. Selection affects only IEC -> Core, but `polling.interval`
+still controls both transfer directions: setting it to `5m` also makes Core -> IEC
+send every five minutes. Connection recovery keeps its independent schedule.
+
+Both modes keep the existing first poll one second after runtime startup. Later
+polls run `polling.interval` after the previous job completes, not at
+wall-clock-aligned five-minute boundaries. Each drain in `latest` mode selects
+the last received reading per IOA since the preceding drain. It preserves that
+reading's receipt timestamp and
+value; this is a snapshot, not an average, and intermediate changes/peaks are
+intentionally discarded. No new reading means no new snapshot. A newly received
+unchanged value is still a reading and is forwarded with its receipt timestamp.
+
+Selection occurs before adding snapshots to the pending retry batches. Failed
+snapshots are retained alongside snapshots from later intervals, so a successful
+retry can send more than one snapshot per IOA. This reduces Core writes and stored
+points, not traffic from the IEC server: received values remain in memory until
+the next drain. Existing history is not changed. Deploy an image supporting this
+section before enabling it; older images reject unknown configuration fields.
+
 Example mapping:
 
 ```yaml

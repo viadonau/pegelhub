@@ -10,5 +10,6 @@ public record IecConnectorConfig(
         CoreConnection coreConnection,
         IecServer server,
         Duration pollInterval,
+        IecIngestionConfig ingestion,
         List<DataPointMapping> mappings
 ) {}
