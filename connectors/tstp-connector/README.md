@@ -1,26 +1,33 @@
-# TSTP connector
+# TSTP Connector
 
 The TSTP connector exchanges measurements between PegelHub Core and a TSTP
-server. One process can run inbound and outbound mappings while sharing its
-endpoint, Core client, catalog cache, scheduler, and shutdown lifecycle.
+server. Each mapping connects one Core time series to one TSTP station and
+parameter. A process can import and export different mappings through the same
+TSTP endpoint.
 
-## Build
+Outbound writes replace data within the submitted raw-layer span. Before
+enabling exports, complete the [raw-data ownership and rollout checks](#raw-data-ownership-and-rollout-gate).
 
-From the repository root:
+## Build and Test
+
+Use JDK 21 and Maven 3.9 for tests, and Docker for the image build. Run from the
+repository root:
 
 ```bash
 mvn -B -ntp -pl connectors/tstp-connector -am test
 scripts/build-connector-image.sh tstp-connector
 ```
 
-The image is tagged `pegelhub-tstp-connector:local`.
+The image is tagged `pegelhub-tstp-connector:local`. The image build compiles the
+application itself but skips tests, so run both commands when validating a change.
 
 ## Configure
 
 The first command-line argument selects the configuration directory; containers
 default to `/app/config`. The directory must contain `connector.yaml` and at
 least one mapping YAML file. See [`examples/config/`](examples/config/) for the
-complete shape.
+complete shape. Configuration is loaded once at startup; restart after editing
+it. YAML does not expand environment variables.
 
 Create a private working copy outside the repository:
 
@@ -33,10 +40,24 @@ chmod 700 "$CONFIG_ROOT/tstp-connector"
 chmod 600 "$CONFIG_ROOT/tstp-connector/connector.yaml"
 ```
 
-`connector.yaml` defines the Core URL and client-credentials authentication, a
-positive polling interval ending in `s`, `m`, or `h`, and the TSTP server host
-and port. The implementation constructs a plain HTTP endpoint; it does not
-support an HTTPS scheme setting. `mappings.directory` defaults to `mappings`.
+| Configuration key | Meaning |
+| --- | --- |
+| `core.baseUrl` | Core application root URL, with a trailing `/` |
+| `core.authentication` | `tokenUrl`, `clientId`, and `clientSecret` for client-credentials access |
+| `polling.interval` | Required positive duration, such as `15m`; accepts `s`, `m`, or `h` |
+| `polling.overlap` | Positive replay duration in the same format; defaults to `1h` |
+| `mappings.directory` | Mapping directory relative to the config root; defaults to `mappings` |
+| `tstp.server.host`, `tstp.server.port` | Required endpoint host and TCP port |
+| `tstp.server.timeOffset` | Fixed wire-clock UTC offset; defaults to `Z` |
+| `tstp.server.writeFormat` | Outbound `binary` (default) or `ascii` |
+
+The connector constructs `http://<host>:<port>/` and does not configure HTTPS
+or TSTP authentication. Keycloak credentials authenticate Core requests only,
+not the TSTP endpoint. Use a protected network path and verify that the server
+accepts the required requests from the connector host. TSTP requests use a
+10-second connect timeout and a 30-second request timeout.
+
+### Server Time
 
 `tstp.server.timeOffset` is the fixed offset of the server's wire clock from
 UTC, default `Z` (also used when omitted). For a server whose `12:00:00` means
@@ -48,7 +69,9 @@ the container timezone. Regional zones such as `Europe/Vienna` are rejected:
 do not infer daylight-saving rules from a single observed offset. Confirm the
 server's year-round time convention before activation, especially for writes.
 
-Example mapping:
+### Mappings and Access
+
+Example mapping (`stationId` is the TSTP station number, not a Core Station UUID):
 
 ```yaml
 timeSeriesId: "11111111-1111-1111-1111-111111111111"
@@ -59,11 +82,24 @@ direction: "external-to-core"
 - `external-to-core` reads the TSTP station and writes the Core time series.
 - `core-to-external` reads the Core time series and writes the TSTP station.
 
-### Parameters and units
+Mapping files are loaded in sorted filename order. Startup rejects duplicate
+routes, duplicate outbound `(stationId, parameter)` targets, duplicate inbound
+Core targets, and directed feedback cycles within this process's configuration.
+Different parameters at the same station are independent targets. Review routes
+across other connector processes separately; there is no deployment-wide cycle
+check.
+
+Configure the Keycloak client for the `pegelhub-core-api` audience and only the
+direction-appropriate lowercase Core roles: `measurement:write` for imports
+and `measurement:read` for exports. Core metadata must already exist. The client
+also needs the registration, source assignment, and read-access relations
+described in the [library authorization prerequisites](../library/#core-authorization-prerequisites).
+
+### Parameters and Units
 
 Each mapping selects one `parameter` and its wire `unit`. Omitted parameters
 default to `Wasserstand`; an omitted unit uses the parameter's default below.
-Existing water-level mappings therefore remain `Wasserstand` in `cm`.
+The minimal mapping above therefore selects `Wasserstand` in `cm`.
 
 | TSTP parameter | Supported wire units (default first) | Core property | Core output representation |
 | --- | --- | --- | --- |
@@ -104,54 +140,47 @@ the matching Core property in the table above. Neither the mapping nor the
 TSTP catalog changes or validates that Core source assignment automatically;
 review it before activation. See [measurement representations](../../docs/guides/measurement-representations.md).
 
-Mapping files are loaded in sorted filename order. Startup rejects exact
-duplicates, duplicate outbound `(stationId, parameter)` targets, duplicate
-inbound Core targets, and directed feedback cycles. Different parameters at
-the same station are independent targets. A failed mapping does not prevent
-the remaining mappings in that polling cycle from running.
+### Catalog Validation
 
 The connector queries the TSTP catalog using the mapping's station and
 parameter with `Hauptreihe=true`. Exactly one confirmed main-series entry with
-a ZRID and matching station, parameter and unit is required; it never chooses the first of several
-matches. Valid entries are cached independently per station and parameter for
-24 hours. Unit checks also apply to cache hits and to each measurement
+a ZRID and matching station, parameter and unit is required; it never chooses
+the first of several matches. Valid entries are cached per station and parameter
+for 24 hours. Unit checks also apply to cache hits and to each measurement
 response's `DEF EINHEIT`. Invalid catalogs are not cached and are retried on
-the next poll. Existing mappings whose catalogs are ambiguous or omit these
-fields now fail explicitly instead of transferring unverified data.
+the next poll. Ambiguous or incomplete catalogs fail the mapping rather than
+transferring unverified data.
 
 TSTP XML responses are decoded using their XML encoding declaration. Outbound
-XML declares and uses ISO-8859-1, including the degrees-Celsius unit. Values
-retain the precision of the protocol's 32-bit float; the old blanket rounding
-to two decimal places has been removed, including for water levels. Small
-discharge values are not rounded to zero.
+XML declares and uses ISO-8859-1, including the degrees-Celsius unit. Binary
+payloads use 32-bit floating-point values; text writes use a decimal string of
+the Core value. Neither path applies blanket rounding to two decimal places.
 
-Configure the Keycloak client for the `pegelhub-core-api` audience and only the
-direction-appropriate lowercase Core roles, such as `measurement:read` and
-`measurement:write`.
-The client also needs the registration and read-access relations described in the
-[library authorization prerequisites](../library/#core-authorization-prerequisites).
+## Synchronization Behavior
 
-## Synchronization behavior
-
-Writes succeed only when the response message is exactly `confirm`
+TSTP writes succeed only when the response message is exactly `confirm`
 (case-insensitive, ignoring surrounding whitespace). A negative or ambiguous
-confirmation leaves the mapping's earlier boundary intact for retry.
+confirmation leaves the mapping's earlier boundary intact for retry. One worker
+processes mappings serially; a failed mapping does not skip later mappings.
+The first cycle starts immediately, and later cycles start one
+`polling.interval` after the previous cycle finishes.
 
 Both directions reread recent data using optional `polling.overlap`, default
 `1h`. It accepts the same positive `s`, `m`, or `h` literals as the interval.
 The first read is `[cycle time - polling interval - overlap, cycle time)`.
 After success, including an empty result, the next start is the cycle time
-minus overlap, never moving backwards. Both sources are filtered to half-open
-boundaries, and cycle times remain truncated to whole seconds. Fixed-delay
+minus overlap, unless the previous start is later. Both sources are filtered to
+half-open boundaries, and cycle times remain truncated to whole seconds. Fixed-delay
 polling includes processing time in the next window without adding a delivery
 delay. TSTP reads request recorded points (`WERTE=True`). Some servers still
 interpolate the requested boundaries, so each HTTP read expands the wire window
 by one second on both sides and filters decoded UTC readings back to the exact
 logical `[from, until)` window. This removes synthetic query edges without
 discarding a real reading at `from`; it does not drop the first/last record or
-assume a sampling grid. The existing highest-available-quality selection remains.
-This preserves stored series points, not necessarily original sensor samples:
-any server-side processing already present inside the series is unchanged.
+assume a sampling grid. Reads omit `QUAL`, using the server's default
+highest-available-quality selection. This preserves stored series points, not
+necessarily original sensor samples: any server-side processing already present
+inside the series is unchanged.
 
 The exact single-precision TSTP gap marker (`4E+37`, bits `0x7df0bdc2`) is
 skipped before conversion to a measurement. Valid neighboring readings and
@@ -162,16 +191,17 @@ still fail the mapping instead of being silently treated as gaps.
 
 The catalog cache and synchronization boundaries exist only in process memory.
 After restart, each mapping reads one polling interval plus overlap, which can
-replay values already transferred. Failed
-mappings keep their previous start boundary and retry an enlarged window on the
-next cycle. After successful polls, arrivals older than the overlap can still
+replay values already transferred. Failed mappings keep their previous start
+boundary and retry an enlarged window on the next cycle. After successful
+polls, arrivals older than the overlap can still
 be missed. Size overlap for the cumulative observation-to-source-visibility
 delay, including IEC and ICC upstream. One hour allows margin for normal
-5-15-minute polling along the planned route; use a larger overlap for slower
-upstream polling (for example, `2h` with hourly ICC). This is bounded recent
-replay, not historical backfill or a durable checkpoint.
+5-15-minute upstream polling; slower upstream polling needs a larger overlap
+plus delay margin (for example, `2h` with hourly ICC). This is a sizing example,
+not a delivery guarantee. Replay is limited to recent data, not historical
+backfill or a durable checkpoint.
 
-### Wire formats
+### Wire Formats
 
 Inbound GET responses remain Base64-encoded binary. Outbound PUT requests default
 to binary for backward compatibility. Set `tstp.server.writeFormat` explicitly
@@ -181,27 +211,18 @@ are rejected during configuration loading. For example:
 ```yaml
 tstp:
   server:
-    host: tstp.example.org
+    host: tstp.example.invalid
     port: 8032
     timeOffset: "+01:00"
     writeFormat: ascii
 ```
 
-Text writes use time/value pairs inside the same TSTP XML envelope: `LEN="0"`, `ANZ` equal
-to the number of measurements, and one `YYYY-MM-DDThh:mm:ssZ value` pair per
-line. Values use a decimal point independent of the process locale. The unit
+Text writes use time/value pairs inside the same TSTP XML envelope: `LEN="0"`,
+`ANZ` equal to the number of measurements, and one `YYYY-MM-DDThh:mm:ssZ value`
+pair per line. Values use a decimal point independent of the process locale. The unit
 and configured server time offset are unchanged; milliseconds are omitted,
 not rounded into the next second. This is a wire-format change, not a change
 to sampling, measurement units, quality layers or polling windows.
-
-The reason is a reproducible interoperability issue on the tested Callisto
-deployment: ten binary PUT samples returned timestamps floored to a five-second
-grid (for example, second 24 became 20). Four text PUT samples preserved their
-seconds when read back through both server endpoints, including binary GET.
-A subsequent container-to-server round trip also preserved second 21 instead
-of returning 20. This isolates the observed difference to the binary write
-path, but does not establish the server's internal cause or implicate all
-Callisto/TSTP versions.
 
 The [TSTP specification](https://www.toposoft.de/formate_protokolle/tstp_protokoll.pdf)
 describes the text data format in section 6.2 and ASCII GET in section 4.2;
@@ -213,7 +234,7 @@ changes. An unconfirmed PUT fails the mapping and retains its retry window.
 Empty batches, non-finite values and the reserved gap marker are rejected
 rather than written as measurements in either format.
 
-### Raw-data ownership and rollout gate
+### Raw-Data Ownership and Rollout Gate
 
 Outbound writes explicitly select raw quality layer `0` (`QUAL=0`).
 PegelHub must be the sole writer of that mapped raw layer; corrections belong
@@ -226,9 +247,11 @@ See the [TSTP specification, sections 4.2-4.4](https://www.toposoft.de/formate_p
 Before enabling this in production, use an approved test series on the deployed
 TSTP version/configuration:
 
-1. Confirm text PUT acceptance and read back timestamps with seconds not on a
-   five-second grid, values and units. Include the configured time offset and
-   a date boundary in codec tests.
+1. Confirm the configured PUT format is accepted; text PUT support must be
+   verified explicitly when using `ascii`. Read back timestamps with seconds
+   not on a five-second grid, values, and units. Include the configured time
+   offset and a date boundary. Do not assume binary and text writes behave
+   identically on a particular server version.
 2. Write raw readings with an intermediate reading initially absent, and put a
    correction in a higher layer.
 3. Deliver the missing raw reading through a complete overlapping interval,
@@ -242,7 +265,7 @@ Unit tests verify connector behavior, not the actual server's layer isolation
 or post-write actions. Treat an unperformed server check as an open rollout
 gate. There is no exactly-once guarantee.
 
-## Run the image
+## Run the Image
 
 ```bash
 CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/pegelhub/tstp-connector"
