@@ -1,17 +1,28 @@
 # Brand Assets
 
 PegelHub bundles its product and partner marks so the application shell has no runtime dependency
-on third-party asset hosts. Angular copies this directory into the application output and serves the
-files under `/brand/`.
+on third-party asset hosts. The assets are consumed by the
+[application shell](../../src/app/shell/app-shell.component.html) and
+[HTML entry point](../../src/index.html). Angular copies `public/` into the
+application output, making the files in this directory available under `/brand/`.
 
 ## Inventory
 
-- `pegelhub-logo.png`: PegelHub wordmark used in the application toolbar.
-- `pegelhub-mark.svg`: compact PegelHub mark used as the preferred browser favicon.
-- `viadonau-logo.svg`: partner mark used in the toolbar, retrieved unchanged from the
+| Asset               | Use                                                          |
+| ------------------- | ------------------------------------------------------------ |
+| `pegelhub-logo.png` | PegelHub logo in the application toolbar and frontend README |
+| `pegelhub-mark.svg` | Preferred SVG browser favicon                                |
+| `viadonau-logo.svg` | viadonau partner mark in the toolbar                         |
+| `dhk-logo.jpg`      | DHK partner mark in the toolbar                              |
+
+The PNG and ICO fallback favicons live in `public/`, not this directory.
+
+## Partner Asset Sources
+
+- `viadonau-logo.svg` was retrieved unchanged from the
   [official viadonau asset](https://www.viadonau.org/_assets/28b34c7b2f06e1ac15b2ce6d7f3727c8/Images/viadonau-logo.svg)
   on 2026-07-30.
-- `dhk-logo.jpg`: partner mark used in the toolbar, retrieved unchanged on 2026-07-30 from the
+- `dhk-logo.jpg` was retrieved unchanged on 2026-07-30 from the
   official BMIMI page's `/dam/jcr:65ed57f8-b98c-45b5-8297-3dd2a003a88d/dhk.jpg` asset. The
   [DHK page](https://www.bmimi.gv.at/themen/verkehr/wasser/hochwasserschutz/3-saeulen-modell/dhk/definition.html)
   is the authoritative source page.
