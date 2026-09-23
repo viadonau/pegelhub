@@ -28,3 +28,14 @@ The frontend owns display formatting only and makes one monitoring request per
 overview or detail workflow. Influx outages fail the monitoring response as a
 whole. If the catalog outgrows the bounded assumption, pagination or a backend
 projection is a separate scale-driven change.
+
+## Latest-Value Query Performance
+
+Keep measurement filters as static equality predicates so InfluxDB can execute
+them in storage. A Flux `contains()` filter prevents this optimization and makes
+long monitoring windows scan history in Flux. Apply `last()` to the native
+connector-tagged tables before grouping by time series, then sort only those
+candidates by timestamp and connector ID descending. This preserves deterministic
+ties and the complete requested time window without sorting all historical rows.
+The InfluxDB 2.2 integration test checks the storage-selector execution plan as
+well as result semantics; no timing threshold is used in CI.

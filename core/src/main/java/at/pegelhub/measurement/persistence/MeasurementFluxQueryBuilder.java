@@ -58,14 +58,17 @@ final class MeasurementFluxQueryBuilder {
         if (query.timeSeriesIds().isEmpty()) {
             throw new IllegalArgumentException("timeSeriesIds must not be empty");
         }
-        String ids = query.timeSeriesIds().stream()
-                .map(id -> stringLiteral(id.value().toString()))
-                .collect(Collectors.joining(", "));
+        String measurementPredicate = query.timeSeriesIds().stream()
+                .map(id -> "r._measurement == " + stringLiteral(id.value().toString()))
+                .collect(Collectors.joining(" or "));
+        // Static predicates and last() run in storage, before merging connector-tagged tables.
+        // Sort only their latest candidates to preserve the timestamp/connector tie-break.
         return from()
                 + " |> range(start: time(v: " + stringLiteral(query.window().from().toString())
                 + "), stop: time(v: " + stringLiteral(query.window().to().toString()) + "))"
                 + " |> filter(fn: (r) => r._field == \"value\")"
-                + " |> filter(fn: (r) => contains(value: r._measurement, set: [" + ids + "]))"
+                + " |> filter(fn: (r) => " + measurementPredicate + ")"
+                + " |> last()"
                 + " |> group(columns: [\"_measurement\"])"
                 + " |> sort(columns: [\"_time\", \"submittedByConnectorId\"], desc: true)"
                 + " |> limit(n: 1)"
