@@ -3,6 +3,7 @@ package at.pegelhub.measurement.persistence;
 import com.influxdb.client.InfluxDBClient;
 import at.pegelhub.connector.domain.ConnectorId;
 import at.pegelhub.measurement.application.MeasurementBucketQuery;
+import at.pegelhub.measurement.application.LatestMeasurement;
 import at.pegelhub.measurement.application.MeasurementBucketResolution;
 import at.pegelhub.measurement.application.MeasurementBucketWidth;
 import at.pegelhub.measurement.application.MeasurementListQuery;
@@ -141,6 +142,67 @@ final class InfluxMeasurementRepositoryTest extends InfluxIntegrationTestBase {
                     assertThat(latest.observedAt()).isEqualTo(sharedTimestamp);
                     assertThat(latest.value()).isEqualTo(11.0);
                 });
+    }
+
+    @Test
+    void latestQuerySelectsCandidatesInStorageInsteadOfScanningHistoryInFlux() {
+        var firstSeries = new TimeSeriesId(UUID.randomUUID());
+        var secondSeries = new TimeSeriesId(UUID.randomUUID());
+        var connector = new ConnectorId(UUID.randomUUID());
+        Instant to = Instant.now().truncatedTo(ChronoUnit.SECONDS);
+        repository.storeMeasurements(List.of(
+                new Measurement(firstSeries, to.minusSeconds(2), to, 10.0, connector),
+                new Measurement(firstSeries, to.minusSeconds(1), to, 11.0, connector),
+                new Measurement(secondSeries, to.minusSeconds(1), to, 20.0, connector)));
+        var query = new MeasurementFluxQueryBuilder(PROPERTIES).latestMeasurements(new MeasurementLatestQuery(
+                List.of(firstSeries, secondSeries), new MeasurementWindow(to.minus(365, ChronoUnit.DAYS), to, null)));
+
+        // Check the real InfluxDB 2.2 execution plan, not a machine-dependent timing threshold.
+        var profiles = client.getQueryApi().query("import \"profiler\"\n"
+                + "option profiler.enabledProfilers = [\"query\"]\n" + query).stream()
+                .flatMap(table -> table.getRecords().stream())
+                .filter(record -> "profiler/query".equals(record.getMeasurement()))
+                .toList();
+
+        assertThat(profiles).singleElement().satisfies(profile ->
+                assertThat((String) profile.getValueByKey("flux/query-plan"))
+                        .contains("ReadWindowAggregate", "aggregates = [last]")
+                        .doesNotContain("ReadRange", "ReadGroup"));
+    }
+
+    @Test
+    void latestMeasurementsPreserveLongWindowBoundariesAndCompareConnectorCandidatesByTimeFirst() {
+        var recentSeries = new TimeSeriesId(UUID.randomUUID());
+        var sparseSeries = new TimeSeriesId(UUID.randomUUID());
+        var outsideSeries = new TimeSeriesId(UUID.randomUUID());
+        var unrequestedSeries = new TimeSeriesId(UUID.randomUUID());
+        var connectorA = new ConnectorId(UUID.fromString("00000000-0000-0000-0000-000000000001"));
+        var connectorB = new ConnectorId(UUID.fromString("00000000-0000-0000-0000-000000000002"));
+        Instant to = Instant.now().truncatedTo(ChronoUnit.SECONDS);
+        Instant from = to.minus(365, ChronoUnit.DAYS);
+        Instant recent = to.minusSeconds(30);
+
+        // Arrival order and connector ID must not override the observation time.
+        repository.storeMeasurements(List.of(
+                new Measurement(recentSeries, recent, to, 20.0, connectorA),
+                new Measurement(recentSeries, recent.minusSeconds(1), to, 19.0, connectorB),
+                new Measurement(recentSeries, recent.minusSeconds(2), to, 18.0, connectorA),
+                new Measurement(recentSeries, to, to, 999.0, connectorB),
+                new Measurement(sparseSeries, from, to, 5.0, connectorA),
+                new Measurement(sparseSeries, from.minusMillis(1), to, 999.0, connectorB),
+                new Measurement(outsideSeries, from.minusMillis(1), to, 999.0, connectorA),
+                new Measurement(unrequestedSeries, recent, to, 999.0, connectorA)));
+        var window = new MeasurementWindow(from, to, null);
+
+        assertThat(repository.listLatestMeasurements(new MeasurementLatestQuery(
+                List.of(recentSeries, sparseSeries, outsideSeries), window)))
+                .containsExactlyInAnyOrder(
+                        new LatestMeasurement(recentSeries, recent, 20.0),
+                        new LatestMeasurement(sparseSeries, from, 5.0));
+        assertThat(repository.listLatestMeasurements(new MeasurementLatestQuery(List.of(sparseSeries), window)))
+                .containsExactly(new LatestMeasurement(sparseSeries, from, 5.0));
+        assertThat(repository.listLatestMeasurements(new MeasurementLatestQuery(List.of(outsideSeries), window)))
+                .isEmpty();
     }
 
     @Test

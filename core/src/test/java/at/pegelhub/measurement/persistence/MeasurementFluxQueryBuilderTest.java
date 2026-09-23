@@ -16,6 +16,7 @@ import java.time.Instant;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 final class MeasurementFluxQueryBuilderTest {
 
@@ -92,11 +93,27 @@ final class MeasurementFluxQueryBuilderTest {
                         "1d"));
 
         assertThat(queryBuilder.latestMeasurements(query))
-                .contains("contains(value: r._measurement, set: [\"e27efad9-b947-48b1-928e-c25663597f1c\", \"2e27efad-b947-48b1-928e-c25663597f1c\"])")
+                .contains("|> filter(fn: (r) => r._measurement == \"e27efad9-b947-48b1-928e-c25663597f1c\" or r._measurement == \"2e27efad-b947-48b1-928e-c25663597f1c\")")
                 .contains("|> group(columns: [\"_measurement\"])")
                 .contains("|> sort(columns: [\"_time\", \"submittedByConnectorId\"], desc: true)")
                 .contains("|> limit(n: 1)")
                 .contains("|> keep(columns: [\"_measurement\", \"_time\", \"submittedByConnectorId\", \"value\"])")
-                .containsSubsequence("contains(", "|> group(", "|> sort(", "|> limit(");
+                .containsSubsequence("|> range(", "r._field == \"value\"", "r._measurement ==",
+                        "|> last()", "|> group(", "|> sort(", "|> limit(")
+                .doesNotContain("contains(");
+    }
+
+    @Test
+    void buildsSingleSeriesLatestQueryWithoutChangingWindowOrEscaping() {
+        var window = new MeasurementWindow(
+                Instant.parse("2025-06-18T00:00:00Z"), Instant.parse("2026-06-18T00:00:00Z"), null);
+
+        assertThat(queryBuilder.latestMeasurements(new MeasurementLatestQuery(java.util.List.of(TIME_SERIES_ID), window)))
+                .contains("from(bucket: \"data\\\"bucket\")")
+                .contains("range(start: time(v: \"2025-06-18T00:00:00Z\"), stop: time(v: \"2026-06-18T00:00:00Z\"))")
+                .contains("|> filter(fn: (r) => r._measurement == \"e27efad9-b947-48b1-928e-c25663597f1c\")")
+                .containsSubsequence("|> last()", "|> group(", "|> sort(", "|> limit(");
+        assertThrows(IllegalArgumentException.class,
+                () -> queryBuilder.latestMeasurements(new MeasurementLatestQuery(java.util.List.of(), window)));
     }
 }
