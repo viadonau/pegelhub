@@ -10,6 +10,7 @@ import at.pegelhub.lib.internal.dto.MeasurementsSendDto;
 import at.pegelhub.lib.internal.gsonconverters.InstantConverter;
 import at.pegelhub.lib.model.Measurement;
 import at.pegelhub.lib.model.MeasurementRepresentation;
+import at.pegelhub.lib.model.MeasurementIntervalStatistics;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonObject;
@@ -142,6 +143,82 @@ public class HttpPegelHubClient implements PegelHubClient {
             throw nfe;
         } catch (Exception e) {
             throw new RuntimeException(e);
+        }
+    }
+
+    @Override
+    public MeasurementIntervalStatistics getMeasurementIntervals(
+            UUID timeSeriesId, Instant from, Instant to, String interval, String timeBasis,
+            boolean closedOnly, MeasurementRepresentation representation) {
+        Objects.requireNonNull(timeSeriesId, "timeSeriesId");
+        Objects.requireNonNull(from, "from");
+        Objects.requireNonNull(to, "to");
+        Objects.requireNonNull(representation, "representation");
+        if (!to.isAfter(from) || !("15m".equals(interval) || "1h".equals(interval) || "1d".equals(interval))
+                || !("UTC".equals(timeBasis) || "+01:00".equals(timeBasis))) {
+            throw new IllegalArgumentException("Invalid interval request");
+        }
+        String query = "from=" + urlEncode(from.toString()) + "&to=" + urlEncode(to.toString())
+                + "&interval=" + urlEncode(interval) + "&timeBasis=" + urlEncode(timeBasis)
+                + "&closedOnly=" + closedOnly + "&representation=" + urlEncode(representation.value());
+        try {
+            HttpGet http = new HttpGet(baseUrl.toURI().resolve(
+                    "api/v1/time-series/" + timeSeriesId + "/measurements/intervals?" + query));
+            authorize(http);
+            return client.execute(http, response -> {
+                if (response.getCode() == HttpStatus.SC_NOT_FOUND) {
+                    EntityUtils.consume(response.getEntity());
+                    throw new NotFoundException("time series does not exist");
+                }
+                requireOk(response.getCode(), response.getEntity());
+                var result = parseIntervalStatistics(EntityUtils.toString(response.getEntity()));
+                result.requireMatches(timeSeriesId, from, to, interval, timeBasis, closedOnly, representation);
+                return result;
+            });
+        } catch (NotFoundException exception) {
+            throw exception;
+        } catch (IOException | URISyntaxException exception) {
+            throw new RuntimeException(exception);
+        }
+    }
+
+    private static MeasurementIntervalStatistics parseIntervalStatistics(String json) {
+        JsonObject object = JsonParser.parseString(json).getAsJsonObject();
+        var closed = object.get("closedOnly");
+        if (closed == null || !closed.isJsonPrimitive() || !closed.getAsJsonPrimitive().isBoolean()) {
+            throw new IllegalStateException("Core did not declare interval selection");
+        }
+        var intervals = object.get("intervals");
+        if (intervals == null || !intervals.isJsonArray()) {
+            throw new IllegalStateException("Core did not return interval results");
+        }
+        for (var element : intervals.getAsJsonArray()) {
+            if (!element.isJsonObject()) {
+                throw new IllegalStateException("Core returned an invalid interval result");
+            }
+            requireIntervalFields(element.getAsJsonObject());
+        }
+        return gsonWithInstantSupport().fromJson(json, MeasurementIntervalStatistics.class);
+    }
+
+    private static void requireIntervalFields(JsonObject point) {
+        for (String field : List.of("from", "to", "mean", "observationCount",
+                "supportedNanos", "lastContributingObservedAt", "windowStatus", "supportStatus")) {
+            if (!point.has(field)) {
+                throw new IllegalStateException("Core omitted interval field " + field);
+            }
+        }
+        // Check before deserialization: omitted or fractional counts must not become Java defaults.
+        for (String field : List.of("observationCount", "supportedNanos")) {
+            var number = point.get(field);
+            if (!number.isJsonPrimitive() || !number.getAsJsonPrimitive().isNumber()) {
+                throw new IllegalStateException("Core returned invalid interval " + field);
+            }
+            try {
+                number.getAsBigDecimal().toBigIntegerExact().longValueExact();
+            } catch (ArithmeticException exception) {
+                throw new IllegalStateException("Core returned invalid interval " + field, exception);
+            }
         }
     }
 

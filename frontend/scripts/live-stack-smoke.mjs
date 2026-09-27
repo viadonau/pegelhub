@@ -125,15 +125,6 @@ async function verifyMeasurementReads(frontendBaseUrl, apiBaseUrl, timeSeriesId,
     'Expected raw measurement response to contain measurements.',
   );
   log('frontend proxy raw measurements', `${raw.measurements.length} item(s)`);
-
-  const bucketUrl = apiUrl(
-    frontendBaseUrl,
-    apiBaseUrl,
-    `time-series/${encodedId}/measurements/buckets?last=24h&maxPoints=48`,
-  );
-  const buckets = await fetchJson(bucketUrl, { headers });
-  assert(Array.isArray(buckets.points), 'Expected bucket response to contain points.');
-  log('frontend proxy measurement buckets', `${buckets.points.length} item(s)`);
 }
 
 function assertRuntimeConfig(config, configUrl) {

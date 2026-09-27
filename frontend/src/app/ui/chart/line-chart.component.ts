@@ -6,19 +6,22 @@ import { ChartModule } from 'primeng/chart';
 import { ThemeMode, ThemeService } from '../../core/theme/theme.service';
 import {
   createYAxisBounds,
+  createElapsedTimeTicks,
   formatChartNumber,
   formatReferenceLineLabel,
 } from './line-chart.presentation';
 
-Chart.register(annotationPlugin);
-
 export interface PhChartPoint {
-  label: string;
+  x: number;
+  from: number;
+  to: number;
   value: number;
+  tooltipFooter?: string;
 }
 
 export interface PhChartSeries {
   name: string;
+  window?: { from: number; to: number } | null;
   points: PhChartPoint[];
 }
 
@@ -31,6 +34,21 @@ export interface PhChartReferenceLine {
 const LOW_DENSITY_POINT_LIMIT = 16;
 const CHART_FONT_FAMILY =
   "'Source Sans 3 Variable', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
+const chartTimeFormatters = createTimeFormatters({
+  month: 'short',
+  day: '2-digit',
+  hour: '2-digit',
+  minute: '2-digit',
+});
+const chartDateFormatters = createTimeFormatters({ month: 'short', day: '2-digit' });
+const chartClockFormatters = createTimeFormatters({ hour: '2-digit', minute: '2-digit' });
+
+function createTimeFormatters(options: Intl.DateTimeFormatOptions) {
+  return {
+    '+01:00': new Intl.DateTimeFormat('de-AT', { ...options, timeZone: 'Etc/GMT-1' }),
+    UTC: new Intl.DateTimeFormat('de-AT', { ...options, timeZone: 'UTC' }),
+  };
+}
 
 @Component({
   selector: 'ph-line-chart',
@@ -66,6 +84,7 @@ export class PhLineChartComponent {
   readonly emptyMessage = input('Keine Diagrammdaten vorhanden.');
   readonly ariaLabel = input('Liniendiagramm');
   readonly height = input('320');
+  readonly timeBasis = input<'+01:00' | 'UTC'>('+01:00');
 
   protected readonly pointCount = computed(() => this.series()?.points.length ?? 0);
   protected readonly yAxisBounds = computed(() =>
@@ -80,16 +99,14 @@ export class PhLineChartComponent {
 
   protected readonly chartData = computed<ChartData<'line'>>(() => {
     const series = this.series();
-    const pointRadius = this.pointCount() <= LOW_DENSITY_POINT_LIMIT ? 2 : 0;
     const tokens = chartThemes[this.theme.mode()];
 
     return {
-      labels: series?.points.map((point) => point.label) ?? [],
       datasets: series
         ? [
             {
               label: series.name,
-              data: series.points.map((point) => point.value),
+              data: chartPointsWithGaps(series.points),
               borderColor: tokens.series,
               backgroundColor: tokens.series,
               borderWidth: 2,
@@ -98,13 +115,14 @@ export class PhLineChartComponent {
               pointBackgroundColor: tokens.surface,
               pointBorderColor: tokens.series,
               pointBorderWidth: 2,
-              pointRadius,
+              pointRadius: (context) => chartPointRadius(context, this.pointCount()),
               pointHoverBackgroundColor: tokens.surface,
               pointHoverBorderColor: tokens.series,
               pointHoverBorderWidth: 2,
               pointHoverRadius: 4,
               pointHitRadius: 14,
               tension: 0,
+              spanGaps: false,
             },
           ]
         : [],
@@ -112,6 +130,7 @@ export class PhLineChartComponent {
   });
 
   protected readonly chartOptions = computed<ChartOptions<'line'>>(() => {
+    const series = this.series();
     const yAxisBounds = this.yAxisBounds();
     const tokens = chartThemes[this.theme.mode()];
 
@@ -135,23 +154,32 @@ export class PhLineChartComponent {
           backgroundColor: tokens.tooltipBackground,
           titleColor: tokens.tooltipText,
           bodyColor: tokens.tooltipText,
+          footerColor: tokens.tooltipText,
           cornerRadius: 6,
           caretPadding: 8,
           caretSize: 5,
-          padding: 10,
+          padding: 8,
           displayColors: false,
           boxPadding: 4,
           // Tooltips resolve fonts separately from the chart's base font.
-          titleFont: { family: CHART_FONT_FAMILY, size: 12, weight: 600 },
-          bodyFont: { family: CHART_FONT_FAMILY, size: 12, weight: 500 },
-          footerFont: { family: CHART_FONT_FAMILY },
+          titleFont: { family: CHART_FONT_FAMILY, size: 11, weight: 600 },
+          bodyFont: { family: CHART_FONT_FAMILY, size: 12, weight: 600 },
+          footerFont: { family: CHART_FONT_FAMILY, size: 11, weight: 400 },
           callbacks: {
+            title: (items) => {
+              const point = items[0]?.raw as ChartPointData | undefined;
+              return point ? formatInterval(point.from, point.to, this.timeBasis()) : '';
+            },
             label: (ctx) => {
               const unit = this.unit();
               const formattedValue =
                 typeof ctx.parsed.y === 'number' ? formatChartNumber(ctx.parsed.y) : '-';
 
-              return formattedValue + (unit ? ` ${unit}` : '');
+              return `${formattedValue}${unit ? ` ${unit}` : ''}`;
+            },
+            footer: (items) => {
+              const point = items[0]?.raw as ChartPointData | undefined;
+              return point?.tooltipFooter ?? '';
             },
           },
         },
@@ -160,11 +188,22 @@ export class PhLineChartComponent {
         },
       },
       interaction: {
-        mode: 'index',
+        mode: 'nearest',
+        axis: 'x',
         intersect: false,
       },
       scales: {
         x: {
+          type: 'linear',
+          min: series?.window?.from,
+          max: series?.window?.to,
+          afterBuildTicks: (scale) => {
+            scale.ticks = createElapsedTimeTicks(
+              scale.min,
+              scale.max,
+              this.timeBasis() === '+01:00' ? 60 * 60_000 : 0,
+            ).map((value) => ({ value }));
+          },
           ticks: {
             maxRotation: 0,
             autoSkip: true,
@@ -173,6 +212,7 @@ export class PhLineChartComponent {
             padding: 8,
             color: tokens.textMuted,
             font: { size: 11 },
+            callback: (value) => formatChartTime(Number(value), this.timeBasis()),
           },
           grid: {
             display: false,
@@ -198,7 +238,7 @@ export class PhLineChartComponent {
             padding: 10,
             precision: yAxisBounds?.precision ?? 0,
             stepSize: yAxisBounds?.stepSize,
-            callback: (value) => formatChartNumber(Number(value)),
+            callback: (value) => formatChartNumber(Number(value), yAxisBounds?.precision ?? 3),
           },
           grid: {
             color: tokens.grid,
@@ -212,6 +252,82 @@ export class PhLineChartComponent {
     };
   });
 }
+
+interface ChartPointData {
+  x: number;
+  y: number | null;
+  from: number;
+  to: number;
+  tooltipFooter?: string;
+}
+
+function chartPointsWithGaps(points: readonly PhChartPoint[]): ChartPointData[] {
+  const data: ChartPointData[] = [];
+
+  points.forEach((point, index) => {
+    const previous = points[index - 1];
+    if (previous && previous.to < point.from) {
+      data.push(
+        { x: previous.to, y: null, from: previous.to, to: previous.to },
+        { x: point.from, y: null, from: point.from, to: point.from },
+      );
+    }
+    data.push({
+      x: point.x,
+      y: point.value,
+      from: point.from,
+      to: point.to,
+      tooltipFooter: point.tooltipFooter,
+    });
+  });
+
+  return data;
+}
+
+function chartPointRadius(
+  context: { dataIndex: number; dataset: { data: unknown[] }; raw: unknown },
+  pointCount: number,
+): number {
+  if (pointCount <= LOW_DENSITY_POINT_LIMIT) {
+    return 2;
+  }
+
+  const point = context.raw as ChartPointData | null;
+  if (!point || point.y === null) {
+    return 0;
+  }
+
+  const data = context.dataset.data as ChartPointData[];
+  const hasConnectedNeighbor = [data[context.dataIndex - 1], data[context.dataIndex + 1]].some(
+    (neighbor) => neighbor && neighbor.y !== null,
+  );
+
+  return hasConnectedNeighbor ? 0 : 2;
+}
+
+function formatChartTime(value: number, timeBasis: '+01:00' | 'UTC'): string {
+  if (!Number.isFinite(value)) {
+    return '';
+  }
+
+  return chartTimeFormatters[timeBasis].format(value);
+}
+
+function formatInterval(from: number, to: number, timeBasis: '+01:00' | 'UTC'): string {
+  const dateFormatter = chartDateFormatters[timeBasis];
+  const clockFormatter = chartClockFormatters[timeBasis];
+  const fromDate = dateFormatter.format(from);
+  const toDate = dateFormatter.format(to);
+
+  if (fromDate === toDate) {
+    return `${fromDate}, ${clockFormatter.format(from)}–${clockFormatter.format(to)}`;
+  }
+
+  const formatter = chartTimeFormatters[timeBasis];
+  return `${formatter.format(from)} – ${formatter.format(to)}`;
+}
+
+Chart.register(annotationPlugin);
 
 interface ChartTheme {
   series: string;

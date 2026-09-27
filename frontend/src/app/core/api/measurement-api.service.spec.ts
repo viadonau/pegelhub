@@ -35,24 +35,41 @@ describe('MeasurementApiService HTTP contract', () => {
 
   afterEach(() => http.verify());
 
-  it('loads chart data from the bucket endpoint', () => {
+  it('loads aligned means from the interval endpoint', () => {
     const resource = TestBed.runInInjectionContext(() =>
-      service.measurementBucketsResource(signal('series-id'), signal('7d')),
+      service.measurementIntervalsResource(
+        signal('series-id'),
+        signal({
+          from: '2026-06-17T00:00:00Z',
+          to: '2026-06-18T00:00:00Z',
+          interval: '15m' as const,
+          timeBasis: '+01:00' as const,
+        }),
+      ),
     );
     TestBed.tick();
 
     const request = http.expectOne(
-      (candidate) => candidate.url === '/api/v1/time-series/series-id/measurements/buckets',
+      (candidate) => candidate.url === '/api/v1/time-series/series-id/measurements/intervals',
     );
 
     expect(request.request.method).toBe('GET');
-    expect(request.request.params.get('last')).toBe('7d');
-    expect(request.request.params.get('maxPoints')).toBe('240');
+    expect(request.request.params.get('interval')).toBe('15m');
+    const wireParams = new URLSearchParams(request.request.params.toString());
+    expect(wireParams.get('timeBasis')).toBe('+01:00');
+    expect(request.request.params.get('closedOnly')).toBe('true');
     request.flush({
       timeSeriesId: 'series-id',
-      window: null,
-      resolution: null,
-      points: [],
+      from: '2026-06-17T00:00:00Z',
+      to: '2026-06-18T00:00:00Z',
+      interval: '15m',
+      timeBasis: '+01:00',
+      closedOnly: true,
+      representation: 'canonical',
+      unit: 'cm',
+      method: 'time-weighted-step',
+      computedAt: '2026-06-18T00:00:00Z',
+      intervals: [],
     });
     resource.destroy();
   });

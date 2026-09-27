@@ -38,6 +38,15 @@ public enum TstpParameter {
                 : MeasurementRepresentation.CANONICAL;
     }
 
+    public String coreUnit(String wireUnit) {
+        representation(wireUnit);
+        return switch (this) {
+            case WATER_LEVEL -> "cm";
+            case WATER_TEMPERATURE -> "Cel";
+            case DISCHARGE -> "l/s".equals(wireUnit) ? "l/s" : "m3/s";
+        };
+    }
+
     @JsonCreator
     public static TstpParameter from(String value) {
         for (TstpParameter parameter : values()) {

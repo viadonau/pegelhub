@@ -118,30 +118,12 @@ public final class TstpBinaryCodec {
 
         for (int i = 0; i < toEncode.size(); i++) {
             Measurement currentMeasurement = toEncode.get(i);
-            LocalDateTime timestamp = LocalDateTime.ofInstant(currentMeasurement.getObservedAt(), timeOffset);
-            float measurementValue = currentMeasurement.getValue().floatValue();
-
-            byte[] dateBytes = new byte[8];
-
-            // Byte 7
-            dateBytes[0] = (byte) 0;
-            // Byte 6
-            dateBytes[1] = (byte) ((timestamp.getYear() >> 8) & 0x0F);
-            // Byte 5
-            dateBytes[2] = (byte) (timestamp.getYear() & 0xFF);
-            // Byte 4
-            dateBytes[3] = (byte) (timestamp.getMonthValue() & 0x0F);
-            // Byte 3
-            dateBytes[4] = (byte) (timestamp.getDayOfMonth() & 0x1F);
-            // Byte 2
-            dateBytes[5] = (byte) (timestamp.getHour() & 0xFF);
-            // Byte 1
-            dateBytes[6] = (byte) (timestamp.getMinute() & 0xFF);
-            // Byte 0
-            dateBytes[7] = (byte) (timestamp.getSecond() & 0xFF);
+            byte[] dateBytes = encodeTime(currentMeasurement.getObservedAt());
 
             // float to 4 bytes (32 bit)
-            int bits = Float.floatToIntBits(measurementValue);
+            int bits = currentMeasurement.getValue() == null
+                    ? GAP_BITS
+                    : Float.floatToIntBits(currentMeasurement.getValue().floatValue());
             byte[] floatBytes = ByteBuffer.allocate(4)
                     .order(java.nio.ByteOrder.BIG_ENDIAN)
                     .putInt(bits)
@@ -154,6 +136,19 @@ public final class TstpBinaryCodec {
         }
 
         return binaryBlock;
+    }
+
+    private byte[] encodeTime(Instant instant) {
+        LocalDateTime timestamp = LocalDateTime.ofInstant(instant, timeOffset);
+        byte[] dateBytes = new byte[8];
+        dateBytes[1] = (byte) ((timestamp.getYear() >> 8) & 0x0F);
+        dateBytes[2] = (byte) (timestamp.getYear() & 0xFF);
+        dateBytes[3] = (byte) (timestamp.getMonthValue() & 0x0F);
+        dateBytes[4] = (byte) (timestamp.getDayOfMonth() & 0x1F);
+        dateBytes[5] = (byte) (timestamp.getHour() & 0xFF);
+        dateBytes[6] = (byte) (timestamp.getMinute() & 0xFF);
+        dateBytes[7] = (byte) (timestamp.getSecond() & 0xFF);
+        return dateBytes;
     }
 
     private int getBit(byte in, int position) {

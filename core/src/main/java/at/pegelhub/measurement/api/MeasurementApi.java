@@ -1,8 +1,8 @@
 package at.pegelhub.measurement.api;
 
-import at.pegelhub.measurement.api.read.input.MeasurementBucketParameters;
 import at.pegelhub.measurement.api.read.input.MeasurementReadParameters;
-import at.pegelhub.measurement.api.read.output.MeasurementBucketListResponse;
+import at.pegelhub.measurement.api.read.input.MeasurementIntervalParameters;
+import at.pegelhub.measurement.api.read.output.MeasurementIntervalListResponse;
 import at.pegelhub.measurement.api.read.output.MeasurementListResponse;
 import at.pegelhub.measurement.api.write.WriteMeasurementsRequest;
 import io.swagger.v3.oas.annotations.Operation;
@@ -29,7 +29,6 @@ import java.util.UUID;
 
 @RequestMapping("/api/v1")
 @Tag(name = "Measurements", description = "openapi.measurement.measurement-api.write-and-read-time-series-measurements")
-@Tag(name = "Measurement Buckets", description = "openapi.measurement.measurement-api.read-chart-ready-aggregated-measurement-buckets")
 public interface MeasurementApi {
 
     @Operation(
@@ -65,24 +64,20 @@ public interface MeasurementApi {
             @PathVariable UUID timeSeriesId,
             @ParameterObject @Valid @ModelAttribute MeasurementReadParameters parameters);
 
-    @Operation(
-            tags = "Measurement Buckets",
-            summary = "openapi.measurement.measurement-api.lists-chart-ready-measurement-buckets-for-a",
-            description = "openapi.measurement.measurement-api.list-buckets.description",
+    @Operation(tags = "Measurements", summary = "openapi.measurement.measurement-api.list-intervals.summary",
+            description = "openapi.measurement.measurement-api.list-intervals.description",
             security = @SecurityRequirement(name = "bearerAuth"))
     @ApiResponses(value = {
-            @ApiResponse(
-                    responseCode = "200",
-                    description = "openapi.measurement.measurement-api.returns-average-buckets-for-charting",
-                    content = @Content(schema = @Schema(implementation = MeasurementBucketListResponse.class))),
-            @ApiResponse(responseCode = "400", description = "openapi.measurement.measurement-api.the-query-parameters-are-invalid", content = @Content),
-            @ApiResponse(responseCode = "404", description = "openapi.measurement.measurement-api.the-connector-or-time-series-was-not", content = @Content)
+            @ApiResponse(responseCode = "200", description = "openapi.measurement.measurement-api.list-intervals.success",
+                    content = @Content(schema = @Schema(implementation = MeasurementIntervalListResponse.class))),
+            @ApiResponse(responseCode = "400", description = "openapi.measurement.measurement-api.list-intervals.invalid-request", content = @Content),
+            @ApiResponse(responseCode = "404", description = "openapi.measurement.measurement-api.list-intervals.time-series-not-found", content = @Content)
     })
-    @GetMapping("/time-series/{timeSeriesId}/measurements/buckets")
-    MeasurementBucketListResponse listMeasurementBuckets(
+    @GetMapping("/time-series/{timeSeriesId}/measurements/intervals")
+    MeasurementIntervalListResponse listMeasurementIntervals(
             @Parameter(description = "openapi.measurement.measurement-api.time-series-identifier", required = true)
             @PathVariable UUID timeSeriesId,
-            @ParameterObject @Valid @ModelAttribute MeasurementBucketParameters parameters);
+            @ParameterObject @Valid @ModelAttribute MeasurementIntervalParameters parameters);
 
     @Operation(
             tags = "Measurements",

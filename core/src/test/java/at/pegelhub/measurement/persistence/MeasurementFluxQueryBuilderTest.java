@@ -1,8 +1,5 @@
 package at.pegelhub.measurement.persistence;
 
-import at.pegelhub.measurement.application.MeasurementBucketQuery;
-import at.pegelhub.measurement.application.MeasurementBucketResolution;
-import at.pegelhub.measurement.application.MeasurementBucketWidth;
 import at.pegelhub.measurement.application.MeasurementListQuery;
 import at.pegelhub.measurement.application.MeasurementLatestQuery;
 import at.pegelhub.measurement.application.MeasurementOrder;
@@ -11,7 +8,6 @@ import at.pegelhub.shared.influx.DatabaseProperties;
 import at.pegelhub.timeseries.domain.TimeSeriesId;
 import org.junit.jupiter.api.Test;
 
-import java.time.Duration;
 import java.time.Instant;
 import java.util.UUID;
 
@@ -55,22 +51,6 @@ final class MeasurementFluxQueryBuilderTest {
                 .containsSubsequence(
                         "|> filter(fn: (r) => r._field == \"value\")",
                         "|> group(columns: [])");
-    }
-
-    @Test
-    void buildsMeasurementBucketQueries() {
-        MeasurementBucketQuery bucketQuery = new MeasurementBucketQuery(
-                TIME_SERIES_ID,
-                new MeasurementWindow(
-                        Instant.parse("2026-06-17T00:00:00Z"),
-                        Instant.parse("2026-06-18T00:00:00Z"),
-                        null),
-                MeasurementBucketResolution.explicit(new MeasurementBucketWidth(Duration.ofMinutes(15))));
-
-        assertThat(queryBuilder.meanBuckets(bucketQuery))
-                .contains("aggregateWindow(every: 15m, fn: mean, createEmpty: false, timeSrc: \"_start\")");
-        assertThat(queryBuilder.countBuckets(bucketQuery))
-                .contains("aggregateWindow(every: 15m, fn: count, createEmpty: false, timeSrc: \"_start\")");
     }
 
     @Test

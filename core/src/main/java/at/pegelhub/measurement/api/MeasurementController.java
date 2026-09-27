@@ -2,9 +2,9 @@ package at.pegelhub.measurement.api;
 
 import at.pegelhub.measurement.api.read.MeasurementReadQueryResolver;
 import at.pegelhub.measurement.api.read.MeasurementReadResponseMapper;
-import at.pegelhub.measurement.api.read.input.MeasurementBucketParameters;
 import at.pegelhub.measurement.api.read.input.MeasurementReadParameters;
-import at.pegelhub.measurement.api.read.output.MeasurementBucketListResponse;
+import at.pegelhub.measurement.api.read.input.MeasurementIntervalParameters;
+import at.pegelhub.measurement.api.read.output.MeasurementIntervalListResponse;
 import at.pegelhub.measurement.api.read.output.MeasurementListResponse;
 import at.pegelhub.measurement.api.write.MeasurementWriteRequestMapper;
 import at.pegelhub.measurement.api.write.WriteMeasurementsRequest;
@@ -41,11 +41,11 @@ public class MeasurementController implements MeasurementApi {
     }
 
     @Override
-    public MeasurementBucketListResponse listMeasurementBuckets(
+    public MeasurementIntervalListResponse listMeasurementIntervals(
             UUID timeSeriesId,
-            MeasurementBucketParameters parameters) {
-        return MeasurementReadResponseMapper.toResponse(measurementService.listMeasurementBuckets(
-                queryResolver.resolveBuckets(timeSeriesId, parameters)));
+            MeasurementIntervalParameters parameters) {
+        return MeasurementReadResponseMapper.toResponse(measurementService.listMeasurementIntervals(
+                queryResolver.resolveIntervals(timeSeriesId, parameters)));
     }
 
     @Override

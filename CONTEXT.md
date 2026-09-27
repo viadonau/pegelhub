@@ -28,6 +28,16 @@ _Avoid_: Datastream, channel, measurement series
 A single value observed for a time series at a specific time.
 _Avoid_: Observation, reading, Influx point
 
+**Interval mean**:
+A Core-calculated step-weighted time mean, available for every TimeSeries through
+an explicit interval query. A Measurement remains in effect until the next Measurement.
+This interpretation does not establish whether the source is healthy.
+
+**Supported duration**:
+The portion of an interval covered by retained Measurements under the step
+interpretation. A complete mean requires support for the entire interval; support alone
+does not certify data quality. See `docs/adr/0012-step-weighted-interval-means.md`.
+
 **Read access**:
  An explicit Connector-to-Station or Connector-to-TimeSeries read relation. A source assignment, not a grant, authorizes measurement writes.
 _Avoid_: AccessGrant, WRITE grant, token permission

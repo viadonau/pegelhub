@@ -125,6 +125,94 @@ public class HttpPegelHubClientTest {
         verifyNoMoreInteractions(httpClient);
     }
 
+    @Test
+    void intervalReadUsesTypedCoreResultAndValidatesEveryWindow() throws IOException {
+        String response = intervalResponse();
+        List<String> requests = mockSuccessfulResponse(response);
+
+        var result = phc.getMeasurementIntervals(uuid, READ_FROM, READ_FROM.plusSeconds(1_800),
+                "15m", "UTC", true, MeasurementRepresentation.CANONICAL);
+
+        assertEquals(18.5, result.intervals().getFirst().mean());
+        assertEquals(2, result.intervals().getFirst().observationCount());
+        assertNull(result.intervals().get(1).mean());
+        assertTrue(requests.get(1).contains("/measurements/intervals?"));
+        assertTrue(requests.get(1).contains("interval=15m"));
+        assertTrue(requests.get(1).contains("timeBasis=UTC"));
+        assertTrue(requests.get(1).contains("closedOnly=true"));
+        assertTrue(requests.get(1).contains("representation=canonical"));
+    }
+
+    @Test
+    void intervalReadAcceptsTheFullCoreWindowLimit() throws IOException {
+        var json = JsonParser.parseString(intervalResponse()).getAsJsonObject();
+        Instant to = READ_FROM.plusSeconds(50_000L * 900);
+        json.addProperty("to", to.toString());
+        json.addProperty("computedAt", to.toString());
+        var intervals = json.getAsJsonArray("intervals");
+        var gap = intervals.get(1).getAsJsonObject().deepCopy();
+        intervals.asList().clear();
+        for (int index = 0; index < 50_000; index++) {
+            var point = gap.deepCopy();
+            point.addProperty("from", READ_FROM.plusSeconds(index * 900L).toString());
+            point.addProperty("to", READ_FROM.plusSeconds((index + 1) * 900L).toString());
+            intervals.add(point);
+        }
+        mockSuccessfulResponse(json.toString());
+
+        var result = phc.getMeasurementIntervals(uuid, READ_FROM, to,
+                "15m", "UTC", true, MeasurementRepresentation.CANONICAL);
+
+        assertEquals(50_000, result.intervals().size());
+        assertEquals(to, result.intervals().getLast().to());
+    }
+
+    @Test
+    void intervalReadRejectsBrokenCoreContracts() throws IOException {
+        var missingMethod = JsonParser.parseString(intervalResponse()).getAsJsonObject();
+        missingMethod.remove("method");
+        var wrongRepresentation = JsonParser.parseString(intervalResponse()).getAsJsonObject();
+        wrongRepresentation.addProperty("representation", "litres-per-second");
+        var incomplete = JsonParser.parseString(intervalResponse()).getAsJsonObject();
+        incomplete.getAsJsonArray("intervals").remove(1);
+        var missingGap = JsonParser.parseString(intervalResponse()).getAsJsonObject();
+        missingGap.getAsJsonArray("intervals").get(1).getAsJsonObject().remove("mean");
+
+        for (var json : List.of(missingMethod, wrongRepresentation, incomplete, missingGap)) {
+            mockSuccessfulResponse(json.toString());
+            assertThrows(RuntimeException.class, () -> phc.getMeasurementIntervals(
+                    uuid, READ_FROM, READ_FROM.plusSeconds(1_800), "15m", "UTC", true,
+                    MeasurementRepresentation.CANONICAL));
+        }
+    }
+
+    @Test
+    void intervalReadRejectsInconsistentSupport() throws IOException {
+        var json = JsonParser.parseString(intervalResponse()).getAsJsonObject();
+        var point = json.getAsJsonArray("intervals").get(0).getAsJsonObject();
+        point.addProperty("supportedNanos", 1);
+        mockSuccessfulResponse(json.toString());
+        assertThrows(RuntimeException.class, () -> phc.getMeasurementIntervals(
+                uuid, READ_FROM, READ_FROM.plusSeconds(1_800), "15m", "UTC", true,
+                MeasurementRepresentation.CANONICAL));
+    }
+
+    private String intervalResponse() {
+        return """
+                {"timeSeriesId":"%s","from":"%s","to":"%s","interval":"15m",
+                 "timeBasis":"UTC","closedOnly":true,"representation":"canonical","unit":"cm",
+                 "method":"time-weighted-step","computedAt":"%s",
+                 "intervals":[
+                   {"from":"%s","to":"%s","mean":18.5,"observationCount":2,
+                    "supportedNanos":900000000000,"lastContributingObservedAt":"%s",
+                    "windowStatus":"closed","supportStatus":"full"},
+                   {"from":"%s","to":"%s","mean":null,"observationCount":0,
+                    "supportedNanos":0,"lastContributingObservedAt":null,"windowStatus":"closed","supportStatus":"absent"}]}
+                """.formatted(uuid, READ_FROM, READ_FROM.plusSeconds(1_800), READ_TO,
+                READ_FROM, READ_FROM.plusSeconds(900), READ_FROM.plusSeconds(20),
+                READ_FROM.plusSeconds(900), READ_FROM.plusSeconds(1_800));
+    }
+
     @ParameterizedTest
     @ValueSource(strings = {"missing", "\"false\""})
     void strictLatestValidationDoesNotChangeWindowOrDefaultConnectorReads(String completeness) throws IOException {

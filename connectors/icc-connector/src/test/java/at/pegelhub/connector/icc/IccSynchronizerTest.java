@@ -4,6 +4,7 @@ import at.pegelhub.lib.PegelHubClient;
 import at.pegelhub.lib.config.MappingDirection;
 import at.pegelhub.lib.exception.NotFoundException;
 import at.pegelhub.lib.model.Measurement;
+import at.pegelhub.lib.model.MeasurementIntervalStatistics;
 import at.pegelhub.lib.model.MeasurementRepresentation;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -337,6 +338,13 @@ class IccSynchronizerTest {
             return measurements.stream()
                     .filter(m -> !m.getObservedAt().isBefore(from) && m.getObservedAt().isBefore(to))
                     .toList();
+        }
+
+        @Override
+        public MeasurementIntervalStatistics getMeasurementIntervals(
+                UUID timeSeriesId, Instant from, Instant to, String interval, String timeBasis,
+                boolean closedOnly, MeasurementRepresentation representation) {
+            throw new AssertionError("ICC synchronization needs no interval statistics");
         }
 
         @Override

@@ -2,6 +2,7 @@ package at.pegelhub.watchdog.monitoring;
 
 import at.pegelhub.lib.PegelHubClient;
 import at.pegelhub.lib.model.Measurement;
+import at.pegelhub.lib.model.MeasurementIntervalStatistics;
 import at.pegelhub.lib.model.MeasurementRepresentation;
 import at.pegelhub.watchdog.Json;
 import at.pegelhub.watchdog.config.WatchdogConfig;
@@ -244,6 +245,13 @@ class WatchdogTest {
         public Collection<Measurement> getMeasurementsOfTimeSeries(
                 UUID id, Instant from, Instant to, MeasurementRepresentation representation) {
             throw new AssertionError("Freshness monitoring needs no window or per-probe history");
+        }
+
+        @Override
+        public MeasurementIntervalStatistics getMeasurementIntervals(
+                UUID id, Instant from, Instant to, String interval, String timeBasis,
+                boolean closedOnly, MeasurementRepresentation representation) {
+            throw new AssertionError("Freshness monitoring needs no interval statistics");
         }
 
         @Override

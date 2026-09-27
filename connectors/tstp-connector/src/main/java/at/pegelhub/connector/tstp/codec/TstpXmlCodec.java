@@ -23,6 +23,7 @@ import java.util.Locale;
 import java.util.stream.Collectors;
 
 public final class TstpXmlCodec {
+    private static final String GAP_VALUE = Float.toString(Float.intBitsToFloat(0x7df0bdc2));
     private static final Logger LOG = LoggerFactory.getLogger(TstpXmlCodec.class);
 
     private final TstpBinaryCodec binaryCodec;
@@ -59,10 +60,13 @@ public final class TstpXmlCodec {
             throw new IllegalArgumentException("TSTP write requires at least one measurement");
         }
         for (Measurement measurement : measurements) {
+            if (measurement == null || measurement.getObservedAt() == null) {
+                throw new IllegalArgumentException("TSTP write requires timestamped measurements");
+            }
             Double value = measurement.getValue();
-            if (measurement.getObservedAt() == null || value == null || !Double.isFinite(value)
-                    || !Float.isFinite(value.floatValue()) || Float.floatToIntBits(value.floatValue()) == 0x7df0bdc2) {
-                throw new IllegalArgumentException("TSTP write requires finite measurements, not gap markers");
+            if (value != null && (!Double.isFinite(value) || !Float.isFinite(value.floatValue())
+                    || Float.floatToIntBits(value.floatValue()) == 0x7df0bdc2)) {
+                throw new IllegalArgumentException("TSTP write requires finite measurements or null gaps");
             }
         }
         String data;
@@ -74,7 +78,7 @@ public final class TstpXmlCodec {
         } else {
             // TSTP section 6.2: LEN=0 selects text pairs; avoids observed binary PUT quantization.
             data = measurements.stream().map(measurement -> timeFormat.format(measurement.getObservedAt())
-                    + " " + Double.toString(measurement.getValue())).collect(Collectors.joining("\n"));
+                    + " " + wireValue(measurement)).collect(Collectors.joining("\n"));
             length = "0";
         }
 
@@ -89,6 +93,10 @@ public final class TstpXmlCodec {
         XmlTsData xmlTsData = new XmlTsData("1", xmlTsDef, data);
 
         return marshallXmlTsData(xmlTsData);
+    }
+
+    private static String wireValue(Measurement measurement) {
+        return measurement.getValue() == null ? GAP_VALUE : Double.toString(measurement.getValue());
     }
 
     private String marshallXmlTsData(XmlTsData tsData) {

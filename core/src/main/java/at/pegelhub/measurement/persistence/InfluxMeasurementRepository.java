@@ -2,21 +2,20 @@ package at.pegelhub.measurement.persistence;
 
 import com.influxdb.client.write.Point;
 import com.influxdb.query.FluxTable;
-import at.pegelhub.measurement.application.MeasurementBucketQuery;
 import at.pegelhub.measurement.application.MeasurementListQuery;
 import at.pegelhub.measurement.application.MeasurementReadRow;
+import at.pegelhub.measurement.application.MeasurementWindow;
 import at.pegelhub.measurement.application.LatestMeasurement;
 import at.pegelhub.measurement.application.MeasurementLatestQuery;
 import at.pegelhub.measurement.domain.Measurement;
-import at.pegelhub.measurement.domain.MeasurementBucket;
+import at.pegelhub.timeseries.domain.TimeSeriesId;
 import at.pegelhub.shared.influx.InfluxBucketOperations;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Repository;
 
-import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 
 import static java.util.Objects.requireNonNull;
 
@@ -66,27 +65,20 @@ public class InfluxMeasurementRepository implements MeasurementRepository {
     }
 
     @Override
-    public List<MeasurementBucket> listMeasurementBuckets(MeasurementBucketQuery bucketQuery) {
-        Duration bucketDuration = bucketQuery.resolution().bucketWidth().duration();
-        String meanBucketsQuery = queryBuilder.meanBuckets(bucketQuery);
-        String countBucketsQuery = queryBuilder.countBuckets(bucketQuery);
-
-        List<FluxTable> meanTables = influx.query(meanBucketsQuery);
-        List<FluxTable> countTables = influx.query(countBucketsQuery);
-
-        Map<MeasurementBucketKey, Double> means = rowMapper.meanRows(meanTables, bucketDuration);
-        Map<MeasurementBucketKey, Long> counts = rowMapper.countRows(countTables, bucketDuration);
-
-        return means.entrySet().stream()
-                .filter(entry -> counts.containsKey(entry.getKey()))
-                .sorted(Map.Entry.comparingByKey())
-                .map(entry -> new MeasurementBucket(
-                        bucketQuery.timeSeriesId(),
-                        entry.getKey().from(),
-                        entry.getKey().to(),
-                        entry.getValue(),
-                        counts.get(entry.getKey())))
-                .toList();
+    public List<MeasurementReadRow> listIntervalEvidence(
+            TimeSeriesId timeSeriesId, MeasurementWindow window, int maxRows) {
+        if (maxRows < 1) {
+            throw new IllegalArgumentException("maxRows must be positive");
+        }
+        var rows = new ArrayList<MeasurementReadRow>();
+        rows.addAll(influx.queryBounded(
+                        queryBuilder.intervalPredecessors(timeSeriesId, window.from()), maxRows)
+                .stream().map(rowMapper::rawMeasurementRow).toList());
+        // A zero remainder still runs the query so one extra row is detected instead of truncated.
+        rows.addAll(influx.queryBounded(
+                        queryBuilder.intervalObservations(timeSeriesId, window), maxRows - rows.size())
+                .stream().map(rowMapper::rawMeasurementRow).toList());
+        return List.copyOf(rows);
     }
 
     @Override

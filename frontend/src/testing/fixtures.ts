@@ -1,8 +1,4 @@
 import {
-  MeasurementBucketListDto,
-  MeasurementBucketPointDto,
-} from '../app/core/api/measurement.dto';
-import {
   MonitoringTimeSeriesCollectionDto,
   MonitoringTimeSeriesDetailDto,
 } from '../app/core/api/monitoring.dto';
@@ -68,16 +64,5 @@ export function waterLevelDetailFixture(
     station: { id: 'station-1', name: 'Wien Brigittenau', waterBody: 'Donau' },
     stationOwner: { id: 'owner-1', name: 'viadonau', shortName: 'viadonau' },
     latestMeasurement,
-  };
-}
-
-export function measurementBucketsFixture(
-  points: MeasurementBucketPointDto[] = [],
-): MeasurementBucketListDto {
-  return {
-    timeSeriesId: 'series-water-level',
-    window: null,
-    resolution: null,
-    points,
   };
 }

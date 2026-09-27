@@ -11,16 +11,16 @@ import java.time.Instant;
  */
 public record MeasurementReadParameters(
         @Schema(
-                description = "openapi.measurement.measurement-bucket-parameters.positive-relative-window-"
+                description = "openapi.measurement.measurement-read-parameters.positive-relative-window-"
                         + "such-as-3h-24h")
         String last,
         @Schema(
-                description = "openapi.measurement.measurement-bucket-parameters.inclusive-explicit-window-"
+                description = "openapi.measurement.measurement-read-parameters.inclusive-explicit-window-"
                         + "start-required-with-to",
                 example = "2026-06-17T00:00:00Z")
         Instant from,
         @Schema(
-                description = "openapi.measurement.measurement-bucket-parameters.exclusive-explicit-window-"
+                description = "openapi.measurement.measurement-read-parameters.exclusive-explicit-window-"
                         + "end-required-with-from",
                 example = "2026-06-18T00:00:00Z")
         Instant to,

@@ -1,11 +1,10 @@
 package at.pegelhub.measurement.api;
 
 import at.pegelhub.measurement.api.read.MeasurementReadQueryResolver;
-import at.pegelhub.measurement.application.MeasurementBucketList;
-import at.pegelhub.measurement.application.MeasurementBucketResolutionPolicy;
 import at.pegelhub.measurement.application.MeasurementList;
+import at.pegelhub.measurement.application.MeasurementIntervalList;
+import at.pegelhub.measurement.application.MeasurementInterval;
 import at.pegelhub.measurement.application.MeasurementService;
-import at.pegelhub.measurement.domain.MeasurementBucket;
 import at.pegelhub.timeseries.domain.TimeSeriesId;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -38,7 +37,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(MeasurementController.class)
-@Import({MeasurementReadQueryResolver.class, MeasurementBucketResolutionPolicy.class})
+@Import(MeasurementReadQueryResolver.class)
 class MeasurementControllerTest {
 
     private static final TimeSeriesId TIME_SERIES_ID = MEASUREMENT.timeSeriesId();
@@ -143,58 +142,52 @@ class MeasurementControllerTest {
     }
 
     @Test
-    void listMeasurementBucketsReturnsChartReadyEnvelope() throws Exception {
-        when(measurementService.listMeasurementBuckets(any())).thenAnswer(invocation ->
-                new MeasurementBucketList(invocation.getArgument(0), List.of(new MeasurementBucket(
-                        TIME_SERIES_ID,
-                        Instant.parse("2010-10-12T08:00:00Z"),
-                        Instant.parse("2010-10-12T08:05:00Z"),
-                        1.0,
-                        3)), "cm"));
+    void intervalApiReturnsExplicitMethodUnitAndEmptyEvidence() throws Exception {
+        when(measurementService.listMeasurementIntervals(any())).thenAnswer(invocation ->
+                new MeasurementIntervalList(invocation.getArgument(0), NOW, "cm", List.of(
+                        new MeasurementInterval(NOW.minusSeconds(3_600), NOW, null, 0,
+                                0, null, "closed", "absent"))));
 
-        mockMvc.perform(get("/api/v1/time-series/{timeSeriesId}/measurements/buckets", TIME_SERIES_ID.value())
-                        .param("last", "24h")
-                        .param("bucket", "5m"))
+        mockMvc.perform(get("/api/v1/time-series/{timeSeriesId}/measurements/intervals", TIME_SERIES_ID.value())
+                        .param("from", "2026-06-17T12:00:00Z")
+                        .param("to", "2026-06-17T13:00:00Z")
+                .param("interval", "1h"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.timeSeriesId").value(TIME_SERIES_ID.value().toString()))
-                .andExpect(jsonPath("$.window.requested").value("24h"))
-                .andExpect(jsonPath("$.resolution.bucket").value("5m"))
-                .andExpect(jsonPath("$.resolution.aggregation").value("average"))
-                .andExpect(jsonPath("$.resolution.maxPoints").value(nullValue()))
-                .andExpect(jsonPath("$.points[0].from").value("2010-10-12T08:00:00Z"))
-                .andExpect(jsonPath("$.points[0].to").value("2010-10-12T08:05:00Z"))
-                .andExpect(jsonPath("$.points[0].value").value(1.0))
-                .andExpect(jsonPath("$.points[0].sampleCount").value(3));
+                .andExpect(jsonPath("$.method").value("time-weighted-step"))
+                .andExpect(jsonPath("$.timeBasis").value("UTC"))
+                .andExpect(jsonPath("$.closedOnly").value(true))
+                .andExpect(jsonPath("$.unit").value("cm"))
+                .andExpect(jsonPath("$.intervals[0].mean").value(nullValue()))
+                .andExpect(jsonPath("$.intervals[0].observationCount").value(0))
+                .andExpect(jsonPath("$.intervals[0].supportStatus").value("absent"));
     }
 
     @Test
-    void listMeasurementBucketsDerivesBucketFromMaxPoints() throws Exception {
-        when(measurementService.listMeasurementBuckets(any())).thenAnswer(invocation ->
-                new MeasurementBucketList(invocation.getArgument(0), List.of(), "cm"));
+    void intervalApiRejectsPartialAndInvalidWidthRequests() throws Exception {
+        mockMvc.perform(get("/api/v1/time-series/{timeSeriesId}/measurements/intervals", TIME_SERIES_ID.value())
+                        .param("from", "2026-06-17T12:00:00Z")
+                        .param("to", "2026-06-17T13:00:00Z"))
+                .andExpect(status().isBadRequest());
 
-        mockMvc.perform(get("/api/v1/time-series/{timeSeriesId}/measurements/buckets", TIME_SERIES_ID.value())
-                        .param("last", "24h")
-                        .param("maxPoints", "240"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.resolution.bucket").value("15m"))
-                .andExpect(jsonPath("$.resolution.maxPoints").value(240))
-                .andExpect(jsonPath("$.points").isEmpty());
-
-        verify(measurementService).listMeasurementBuckets(argThat(query ->
-                TIME_SERIES_ID.equals(query.timeSeriesId())
-                        && "24h".equals(query.window().requested())
-                        && "15m".equals(query.resolution().bucketWidth().toString())
-                        && Integer.valueOf(240).equals(query.resolution().targetPointCount())));
+        for (String interval : List.of("14m", "15m")) {
+            mockMvc.perform(get("/api/v1/time-series/{timeSeriesId}/measurements/intervals", TIME_SERIES_ID.value())
+                            .param("from", "2026-06-17T12:00:01Z")
+                            .param("to", "2026-06-17T13:00:01Z")
+                            .param("interval", interval))
+                    .andExpect(status().isBadRequest());
+        }
+        mockMvc.perform(get("/api/v1/time-series/{timeSeriesId}/measurements/intervals", TIME_SERIES_ID.value())
+                        .param("from", "2026-06-17T00:00:00Z")
+                        .param("to", Instant.parse("2026-06-17T00:00:00Z").plusSeconds(50_001L * 900).toString())
+                        .param("interval", "15m"))
+                .andExpect(status().isBadRequest());
     }
 
     @Test
-    void listMeasurementBucketsRejectsMixedResolutionModes() throws Exception {
+    void oldBucketEndpointIsNotExposed() throws Exception {
         mockMvc.perform(get("/api/v1/time-series/{timeSeriesId}/measurements/buckets", TIME_SERIES_ID.value())
-                        .param("last", "24h")
-                        .param("bucket", "5m")
-                        .param("maxPoints", "240"))
-                .andExpect(status().isBadRequest())
-                .andExpect(content().string(containsString("Provide either bucket or maxPoints")));
+                        .param("last", "24h"))
+                .andExpect(status().isNotFound());
     }
 
     @Test
@@ -224,29 +217,20 @@ class MeasurementControllerTest {
     void readsBindAndDescribeExplicitRepresentations() throws Exception {
         when(measurementService.listMeasurements(any())).thenAnswer(invocation ->
                 new MeasurementList(invocation.getArgument(0), false, List.of(), "l/s"));
-        when(measurementService.listMeasurementBuckets(any())).thenAnswer(invocation ->
-                new MeasurementBucketList(invocation.getArgument(0), List.of(), "m"));
 
         mockMvc.perform(get("/api/v1/time-series/{timeSeriesId}/measurements", TIME_SERIES_ID.value())
                         .param("last", "24h").param("representation", "litres-per-second"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.representation").value("litres-per-second"))
                 .andExpect(jsonPath("$.unit").value("l/s"));
-        mockMvc.perform(get("/api/v1/time-series/{timeSeriesId}/measurements/buckets", TIME_SERIES_ID.value())
-                        .param("last", "24h").param("representation", "metres-above-adria"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.representation").value("metres-above-adria"))
-                .andExpect(jsonPath("$.unit").value("m"));
     }
 
     @Test
     void unknownAndBlankRepresentationsAreNotSilentlyTreatedAsCanonical() throws Exception {
-        for (String suffix : new String[]{"", "/buckets"}) {
-            for (String value : new String[]{"l/s", "unknown", ""}) {
-                mockMvc.perform(get("/api/v1/time-series/" + TIME_SERIES_ID.value() + "/measurements" + suffix)
-                                .param("last", "24h").param("representation", value))
-                        .andExpect(status().isBadRequest());
-            }
+        for (String value : new String[]{"l/s", "unknown", ""}) {
+            mockMvc.perform(get("/api/v1/time-series/{timeSeriesId}/measurements", TIME_SERIES_ID.value())
+                            .param("last", "24h").param("representation", value))
+                    .andExpect(status().isBadRequest());
         }
     }
 

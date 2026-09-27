@@ -41,6 +41,7 @@ public final class TstpConnectorConfigLoader {
                 MappingDirection.CORE_TO_EXTERNAL);
 
         validateMappings(loadedMappings);
+        validateMeanExports(loadedMappings, configFile.tstp().server(), overlap);
 
         return new TstpConnectorConfig(
                 configFile.core(),
@@ -49,6 +50,26 @@ public final class TstpConnectorConfigLoader {
                 overlap,
                 loadedMappings.stream().map(LoadedMapping::value).toList()
         );
+    }
+
+    private static void validateMeanExports(
+            List<LoadedMapping<TstpMapping>> mappings,
+            TstpServer server,
+            Duration overlap) {
+        String serverTimeBasis = "Z".equals(server.timeOffset()) ? "UTC" : server.timeOffset();
+        for (LoadedMapping<TstpMapping> loaded : mappings) {
+            var export = loaded.value().meanExport();
+            if (export == null) {
+                continue;
+            }
+            if (!serverTimeBasis.equals(export.timeBasis())) {
+                throw invalid(loaded, "meanExport.timeBasis must match tstp.server.timeOffset");
+            }
+            // A 1,000-interval request must retain room for at least one interval beyond replay.
+            if (overlap.compareTo(export.width().multipliedBy(999)) > 0) {
+                throw invalid(loaded, "polling.overlap must not exceed 999 export intervals");
+            }
+        }
     }
 
     private static void validateMappings(List<LoadedMapping<TstpMapping>> mappings) {

@@ -6,6 +6,7 @@ import at.pegelhub.connector.tstp.config.TstpServer;
 import at.pegelhub.lib.PegelHubClient;
 import at.pegelhub.lib.config.MappingDirection;
 import at.pegelhub.lib.model.Measurement;
+import at.pegelhub.lib.model.MeasurementIntervalStatistics;
 import at.pegelhub.lib.model.MeasurementRepresentation;
 import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.AfterEach;
@@ -130,6 +131,62 @@ class TstpParameterTransferTest {
         String[] pair = xml.getElementsByTagName("DATA").item(0).getTextContent().split(" ");
         assertEquals(value, Double.parseDouble(pair[1]));
         assertEquals(OBSERVED_AT, Instant.parse(pair[0]));
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "2026-01-15,Wasserstand,cm,42.125",
+            "2026-07-15,Wasserstand,cm,42.125",
+            "2026-01-15,WTemperatur,\u00b0C,17.375",
+            "2026-07-15,WTemperatur,\u00b0C,17.375",
+            "2026-01-15,Abfluss,l/s,1150.125",
+            "2026-07-15,Abfluss,l/s,1150.125"
+    })
+    void publishesQuarterHourMeansAndGapsOnTheFixedMezWireClock(
+            String date, String parameter, String unit, double value) throws Exception {
+        registerSeries(parameter, unit, value);
+        var selected = TstpParameter.from(parameter);
+        var representation = selected.representation(unit);
+        Instant from = Instant.parse(date + "T10:45:00Z");
+        Instant to = from.plusSeconds(3_600);
+        Instant observedAt = from.plusSeconds(900).plusMillis(123);
+        var intervals = List.of(
+                new MeasurementIntervalStatistics.Interval(from, from.plusSeconds(900), null,
+                        0, 0, null, "closed", "absent"),
+                new MeasurementIntervalStatistics.Interval(from.plusSeconds(900), from.plusSeconds(1_800), value,
+                        2, 900_000_000_000L, observedAt, "closed", "full"),
+                new MeasurementIntervalStatistics.Interval(from.plusSeconds(1_800), from.plusSeconds(2_700), value,
+                        0, 900_000_000_000L, observedAt, "closed", "full"),
+                new MeasurementIntervalStatistics.Interval(from.plusSeconds(2_700), to, value,
+                        0, 900_000_000_000L, observedAt, "closed", "full"));
+        when(core.getMeasurementIntervals(SERIES, from, to, "15m", "+01:00", true, representation))
+                .thenReturn(new MeasurementIntervalStatistics(SERIES, from, to, "15m", "+01:00", true,
+                        representation.value(), selected.coreUnit(unit), "time-weighted-step", to, intervals));
+
+        try (var mezClient = HttpTstpClient.open(new TstpServer("127.0.0.1", server.getAddress().getPort(),
+                "+01:00", at.pegelhub.connector.tstp.config.TstpWriteFormat.ASCII))) {
+            var mapping = new TstpMapping(SERIES, 77, MappingDirection.CORE_TO_EXTERNAL, selected, unit,
+                    new TstpMeanExport("15m", "+01:00", "1m"));
+            var synchronizer = new TstpSynchronizer(core, mezClient, new TstpCatalogResolver(mezClient),
+                    List.of(mapping), Duration.ofMinutes(45), Duration.ofMinutes(15),
+                    Clock.fixed(to.plusSeconds(73), ZoneOffset.UTC));
+            synchronizer.run();
+            synchronizer.run();
+        }
+
+        assertEquals(1, requests.stream().filter(q -> q.startsWith("Cmd=PUT&")).count());
+        assertEquals("Cmd=PUT&ZRID=" + parameter + "&QUAL=0", requests.getLast());
+        var xml = DocumentBuilderFactory.newInstance().newDocumentBuilder()
+                .parse(new ByteArrayInputStream(writes.get(parameter)));
+        var definition = (org.w3c.dom.Element) xml.getElementsByTagName("DEF").item(0);
+        assertEquals(unit, definition.getAttribute("EINHEIT"));
+        assertEquals("0", definition.getAttribute("LEN"));
+        assertEquals("4", definition.getAttribute("ANZ"));
+        // TSTP retains a literal Z suffix for the configured server wall clock.
+        assertEquals(List.of(date + "T12:00:00Z 4.0E37", date + "T12:15:00Z " + value,
+                        date + "T12:30:00Z " + value, date + "T12:45:00Z " + value),
+                xml.getElementsByTagName("DATA").item(0).getTextContent().lines().toList());
+        verify(core, never()).getMeasurementsOfTimeSeries(any(), any(), any(), any());
     }
 
     @Test

@@ -46,7 +46,7 @@ erDiagram
 The observed-property catalog currently contains `water-level` (`cm`),
 `water-temperature` (`Cel`), and `discharge` (`m3/s`). Only water level accepts
 `metres-above-adria`; discharge additionally accepts `litres-per-second`. Core
-converts both at ingestion and on explicitly represented raw/bucket reads. Water
+converts both at ingestion and on explicitly represented raw/interval reads. Water
 level conversion uses the current PNP. Default and monitoring reads stay canonical.
 See [ADR 0011](../adr/0011-core-measurement-representations.md).
 
@@ -65,8 +65,9 @@ and a matching active source assignment. There are no WRITE access grants.
 TimeSeries and its latest value in a bounded window. The detail route accepts
 inactive series so bookmarked operator pages remain inspectable. Both routes
 resolve one window from the injected clock and use one grouped Influx query for
-latest values. Chart history remains independently reloadable through
-`/time-series/{id}/measurements/buckets`.
+latest values. Every series loads chart history independently through
+`/time-series/{id}/measurements/intervals` and retains raw-value inspection as an
+alternate view.
 
 Coordinates are intentionally not included in the monitoring projection yet.
 German labels, formatting, relative timestamps, and reference-line presentation

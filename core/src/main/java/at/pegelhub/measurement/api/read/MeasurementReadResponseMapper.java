@@ -1,19 +1,16 @@
 package at.pegelhub.measurement.api.read;
 
-import at.pegelhub.measurement.api.read.output.MeasurementAggregation;
-import at.pegelhub.measurement.api.read.output.MeasurementBucketListResponse;
-import at.pegelhub.measurement.api.read.output.MeasurementBucketPointResponse;
+import at.pegelhub.measurement.api.read.output.MeasurementIntervalListResponse;
 import at.pegelhub.measurement.api.read.output.MeasurementListResponse;
 import at.pegelhub.measurement.api.read.output.MeasurementPointResponse;
-import at.pegelhub.measurement.api.read.output.MeasurementResolutionResponse;
 import at.pegelhub.measurement.api.read.output.MeasurementSortOrder;
 import at.pegelhub.measurement.api.read.output.MeasurementWindowResponse;
-import at.pegelhub.measurement.application.MeasurementBucketList;
+import at.pegelhub.measurement.application.MeasurementInterval;
+import at.pegelhub.measurement.application.MeasurementIntervalList;
 import at.pegelhub.measurement.application.MeasurementList;
 import at.pegelhub.measurement.application.MeasurementOrder;
 import at.pegelhub.measurement.application.MeasurementReadRow;
 import at.pegelhub.measurement.application.MeasurementWindow;
-import at.pegelhub.measurement.domain.MeasurementBucket;
 
 public final class MeasurementReadResponseMapper {
 
@@ -34,19 +31,14 @@ public final class MeasurementReadResponseMapper {
                 list.unit());
     }
 
-    public static MeasurementBucketListResponse toResponse(MeasurementBucketList list) {
-        return new MeasurementBucketListResponse(
-                list.query().timeSeriesId().value(),
-                toWindowResponse(list.query().window()),
-                new MeasurementResolutionResponse(
-                        list.query().resolution().bucketWidth().toString(),
-                        MeasurementAggregation.AVERAGE,
-                        list.query().resolution().targetPointCount()),
-                list.buckets().stream()
-                        .map(MeasurementReadResponseMapper::toBucketPointResponse)
-                        .toList(),
-                list.query().representation(),
-                list.unit());
+    public static MeasurementIntervalListResponse toResponse(MeasurementIntervalList list) {
+        var query = list.query();
+        return new MeasurementIntervalListResponse(
+                query.timeSeriesId().value(), query.from(), query.to(), query.interval(), query.timeBasis(),
+                query.closedOnly(), query.representation(), list.unit(), "time-weighted-step",
+                list.computedAt(), list.intervals().stream()
+                        .map(MeasurementReadResponseMapper::toIntervalResponse)
+                        .toList());
     }
 
     private static MeasurementWindowResponse toWindowResponse(MeasurementWindow window) {
@@ -59,12 +51,12 @@ public final class MeasurementReadResponseMapper {
                 measurement.value());
     }
 
-    private static MeasurementBucketPointResponse toBucketPointResponse(MeasurementBucket bucket) {
-        return new MeasurementBucketPointResponse(
-                bucket.from(),
-                bucket.to(),
-                bucket.value(),
-                bucket.sampleCount());
+    private static MeasurementIntervalListResponse.IntervalResponse toIntervalResponse(
+            MeasurementInterval interval) {
+        return new MeasurementIntervalListResponse.IntervalResponse(
+                interval.from(), interval.to(), interval.mean(), interval.observationCount(),
+                interval.supportedNanos(), interval.lastContributingObservedAt(),
+                interval.windowStatus(), interval.supportStatus());
     }
 
     private static MeasurementSortOrder toResponseOrder(MeasurementOrder order) {

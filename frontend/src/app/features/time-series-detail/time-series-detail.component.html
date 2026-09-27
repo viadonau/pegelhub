@@ -1,15 +1,15 @@
-<ph-page>
-  <a class="ph-time-series-back-link" routerLink="/overview">
-    <i class="pi pi-arrow-left" aria-hidden="true"></i>
-    <span>Messreihen</span>
-  </a>
-
+<ph-page class="ph-time-series-page">
   <ph-content-state [loading]="loading()" [error]="error()">
-    <div class="ph-time-series-detail">
-      @if (measuringPoint(); as point) {
-        <header class="ph-time-series-heading">
-          <div class="ph-time-series-heading-copy">
-            <p class="ph-time-series-heading-kicker">Messreihe</p>
+    @if (historyAvailable()) {
+      <ph-time-series-measurements
+        [timeSeriesId]="timeSeriesId()"
+        [observedProperty]="snapshot()?.observedProperty ?? ''"
+        [unit]="displayUnit()"
+        [referenceLines]="referenceLines()"
+        (refresh)="reloadSnapshot()"
+      >
+        @if (measuringPoint(); as point) {
+          <header ph-analysis-identity class="ph-time-series-identity">
             <h1>{{ point.name }}</h1>
             @if (headingContext()) {
               <p class="ph-time-series-heading-context">{{ headingContext() }}</p>
@@ -17,9 +17,11 @@
             @if (inactive()) {
               <p class="ph-time-series-status">Inaktiv</p>
             }
-          </div>
+          </header>
+        }
 
-          <div class="ph-time-series-current-reading">
+        @if (measuringPoint()) {
+          <div ph-analysis-information class="ph-time-series-information">
             @if (latestReading(); as reading) {
               <ph-current-reading
                 label="Letzter Messwert"
@@ -31,24 +33,14 @@
             } @else {
               <p class="ph-time-series-current-status">Kein Messwert in den letzten 365 Tagen.</p>
             }
+
+            <ph-time-series-metadata
+              [measuringPointFacts]="pointFacts()"
+              [timeSeriesFacts]="seriesFacts()"
+            />
           </div>
-        </header>
-
-        <ph-time-series-metadata
-          [measuringPointFacts]="pointFacts()"
-          [timeSeriesFacts]="seriesFacts()"
-        />
-      }
-
-      @if (historyAvailable()) {
-        <ph-time-series-measurements
-          [timeSeriesId]="timeSeriesId()"
-          [observedProperty]="snapshot()?.observedProperty ?? ''"
-          [unit]="displayUnit()"
-          [referenceLines]="referenceLines()"
-          (refresh)="reloadSnapshot()"
-        />
-      }
-    </div>
+        }
+      </ph-time-series-measurements>
+    }
   </ph-content-state>
 </ph-page>
