@@ -21,6 +21,7 @@ This is a practical same-store CQRS read model. It does not introduce a query
 bus, event sourcing, a materialized database, caching, or a generic expansion
 framework. The existing administrative metadata endpoints and independently
 reloadable measurement bucket endpoint remain unchanged.
+That endpoint was later replaced by [ADR 0012](0012-step-weighted-interval-means.md).
 
 ## Consequences
 

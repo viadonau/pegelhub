@@ -4,9 +4,7 @@ import at.pegelhub.connector.tstp.catalog.TstpCatalogResolver;
 import at.pegelhub.connector.tstp.client.TstpClient;
 import at.pegelhub.lib.PegelHubClient;
 import at.pegelhub.lib.config.ConfigValidation;
-import at.pegelhub.lib.config.MappingDirection;
 import at.pegelhub.lib.config.WindowedPollingConfig;
-import at.pegelhub.lib.model.Measurement;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -14,22 +12,13 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
-import java.util.Comparator;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 final class TstpSynchronizer implements Runnable {
     private static final Logger LOG = LoggerFactory.getLogger(TstpSynchronizer.class);
 
-    private final PegelHubClient coreClient;
-    private final TstpClient tstpClient;
-    private final TstpCatalogResolver catalogResolver;
-    private final List<TstpMapping> mappings;
-    private final Duration initialLookback;
-    private final Duration overlap;
+    private final List<TstpSyncTask> tasks;
     private final Clock clock;
-    private final Map<TstpMapping, Instant> nextSyncFrom = new HashMap<>();
 
     TstpSynchronizer(
             PegelHubClient coreClient,
@@ -60,13 +49,11 @@ final class TstpSynchronizer implements Runnable {
             Duration initialLookback,
             Duration overlap,
             Clock clock) {
-        overlap = ConfigValidation.requirePositive(overlap, "overlap");
-        this.coreClient = coreClient;
-        this.tstpClient = tstpClient;
-        this.catalogResolver = catalogResolver;
-        this.mappings = List.copyOf(mappings);
-        this.initialLookback = initialLookback;
-        this.overlap = overlap;
+        ConfigValidation.requirePositive(overlap, "overlap");
+        this.tasks = mappings.stream()
+                .map(mapping -> createTask(
+                        coreClient, tstpClient, catalogResolver, mapping, initialLookback, overlap))
+                .toList();
         this.clock = clock;
     }
 
@@ -74,20 +61,11 @@ final class TstpSynchronizer implements Runnable {
     public void run() {
         Instant cycleUntil = clock.instant().truncatedTo(ChronoUnit.SECONDS);
 
-        for (TstpMapping mapping : mappings) {
-            Instant from = nextSyncFrom.computeIfAbsent(
-                    mapping,
-                    ignored -> cycleUntil.minus(initialLookback).minus(overlap));
-            if (!cycleUntil.isAfter(from)) {
-                continue;
-            }
+        for (TstpSyncTask task : tasks) {
             try {
-                synchronizeMapping(mapping, from, cycleUntil);
-                Instant nextFrom = cycleUntil.minus(overlap);
-                if (nextFrom.isAfter(from)) {
-                    nextSyncFrom.put(mapping, nextFrom);
-                }
+                task.synchronize(cycleUntil);
             } catch (Exception e) {
+                TstpMapping mapping = task.mapping();
                 LOG.error("TSTP mapping failed: timeSeriesId={}, stationId={}, parameter={}, direction={}",
                         mapping.timeSeriesId(),
                         mapping.stationId(),
@@ -98,54 +76,18 @@ final class TstpSynchronizer implements Runnable {
         }
     }
 
-    private void synchronizeMapping(TstpMapping mapping, Instant from, Instant until) {
-        if (!until.isAfter(from)) {
-            return;
+    private static TstpSyncTask createTask(
+            PegelHubClient coreClient,
+            TstpClient tstpClient,
+            TstpCatalogResolver catalogResolver,
+            TstpMapping mapping,
+            Duration initialLookback,
+            Duration overlap) {
+        if (mapping.meanExport() == null) {
+            return new RawTstpSyncTask(
+                    coreClient, tstpClient, catalogResolver, mapping, initialLookback, overlap);
         }
-
-        String zrid = catalogResolver.resolveZrid(mapping.stationId(), mapping.parameter(), mapping.unit());
-
-        if (mapping.direction() == MappingDirection.EXTERNAL_TO_CORE) {
-            List<Measurement> measurements = tstpClient.readMeasurements(zrid, from, until, mapping.unit()).stream()
-                    .filter(measurement -> isInsideWindow(measurement, from, until))
-                    .toList();
-
-            if (measurements.isEmpty()) {
-                return;
-            }
-
-            coreClient.sendMeasurements(measurements.stream()
-                    .map(measurement -> withTimeSeriesId(measurement, mapping))
-                    .toList());
-
-            return;
-        }
-
-        List<Measurement> measurements = coreClient
-                .getMeasurementsOfTimeSeries(mapping.timeSeriesId(), from, until,
-                        mapping.parameter().representation(mapping.unit()))
-                .stream()
-                .filter(measurement -> isInsideWindow(measurement, from, until))
-                .sorted(Comparator.comparing(Measurement::getObservedAt))
-                .toList();
-
-        if (measurements.isEmpty()) {
-            return;
-        }
-
-        // PUT replaces the covered span, so replay neighbors as well as late arrivals.
-        tstpClient.writeMeasurements(zrid, measurements, mapping.unit());
-    }
-
-    private boolean isInsideWindow(
-            Measurement measurement,
-            Instant from,
-            Instant until) {
-        return !measurement.getObservedAt().isBefore(from)
-                && measurement.getObservedAt().isBefore(until);
-    }
-
-    private Measurement withTimeSeriesId(Measurement measurement, TstpMapping mapping) {
-        return new Measurement(mapping.timeSeriesId(), measurement.getObservedAt(), measurement.getValue());
+        return new MeanTstpSyncTask(
+                coreClient, tstpClient, catalogResolver, mapping, initialLookback, overlap);
     }
 }

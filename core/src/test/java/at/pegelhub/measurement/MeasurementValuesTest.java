@@ -4,7 +4,6 @@ import at.pegelhub.connector.domain.ConnectorId;
 import at.pegelhub.measurement.application.LatestMeasurement;
 import at.pegelhub.measurement.application.MeasurementReadRow;
 import at.pegelhub.measurement.domain.Measurement;
-import at.pegelhub.measurement.domain.MeasurementBucket;
 import at.pegelhub.measurement.domain.MeasurementValues;
 import at.pegelhub.measurement.domain.WriteMeasurement;
 import at.pegelhub.timeseries.domain.TimeSeriesId;
@@ -33,8 +32,6 @@ class MeasurementValuesTest {
         assertThrows(IllegalArgumentException.class, () ->
                 new WriteMeasurement(SERIES_ID, OBSERVED_AT, value));
         assertThrows(IllegalArgumentException.class, () ->
-                new MeasurementBucket(SERIES_ID, OBSERVED_AT, RECEIVED_AT, value, 1));
-        assertThrows(IllegalArgumentException.class, () ->
                 new MeasurementReadRow(OBSERVED_AT, value, CONNECTOR_ID));
         assertThrows(IllegalArgumentException.class, () ->
                 new LatestMeasurement(SERIES_ID, OBSERVED_AT, value));
@@ -47,7 +44,6 @@ class MeasurementValuesTest {
                 MeasurementValues.requireFinite(value),
                 new Measurement(SERIES_ID, OBSERVED_AT, RECEIVED_AT, value, CONNECTOR_ID).value(),
                 new WriteMeasurement(SERIES_ID, OBSERVED_AT, value).value(),
-                new MeasurementBucket(SERIES_ID, OBSERVED_AT, RECEIVED_AT, value, 1).value(),
                 new MeasurementReadRow(OBSERVED_AT, value, CONNECTOR_ID).value(),
                 new LatestMeasurement(SERIES_ID, OBSERVED_AT, value).value()
         };

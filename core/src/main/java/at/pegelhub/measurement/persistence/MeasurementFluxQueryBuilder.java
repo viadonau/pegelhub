@@ -1,11 +1,11 @@
 package at.pegelhub.measurement.persistence;
 
-import at.pegelhub.measurement.application.MeasurementBucketQuery;
 import at.pegelhub.measurement.application.MeasurementListQuery;
 import at.pegelhub.measurement.application.MeasurementLatestQuery;
 import at.pegelhub.measurement.application.MeasurementOrder;
-import at.pegelhub.shared.duration.PegelhubDurationLiteral;
+import at.pegelhub.measurement.application.MeasurementWindow;
 import at.pegelhub.shared.influx.DatabaseProperties;
+import at.pegelhub.timeseries.domain.TimeSeriesId;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 
@@ -45,12 +45,23 @@ final class MeasurementFluxQueryBuilder {
                 + " |> keep(columns: [\"_time\", \"submittedByConnectorId\", \"value\"])";
     }
 
-    String meanBuckets(MeasurementBucketQuery query) {
-        return bucketQuery(query, "mean");
+    String intervalObservations(TimeSeriesId timeSeriesId, MeasurementWindow window) {
+        return measurementWindow(timeSeriesId.value(), window.from(), window.to())
+                + valueFieldFilter()
+                + " |> rename(columns: {_value: \"value\"})"
+                + " |> keep(columns: [\"_time\", \"submittedByConnectorId\", \"value\"])";
     }
 
-    String countBuckets(MeasurementBucketQuery query) {
-        return bucketQuery(query, "count");
+    String intervalPredecessors(TimeSeriesId timeSeriesId, Instant before) {
+        requireNonNull(timeSeriesId);
+        requireNonNull(before);
+        return from()
+                + " |> range(start: 0, stop: time(v: " + stringLiteral(before.toString()) + "))"
+                + measurementFilter(timeSeriesId.value())
+                + valueFieldFilter()
+                + " |> last()"
+                + " |> rename(columns: {_value: \"value\"})"
+                + " |> keep(columns: [\"_time\", \"submittedByConnectorId\", \"value\"])";
     }
 
     String latestMeasurements(MeasurementLatestQuery query) {
@@ -82,18 +93,6 @@ final class MeasurementFluxQueryBuilder {
                 + "array.from(rows: [{time: system.time()}])";
     }
 
-    private String bucketQuery(MeasurementBucketQuery query, String function) {
-        requireNonNull(query);
-        PegelhubDurationLiteral bucket = PegelhubDurationLiteral.from(query.resolution().bucketWidth().duration());
-        return measurementWindow(
-                query.timeSeriesId().value(),
-                query.window().from(),
-                query.window().to())
-                + valueFieldFilter()
-                + measurementGroup()
-                + aggregateWindow(bucket, function);
-    }
-
     private String measurementWindow(UUID measurement, Instant from, Instant to) {
         requireNonNull(from);
         requireNonNull(to);
@@ -118,19 +117,9 @@ final class MeasurementFluxQueryBuilder {
         return " |> filter(fn: (r) => r._field == \"value\")";
     }
 
-    private String measurementGroup() {
-        return " |> group(columns: [\"_measurement\"])";
-    }
-
     private String sortByMeasurementPosition(MeasurementOrder order) {
         requireNonNull(order);
         return " |> sort(columns: [\"_time\", \"submittedByConnectorId\"], desc: " + (order == MeasurementOrder.DESC) + ")";
-    }
-
-    private String aggregateWindow(PegelhubDurationLiteral bucket, String function) {
-        requireNonNull(bucket);
-        requireNotEmpty(function);
-        return " |> aggregateWindow(every: " + bucket + ", fn: " + function + ", createEmpty: false, timeSrc: \"_start\")";
     }
 
     private String stringLiteral(String value) {

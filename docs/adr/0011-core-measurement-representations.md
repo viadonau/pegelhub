@@ -3,6 +3,7 @@
 ## Status
 
 Accepted. Extends the representation contract in [ADR 0010](0010-operational-metadata-catalog.md).
+The bucket-read portion was superseded by [ADR 0012](0012-step-weighted-interval-means.md).
 
 ## Decision
 

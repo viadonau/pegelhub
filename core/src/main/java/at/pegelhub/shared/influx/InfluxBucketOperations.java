@@ -4,8 +4,12 @@ import com.influxdb.client.InfluxDBClient;
 import com.influxdb.client.WriteApiBlocking;
 import com.influxdb.client.write.Point;
 import com.influxdb.query.FluxTable;
+import com.influxdb.query.FluxRecord;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 
 import static at.pegelhub.shared.validation.Validations.requireNotEmpty;
 import static java.util.Objects.requireNonNull;
@@ -42,6 +46,29 @@ public final class InfluxBucketOperations {
     public List<FluxTable> query(String flux) {
         requireNonNull(flux);
         return client.getQueryApi().query(flux, database.org());
+    }
+
+    /** Streams records without Flux regrouping, aborting rather than returning a partial capped result. */
+    public List<FluxRecord> queryBounded(String flux, int maxRecords) {
+        requireNonNull(flux);
+        if (maxRecords < 0) throw new IllegalArgumentException("maxRecords must not be negative");
+        var result = new CompletableFuture<List<FluxRecord>>();
+        var rows = new ArrayList<FluxRecord>();
+        client.getQueryApi().query(flux, database.org(), (cancellable, record) -> {
+            if (rows.size() == maxRecords) {
+                result.completeExceptionally(new IllegalArgumentException(
+                        "query exceeds " + maxRecords + " records"));
+                cancellable.cancel();
+            } else {
+                rows.add(record);
+            }
+        }, result::completeExceptionally, () -> result.complete(List.copyOf(rows)));
+        try {
+            return result.join();
+        } catch (CompletionException exception) {
+            if (exception.getCause() instanceof RuntimeException cause) throw cause;
+            throw exception;
+        }
     }
 
     public void validateReadable() {

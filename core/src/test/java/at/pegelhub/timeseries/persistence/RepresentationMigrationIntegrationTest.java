@@ -34,12 +34,13 @@ class RepresentationMigrationIntegrationTest {
             jdbc.update("insert into time_series (id, measuring_point_id, observed_property, source_connector_id, source_representation) values (?, ?, 'water-level', ?, 'metres-above-adria')", UUID.randomUUID(), point, connector);
             jdbc.update("insert into time_series (id, measuring_point_id, observed_property, source_connector_id, source_representation) values (?, ?, 'water-temperature', ?, 'canonical')", UUID.randomUUID(), point, connector);
             jdbc.update("insert into time_series (id, measuring_point_id, observed_property) values (?, ?, 'discharge')", UUID.randomUUID(), point);
-            var before = jdbc.queryForList("select * from time_series order by observed_property");
+            String existingColumns = "select id, measuring_point_id, observed_property, source_connector_id, source_representation, status from time_series order by observed_property";
+            var before = jdbc.queryForList(existingColumns);
 
             Flyway.configure().dataSource(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword())
                     .schemas(schema).load().migrate();
 
-            assertThat(jdbc.queryForList("select * from time_series order by observed_property")).isEqualTo(before);
+            assertThat(jdbc.queryForList(existingColumns)).isEqualTo(before);
             assertThat(jdbc.update("update time_series set source_connector_id = ?, source_representation = 'litres-per-second' where observed_property = 'discharge'", connector)).isOne();
             assertThat(jdbc.queryForObject("select source_representation from time_series where observed_property = 'discharge'", String.class))
                     .isEqualTo("litres-per-second");

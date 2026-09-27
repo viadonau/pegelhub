@@ -2,19 +2,24 @@ package at.pegelhub.measurement.persistence;
 
 import com.influxdb.client.InfluxDBClient;
 import at.pegelhub.connector.domain.ConnectorId;
-import at.pegelhub.measurement.application.MeasurementBucketQuery;
+import at.pegelhub.measurement.application.MeasurementIntervalQuery;
+import at.pegelhub.measurement.application.MeasurementServiceImpl;
+import at.pegelhub.measurement.application.MeasurementAuthorizationPolicy;
 import at.pegelhub.measurement.application.LatestMeasurement;
-import at.pegelhub.measurement.application.MeasurementBucketResolution;
-import at.pegelhub.measurement.application.MeasurementBucketWidth;
 import at.pegelhub.measurement.application.MeasurementListQuery;
 import at.pegelhub.measurement.application.MeasurementLatestQuery;
 import at.pegelhub.measurement.application.MeasurementOrder;
 import at.pegelhub.measurement.application.MeasurementReadRow;
 import at.pegelhub.measurement.application.MeasurementWindow;
 import at.pegelhub.measurement.domain.Measurement;
-import at.pegelhub.measurement.domain.MeasurementBucket;
 import at.pegelhub.shared.influx.DatabaseProperties;
 import at.pegelhub.shared.influx.InfluxBucketOperations;
+import at.pegelhub.measuringpoint.application.MeasuringPointService;
+import at.pegelhub.measuringpoint.domain.MeasuringPointId;
+import at.pegelhub.station.application.StationService;
+import at.pegelhub.timeseries.application.TimeSeriesService;
+import at.pegelhub.timeseries.domain.ObservedPropertyCode;
+import at.pegelhub.timeseries.domain.TimeSeries;
 import at.pegelhub.testsupport.InfluxIntegrationTestBase;
 import at.pegelhub.testsupport.PegelHubInfluxContainer;
 import at.pegelhub.timeseries.domain.TimeSeriesId;
@@ -22,14 +27,19 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-import java.time.Duration;
+import java.time.Clock;
 import java.time.Instant;
+import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+import static at.pegelhub.shared.metadata.MetadataStatus.ACTIVE;
 
 final class InfluxMeasurementRepositoryTest extends InfluxIntegrationTestBase {
 
@@ -206,88 +216,93 @@ final class InfluxMeasurementRepositoryTest extends InfluxIntegrationTestBase {
     }
 
     @Test
-    void averagesMeasurementValuesAcrossConnectorTags() {
-        TimeSeriesId timeSeriesId = new TimeSeriesId(UUID.randomUUID());
-        ConnectorId connectorA = new ConnectorId(UUID.randomUUID());
-        ConnectorId connectorB = new ConnectorId(UUID.randomUUID());
-        Instant baseTimestamp = Instant.now()
-                .minus(2, ChronoUnit.HOURS)
-                .truncatedTo(ChronoUnit.HOURS)
-                .plus(5, ChronoUnit.MINUTES);
-        Measurement first = new Measurement(
-                timeSeriesId,
-                baseTimestamp,
-                baseTimestamp.plusSeconds(1),
-                10.0,
-                connectorA);
-        Measurement second = new Measurement(
-                timeSeriesId,
-                baseTimestamp.plusSeconds(60),
-                baseTimestamp.plusSeconds(61),
-                20.0,
-                connectorB);
+    void intervalObservationReadIsSingleBoundedInputWithReplayIdentity() {
+        TimeSeriesId id = new TimeSeriesId(UUID.randomUUID());
+        ConnectorId writerA = new ConnectorId(UUID.randomUUID());
+        ConnectorId writerB = new ConnectorId(UUID.randomUUID());
+        Instant from = Instant.now().minus(2, ChronoUnit.HOURS).truncatedTo(ChronoUnit.HOURS);
+        Measurement first = new Measurement(id, from.plusSeconds(1), from.plusSeconds(2), 18, writerA);
+        Measurement second = new Measurement(id, from.plusSeconds(1), from.plusSeconds(3), 19, writerB);
+        Measurement boundary = new Measurement(id, from.plusSeconds(900), from.plusSeconds(901), 0, writerA);
+        repository.storeMeasurements(List.of(first, second, boundary));
+        repository.storeMeasurements(List.of(first));
 
-        repository.storeMeasurements(List.of(first, second));
+        var rows = repository.listIntervalEvidence(
+                id, new MeasurementWindow(from, from.plusSeconds(1_800), null), 100);
 
-        var result = repository.listMeasurementBuckets(new MeasurementBucketQuery(
-                timeSeriesId,
-                new MeasurementWindow(
-                        baseTimestamp.truncatedTo(ChronoUnit.HOURS),
-                        baseTimestamp.truncatedTo(ChronoUnit.HOURS).plus(1, ChronoUnit.HOURS),
-                        null),
-                MeasurementBucketResolution.explicit(new MeasurementBucketWidth(Duration.ofHours(1)))));
-
-        assertThat(result)
-                .singleElement()
-                .satisfies(bucket -> {
-                    assertThat(bucket.timeSeriesId()).isEqualTo(timeSeriesId);
-                    assertThat(bucket.value()).isEqualTo(15.0);
-                    assertThat(bucket.sampleCount()).isEqualTo(2);
-                    assertThat(bucket.to()).isAfter(bucket.from());
-                });
+        assertThat(rows).hasSize(3);
+        assertThat(rows.stream().filter(row -> row.observedAt().isBefore(boundary.observedAt())))
+                .extracting(MeasurementReadRow::value).containsExactlyInAnyOrder(18.0, 19.0);
+        assertThat(rows.stream().filter(row -> row.observedAt().equals(boundary.observedAt())))
+                .singleElement().satisfies(row -> assertThat(row.value()).isZero());
     }
 
     @Test
-    void returnsSeparateMeasurementBucketsForAggregateWindows() {
-        TimeSeriesId timeSeriesId = new TimeSeriesId(UUID.randomUUID());
-        ConnectorId connectorId = new ConnectorId(UUID.randomUUID());
-        Instant baseTimestamp = Instant.now()
-                .minus(2, ChronoUnit.HOURS)
-                .truncatedTo(ChronoUnit.HOURS);
-        Measurement first = new Measurement(
-                timeSeriesId,
-                baseTimestamp,
-                baseTimestamp.plusSeconds(1),
-                10.0,
-                connectorId);
-        Measurement second = new Measurement(
-                timeSeriesId,
-                baseTimestamp.plus(5, ChronoUnit.MINUTES),
-                baseTimestamp.plus(5, ChronoUnit.MINUTES).plusSeconds(1),
-                20.0,
-                connectorId);
-        Measurement third = new Measurement(
-                timeSeriesId,
-                baseTimestamp.plus(20, ChronoUnit.MINUTES),
-                baseTimestamp.plus(20, ChronoUnit.MINUTES).plusSeconds(1),
-                30.0,
-                connectorId);
+    void intervalEvidenceAppliesOneBudgetAcrossPredecessorsAndWindowRows() {
+        TimeSeriesId id = new TimeSeriesId(UUID.randomUUID());
+        ConnectorId writerA = new ConnectorId(UUID.randomUUID());
+        ConnectorId writerB = new ConnectorId(UUID.randomUUID());
+        Instant from = Instant.now().minus(2, ChronoUnit.HOURS).truncatedTo(ChronoUnit.HOURS);
+        var window = new MeasurementWindow(from, from.plusSeconds(900), null);
+        repository.storeMeasurements(List.of(
+                new Measurement(id, from.minusSeconds(60), from.minusSeconds(59), 18, writerA),
+                new Measurement(id, from.minusSeconds(30), from.minusSeconds(29), 19, writerB),
+                new Measurement(id, from.plusSeconds(1), from.plusSeconds(2), 20, writerA)));
 
-        repository.storeMeasurements(List.of(first, second, third));
+        assertThat(repository.listIntervalEvidence(id, window, 3)).hasSize(3);
+        assertThatThrownBy(() -> repository.listIntervalEvidence(id, window, 2))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("query exceeds");
+        assertThat(repository.listIntervalEvidence(
+                id, new MeasurementWindow(from.plusSeconds(900), from.plusSeconds(1_800), null), 2))
+                .hasSize(2);
+    }
 
-        var buckets = repository.listMeasurementBuckets(new MeasurementBucketQuery(
-                timeSeriesId,
-                new MeasurementWindow(baseTimestamp.minus(1, ChronoUnit.MINUTES), baseTimestamp.plus(40, ChronoUnit.MINUTES), null),
-                MeasurementBucketResolution.explicit(new MeasurementBucketWidth(Duration.ofMinutes(15)))));
+    @Test
+    void intervalPredecessorReadsLastRetainedObservationFromEachWriter() {
+        TimeSeriesId id = new TimeSeriesId(UUID.randomUUID());
+        ConnectorId writerA = new ConnectorId(UUID.randomUUID());
+        ConnectorId writerB = new ConnectorId(UUID.randomUUID());
+        Instant from = Instant.now().truncatedTo(ChronoUnit.HOURS);
+        repository.storeMeasurements(List.of(
+                new Measurement(id, from.minusSeconds(26 * 3_600), from, 17, writerA),
+                new Measurement(id, from.minusSeconds(60), from, 18, writerA),
+                new Measurement(id, from.minusSeconds(60), from, 18, writerB),
+                new Measurement(id, from, from.plusSeconds(1), 19, writerA)));
 
-        assertThat(buckets)
-                .hasSize(2)
-                .extracting(MeasurementBucket::value, MeasurementBucket::sampleCount)
-                .containsExactly(
-                        org.assertj.core.groups.Tuple.tuple(15.0, 2L),
-                        org.assertj.core.groups.Tuple.tuple(30.0, 1L));
-        assertThat(buckets)
-                .allSatisfy(bucket -> assertThat(bucket.to()).isEqualTo(bucket.from().plus(15, ChronoUnit.MINUTES)));
+        var predecessors = repository.listIntervalEvidence(
+                        id, new MeasurementWindow(from, from.plusSeconds(900), null), 100)
+                .stream()
+                .filter(row -> row.observedAt().isBefore(from))
+                .toList();
+
+        assertThat(predecessors).hasSize(2);
+        assertThat(predecessors).allSatisfy(row -> {
+            assertThat(row.observedAt()).isEqualTo(from.minusSeconds(60));
+            assertThat(row.value()).isEqualTo(18);
+        });
+    }
+
+    @Test
+    void lateWriteRecomputesPreviouslyClosedIntervalMean() {
+        TimeSeriesId id = new TimeSeriesId(UUID.randomUUID());
+        ConnectorId writer = new ConnectorId(UUID.randomUUID());
+        Instant from = Instant.now().minus(2, ChronoUnit.HOURS).truncatedTo(ChronoUnit.HOURS);
+        var series = mock(TimeSeriesService.class);
+        when(series.get(id)).thenReturn(new TimeSeries(id, new MeasuringPointId(UUID.randomUUID()),
+                new ObservedPropertyCode("water-level"), ACTIVE, null));
+        var service = new MeasurementServiceImpl(repository, mock(MeasurementAuthorizationPolicy.class),
+                Clock.fixed(from.plusSeconds(7_200), ZoneOffset.UTC), series,
+                mock(MeasuringPointService.class), mock(StationService.class));
+        var query = new MeasurementIntervalQuery(id, from, from.plusSeconds(3_600), "1h", "UTC", true,
+                at.pegelhub.timeseries.domain.MeasurementRepresentation.CANONICAL);
+        repository.storeMeasurements(List.of(
+                new Measurement(id, from.minusSeconds(1), from, 18, writer)));
+        assertThat(service.listMeasurementIntervals(query).intervals().getFirst().mean()).isEqualTo(18);
+
+        repository.storeMeasurements(List.of(
+                new Measurement(id, from.plusSeconds(1_800), from.plusSeconds(1_801), 19, writer)));
+        assertThat(service.listMeasurementIntervals(query).intervals().getFirst().mean()).isEqualTo(18.5);
     }
 
     @Test

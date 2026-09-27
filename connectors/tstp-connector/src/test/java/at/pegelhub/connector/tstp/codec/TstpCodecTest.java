@@ -131,4 +131,36 @@ class TstpCodecTest {
                     List.of(new Measurement(null, Instant.parse("2026-09-17T12:00:00Z"), value)), "cm"));
         }
     }
+
+    @ParameterizedTest
+    @org.junit.jupiter.params.provider.EnumSource(TstpWriteFormat.class)
+    void writesOrdinaryPointsWithExplicitProtocolGaps(TstpWriteFormat format) throws Exception {
+        var encoder = new TstpBinaryCodec(ZoneOffset.ofHours(1));
+        var codec = new TstpXmlCodec(encoder, format);
+        List<Measurement> points = List.of(
+                new Measurement(null, Instant.parse("2026-07-15T22:45:00Z"), 0.0),
+                gapAt(Instant.parse("2026-07-15T23:00:00Z")),
+                new Measurement(null, Instant.parse("2026-07-15T23:15:00Z"), 12.5));
+        String request = codec.writeRequest(points, "cm");
+        var document = javax.xml.parsers.DocumentBuilderFactory.newInstance().newDocumentBuilder()
+                .parse(new java.io.ByteArrayInputStream(request.getBytes(StandardCharsets.ISO_8859_1)));
+        var definition = (org.w3c.dom.Element) document.getElementsByTagName("DEF").item(0);
+        assertEquals("K", definition.getAttribute("DEFART"));
+        assertEquals("3", definition.getAttribute("ANZ"));
+        String data = document.getElementsByTagName("DATA").item(0).getTextContent();
+        if (format == TstpWriteFormat.BINARY) {
+            byte[] bytes = java.util.Base64.getMimeDecoder().decode(data);
+            assertEquals("7df0bdc2", HexFormat.of().formatHex(bytes, 20, 24));
+        } else {
+            assertTrue(data.contains("2026-07-15T23:45:00Z 0.0"));
+            assertTrue(data.contains("2026-07-16T00:00:00Z 4.0E37"));
+            assertTrue(data.contains("2026-07-16T00:15:00Z 12.5"));
+        }
+    }
+
+    private static Measurement gapAt(Instant at) {
+        Measurement gap = new Measurement();
+        gap.setObservedAt(at);
+        return gap;
+    }
 }

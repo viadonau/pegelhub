@@ -207,6 +207,41 @@ class TstpConnectorModuleTest {
         assertThrows(IllegalArgumentException.class, this::loadConfig);
     }
 
+    @Test
+    void loadsOnlyOutboundMeanExportsMatchingTheServerTimeBasis() throws Exception {
+        writeConnectorYaml(8030);
+        writeMapping("one.yaml", FIRST_SERIES, 77, "core-to-external");
+        Path mapping = configDirectory.resolve("mappings/one.yaml");
+        String base = Files.readString(mapping);
+        Path connector = configDirectory.resolve("connector.yaml");
+        String connectorYaml = Files.readString(connector) + "    timeOffset: \"+01:00\"\n";
+        Files.writeString(connector, connectorYaml);
+        String export = """
+                meanExport:
+                  interval: "15m"
+                  timeBasis: "+01:00"
+                  settlingDelay: "1m"
+                """;
+
+        Files.writeString(mapping, base + export);
+        TstpMeanExport loaded = loadConfig().mappings().getFirst().meanExport();
+        assertEquals("15m", loaded.interval());
+        assertEquals(Duration.ofMinutes(1), loaded.settlingDuration());
+
+        Files.writeString(mapping, base.replace("core-to-external", "external-to-core") + export);
+        assertThrows(Exception.class, this::loadConfig);
+
+        Files.writeString(mapping, base + export.replace("timeBasis: \"+01:00\"", "timeBasis: \"UTC\""));
+        assertThrows(Exception.class, this::loadConfig);
+
+        Files.writeString(mapping, base + export.replace("interval: \"15m\"", "interval: \"5m\""));
+        assertThrows(Exception.class, this::loadConfig);
+
+        Files.writeString(mapping, base + export);
+        Files.writeString(connector, connectorYaml.replace("overlap: \"2h\"", "overlap: \"250h\""));
+        assertThrows(Exception.class, this::loadConfig);
+    }
+
     private TstpConnectorConfig loadConfig() throws Exception {
         return new TstpConnectorConfigLoader().load(ConnectorConfigDirectory.at(configDirectory));
     }

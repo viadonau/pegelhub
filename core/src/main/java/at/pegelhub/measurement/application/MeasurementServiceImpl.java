@@ -4,7 +4,6 @@ import at.pegelhub.connector.domain.ConnectorId;
 import at.pegelhub.measurement.domain.CanonicalConversion;
 import at.pegelhub.measurement.domain.LitresPerSecondConversion;
 import at.pegelhub.measurement.domain.Measurement;
-import at.pegelhub.measurement.domain.MeasurementBucket;
 import at.pegelhub.measurement.domain.MeasurementConversion;
 import at.pegelhub.measurement.domain.MetresAboveAdriaConversion;
 import at.pegelhub.measurement.domain.WriteMeasurement;
@@ -24,6 +23,7 @@ import at.pegelhub.timeseries.domain.TimeSeriesId;
 import org.springframework.stereotype.Service;
 
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -39,6 +39,7 @@ import static java.util.Objects.requireNonNull;
  */
 @Service
 public class MeasurementServiceImpl implements MeasurementService {
+    private static final int MAX_INTERVAL_EVIDENCE_ROWS = 100_000;
 
     private final MeasurementRepository measurementRepository;
     private final MeasurementAuthorizationPolicy authorizationPolicy;
@@ -115,22 +116,52 @@ public class MeasurementServiceImpl implements MeasurementService {
     }
 
     @Override
-    public MeasurementBucketList listMeasurementBuckets(MeasurementBucketQuery query) {
+    public MeasurementIntervalList listMeasurementIntervals(MeasurementIntervalQuery query) {
         requireNonNull(query);
         authorizationPolicy.requireRead(query.timeSeriesId());
         var conversion = outputConversion(query.timeSeriesId(), query.representation());
-
-        // These conversions only scale or shift values, so converting the average gives the same result.
-        // A nonlinear conversion would need to run before averaging.
-        List<MeasurementBucket> buckets = measurementRepository.listMeasurementBuckets(query).stream()
-                .map(bucket -> new MeasurementBucket(
-                        bucket.timeSeriesId(),
-                        bucket.from(),
-                        bucket.to(),
-                        conversion.fromCanonical(bucket.value()),
-                        bucket.sampleCount()))
+        Instant computedAt = Instant.now(clock);
+        var intervals = calculateIntervalMeans(query, computedAt).stream()
+                .map(interval -> convertInterval(interval, conversion))
                 .toList();
-        return new MeasurementBucketList(query, buckets, conversion.unit());
+        return new MeasurementIntervalList(query, computedAt, conversion.unit(), intervals);
+    }
+
+    private List<MeasurementInterval> calculateIntervalMeans(
+            MeasurementIntervalQuery query, Instant computedAt) {
+        int selected = selectedWindowCount(query, computedAt);
+        if (selected == 0) return List.of();
+
+        Instant selectedTo = query.from().plus(query.width().multipliedBy(selected));
+        Instant evidenceTo = selectedTo.isBefore(computedAt) ? selectedTo : computedAt;
+        List<MeasurementReadRow> evidence = evidenceTo.isAfter(query.from())
+                ? measurementRepository.listIntervalEvidence(
+                        query.timeSeriesId(), new MeasurementWindow(query.from(), evidenceTo, null),
+                        MAX_INTERVAL_EVIDENCE_ROWS)
+                : List.of();
+        return StepIntervalCalculator.calculate(
+                query.from(), query.width(), selected, computedAt, evidence);
+    }
+
+    private static int selectedWindowCount(MeasurementIntervalQuery query, Instant computedAt) {
+        Duration width = query.width();
+        int requested = Math.toIntExact(Duration.between(query.from(), query.to()).dividedBy(width));
+        if (!query.closedOnly()) return requested;
+
+        int selected = 0;
+        Instant intervalEnd = query.from().plus(width);
+        while (selected < requested && !intervalEnd.isAfter(computedAt)) {
+            selected++;
+            intervalEnd = intervalEnd.plus(width);
+        }
+        return selected;
+    }
+
+    private static MeasurementInterval convertInterval(MeasurementInterval interval, MeasurementConversion conversion) {
+        return new MeasurementInterval(interval.from(), interval.to(),
+                interval.mean() == null ? null : conversion.fromCanonical(interval.mean()),
+                interval.observationCount(), interval.supportedNanos(), interval.lastContributingObservedAt(),
+                interval.windowStatus(), interval.supportStatus());
     }
 
     @Override

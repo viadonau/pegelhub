@@ -23,11 +23,8 @@ public interface MeasurementService {
      */
     MeasurementList listMeasurements(MeasurementListQuery query);
 
-    /**
-     * Returns averages in the requested representation. Conversion leaves each bucket's time range
-     * and sample count unchanged. The conversion must be valid even if there are no buckets to return.
-     */
-    MeasurementBucketList listMeasurementBuckets(MeasurementBucketQuery query);
+    /** Returns aligned time-weighted means and support evidence for a time series. */
+    MeasurementIntervalList listMeasurementIntervals(MeasurementIntervalQuery query);
 
     /** Returns the latest values in storage units for monitoring. This method does not convert output values. */
     List<LatestMeasurement> listLatestMeasurements(MeasurementLatestQuery query);

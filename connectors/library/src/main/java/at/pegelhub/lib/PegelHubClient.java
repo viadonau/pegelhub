@@ -2,6 +2,7 @@ package at.pegelhub.lib;
 
 import at.pegelhub.lib.model.Measurement;
 import at.pegelhub.lib.model.MeasurementRepresentation;
+import at.pegelhub.lib.model.MeasurementIntervalStatistics;
 
 import java.time.Instant;
 import java.util.Collection;
@@ -33,6 +34,11 @@ public interface PegelHubClient extends AutoCloseable {
             Instant from,
             Instant to,
             MeasurementRepresentation representation);
+
+    /** Reads Core-computed full-width time-weighted means. */
+    MeasurementIntervalStatistics getMeasurementIntervals(
+            UUID timeSeriesId, Instant from, Instant to, String interval, String timeBasis,
+            boolean closedOnly, MeasurementRepresentation representation);
 
     /** Returns the latest measurement in storage units, within the time range searched by the client. */
     default Optional<Measurement> getLatestMeasurementOfTimeSeries(UUID timeSeriesId) {

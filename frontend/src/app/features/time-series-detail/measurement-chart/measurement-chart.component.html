@@ -10,10 +10,11 @@
 <div class="ph-measurement-chart-body">
   <ph-line-chart
     [height]="height()"
-    [series]="series()"
+    [series]="lineChartSeries()"
     [referenceLines]="referenceLines()"
     [yLabel]="yLabel()"
     [unit]="unit()"
+    [timeBasis]="timeBasis()"
     [emptyMessage]="emptyMessage()"
     [ariaLabel]="ariaLabel()"
   />

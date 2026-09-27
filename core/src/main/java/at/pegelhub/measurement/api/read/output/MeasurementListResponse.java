@@ -14,7 +14,7 @@ public record MeasurementListResponse(
                         + "measurements-are-returned")
         UUID timeSeriesId,
         @Schema(
-                description = "openapi.measurement.measurement-bucket-list-response.resolved-query-window")
+                description = "openapi.measurement.measurement-list-response.resolved-query-window")
         MeasurementWindowResponse window,
         @Schema(
                 description = "openapi.measurement.measurement-list-response.sort-order-used-for-the-"

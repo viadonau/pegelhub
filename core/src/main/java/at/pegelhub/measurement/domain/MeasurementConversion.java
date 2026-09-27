@@ -5,7 +5,7 @@ package at.pegelhub.measurement.domain;
  * Both directions use the same fixed conversion settings; no metadata is loaded while converting.
  * Implementations reject non-finite inputs and results rather than returning NaN or infinity.
  *
- * <p>Conversions must only scale or shift values: bucket reads apply them after averaging.
+ * <p>Conversions must only scale or shift values: interval reads apply them after averaging.
  */
 public interface MeasurementConversion {
 

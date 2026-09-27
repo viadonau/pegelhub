@@ -200,7 +200,7 @@ disposable staging Keycloak bootstrap.
 
 The authenticated frontend provides a filterable time-series overview and a
 single-series detail view with metadata, the most recent reading returned by a
-trailing-365-day query, and bucketed chart history. Its current scope is
+trailing-365-day query, and explicitly enabled interval chart history. Its current scope is
 monitoring; metadata administration is not implemented. See the
 [frontend guide](frontend/README.md#product-surface) for the route and behavior
 matrix.

@@ -10,11 +10,7 @@ import { provideRouter } from '@angular/router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { RUNTIME_CONFIG } from '../../core/config/runtime-config';
-import {
-  measurementBucketsFixture,
-  TEST_RUNTIME_CONFIG,
-  waterLevelDetailFixture,
-} from '../../../testing/fixtures';
+import { TEST_RUNTIME_CONFIG, waterLevelDetailFixture } from '../../../testing/fixtures';
 import { TimeSeriesDetailComponent } from './time-series-detail.component';
 
 describe('TimeSeriesDetailComponent', () => {
@@ -43,7 +39,7 @@ describe('TimeSeriesDetailComponent', () => {
     expectDetailRequest().flush(waterLevelDetailFixture());
     await waitForHistory(fixture);
 
-    expectBucketRequest().flush(measurementBucketsFixture());
+    expectIntervalRequest().flush(emptyIntervals());
     TestBed.tick();
     fixture.detectChanges();
 
@@ -56,9 +52,8 @@ describe('TimeSeriesDetailComponent', () => {
       expect(rendered).toContain('Organisationviadonau');
       expect(rendered).toContain('Uferrechts');
       expect(rendered).toContain('RNW 2020162 cm');
-      expect(rendered).toContain(
-        'Für Wasserstand sind in diesem Zeitraum keine Messwerte vorhanden.',
-      );
+      expect(rendered).toContain('Keine abgeschlossenen Intervalle im Zeitraum.');
+      expect(rendered).toContain('0 Mittelwerte · 15 Min. Raster · MEZ (UTC+1)');
     });
     expect(
       fixture.nativeElement.querySelector(
@@ -68,12 +63,12 @@ describe('TimeSeriesDetailComponent', () => {
     expect(TestBed.inject(Title).getTitle()).toBe('Hauptpegel · Wasserstand · PegelHub');
   });
 
-  it('keeps the loaded snapshot usable when bucket history fails', async () => {
+  it('keeps the loaded snapshot usable when interval history fails', async () => {
     const fixture = createComponent();
 
     expectDetailRequest().flush(waterLevelDetailFixture());
     await waitForHistory(fixture);
-    expectBucketRequest().flush('unavailable', {
+    expectIntervalRequest().flush('unavailable', {
       status: 503,
       statusText: 'Service Unavailable',
     });
@@ -84,12 +79,12 @@ describe('TimeSeriesDetailComponent', () => {
       const rendered = text(fixture);
       expect(rendered).toContain('Hauptpegel');
       expect(rendered).toContain('312,5cm');
-      expect(rendered).toContain('Der Messverlauf konnte nicht geladen werden.');
+      expect(rendered).toContain('Die Intervallanalyse konnte nicht geladen werden.');
       expect(rendered).not.toContain('Die Messreihe konnte nicht geladen werden.');
     });
   });
 
-  it('shows a detail error without starting a bucket request', async () => {
+  it('shows a detail error without starting an interval request', async () => {
     const fixture = createComponent();
 
     expectDetailRequest().flush('unavailable', {
@@ -101,9 +96,10 @@ describe('TimeSeriesDetailComponent', () => {
       TestBed.tick();
       fixture.detectChanges();
       expect(text(fixture)).toContain('Die Messreihe konnte nicht geladen werden.');
+      expect(fixture.nativeElement.querySelector('a[href="/overview"]')).toBeNull();
     });
     http.expectNone(
-      (request) => request.url === '/api/v1/time-series/series-water-level/measurements/buckets',
+      (request) => request.url === '/api/v1/time-series/series-water-level/measurements/intervals',
     );
   });
 
@@ -111,15 +107,32 @@ describe('TimeSeriesDetailComponent', () => {
     return http.expectOne('/api/v1/monitoring/time-series/series-water-level?latestWithin=365d');
   }
 
-  function expectBucketRequest(): TestRequest {
+  function expectIntervalRequest(): TestRequest {
     return http.expectOne(
       (request) =>
-        request.url === '/api/v1/time-series/series-water-level/measurements/buckets' &&
-        request.params.get('last') === '24h' &&
-        request.params.get('maxPoints') === '240',
+        request.url === '/api/v1/time-series/series-water-level/measurements/intervals' &&
+        request.params.get('interval') === '15m' &&
+        request.params.get('timeBasis') === '+01:00' &&
+        request.params.get('closedOnly') === 'true',
     );
   }
 });
+
+function emptyIntervals() {
+  return {
+    timeSeriesId: 'series-water-level',
+    from: '2026-07-19T00:00:00Z',
+    to: '2026-07-20T00:00:00Z',
+    interval: '15m',
+    timeBasis: '+01:00',
+    closedOnly: true,
+    representation: 'canonical',
+    unit: 'cm',
+    method: 'time-weighted-step',
+    computedAt: '2026-07-20T00:00:00Z',
+    intervals: [],
+  };
+}
 
 function createComponent(): ComponentFixture<TimeSeriesDetailComponent> {
   const fixture = TestBed.createComponent(TimeSeriesDetailComponent);
@@ -137,6 +150,6 @@ async function waitForHistory(fixture: ComponentFixture<unknown>): Promise<void>
   await vi.waitFor(() => {
     TestBed.tick();
     fixture.detectChanges();
-    expect(text(fixture)).toContain('Messverlauf · Wasserstand (cm)');
+    expect(text(fixture)).toContain('Mittelungsintervall');
   });
 }

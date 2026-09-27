@@ -4,6 +4,7 @@
 
 Accepted. This decision supersedes ADR 0003, clarifies ADR 0005, and replaces
 the vocabulary policy in ADR 0009.
+The chart-bucket endpoint was later replaced by [ADR 0012](0012-step-weighted-interval-means.md).
 
 ## Context
 

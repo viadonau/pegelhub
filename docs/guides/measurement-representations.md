@@ -38,10 +38,11 @@ of authenticated GET routes (replace `{id}` with the time-series UUID):
 ```text
 /api/v1/time-series/{id}/measurements?last=24h&representation=litres-per-second
 /api/v1/time-series/{id}/measurements?last=365d&order=desc&limit=1&representation=metres-above-adria
-/api/v1/time-series/{id}/measurements/buckets?last=24h&bucket=5m&representation=litres-per-second
+/api/v1/time-series/{id}/measurements/intervals?from=2026-06-17T00:00:00Z&to=2026-06-18T00:00:00Z&interval=15m&timeBasis=UTC&representation=litres-per-second
 ```
 
-Both response envelopes include `representation` and `unit`. Absolute water
+Both raw and interval response envelopes include `representation` and `unit`.
+Interval reads require interval means to be enabled on the time series. Absolute water
 levels have unit `m` and representation `metres-above-adria`, so the datum is
 explicit. Missing gauge zero, unknown representations, and property mismatches
 fail with HTTP 400, even when the window contains no measurements. Existing

@@ -29,17 +29,17 @@ import static java.util.Objects.requireNonNull;
  * <pre>
  * {@code
  * @Schema(description =
- *     "openapi.measurement.measurement-bucket-point-response"
- *         + ".average-value-for-the-bucket")
+ *     "openapi.measurement.measurement-point-response"
+ *         + ".observed-numeric-value")
  * double value
  *
  * messages_de.properties:
- * ...average-value-for-the-bucket=Durchschnittswert des Intervalls.
+ * ...observed-numeric-value=Erfasster Messwert.
  *
  * OpenAPI model:
  * components
  *   -> schemas
- *   -> MeasurementBucketPointResponse
+ *   -> MeasurementPointResponse
  *   -> properties
  *   -> value
  *   -> description
@@ -75,7 +75,7 @@ final class OpenApiDocumentationLocalizer implements OpenApiLocaleCustomizer {
      * Visits every reusable schema, response, parameter, and request body.
      *
      * <p>For the running example, this selects
-     * {@code components.schemas["MeasurementBucketPointResponse"]}. Responses and
+     * {@code components.schemas["MeasurementPointResponse"]}. Responses and
      * request bodies can contain further schemas, so those branches eventually
      * rejoin {@link #localizeSchema(Schema, Locale, Set)}.
      */
@@ -95,7 +95,7 @@ final class OpenApiDocumentationLocalizer implements OpenApiLocaleCustomizer {
      *
      * <p>This is the alternative entry path for fields expanded from a
      * {@code @ParameterObject}. For example,
-     * {@code MeasurementBucketParameters.last} becomes an operation parameter whose
+     * {@code MeasurementReadParameters.last} becomes an operation parameter whose
      * description still contains a message key. It does not participate in the
      * running response-schema example.
      */
@@ -148,7 +148,7 @@ final class OpenApiDocumentationLocalizer implements OpenApiLocaleCustomizer {
      * Resolves a reusable response description and enters its response content.
      *
      * <p>For example:
-     * {@code response -> application/json -> MeasurementBucketListResponse schema}.
+     * {@code response -> application/json -> MeasurementListResponse schema}.
      */
     private void localizeResponse(ApiResponse response, Locale locale, Set<Schema<?>> visitedSchemas) {
         if (response == null) {
@@ -163,7 +163,7 @@ final class OpenApiDocumentationLocalizer implements OpenApiLocaleCustomizer {
      * Converts each media-type branch into a schema branch.
      *
      * <p>For example:
-     * {@code application/json -> schema -> MeasurementBucketPointResponse}.
+     * {@code application/json -> schema -> MeasurementPointResponse}.
      */
     private void localizeContent(Content content, Locale locale, Set<Schema<?>> visitedSchemas) {
         for (MediaType mediaType : values(content)) {
@@ -175,7 +175,7 @@ final class OpenApiDocumentationLocalizer implements OpenApiLocaleCustomizer {
      * Recursively resolves schema titles and descriptions.
      *
      * <p>For the running example, this first receives
-     * {@code MeasurementBucketPointResponse}, visits its {@code value} property,
+     * {@code MeasurementPointResponse}, visits its {@code value} property,
      * and resolves that property's description.
      *
      * <p>Properties, array items, map values, {@code allOf}, {@code anyOf},
@@ -210,14 +210,14 @@ final class OpenApiDocumentationLocalizer implements OpenApiLocaleCustomizer {
      * <pre>
      * {@code
      * key:
-     * openapi.measurement.measurement-bucket-point-response
-     *     .average-value-for-the-bucket
+     * openapi.measurement.measurement-point-response
+     *     .observed-numeric-value
      *
      * locale:
      * de
      *
      * result:
-     * "Durchschnittswert des Intervalls."
+     * "Erfasster Messwert."
      * }
      * </pre>
      */

@@ -1,6 +1,5 @@
 import { Component, computed, effect, inject, input, signal } from '@angular/core';
 import { Title } from '@angular/platform-browser';
-import { RouterLink } from '@angular/router';
 
 import { MonitoringApiService } from '../../core/api/monitoring-api.service';
 import { observedPropertyUnit } from '../../core/time-series/parameter-legend';
@@ -26,7 +25,6 @@ import { PhTimeSeriesMetadataComponent } from './time-series-metadata/time-serie
     PhPageComponent,
     PhTimeSeriesMeasurementsComponent,
     PhTimeSeriesMetadataComponent,
-    RouterLink,
   ],
   templateUrl: './time-series-detail.component.html',
   styleUrl: './time-series-detail.component.scss',

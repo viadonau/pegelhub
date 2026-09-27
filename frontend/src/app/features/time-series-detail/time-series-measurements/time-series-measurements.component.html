@@ -1,26 +1,257 @@
-@if (historyError(); as error) {
-  <ph-message severity="error" [text]="error" />
-}
+<section class="ph-analysis" aria-label="Intervallanalyse">
+  <section class="ph-analysis-sidebar" aria-label="Messreihe und Analyseeinstellungen">
+    <ng-content select="[ph-analysis-identity]" />
 
-<ph-measurement-chart
-  [title]="chartTitle()"
-  ariaLabel="Gemittelter Messverlauf der ausgewählten Messreihe"
-  height="480"
-  [series]="chartSeries()"
-  [referenceLines]="visibleReferenceLines()"
-  [yLabel]="chartYLabel()"
-  [unit]="chartUnit()"
-  [loading]="historyLoading()"
-  [emptyMessage]="emptyMessage()"
->
-  <ph-measurement-history-toolbar
-    ph-measurement-chart-actions
-    [selectedRange]="selectedRange()"
-    [loading]="historyLoading()"
-    [referenceLevelsAvailable]="referenceLines().length > 0"
-    [referenceLevelsVisible]="preferences.showReferenceLevels()"
-    (rangeChange)="setRange($event)"
-    (referenceLevelsVisibleChange)="preferences.setReferenceLevelsVisible($event)"
-    (refresh)="reload()"
-  />
-</ph-measurement-chart>
+    <div class="ph-analysis-settings">
+      <div class="ph-analysis-settings-heading">
+        <h2>Anzeige</h2>
+        <button
+          class="ph-analysis-icon"
+          type="button"
+          aria-label="Messdaten aktualisieren"
+          pTooltip="Messdaten aktualisieren"
+          tooltipPosition="top"
+          appendTo="body"
+          [disabled]="loading() || rawLoading()"
+          (click)="reload()"
+        >
+          <i class="pi pi-refresh" aria-hidden="true"></i>
+        </button>
+      </div>
+
+      <div class="ph-analysis-controls">
+        <div class="ph-analysis-control">
+          <div class="ph-analysis-control-heading">
+            <label for="ph-analysis-range">Zeitraum</label>
+            <button
+              class="ph-analysis-help"
+              type="button"
+              aria-label="Information zum Zeitraum"
+              [pTooltip]="rangeTooltip()"
+              tooltipEvent="both"
+              tooltipPosition="top"
+              tooltipStyleClass="ph-analysis-control-tooltip"
+              appendTo="body"
+            >
+              <i class="pi pi-info-circle" aria-hidden="true"></i>
+            </button>
+          </div>
+          <p-select
+            inputId="ph-analysis-range"
+            appendTo="body"
+            [options]="ranges"
+            optionLabel="label"
+            optionValue="value"
+            [ngModel]="selectedRange()"
+            (ngModelChange)="setRange($event)"
+            ariaLabel="Zeitraum"
+          />
+        </div>
+        <div class="ph-analysis-control">
+          <div class="ph-analysis-control-heading">
+            <label for="ph-analysis-interval">Mittelungsintervall</label>
+            <button
+              class="ph-analysis-help"
+              type="button"
+              aria-label="Information zum Mittelungsintervall"
+              [pTooltip]="intervalTooltip"
+              tooltipEvent="both"
+              tooltipPosition="top"
+              tooltipStyleClass="ph-analysis-control-tooltip"
+              appendTo="body"
+            >
+              <i class="pi pi-info-circle" aria-hidden="true"></i>
+            </button>
+          </div>
+          <p-select
+            inputId="ph-analysis-interval"
+            appendTo="body"
+            [options]="intervals"
+            optionLabel="label"
+            optionValue="value"
+            [ngModel]="selectedInterval()"
+            (ngModelChange)="setInterval($event)"
+            ariaLabel="Statistisches Intervall"
+          />
+        </div>
+        <div class="ph-analysis-control">
+          <div class="ph-analysis-control-heading">
+            <label for="ph-analysis-basis">Zeitbasis</label>
+            <button
+              class="ph-analysis-help"
+              type="button"
+              aria-label="Information zur Zeitbasis"
+              [pTooltip]="timeBasisTooltip()"
+              tooltipEvent="both"
+              tooltipPosition="top"
+              tooltipStyleClass="ph-analysis-control-tooltip"
+              appendTo="body"
+            >
+              <i class="pi pi-info-circle" aria-hidden="true"></i>
+            </button>
+          </div>
+          <p-select
+            inputId="ph-analysis-basis"
+            appendTo="body"
+            [options]="timeBases"
+            optionLabel="label"
+            optionValue="value"
+            [ngModel]="selectedTimeBasis()"
+            (ngModelChange)="setTimeBasis($event)"
+            ariaLabel="Zeitbasis"
+          />
+        </div>
+        @if (referenceLines().length > 0) {
+          <label class="ph-analysis-reference"
+            >RNW / HSW
+            <p-toggleswitch
+              inputId="ph-reference-levels-toggle"
+              ariaLabel="RNW- und HSW-Referenzlinien anzeigen"
+              [ngModel]="preferences.showReferenceLevels()"
+              (ngModelChange)="preferences.setReferenceLevelsVisible($event)"
+            />
+          </label>
+        }
+      </div>
+
+      @if (selectedRange() === 'custom') {
+        <div class="ph-analysis-custom">
+          <label
+            >Beginn ({{ basisLabel() }})
+            <input
+              type="datetime-local"
+              [ngModel]="customFrom()"
+              (ngModelChange)="setCustomFrom($event)"
+            />
+          </label>
+          <label
+            >Ende ({{ basisLabel() }})
+            <input
+              type="datetime-local"
+              [ngModel]="customTo()"
+              (ngModelChange)="setCustomTo($event)"
+            />
+          </label>
+        </div>
+      }
+    </div>
+
+    <details class="ph-analysis-information">
+      <summary>
+        <span>Information</span>
+        <i class="pi pi-chevron-down" aria-hidden="true"></i>
+      </summary>
+      <div class="ph-analysis-information-body">
+        <ng-content select="[ph-analysis-information]" />
+      </div>
+    </details>
+  </section>
+
+  <div class="ph-analysis-main">
+    @if (error(); as message) {
+      <ph-message severity="error" [text]="message" />
+    }
+
+    <div class="ph-analysis-view" role="group" aria-label="Darstellung">
+      <button
+        type="button"
+        [class.is-selected]="selectedView() === 'chart'"
+        [attr.aria-pressed]="selectedView() === 'chart'"
+        (click)="setView('chart')"
+      >
+        <i class="pi pi-chart-line" aria-hidden="true"></i> Diagramm
+      </button>
+      <button
+        type="button"
+        [class.is-selected]="selectedView() === 'raw'"
+        [attr.aria-pressed]="selectedView() === 'raw'"
+        (click)="setView('raw')"
+      >
+        <i class="pi pi-list" aria-hidden="true"></i> Rohwerte
+      </button>
+    </div>
+
+    @if (selectedView() === 'chart' && (loading() || loadedAnalysisResult())) {
+      <ph-measurement-chart
+        [title]="chartYLabel()"
+        ariaLabel="Mittelwerte der ausgewählten Messreihe"
+        height="480"
+        [series]="chartSeries()"
+        [emptyIntervalCount]="emptyIntervalCount()"
+        [referenceLines]="visibleReferenceLines()"
+        [yLabel]="chartYLabel()"
+        [unit]="chartUnit()"
+        [timeBasis]="selectedTimeBasis()"
+        [loading]="loading()"
+        [emptyMessage]="chartEmptyMessage()"
+      />
+    } @else {
+      @if (rawError(); as message) {
+        <ph-message severity="error" [text]="message" />
+      }
+      @if (rawLoading()) {
+        <p role="status">Rohwerte werden geladen.</p>
+      }
+      @if (rawResult(); as raw) {
+        @if (raw.truncated) {
+          <ph-message
+            severity="warn"
+            text="Mehr als 1.000 Rohwerte im Zeitraum. Die Abfrage ist abgeschnitten; bitte den Zeitraum verkürzen. Es wird keine unvollständige Rohwerttabelle angezeigt."
+          />
+        } @else {
+          <p class="ph-analysis-evidence">
+            {{ raw.measurements.length }} gespeicherte Rohwerte · {{ displayUnit(raw.unit) }} ·
+            {{ basisLabel() }}
+          </p>
+          <div class="ph-analysis-table-wrap">
+            <table>
+              <caption>
+                Rohwerte im ausgewählten Zeitraum
+              </caption>
+              <thead>
+                <tr>
+                  <th scope="col">Beobachtet</th>
+                  <th scope="col">Wert</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (item of rawRows(); track $index) {
+                  <tr>
+                    <td>{{ formatExactTime(item.observedAt) }}</td>
+                    <td>{{ formatRawNumber(item.value) }} {{ displayUnit(raw.unit) }}</td>
+                  </tr>
+                } @empty {
+                  <tr>
+                    <td colspan="2">Keine Rohwerte im Zeitraum.</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        }
+      }
+    }
+
+    @if (selectedView() === 'raw' && pageCount() > 1) {
+      <nav class="ph-analysis-pages" aria-label="Tabellenseiten">
+        <button
+          type="button"
+          aria-label="Vorherige Seite"
+          [disabled]="currentPage() === 0"
+          (click)="previousPage()"
+        >
+          <i class="pi pi-chevron-left" aria-hidden="true"></i>
+        </button>
+        <span>Seite {{ currentPage() + 1 }} von {{ pageCount() }}</span>
+        <button
+          type="button"
+          aria-label="Nächste Seite"
+          [disabled]="currentPage() + 1 >= pageCount()"
+          (click)="nextPage()"
+        >
+          <i class="pi pi-chevron-right" aria-hidden="true"></i>
+        </button>
+      </nav>
+    }
+  </div>
+</section>

@@ -1,21 +1,17 @@
 package at.pegelhub.measurement.api.read;
 
-import at.pegelhub.measurement.application.MeasurementBucketQuery;
-import at.pegelhub.measurement.application.MeasurementBucketResolution;
-import at.pegelhub.measurement.application.MeasurementBucketResolutionPolicy;
-import at.pegelhub.measurement.application.MeasurementBucketWidth;
 import at.pegelhub.measurement.application.MeasurementListQuery;
+import at.pegelhub.measurement.application.MeasurementIntervalQuery;
 import at.pegelhub.measurement.application.MeasurementOrder;
 import at.pegelhub.measurement.application.MeasurementWindow;
-import at.pegelhub.measurement.api.read.input.MeasurementBucketParameters;
 import at.pegelhub.measurement.api.read.input.MeasurementReadParameters;
+import at.pegelhub.measurement.api.read.input.MeasurementIntervalParameters;
 import at.pegelhub.shared.duration.PegelhubDurationLiteral;
 import at.pegelhub.timeseries.domain.TimeSeriesId;
 import at.pegelhub.timeseries.domain.MeasurementRepresentation;
 import org.springframework.stereotype.Component;
 
 import java.time.Clock;
-import java.time.Duration;
 import java.time.Instant;
 import java.util.UUID;
 
@@ -28,16 +24,10 @@ import static java.util.Objects.requireNonNull;
 public class MeasurementReadQueryResolver {
 
     private static final int DEFAULT_LIMIT = 1_000;
-    private static final int DEFAULT_MAX_POINTS = 500;
-
     private final Clock clock;
-    private final MeasurementBucketResolutionPolicy bucketResolutionPolicy;
 
-    public MeasurementReadQueryResolver(
-            Clock clock,
-            MeasurementBucketResolutionPolicy bucketResolutionPolicy) {
+    public MeasurementReadQueryResolver(Clock clock) {
         this.clock = requireNonNull(clock);
-        this.bucketResolutionPolicy = requireNonNull(bucketResolutionPolicy);
     }
 
     public MeasurementListQuery resolveList(UUID timeSeriesId, MeasurementReadParameters parameters) {
@@ -51,31 +41,15 @@ public class MeasurementReadQueryResolver {
                 representation(parameters.representation()));
     }
 
-    public MeasurementBucketQuery resolveBuckets(UUID timeSeriesId, MeasurementBucketParameters parameters) {
+    public MeasurementIntervalQuery resolveIntervals(UUID timeSeriesId, MeasurementIntervalParameters parameters) {
         requireNonNull(timeSeriesId);
         requireNonNull(parameters);
-        MeasurementWindow window = window(parameters.last(), parameters.from(), parameters.to());
-        String bucket = blankToNull(parameters.bucket());
-        if (bucket != null && parameters.maxPoints() != null) {
-            throw new IllegalArgumentException("Provide either bucket or maxPoints");
+        if (parameters.from() == null || parameters.to() == null) {
+            throw new IllegalArgumentException("from and to are required");
         }
-        MeasurementBucketResolution resolution = resolveBucketResolution(
-                bucket, parameters.maxPoints(), window);
-        return new MeasurementBucketQuery(
-                new TimeSeriesId(timeSeriesId),
-                window,
-                resolution,
-                representation(parameters.representation()));
-    }
-
-    private MeasurementBucketResolution resolveBucketResolution(
-            String bucket, Integer maxPoints, MeasurementWindow window) {
-        if (bucket != null) {
-            Duration duration = new PegelhubDurationLiteral(bucket).toDuration();
-            return MeasurementBucketResolution.explicit(new MeasurementBucketWidth(duration));
-        }
-        int targetPoints = maxPoints == null ? DEFAULT_MAX_POINTS : maxPoints;
-        return bucketResolutionPolicy.automatic(window, targetPoints);
+        return new MeasurementIntervalQuery(new TimeSeriesId(timeSeriesId), parameters.from(), parameters.to(),
+                parameters.interval(), parameters.timeBasis() == null ? "UTC" : parameters.timeBasis(),
+                parameters.closedOnly() == null || parameters.closedOnly(), representation(parameters.representation()));
     }
 
     private static MeasurementRepresentation representation(String value) {

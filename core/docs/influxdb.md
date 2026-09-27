@@ -73,10 +73,10 @@ more positive integer parts with `s`, `m`, `h`, `d`, or `w`, for example `5m`,
 `72h`, `7d`, or `1h30m`. Measurement and telemetry repositories construct Flux
 through `MeasurementFluxQueryBuilder` and `TelemetryFluxQueryBuilder`.
 
-Only the latest-telemetry query uses `INFLUX_LATEST_RANGE`. Raw and bucketed
-measurement APIs use an explicit `last` duration or `from`/`to` window supplied
-by the caller. The connector library's latest-measurement helper independently
-uses a fixed 365-day query window.
+Only the latest-telemetry query uses `INFLUX_LATEST_RANGE`. Raw measurement reads
+use an explicit `last` duration or `from`/`to` window. Interval reads are available
+for every time series and require aligned `from`/`to` boundaries. The connector
+library's latest-measurement helper independently uses a fixed 365-day query window.
 
 The actuator Influx health indicator pings the server and validates that both
 application buckets can be queried.
@@ -94,8 +94,8 @@ payloads therefore require an offset, normally UTC `Z`, for example:
 
 Offset-free timestamps such as `2026-04-25T10:15:30` are rejected. Influx
 writes pass `Instant` values to the Java client with millisecond precision, and
-reads map Influx `_time` values back to `Instant`. Timestamps in bucketed query
-results come from Flux aggregate-window boundaries. The public
+reads map Influx `_time` values back to `Instant`. Interval results use aligned
+boundaries calculated by Core from the retained observations. The public
 `/api/v1/measurements/system-time` route returns the InfluxDB system time.
 
 The connector library serializes measurement `Instant` values as ISO-8601.

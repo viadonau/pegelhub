@@ -16,8 +16,9 @@ image, runtime configuration, health check, and deployment path. Start with the
 
 The implemented product scope is intentionally limited to monitoring: a filterable time-series
 overview and a single-series detail view with metadata, the most recent reading returned from a
-trailing-365-day query, and bucketed chart history. Metadata administration and other operator
-configuration workflows are not implemented. The user interface is German; source code and
+trailing-365-day query, aligned time-weighted means in a chart, and bounded raw inspection.
+Metadata administration and other operator configuration workflows are not implemented.
+The user interface is German; source code and
 technical documentation are English.
 
 ## Quick start
@@ -86,12 +87,12 @@ matching Keycloak browser origin. Core's default local realm is configured for
 
 ## Product surface
 
-| Route                     | Behavior                                                                                       |
-| ------------------------- | ---------------------------------------------------------------------------------------------- |
-| `/`                       | Redirects to `/overview`.                                                                      |
-| `/overview`               | Lists time series with context, filters, and each series' latest trailing-365-day reading.     |
-| `/overview/:timeSeriesId` | Shows one series, metadata, its latest trailing-365-day reading, and selectable chart history. |
-| `/forbidden`              | Displays the authorization error reached after a Core API `403` response.                      |
+| Route                     | Behavior                                                                                                        |
+| ------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `/`                       | Redirects to `/overview`.                                                                                       |
+| `/overview`               | Lists time series with context, filters, and each series' latest trailing-365-day reading.                      |
+| `/overview/:timeSeriesId` | Shows one series, metadata, its latest trailing-365-day reading, an interval chart, and bounded raw inspection. |
+| `/forbidden`              | Displays the authorization error reached after a Core API `403` response.                                       |
 
 Water-level detail charts can optionally show RNW and HSW reference levels when the API supplies
 them. The application also provides persistent light/dark theme selection and responsive grid

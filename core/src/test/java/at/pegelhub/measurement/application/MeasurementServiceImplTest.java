@@ -2,7 +2,6 @@ package at.pegelhub.measurement.application;
 
 import at.pegelhub.connector.domain.ConnectorId;
 import at.pegelhub.measurement.domain.Measurement;
-import at.pegelhub.measurement.domain.MeasurementBucket;
 import at.pegelhub.measurement.domain.WriteMeasurement;
 import at.pegelhub.measurement.domain.WriteMeasurements;
 import at.pegelhub.measurement.persistence.MeasurementRepository;
@@ -27,7 +26,6 @@ import org.springframework.security.access.AccessDeniedException;
 
 import java.math.BigDecimal;
 import java.time.Clock;
-import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.List;
@@ -37,6 +35,7 @@ import static at.pegelhub.shared.metadata.MetadataStatus.ACTIVE;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -259,26 +258,7 @@ final class MeasurementServiceImplTest {
     }
 
     @Test
-    void litreBucketReadsPreserveWindowsAndCountsWithoutLoadingMeasuringPoints() {
-        metadata("discharge", null);
-        var query = new MeasurementBucketQuery(
-                SERIES_ID,
-                window(),
-                MeasurementBucketResolution.explicit(new MeasurementBucketWidth(Duration.ofHours(1))),
-                LITRES_PER_SECOND);
-        when(repository.listMeasurementBuckets(query)).thenReturn(
-                List.of(new MeasurementBucket(SERIES_ID, window().from(), window().to(), 1.25, 7)));
-
-        var result = service.listMeasurementBuckets(query);
-
-        assertThat(result.unit()).isEqualTo("l/s");
-        assertThat(result.buckets()).containsExactly(
-                new MeasurementBucket(SERIES_ID, window().from(), window().to(), 1250, 7));
-        verifyNoInteractions(points);
-    }
-
-    @Test
-    void absoluteReadsAndAveragesUseCurrentCoreGaugeZeroAndPreserveCounts() {
+    void absoluteReadsUseCurrentCoreGaugeZero() {
         metadata("water-level", new BigDecimal("152.68"));
         var query = new MeasurementListQuery(
                 SERIES_ID,
@@ -294,20 +274,6 @@ final class MeasurementServiceImplTest {
         assertThat(result.measurements().getFirst().value()).isEqualTo(155.56);
         assertThat(result.unit()).isEqualTo("m");
 
-        var buckets = new MeasurementBucketQuery(
-                SERIES_ID,
-                window(),
-                MeasurementBucketResolution.explicit(
-                        new MeasurementBucketWidth(Duration.ofHours(1))),
-                METRES_ABOVE_ADRIA);
-        when(repository.listMeasurementBuckets(buckets)).thenReturn(
-                List.of(new MeasurementBucket(
-                        SERIES_ID, window().from(), window().to(), 288, 7)));
-        var bucketResult = service.listMeasurementBuckets(buckets);
-        assertThat(bucketResult.buckets().getFirst().value()).isEqualTo(155.56);
-        assertThat(bucketResult.buckets().getFirst().sampleCount()).isEqualTo(7);
-        assertThat(bucketResult.unit()).isEqualTo("m");
-
         metadata("water-level", new BigDecimal("153.68"));
         var updatedResult = service.listMeasurements(query);
         assertThat(updatedResult.measurements().getFirst().value()).isEqualTo(156.56);
@@ -318,13 +284,6 @@ final class MeasurementServiceImplTest {
         metadata("water-level", null);
         assertThatThrownBy(() -> service.listMeasurements(new MeasurementListQuery(
                 SERIES_ID, window(), MeasurementOrder.ASC, 1, METRES_ABOVE_ADRIA)))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("gauge zero");
-        assertThatThrownBy(() -> service.listMeasurementBuckets(new MeasurementBucketQuery(
-                SERIES_ID,
-                window(),
-                MeasurementBucketResolution.explicit(new MeasurementBucketWidth(Duration.ofHours(1))),
-                METRES_ABOVE_ADRIA)))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("gauge zero");
         verifyNoInteractions(repository);
@@ -345,13 +304,6 @@ final class MeasurementServiceImplTest {
                 SERIES_ID, window(), MeasurementOrder.ASC, 1, representation)))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("not supported");
-        assertThatThrownBy(() -> service.listMeasurementBuckets(new MeasurementBucketQuery(
-                SERIES_ID,
-                window(),
-                MeasurementBucketResolution.explicit(new MeasurementBucketWidth(Duration.ofHours(1))),
-                representation)))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("not supported");
         verifyNoInteractions(points, repository);
     }
 
@@ -363,6 +315,127 @@ final class MeasurementServiceImplTest {
                 SERIES_ID, window(), MeasurementOrder.ASC, 1, METRES_ABOVE_ADRIA)))
                 .isInstanceOf(AccessDeniedException.class);
         verifyNoInteractions(timeSeries, points, repository);
+    }
+
+    @Test
+    void intervalMeansCarryPredecessorAcrossWindowsAndKeepZeroValues() {
+        metadata("water-level", null);
+        Instant from = Instant.parse("2026-06-17T10:00:00Z");
+        var query = new MeasurementIntervalQuery(SERIES_ID, from, from.plusSeconds(3_600),
+                "15m", "UTC", true, CANONICAL);
+        intervalEvidence(from, query.to(),
+                new MeasurementReadRow(from.minusSeconds(600), 18, CONNECTOR_ID),
+                new MeasurementReadRow(from.plusSeconds(30), 19, CONNECTOR_ID),
+                new MeasurementReadRow(from.plusSeconds(20), 18, CONNECTOR_ID),
+                new MeasurementReadRow(from.plusSeconds(1_800), 0, CONNECTOR_ID));
+
+        var result = service.listMeasurementIntervals(query);
+
+        assertThat(result.unit()).isEqualTo("cm");
+        assertThat(result.computedAt()).isEqualTo(CLOCK.instant());
+        assertThat(result.intervals()).hasSize(4);
+        assertThat(result.intervals().get(0)).satisfies(point -> {
+            assertThat(point.mean()).isCloseTo(18.9666666667, org.assertj.core.data.Offset.offset(1e-9));
+            assertThat(point.observationCount()).isEqualTo(2);
+            assertThat(point.lastContributingObservedAt()).isEqualTo(from.plusSeconds(30));
+            assertThat(point.supportStatus()).isEqualTo("full");
+        });
+        assertThat(result.intervals().get(1)).satisfies(point -> {
+            assertThat(point.mean()).isEqualTo(19);
+            assertThat(point.observationCount()).isZero();
+            assertThat(point.lastContributingObservedAt()).isEqualTo(from.plusSeconds(30));
+            assertThat(point.supportStatus()).isEqualTo("full");
+        });
+        assertThat(result.intervals().get(2).mean()).isZero();
+        assertThat(result.intervals()).allSatisfy(point -> assertThat(point.windowStatus()).isEqualTo("closed"));
+    }
+
+    @Test
+    void intervalMeanOfOppositeFiniteExtremesStaysFinite() {
+        metadata("water-level", null);
+        Instant from = Instant.parse("2026-06-17T10:00:00Z");
+        var query = new MeasurementIntervalQuery(SERIES_ID, from, from.plusSeconds(900),
+                "15m", "UTC", true, CANONICAL);
+        intervalEvidence(from, query.to(),
+                new MeasurementReadRow(from.minusSeconds(1), Double.MAX_VALUE, CONNECTOR_ID),
+                new MeasurementReadRow(from.plusSeconds(450), -Double.MAX_VALUE, CONNECTOR_ID));
+        assertThat(service.listMeasurementIntervals(query).intervals().getFirst().mean()).isZero();
+    }
+
+    @Test
+    void intervalMeanUsesCoreAffineRepresentationConversion() {
+        metadata("discharge", null);
+        Instant from = Instant.parse("2026-06-17T10:00:00Z");
+        var query = new MeasurementIntervalQuery(SERIES_ID, from, from.plusSeconds(900),
+                "15m", "UTC", true, LITRES_PER_SECOND);
+        intervalEvidence(from, query.to(),
+                new MeasurementReadRow(from.minusSeconds(1), 18, CONNECTOR_ID),
+                new MeasurementReadRow(from.plusSeconds(450), 19, CONNECTOR_ID));
+        var result = service.listMeasurementIntervals(query);
+        assertThat(result.unit()).isEqualTo("l/s");
+        assertThat(result.intervals().getFirst().mean()).isEqualTo(18_500);
+        assertThat(result.intervals().getFirst().observationCount()).isEqualTo(1);
+    }
+
+    @Test
+    void intervalMeanUsesGaugeZeroForAbsoluteWaterLevel() {
+        metadata("water-level", new BigDecimal("152.68"));
+        Instant from = Instant.parse("2026-06-17T10:00:00Z");
+        var query = new MeasurementIntervalQuery(SERIES_ID, from, from.plusSeconds(900),
+                "15m", "UTC", true, METRES_ABOVE_ADRIA);
+        intervalEvidence(from, query.to(),
+                new MeasurementReadRow(from.minusSeconds(1), 288, CONNECTOR_ID));
+
+        var result = service.listMeasurementIntervals(query);
+
+        assertThat(result.unit()).isEqualTo("m");
+        assertThat(result.intervals().getFirst().mean()).isEqualTo(155.56);
+    }
+
+    @Test
+    void closedOnlyOmitsCurrentWindowWithoutReadingIt() {
+        metadata("water-level", null);
+        Instant from = Instant.parse("2026-06-17T12:00:00Z");
+        var query = new MeasurementIntervalQuery(SERIES_ID, from, from.plusSeconds(7_200),
+                "1h", "UTC", true, CANONICAL);
+        var result = service.listMeasurementIntervals(query);
+        assertThat(result.intervals()).hasSize(1);
+        verify(repository).listIntervalEvidence(
+                eq(SERIES_ID), argThat(window -> window.to().equals(CLOCK.instant())), eq(100_000));
+    }
+
+    @Test
+    void openWindowIsClearlyMarkedWhenRequested() {
+        metadata("water-level", null);
+        Instant from = Instant.parse("2026-06-17T13:00:00Z");
+        var query = new MeasurementIntervalQuery(SERIES_ID, from, from.plusSeconds(3_600),
+                "1h", "UTC", false, CANONICAL);
+        assertThat(service.listMeasurementIntervals(query).intervals())
+                .singleElement().satisfies(point -> {
+                    assertThat(point.windowStatus()).isEqualTo("open");
+                    assertThat(point.supportStatus()).isEqualTo("absent");
+                });
+    }
+
+    @Test
+    void intervalReadAuthorizesBeforeRepresentationAndStorage() {
+        doThrow(new AccessDeniedException("denied")).when(authorization).requireRead(SERIES_ID);
+        var query = new MeasurementIntervalQuery(SERIES_ID,
+                Instant.parse("2026-06-17T12:00:00Z"), CLOCK.instant(), "1h", "UTC", true, CANONICAL);
+        assertThatThrownBy(() -> service.listMeasurementIntervals(query)).isInstanceOf(AccessDeniedException.class);
+        verifyNoInteractions(timeSeries, points, repository);
+    }
+
+    @Test
+    void intervalReadRejectsUnsupportedRepresentationBeforeStorage() {
+        metadata("water-temperature", null);
+        var query = new MeasurementIntervalQuery(SERIES_ID,
+                Instant.parse("2026-06-17T12:00:00Z"), CLOCK.instant(),
+                "1h", "UTC", true, LITRES_PER_SECOND);
+        assertThatThrownBy(() -> service.listMeasurementIntervals(query))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("not supported");
+        verifyNoInteractions(repository);
     }
 
     private void metadata(String property, BigDecimal gaugeZero) {
@@ -382,6 +455,14 @@ final class MeasurementServiceImplTest {
                     gaugeZero,
                     null));
         }
+    }
+
+    private void intervalEvidence(Instant from, Instant to, MeasurementReadRow... rows) {
+        when(repository.listIntervalEvidence(
+                eq(SERIES_ID),
+                argThat(window -> window.from().equals(from) && window.to().equals(to)),
+                eq(100_000)))
+                .thenReturn(List.of(rows));
     }
 
     private static MeasurementWindow window() {

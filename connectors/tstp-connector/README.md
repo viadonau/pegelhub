@@ -210,8 +210,8 @@ an explicit compatibility gate to verify on each target server, not a claim
 of universal server support. Text payloads are larger than binary payloads.
 There is no automatic format fallback: it could silently reintroduce timestamp
 changes. An unconfirmed PUT fails the mapping and retains its retry window.
-Empty batches, non-finite values and the reserved gap marker are rejected
-rather than written as measurements in either format.
+Empty batches and non-finite numeric measurements are rejected. The reserved
+gap marker is emitted only for an explicit null gap value.
 
 ### Raw-data ownership and rollout gate
 
@@ -241,6 +241,47 @@ TSTP version/configuration:
 Unit tests verify connector behavior, not the actual server's layer isolation
 or post-write actions. Treat an unperformed server check as an open rollout
 gate. There is no exactly-once guarantee.
+
+### Opt-in interval time-weighted means
+
+An outbound mapping can publish Core-computed interval means instead of raw
+measurements. It still targets the mapping's existing TSTP main series; this
+option does not create or select a separate interval series. Omit
+`meanExport` for the unchanged raw path.
+
+```yaml
+timeSeriesId: "11111111-1111-1111-1111-111111111111"
+stationId: 123
+direction: "core-to-external"
+parameter: "Wasserstand"
+unit: "cm"
+meanExport:
+  interval: "15m"           # 15m, 1h, or 1d
+  timeBasis: "+01:00"       # UTC or fixed +01:00; must match server.timeOffset
+  settlingDelay: "1m"       # wait after an interval closes before publishing it
+```
+
+Core selects full, aligned, closed `[start,end)` windows and computes a
+step-based time-weighted mean. A window may have a mean even without a new
+observation when a retained earlier value supports its whole duration. Partial
+or absent support produces a gap;
+this calculation does not attest to source health or quality. The connector
+only requests, validates, and publishes the results. It sends one ordinary
+TSTP point at each interval end, including successive equal values. Unsupported
+windows are explicit TSTP gaps, not interpolated numbers.
+
+`settlingDelay` postpones the newest eligible interval; it is not a quality
+check. `polling.overlap` replays recent interval ends so late corrections can
+replace earlier output. A short connector polling cycle does not cause another
+PUT until a new interval becomes eligible. Requests are capped at 1,000 intervals
+and catch up in later polls. Fixed `+01:00` means MEZ all year, without
+daylight-saving changes.
+
+Enabling `meanExport` changes what the existing destination series receives.
+Before activation, verify gap round trips against a disposable series, stop the
+previous writer, and choose an aligned cutover. Removing `meanExport` switches
+the mapping back to raw observations; it does not stop writes or restore values
+already replaced in TSTP.
 
 ## Run the image
 
