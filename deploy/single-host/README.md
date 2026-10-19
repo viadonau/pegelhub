@@ -1,7 +1,37 @@
-# Single-host deployment
+# Single-Host Deployment
 
-Reusable Docker Compose deployment for one PegelHub host. Host-specific
-settings live outside the Git checkout:
+Run the PegelHub platform on one host using published container images. The
+base stack contains Core, PostgreSQL metadata storage, InfluxDB, Keycloak with
+its own PostgreSQL database, and Caddy. Only Caddy publishes host ports: HTTP
+`80` and HTTPS `443`. Database and management ports remain internal.
+
+The [frontend](../../frontend/README.md) is released separately into the same
+Compose project. Protocol connectors use the [connector runner](../connector/README.md)
+in separate projects. For local development, use the
+[Core development stack](../../core/README.md), not this deployment.
+
+All commands below run from the repository root **on the deployment host**.
+They can change running services unless explicitly marked as validation.
+
+## Prerequisites
+
+- Docker Engine and a current Docker Compose plugin with `up --wait` support.
+- A deployment account with Docker access and ownership of its configuration
+  and state directories; `curl` and `openssl` must be available.
+- Three distinct DNS hostnames for the frontend, Core API, and Keycloak, all
+  resolving to this host. Supply hostnames without a scheme, port, or path.
+- Available ports `80` and `443`; for automatic certificates, DNS and network
+  access must allow Caddy to obtain and renew certificates.
+- Published Core and frontend images for the intended release, plus registry
+  authentication on the host if the packages are private.
+
+The [Ansible bootstrap](../ansible/README.md) prepares the supported staging
+host layout. Other installations must prepare the directories and their
+ownership themselves.
+
+## Configuration And Storage
+
+Host-specific configuration and release records live outside the Git checkout:
 
 ```text
 /etc/pegelhub/<deployment>/
@@ -12,19 +42,51 @@ settings live outside the Git checkout:
 /var/lib/pegelhub/<deployment>/state/
 ```
 
-Set these paths before running an operational script:
+Choose one deployment name and export its paths in every operational shell.
+Replace `my-deployment` below; the staging workflow uses `staging`.
 
 ```sh
-export PEGELHUB_CONFIG_DIR=/etc/pegelhub/<deployment>
-export PEGELHUB_STATE_DIR=/var/lib/pegelhub/<deployment>/state
+export PEGELHUB_CONFIG_DIR=/etc/pegelhub/my-deployment
+export PEGELHUB_STATE_DIR=/var/lib/pegelhub/my-deployment/state
 ```
 
-Copy [`pegelhub.env.example`](pegelhub.env.example) into the configuration
-directory as `pegelhub.env`, choose a unique `COMPOSE_PROJECT_NAME`, and replace
-the example hostnames and secrets. Staging keeps
-`COMPOSE_PROJECT_NAME=pegelhub-staging` so existing named volumes are reused.
+The deployment account must be able to create and write these directories.
+Create the TLS directories even when using automatic certificates and system
+trust. Then initialize the environment from
+[`pegelhub.env.example`](pegelhub.env.example):
 
-## TLS and trust
+```sh
+mkdir -p "$PEGELHUB_CONFIG_DIR/tls/server" "$PEGELHUB_CONFIG_DIR/tls/trust" \
+  "$PEGELHUB_STATE_DIR"
+chmod 700 "$PEGELHUB_CONFIG_DIR/tls/server"
+deploy/single-host/scripts/sync-env-template.sh
+deploy/single-host/scripts/init-env-secrets.sh
+```
+
+`sync-env-template.sh` creates `pegelhub.env` when missing, or appends missing
+keys without replacing existing values. `init-env-secrets.sh` fills missing or
+placeholder database passwords, the InfluxDB token, and the Keycloak bootstrap
+admin password. It preserves initialized values and does not rotate credentials
+in existing databases. The environment file is restricted to mode `0600`.
+
+Review `pegelhub.env` before continuing:
+
+- Set a unique, stable `COMPOSE_PROJECT_NAME`. Staging uses
+  `pegelhub-staging`; changing it creates a different set of named volumes.
+- Replace all three example hostnames and `PEGELHUB_IMAGE_TAG`. Use a published
+  release tag such as `v0.1.0` or a commit tag such as `sha-42bd19b`, not `latest`.
+- Select the TLS and trust modes below. Optional `PEGELHUB_TLS_SERVER_DIR` and
+  `PEGELHUB_TRUST_DIR` values should be absolute paths.
+- Review retention: measurement and telemetry buckets default to `60d`, while
+  `INFLUX_LATEST_RANGE` defaults to `72h`. See the
+  [InfluxDB guide](../../core/docs/influxdb.md).
+
+Database contents and Caddy certificate state are held in Docker named volumes,
+not in `PEGELHUB_STATE_DIR`. The state directory contains deployment locks and
+release records, not backups. Keep configuration, private keys, credentials,
+and backup material out of Git.
+
+## TLS And Trust
 
 | Installation | `PEGELHUB_TLS_MODE` | `PEGELHUB_TRUST_MODE` |
 | --- | --- | --- |
@@ -33,7 +95,9 @@ the example hostnames and secrets. Staging keeps
 | Provided certificate and private CA | `provided` | `custom` |
 
 `automatic` uses Caddy's built-in ACME support. `provided` loads PEM bundles
-from `tls/server/current`. Install one shared SAN pair or multiple named pairs:
+from `tls/server/current`. After setting `PEGELHUB_TLS_MODE=provided`, install
+one shared SAN certificate/key pair or pass multiple named pairs in the same
+command. Together, they must cover all three configured hostnames:
 
 ```sh
 deploy/single-host/scripts/install-certificates.sh \
@@ -41,54 +105,122 @@ deploy/single-host/scripts/install-certificates.sh \
   /private/incoming/shared.privkey.pem
 ```
 
-The installer checks expiration, hostname coverage, and matching private keys,
-replaces the current bundles, and reloads Caddy when it is already running.
+Input names must match `<name>.fullchain.pem` and `<name>.privkey.pem`. The
+installer checks expiration, hostname coverage, and matching private keys,
+replaces the installed set, and reloads Caddy when it is already running.
+Provided certificates require operator-managed renewal; rerun the installer
+with the complete replacement set when rotating them.
 
 `custom` adds the `*.crt` files in the platform's `tls/trust` directory to the
-Core Java truststore. Each independently deployed connector uses its own
-`trust/` directory. Managed browsers must trust the company CA through the
-company's normal device configuration. Certificates and CA roots are never
-committed.
+Core Java truststore without removing the image's public roots. Each
+independently deployed connector uses its own `trust/` directory. Managed
+browsers must trust the company CA through the company's normal device
+configuration. Certificates and CA roots are never committed. See
+[Java container trust](../../docker/README.md) for certificate format and restart
+requirements.
 
-## Operations
+## First Installation
 
-The operational metadata catalog uses a clean Flyway V1 baseline. Before its
-first deployment, reset the PostgreSQL metadata and InfluxDB measurement volumes
-together as described in the [Flyway guide](../../core/docs/flyway.md).
+Core initializes an empty metadata database through Flyway. When replacing an
+older metadata schema, read the [Flyway guide](../../core/docs/flyway.md) first:
+measurement records refer to metadata UUIDs, so a destructive reset of metadata
+also requires a coordinated measurement reset unless an ID-preserving migration
+is planned. **Do not reset existing volumes as a routine deployment step.**
+Back up data that must be retained before any migration or deliberate reset.
 
-Initialize missing environment keys and server-generated secrets:
-
-```sh
-deploy/single-host/scripts/sync-env-template.sh
-deploy/single-host/scripts/init-env-secrets.sh
-```
-
-Validate or deploy a backend image:
-
-```sh
-deploy/single-host/scripts/deploy.sh --check sha-<short-sha>
-deploy/single-host/scripts/deploy.sh sha-<short-sha>
-deploy/single-host/scripts/deploy.sh --rollback
-```
-
-Deploy the independently released frontend:
+1. Prepare configuration, secrets, TLS, and trust as described above.
+2. Validate the intended Core image tag without pulling images or changing
+   services. Replace the example tag with an image that has been published:
 
 ```sh
-deploy/single-host/scripts/deploy-frontend.sh \
-  ghcr.io/viadonau/pegelhub-frontend@sha256:<64-lowercase-hex>
+deploy/single-host/scripts/deploy.sh --check sha-42bd19b
 ```
 
-For a new or deliberately emptied Keycloak database, stop Keycloak and run:
+The check validates selected environment constraints and Compose structure. It
+does not verify credentials, registry availability, DNS, live TLS, or application
+readiness.
+
+3. For a **new or deliberately emptied Keycloak database**, run the offline
+   bootstrap while Keycloak is stopped:
 
 ```sh
 deploy/single-host/scripts/bootstrap-keycloak.sh
 ```
 
-## Browser user onboarding and recovery
+The bootstrap starts the Keycloak database, imports the realm only when absent,
+and starts Keycloak. It refuses to run while Keycloak is active and never resets
+the database. The seed contains the API and browser clients, roles, and the
+monitoring group, but no browser users or connector service clients. Routine
+deployment does not import or update realm settings.
+
+4. Deploy the platform using the validated tag:
+
+```sh
+deploy/single-host/scripts/deploy.sh sha-42bd19b
+```
+
+This pulls platform images, starts the stack, runs smoke checks, and records
+the Core tag after success. The frontend hostname can return `503` until its
+separate release is installed.
+
+5. Deploy the frontend by its published digest. Replace the placeholder in this
+   quoted reference with the actual 64-character lowercase SHA-256 digest:
+
+```sh
+deploy/single-host/scripts/deploy-frontend.sh \
+  'ghcr.io/viadonau/pegelhub-frontend@sha256:<64-lowercase-hex>'
+```
+
+6. Onboard browser users below. Enroll and configure connectors separately using
+   the [connector runner guide](../connector/README.md).
+
+## Updates, Rollback, And Health
+
+For a platform update, synchronize missing environment keys, review newly added
+values, validate the desired image tag, and run `deploy.sh` with that tag. The
+script preserves the separately managed frontend. It records release tags in
+`$PEGELHUB_STATE_DIR/current-release.env`; it does not update the image tag in
+`pegelhub.env`.
+
+To force a Keycloak restart after changing its mounted login theme:
+
+```sh
+deploy/single-host/scripts/deploy.sh --refresh-keycloak sha-42bd19b
+```
+
+This recreates Keycloak without importing or overwriting realm settings. A
+normal deployment does not force its recreation.
+
+Backend and frontend rollbacks are separate operations:
+
+| Target | Command | Scope |
+| --- | --- | --- |
+| Core | `deploy/single-host/scripts/deploy.sh --rollback` | Deploys the previous successfully recorded Core tag and reruns platform smoke checks. |
+| Frontend | `deploy/single-host/scripts/deploy-frontend.sh --rollback` | Restores the previous digest recorded in `frontend-release.env`. |
+
+These commands require a recorded previous release. They do not restore
+database contents, realm settings, checkout files, or configuration. Backend
+deployment does not automatically roll back on failure. Frontend deployment
+attempts to restore the last successful frontend release if activation or smoke
+checks fail; a failed first frontend release is removed.
+
+Run the platform checks independently:
+
+```sh
+deploy/single-host/scripts/smoke.sh
+```
+
+The smoke script checks TLS for all three hostnames, the public API system-time
+route, Keycloak issuer discovery, and internal Core and Keycloak health. It
+checks the frontend page only when a frontend container is running. It does
+not test user sign-in or connector ingestion end to end.
+
+## Browser User Onboarding And Recovery
 
 PegelHub uses Keycloak temporary passwords for user onboarding and
-administrator-assisted recovery. SMTP is not configured, so **Forgot password**
-must remain disabled and Keycloak must not be expected to send reset links.
+administrator-assisted recovery. The committed deployment does not configure
+SMTP. Keep **Forgot password** disabled until an approved SMTP route is
+configured; without it, Keycloak cannot send reset links.
 
 In the `pegelhub` realm of the Keycloak Admin Console:
 
@@ -115,7 +247,8 @@ process. If brute-force protection has temporarily locked the account, clear
 that user's login failures in the Admin Console before delivery. The
 password-change page logs out other Keycloak sessions and invalidates their
 refresh tokens by default. Already issued Core API access tokens are stateless
-and can remain valid for their remaining lifetime, which is at most 10 minutes.
+and can remain valid for their remaining lifetime. The committed realm seed
+sets that lifetime to 10 minutes; verify it separately on existing realms.
 Do not set a permanent password on a user's behalf. Treat suspected account
 compromise as an incident rather than ordinary forgotten-password recovery.
 
@@ -132,7 +265,7 @@ The committed realm seed applies the following policy only to new realms:
   and permanent lockout is disabled.
 - Self-service password reset is disabled until an approved SMTP route exists.
 
-Realm import never overwrites the persistent staging realm. For an existing
+Realm import never overwrites an existing realm. For an existing
 installation, configure those settings once in the Admin Console, add current
 browser users to `/monitoring-users`, and then remove their duplicate direct
 `metadata:read` and `measurement:read` mappings after verifying their effective
@@ -141,22 +274,3 @@ Password** is enabled but is not a default action. Under **Realm settings** >
 **User registration** > **Default groups**, verify that `/monitoring-users` is
 absent. Existing passwords remain valid until they are next changed. Do not
 rerun the offline bootstrap as an update mechanism.
-
-Deploy this theme change with:
-
-```sh
-deploy/single-host/scripts/deploy.sh --refresh-keycloak <image-tag>
-```
-
-`--refresh-keycloak` recreates Keycloak so its production theme caches reload;
-it preserves the database and does not import or overwrite realm settings. A
-normal deployment without that option does not force Keycloak recreation.
-
-Run route and internal health checks independently with:
-
-```sh
-deploy/single-host/scripts/smoke.sh
-```
-
-Connector workloads use the shared runner in [`../connector`](../connector/)
-and are deployed separately from the platform stack.
