@@ -1,26 +1,29 @@
-# IEC connector
+# IEC 60870-5-104 Connector
 
 The IEC connector exchanges measurements with an IEC 60870-5-104 server. A
 mapping binds one IEC information object address (IOA) to one Core time series
 and selects the transfer direction.
 
-## Build
+## Build and Test
 
-From the repository root:
+Use JDK 21 and Maven 3.9 for tests, and Docker for the image build. Run from the
+repository root:
 
 ```bash
 mvn -B -ntp -pl connectors/iec-connector -am test
 scripts/build-connector-image.sh iec-connector
 ```
 
-The image is tagged `pegelhub-iec-connector:local`.
+The image is tagged `pegelhub-iec-connector:local`. The image build compiles the
+application itself but skips tests, so run both commands when validating a change.
 
 ## Configure
 
 The first command-line argument selects the configuration directory; containers
 default to `/app/config`. The directory must contain `connector.yaml` and at
 least one mapping YAML file. See [`examples/config/`](examples/config/) for the
-complete shape.
+complete shape. Configuration is loaded once at startup; restart after editing
+it. YAML does not expand environment variables.
 
 Create a private working copy outside the repository:
 
@@ -33,45 +36,16 @@ chmod 700 "$CONFIG_ROOT/iec-connector"
 chmod 600 "$CONFIG_ROOT/iec-connector/connector.yaml"
 ```
 
-`connector.yaml` defines the Core URL and client-credentials authentication, a
-positive polling interval ending in `s`, `m`, or `h`, and the IEC server
-`host`, `port`, and `commonAddress`. `mappings.directory` defaults to
-`mappings`.
+| Configuration key | Meaning |
+| --- | --- |
+| `core.baseUrl` | Core application root URL, with a trailing `/` |
+| `core.authentication` | `tokenUrl`, `clientId`, and `clientSecret` for client-credentials access |
+| `polling.interval` | Required positive duration for both transfer jobs, such as `30s`; accepts `s`, `m`, or `h` |
+| `mappings.directory` | Mapping directory relative to the config root; defaults to `mappings` |
+| `iec.server` | Required `host`, `port`, and positive `commonAddress` |
+| `ingestion.mode` | Inbound selection: `all` (default) or `latest` |
 
-### Optional latest-value ingestion
-
-By default, every received inbound measurement is forwarded at `polling.interval`.
-To store only the last received value per IOA at each poll, set `ingestion.mode`
-to `latest`. For a five-minute polling interval:
-
-```yaml
-polling:
-  interval: 5m
-ingestion:
-  mode: latest
-```
-
-`ingestion` requires only `mode` (`all` or `latest`). Omitting the section
-preserves the existing behavior: `all` at `polling.interval`. There is no separate
-ingestion interval. Selection affects only IEC -> Core, but `polling.interval`
-still controls both transfer directions: setting it to `5m` also makes Core -> IEC
-send every five minutes. Connection recovery keeps its independent schedule.
-
-Both modes keep the existing first poll one second after runtime startup. Later
-polls run `polling.interval` after the previous job completes, not at
-wall-clock-aligned five-minute boundaries. Each drain in `latest` mode selects
-the last received reading per IOA since the preceding drain. It preserves that
-reading's receipt timestamp and
-value; this is a snapshot, not an average, and intermediate changes/peaks are
-intentionally discarded. No new reading means no new snapshot. A newly received
-unchanged value is still a reading and is forwarded with its receipt timestamp.
-
-Selection occurs before adding snapshots to the pending retry batches. Failed
-snapshots are retained alongside snapshots from later intervals, so a successful
-retry can send more than one snapshot per IOA. This reduces Core writes and stored
-points, not traffic from the IEC server: received values remain in memory until
-the next drain. Existing history is not changed. Deploy an image supporting this
-section before enabling it; older images reject unknown configuration fields.
+### Mappings and Units
 
 Example mapping:
 
@@ -90,7 +64,8 @@ Outbound mappings may set `outputRepresentation: metres-above-adria` for water
 level or `outputRepresentation: litres-per-second` for discharge. The default is
 `canonical`. Core performs the conversion and must confirm the representation
 and unit in its response; IEC forwards the result without further conversion.
-Inbound units are declared on the Core source assignment, not on this mapping.
+Inbound units are declared on the Core source assignment, not on this mapping;
+non-canonical `outputRepresentation` values are rejected for inbound mappings.
 
 The former `gaugeZeroElevationMAboveAdria` mapping field is no longer accepted.
 Set the gauge zero on the Core measuring point and replace that mapping field
@@ -104,14 +79,24 @@ inbound values or `measurement:read` for outbound values.
 The client also needs the registration and resource grants described in the
 [library authorization prerequisites](../library/#core-authorization-prerequisites).
 
-## Transfer behavior
+## Transfer Behavior
+
+The runtime uses separate workers for inbound transfer, outbound transfer, and
+connection recovery. Both transfer jobs first run one second after startup;
+later runs start one `polling.interval` after that job finishes. They are not
+aligned to wall-clock boundaries.
+
+### Connection Recovery
 
 IEC connection recovery runs immediately and then every 10 seconds after the
 previous attempt completes, without a retry limit. An unavailable IEC server or
 temporary DNS failure does not block connector startup. Closed or stopped
-connections are replaced with a 10-second TCP-connect timeout and j60870's existing protocol timers;
-successful connections perform the startup interrogation again. Recovery does
-not depend on measurements changing. Shutdown stops further connection attempts.
+connections are replaced using a 10-second TCP-connect timeout and j60870's
+protocol timers; successful connections perform the startup interrogation again.
+Recovery does not depend on measurements changing. Shutdown stops further
+connection attempts.
+
+### IEC to Core
 
 For `external-to-core`, the IEC listener accepts short-float `M_ME_NC_1` and
 `M_ME_TF_1` values only for configured inbound IOAs. It stamps them with the
@@ -122,6 +107,27 @@ Each poll merges the received queue into one in-memory pending
 batch per IOA and attempts each batch independently. Failed submissions remain
 pending for a later poll; they are lost if the connector process stops before a
 successful retry.
+
+By default, `ingestion.mode: all` sends every queued reading. To retain only the
+last received value per IOA from each drain, configure:
+
+```yaml
+polling:
+  interval: 5m
+ingestion:
+  mode: latest
+```
+
+`latest` preserves the selected value and receipt timestamp, not an average;
+intermediate changes and peaks are discarded. No received reading means no
+snapshot, while a newly received unchanged value still produces a snapshot.
+Failed snapshots remain in the retry batch alongside later snapshots, so a
+retry can send more than one value per IOA. Selection happens at drain time and
+does not reduce incoming IEC traffic or the receive queue before that drain.
+There is no separate ingestion interval: `5m` above also changes the outbound
+job's delay. Existing Core history is unchanged.
+
+### Core to IEC
 
 For `core-to-external`, each poll reads the latest Core value within the shared
 client's fixed 365-day search window and sends it as an `M_ME_NC_1` short float.
@@ -134,7 +140,7 @@ workers. Pending measurements remain memory-only and can be lost on restart.
 Pending data can grow without a bound during prolonged Core outages. Outbound
 failures are isolated per IOA; a failing mapping does not skip the remaining ones.
 
-## Run the image
+## Run the Image
 
 ```bash
 CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/pegelhub/iec-connector"
@@ -150,7 +156,9 @@ reachable from inside the connector container.
 For Compose-based deployments, use the
 [shared connector runner](../../deploy/connector/).
 
-## Protocol dependency
+## Protocol Dependency
 
 The implementation uses [OpenMUC j60870](https://www.openmuc.org/j60870/),
-currently versioned in this module's `pom.xml`.
+with its version declared in this module's [pom.xml](pom.xml). The connector
+opens a plain TCP connection; it does not configure TLS or IEC security
+extensions. Deploy it on a protected protocol network.

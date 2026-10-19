@@ -1,33 +1,19 @@
-# PH Return-Series Watchdog
+# PegelHub Return-Series Watchdog
 
-A small, independently deployed Java 21 process watches the age of **one existing return series**
-and sends SNMP ERR/OK events. It reads Core directly, without QA or notifications. There is no
-generator, measurement write, frontend, HTTP server, broker, or external database.
-The existing `e2e-watchdog` artifact/image name is retained. Nothing here deploys production monitoring.
+A standalone Java 21 process monitors the age of **one existing return series**
+in PegelHub Core and sends SNMP error/recovery events. A return series is the time
+series populated at the end of the data route being monitored. The watchdog reads
+that series; it does not generate probes, write measurements, or validate values.
 
-## Code Layout
+The artifact and container image use the name `e2e-watchdog`. The process needs
+Core and Keycloak access, one or two SNMP receivers, and a persistent local SQLite
+state directory. It has no frontend, HTTP server, broker, or external database.
+It runs independently of Core and the connectors and is not deployed by their
+delivery workflows.
 
-Packages under `src/main/java/at/pegelhub/watchdog` are grouped by responsibility:
-
-```text
-WatchdogApplication.java     CLI entry point, sequential loop, and wiring
-Json.java                    Shared state/diagnostic JSON encoding
-config/
-  WatchdogConfig.java        Validated settings, route identity, and secret-file access
-  ConfigurationFailure.java Safe configuration errors for the CLI
-monitoring/
-  Watchdog.java              Read Core and record the evaluated result
-  Checks.java                Pure freshness rules
-  CheckState.java            Result and ERR/OK mapping
-state/
-  StateStore.java            Durable watchdog state, restart rules, and health
-  SqliteStateStorage.java    Package-private SQLite and file lifecycle
-snmp/
-  SnmpPublisher.java         Event publication and receiver retries
-```
-
-Tests mirror `monitoring`, `state`, and `snmp`. Their shared configuration lives in
-`WatchdogFixtures`; protocol simulators remain test-only under `lab`.
+For a self-contained demonstration, use the
+[two-Core fault lab](lab/README.md). For an existing route, start with
+[configuration and access](#configuration-and-access), then [running](#running).
 
 ## Exact Behavior
 
@@ -47,8 +33,8 @@ consecutive-failure count. Default polling is every 15 seconds **after** the pre
 HTTP connect/response limits are 5/10 seconds.
 
 A successful fresh read is the only recovery evidence. Failed reads never give an OK or
-acknowledge an existing error. A freshly read old point remains stale. Unlike the former synthetic
-check, there is no per-probe deadline or requirement for a probe generated after the failure.
+acknowledge an existing error. A freshly read old point remains stale. There is
+no per-probe deadline or requirement for a probe generated after the failure.
 
 ### What This Proves
 
@@ -84,10 +70,14 @@ Use an administrator only for provisioning through the existing supported APIs:
 [Lab bootstrap](lab/bootstrap.py) demonstrates this with real Keycloak and Core.
 The watchdog uses the shared client's latest read:
 `GET /api/v1/time-series/{id}/measurements?last=365d&order=desc&limit=1&representation=canonical`.
-Existing connector client defaults and Core behavior remain unchanged.
+If this trailing-365-day query returns no point, the result is `no_measurement`;
+the watchdog does not search older history.
 
-Mount configuration and secret files read-only, readable by UID 10001. Secrets are read at startup,
-never written to SQLite or returned in status. Restart after changing configuration or rotating secrets.
+Mount configuration and secret files read-only, readable by UID 10001. The example
+expects `core-client`, `snmp-auth`, and `snmp-privacy` secret files under
+`/run/secrets`. SNMPv3 passphrases must contain at least eight characters. Secrets
+are read at startup, never written to SQLite or returned in status. Restart after
+changing configuration or rotating secrets.
 
 ## State and Runtime
 
@@ -135,10 +125,16 @@ publication failures, the clock watermark, and SNMP engine identity/boot count a
 
 ## Running
 
+Run build commands from the repository root. Host-side tests require Java 21 and
+Maven 3.9; the Docker build supplies its own toolchain. Before starting the
+container, prepare `/etc/pegelhub/watchdog/watchdog.yaml` and the secret directory
+using the settings above. All example URLs, IDs, OIDs, and receiver addresses
+must be replaced; `silenceSeconds: 0` deliberately prevents an unconfigured run.
+
 ```sh
 mvn -B -ntp -pl tools/e2e-watchdog -am verify
 docker build -f tools/e2e-watchdog/Dockerfile -t pegelhub-e2e-watchdog:local .
-docker run --name ph-watchdog --stop-timeout 45 --read-only --tmpfs /tmp:exec,size=32m \
+docker run -d --name ph-watchdog --stop-timeout 45 --read-only --tmpfs /tmp:exec,size=32m \
   -v return-watchdog-state:/var/lib/pegelhub-watchdog \
   -v /etc/pegelhub/watchdog:/app/config:ro \
   -v /etc/pegelhub/watchdog-secrets:/run/secrets:ro pegelhub-e2e-watchdog:local
@@ -148,7 +144,12 @@ docker exec ph-watchdog java -cp '/app/watchdog.jar:/app/lib/*' at.pegelhub.watc
 
 `run [config]` defaults to `/app/config/watchdog.yaml`; `WATCHDOG_STATE_DIR` overrides the state path.
 SQLite JDBC needs an executable `/tmp` to load its native library. The root filesystem stays read-only.
-The shared Java entrypoint supports the repository's custom CA trust configuration.
+The shared Java entrypoint supports the repository's
+[custom CA trust configuration](../../docker/README.md). Core, Keycloak, and the
+SNMP receivers must be reachable from inside the container; `localhost` there
+does not refer to the Docker host. Use `docker logs ph-watchdog` for startup
+failures and `docker stop ph-watchdog` for a graceful stop. The named state volume
+survives container removal; preserve it when replacing the container.
 
 `status` is sanitized schema-2 JSON containing the check, loop/publication progress, and public
 `snmpEngine.id` (hex) / `boots`. `health` exits nonzero for unavailable/unowned state,
@@ -175,7 +176,7 @@ PH_WATCHDOG version=1 id=dhk-callisto status=ERR reason=stale evaluatedAt=2026-0
 `fresh` is recovery. Match the exact `id` and `status=ERR|OK`, not incidental words in the message.
 OID examples use the documentation enterprise number and must be replaced with agreed receiver OIDs.
 
-Publication follows the Bauer event-only agreement:
+Publication is event-only:
 
 - Healthy startup emits nothing. The first failing check emits ERR, even on startup.
 - ERR is followed by OK only after a successful fresh check. Reasons changing within ERR do not resend it.
@@ -197,16 +198,42 @@ Automated tests cover boundary times, unchanged values, failed reads, restart/cl
 ownership and rollback, throttled loop heartbeats, shutdown, per-receiver retries, and actual
 v2c/v3 UDP decoding. A real-process test exercises Core read failure, ERR/OK publication, and shutdown
 with an in-flight read against local HTTP and SNMP fixtures.
-Keep tests focused on alarm, health, and recovery behavior rather than retired state formats or
-threading details. Shared connector-client behavior is tested in the library, not duplicated here.
-The separate `Watchdog Image` workflow validates Compose and runtime health; its optional publish
-input selects only this image and never deploys it. Full two-stack fault CI remains deferred.
+Shared connector-client behavior is tested in the library. The separate
+[Watchdog Image workflow](../../.github/workflows/watchdog.yml) validates Compose
+and runtime health on relevant pull requests and manual runs. Its optional
+`publish` input publishes only this image and never deploys it. Full two-stack
+fault testing is manual, not part of CI.
 
 Use the [manual lab checklist](lab/README.md). Before production agree the exact return series,
 exclusive full route, preserved timestamps, emission/poll cadence, maximum age, OIDs/message matching,
 receiver addresses/ports, engine ID, secret exchange, and external monitoring responsibilities.
 
-The linked Bauer discussion specifies two receivers and SHA-256/AES-256, but the mentioned
-UDP 161 versus 162 still needs explicit confirmation. Test decoding and both ERR/OK interpretations
-with the real receivers under separate approval. Local simulations do not establish the production
-Callisto route or receiver interoperability. No production changes are included.
+Confirm receiver ports explicitly; the example's UDP port 162 is not evidence
+of a particular installation's configuration. Test decoding and both ERR/OK
+interpretations with the intended receivers before operational use. The local
+lab proves behavior against fixtures, not the availability of a deployed route
+or interoperability with a production receiver.
+
+## Code Layout
+
+Packages under `src/main/java/at/pegelhub/watchdog` are grouped by responsibility:
+
+```text
+WatchdogApplication.java     CLI entry point, sequential loop, and wiring
+Json.java                    Shared state/diagnostic JSON encoding
+config/
+  WatchdogConfig.java        Validated settings, route identity, and secret-file access
+  ConfigurationFailure.java Safe configuration errors for the CLI
+monitoring/
+  Watchdog.java              Read Core and record the evaluated result
+  Checks.java                Pure freshness rules
+  CheckState.java            Result and ERR/OK mapping
+state/
+  StateStore.java            Durable watchdog state, restart rules, and health
+  SqliteStateStorage.java    Package-private SQLite and file lifecycle
+snmp/
+  SnmpPublisher.java         Event publication and receiver retries
+```
+
+Tests mirror `monitoring`, `state`, and `snmp`. Their shared configuration lives in
+`WatchdogFixtures`; protocol simulators remain test-only under `lab`.
